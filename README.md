@@ -120,3 +120,7 @@ as `fallbackMediaPath`.
 
 See [`PLAN.md`](./PLAN.md) for the architecture, security boundaries, future
 phases, and acceptance criteria.
+
+See [`AUTHENTICATION_PLAN.md`](./AUTHENTICATION_PLAN.md) for the proposed
+individual-account, administrator-approval, and media-session authorization
+flow.
