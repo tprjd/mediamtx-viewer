@@ -1,0 +1,22 @@
+services:
+  viewer:
+    build:
+      context: .
+      args:
+        MEDIAMTX_HLS_URL: http://host.docker.internal:8888
+        MEDIAMTX_WEBRTC_URL: http://host.docker.internal:8889
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      MEDIAMTX_API_URL: http://host.docker.internal:9997
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - feedboard
+
+networks:
+  feedboard:
+    external: true
+    name: feedboard_feedboard-net

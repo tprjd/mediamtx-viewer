@@ -1,0 +1,22 @@
+viewer.example.com {
+	encode zstd gzip
+
+	# Media is sent from MediaMTX to viewers without passing through Next.js.
+	handle_path /media/hls/* {
+		reverse_proxy host.docker.internal:8888
+	}
+
+	handle_path /media/whep/* {
+		reverse_proxy host.docker.internal:8889
+	}
+
+	handle {
+		reverse_proxy viewer:3000
+	}
+}
+
+# Keep Feedboard separate from the public viewer experience. For a home setup,
+# prefer making this hostname reachable only over the LAN or a private VPN.
+admin.example.com {
+	reverse_proxy feedboard:80
+}
