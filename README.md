@@ -101,10 +101,14 @@ docker compose up -d --build
 The development compose file binds the viewer to `127.0.0.1:3000`. It reaches
 the host MediaMTX listeners through `host.docker.internal`.
 
-For public deployment, put Caddy in front using
+For public deployment, the reproducible Oracle Cloud stack is documented in
+[`deploy/oracle/README.md`](./deploy/oracle/README.md). Its OpenTofu module
+creates the VM, reserved IP, and restricted network, while Docker Compose runs
+Caddy, MediaMTX, and the viewer together. For another hosting provider, use
 [`deploy/Caddyfile.example`](./deploy/Caddyfile.example) as a starting point.
-Caddy should send `/media/hls/*` and `/media/whep/*` directly to MediaMTX and
-send all other viewer traffic to Next.js. Keep Feedboard on a separate private
+
+Caddy sends `/media/hls/*` and `/media/whep/*` directly to MediaMTX and sends
+all other viewer traffic to Next.js. Keep Feedboard on a separate private
 hostname or make it LAN/VPN-only.
 
 ## Codec compatibility

@@ -6,3 +6,11 @@ test-results
 .git
 .env*
 npm-debug.log*
+
+# deployment state and secrets must never enter an image layer
+/deploy/oracle/secrets
+**/.terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+tfplan*

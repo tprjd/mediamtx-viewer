@@ -10,9 +10,20 @@
 /playwright-report
 /test-results
 
+# Terraform / OpenTofu
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+tfplan*
+
 # local configuration
 .env*
 !.env.example
+deploy/oracle/secrets/
 
 # misc
 .DS_Store

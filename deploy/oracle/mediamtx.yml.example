@@ -1,0 +1,50 @@
+logLevel: info
+logDestinations: [stdout]
+
+authMethod: internal
+authInternalUsers:
+  - user: publisher
+    pass: REPLACE_WITH_A_STRONG_PUBLISHER_PASSWORD
+    ips: []
+    permissions:
+      - action: publish
+        path: live
+  - user: any
+    pass:
+    ips: ["172.28.0.0/24", "127.0.0.1", "::1"]
+    permissions:
+      - action: read
+        path: live
+      - action: playback
+        path: live
+      - action: api
+
+api: true
+apiAddress: :9997
+metrics: false
+pprof: false
+playback: false
+
+rtsp: false
+rtmp: false
+srt: false
+moq: false
+
+hls: true
+hlsAddress: :8888
+hlsEncryption: false
+hlsAllowOrigins: ["https://frankerzspam.duckdns.org"]
+hlsVariant: lowLatency
+
+webrtc: true
+webrtcAddress: :8889
+webrtcEncryption: false
+webrtcAllowOrigins: ["https://frankerzspam.duckdns.org"]
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: ""
+webrtcIPsFromInterfaces: false
+webrtcAdditionalHosts: ["158.180.29.172"]
+
+paths:
+  live:
+    source: publisher

@@ -1,0 +1,75 @@
+name: mediamtx-viewer
+
+services:
+  caddy:
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    env_file:
+      - ./secrets/caddy.env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      mediamtx:
+        condition: service_started
+      viewer:
+        condition: service_healthy
+    networks:
+      - viewer_net
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  mediamtx:
+    image: bluenviron/mediamtx:1.20.1
+    restart: unless-stopped
+    ports:
+      - "8189:8189/udp"
+    volumes:
+      - ./secrets/mediamtx.yml:/mediamtx.yml:ro
+    networks:
+      - viewer_net
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  viewer:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        MEDIAMTX_HLS_URL: http://mediamtx:8888
+        MEDIAMTX_WEBRTC_URL: http://mediamtx:8889
+    restart: unless-stopped
+    environment:
+      MEDIAMTX_API_URL: http://mediamtx:9997
+    depends_on:
+      - mediamtx
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/channels"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - viewer_net
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  viewer_net:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+
+volumes:
+  caddy_data:
+  caddy_config:

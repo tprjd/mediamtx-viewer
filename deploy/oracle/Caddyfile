@@ -1,0 +1,42 @@
+{
+	servers {
+		protocols h1 h2
+	}
+}
+
+{$PUBLIC_HOSTNAME} {
+	encode zstd gzip
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		Permissions-Policy "camera=(), geolocation=(), microphone=()"
+	}
+
+	@viewer_access not path /publish/whep/*
+	basic_auth @viewer_access {
+		{$VIEWER_USERNAME} {$VIEWER_PASSWORD_HASH}
+	}
+
+	handle_path /publish/whep/* {
+		reverse_proxy mediamtx:8889
+	}
+
+	handle_path /media/hls/* {
+		reverse_proxy mediamtx:8888 {
+			header_up -Authorization
+		}
+	}
+
+	handle_path /media/whep/* {
+		reverse_proxy mediamtx:8889 {
+			header_up -Authorization
+		}
+	}
+
+	handle {
+		reverse_proxy viewer:3000
+	}
+}
