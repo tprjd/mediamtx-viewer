@@ -21,7 +21,9 @@
 	}
 
 	handle_path /publish/whep/* {
-		reverse_proxy mediamtx:8889
+		reverse_proxy mediamtx:8889 {
+			header_down Location ^/(.*)$ /publish/whep/$1
+		}
 	}
 
 	handle_path /media/hls/* {
@@ -33,6 +35,7 @@
 	handle_path /media/whep/* {
 		reverse_proxy mediamtx:8889 {
 			header_up -Authorization
+			header_down Location ^/(.*)$ /media/whep/$1
 		}
 	}
 

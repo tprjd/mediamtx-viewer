@@ -19,7 +19,7 @@ fi
 
 ssh "$deploy_target" "mkdir -p '$remote_dir/deploy/oracle/secrets'"
 
-rsync -az \
+rsync -az --inplace \
   --exclude .git \
   --exclude node_modules \
   --exclude .next \
@@ -34,7 +34,7 @@ rsync -az \
   --exclude 'deploy/oracle/terraform/tfplan*' \
   "$project_dir/" "$deploy_target:$remote_dir/"
 
-rsync -az "$script_dir/secrets/" "$deploy_target:$remote_dir/deploy/oracle/secrets/"
+rsync -az --inplace "$script_dir/secrets/" "$deploy_target:$remote_dir/deploy/oracle/secrets/"
 
 ssh "$deploy_target" "cd '$remote_dir' && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml config --quiet && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml up -d --build && docker compose -f deploy/oracle/docker-compose.yml restart mediamtx && docker compose -f deploy/oracle/docker-compose.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile"
 
