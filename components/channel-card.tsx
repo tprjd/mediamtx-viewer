@@ -1,4 +1,4 @@
-import { ArrowUpRight, Gamepad2 } from 'lucide-react'
+import { ArrowUpRight } from 'lucide-react'
 import Link from 'next/link'
 
 import { StatusBadge } from '@/components/status-badge'
@@ -9,8 +9,11 @@ interface ChannelCardProps {
 }
 
 export function ChannelCard({ channel }: ChannelCardProps) {
+  const initial = channel.displayName.trim().charAt(0).toUpperCase() || '•'
+
   return (
     <Link
+      aria-label={`Watch ${channel.displayName} — ${channel.title}, ${channel.status.state}`}
       className="channel-card group"
       href={`/watch/${encodeURIComponent(channel.slug)}`}
       style={{ '--accent': channel.accentColor } as React.CSSProperties}
@@ -21,28 +24,24 @@ export function ChannelCard({ channel }: ChannelCardProps) {
           <img alt="" className="size-full object-cover" src={channel.poster} />
         ) : (
           <div className="channel-card-placeholder">
-            <Gamepad2 className="size-10" aria-hidden="true" />
+            <span aria-hidden="true">{initial}</span>
           </div>
         )}
         <div className="absolute left-4 top-4">
           <StatusBadge compact state={channel.status.state} />
         </div>
       </div>
-      <div className="flex items-start justify-between gap-4 p-5">
-        <div className="min-w-0">
-          <p className="truncate text-xs font-medium uppercase tracking-[0.16em] text-neutral-500">
+      <div className="channel-card-details">
+        <div>
+          <p className="channel-owner">
             {channel.displayName}
           </p>
-          <h2 className="mt-1 truncate text-lg font-semibold text-white">
-            {channel.title}
-          </h2>
+          <h3>{channel.title}</h3>
           {channel.description && (
-            <p className="mt-2 line-clamp-2 text-sm leading-6 text-neutral-400">
-              {channel.description}
-            </p>
+            <p className="channel-card-description">{channel.description}</p>
           )}
         </div>
-        <span className="mt-1 rounded-full border border-white/10 p-2 text-neutral-400 transition group-hover:border-white/20 group-hover:text-white">
+        <span className="channel-card-arrow" aria-hidden="true">
           <ArrowUpRight className="size-4" aria-hidden="true" />
         </span>
       </div>

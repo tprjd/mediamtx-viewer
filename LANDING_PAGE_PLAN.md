@@ -1,9 +1,27 @@
 # Watch-First Landing Page Plan
 
-> Status: planned, not implemented.
+> Status: implemented and deployed on 2026-08-30.
 >
 > Scope: redesign the authenticated `/` page as the friend group's channel
 > dashboard. The login and registration pages remain separate.
+
+## Release status
+
+The watch-first dashboard is live at `https://frankerzspam.duckdns.org/`.
+Implementation includes the featured-live layout, quiet/unavailable/empty
+states, deterministic CSS channel artwork, live-first sorting, synchronized
+polling, last-known-status preservation, conditional streamer/admin shortcuts,
+and responsive header navigation.
+
+Verified before and after deployment:
+
+- type checking, linting, and production builds pass;
+- 36 unit, integration, and component tests pass;
+- 14 desktop/mobile Playwright tests pass, including a 320-pixel overflow check;
+- desktop, mobile, offline, and simulated-live states were visually inspected;
+- the Oracle viewer is healthy and the authenticated live page renders the new
+  dashboard, account-specific shortcuts, and current channel state;
+- the landing page creates no WebRTC or HLS connection.
 
 ## Goal
 

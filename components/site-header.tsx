@@ -1,7 +1,26 @@
 import { RadioTower } from 'lucide-react'
 import Link from 'next/link'
+import { Suspense } from 'react'
 
 import { UserMenu } from '@/components/auth/user-menu'
+import { getActiveSession } from '@/lib/auth/session'
+import { getOwnedChannel } from '@/lib/channels'
+
+async function AccountNavigation() {
+  const session = await getActiveSession()
+  const hasOwnedChannel = session
+    ? Boolean(getOwnedChannel(session.user.id))
+    : false
+
+  return (
+    <UserMenu
+      hasOwnedChannel={hasOwnedChannel}
+      user={
+        session ? { name: session.user.name, role: session.user.role } : null
+      }
+    />
+  )
+}
 
 export function SiteHeader() {
   return (
@@ -12,7 +31,9 @@ export function SiteHeader() {
         </span>
         <span>Home Stream</span>
       </Link>
-      <UserMenu />
+      <Suspense fallback={null}>
+        <AccountNavigation />
+      </Suspense>
     </header>
   )
 }

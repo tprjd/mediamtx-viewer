@@ -3,8 +3,27 @@ import { expect, test } from '@playwright/test'
 test('shows the channel directory', async ({ page }) => {
   await page.goto('/')
 
-  await expect(page.getByRole('heading', { name: 'Pull up a chair.' })).toBeVisible()
-  await expect(page.getByRole('link', { name: /Main channel/ })).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'What are we watching?' }),
+  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'All channels' })).toBeVisible()
+  await expect(
+    page.getByRole('link', { name: /Watch Main channel — Live stream/ }),
+  ).toBeVisible()
+})
+
+test('keeps the watch dashboard inside a 320px viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 760 })
+  await page.goto('/')
+
+  await expect(
+    page.getByRole('heading', { name: 'What are we watching?' }),
+  ).toBeVisible()
+  const sizes = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }))
+  expect(sizes.scrollWidth).toBeLessThanOrEqual(sizes.clientWidth)
 })
 
 test('opens a stable watch URL', async ({ page }) => {
@@ -47,6 +66,8 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
   await page.getByRole('button', { name: 'Sign in' }).click()
 
   await expect(page.getByRole('heading', { name: 'Main channel' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'My channel' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Admin' })).toBeVisible()
   await expect(page.getByText('/watch/live')).toBeVisible()
   page.once('dialog', (dialog) => dialog.accept())
   await page
