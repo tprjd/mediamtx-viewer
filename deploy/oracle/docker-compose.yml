@@ -49,7 +49,7 @@ services:
     restart: unless-stopped
     environment:
       MEDIAMTX_API_URL: http://mediamtx:9997
-      MEDIAMTX_RTSP_URL: rtsp://mediamtx:8554
+      MEDIAMTX_HLS_URL: http://mediamtx:8888
       THUMBNAIL_DIR: /thumbnails
       THUMBNAIL_INITIAL_DELAY_SECONDS: 5
       THUMBNAIL_INTERVAL_SECONDS: 180

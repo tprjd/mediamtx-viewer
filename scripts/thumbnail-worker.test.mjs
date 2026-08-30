@@ -39,10 +39,13 @@ describe('thumbnail worker', () => {
     const arguments_ = ffmpegArguments(
       'channels/my-friend',
       '/thumbnails/.temporary.jpg',
-      'rtsp://mediamtx:8554/',
+      'http://mediamtx:8888/',
     )
 
-    expect(arguments_).toContain('rtsp://mediamtx:8554/channels/my-friend')
+    expect(arguments_).toContain(
+      'http://mediamtx:8888/channels/my-friend/index.m3u8',
+    )
+    expect(arguments_).toContain('1.0')
     expect(arguments_).toContain('1')
     expect(arguments_.at(-1)).toBe('/thumbnails/.temporary.jpg')
   })

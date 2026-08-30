@@ -104,8 +104,8 @@ docker compose up -d --build
 
 The development compose file binds the viewer to `127.0.0.1:3000`. It reaches
 the host MediaMTX listeners through `host.docker.internal`. Its thumbnail worker
-requires the host MediaMTX RTSP listener on port 8554, captures one 640×360 JPEG
-five seconds after a channel becomes live, and refreshes it every three minutes.
+uses the host MediaMTX HLS listener on port 8888, captures one 640×360 JPEG five
+seconds after a channel becomes live, and refreshes it every three minutes.
 
 For public deployment, the reproducible Oracle Cloud stack is documented in
 [`deploy/oracle/README.md`](./deploy/oracle/README.md). Its OpenTofu module
@@ -122,10 +122,11 @@ Keep Feedboard on a separate private hostname or make it LAN/VPN-only.
 
 The thumbnail worker is separate from both Next.js and MediaMTX. It polls the
 private Control API for live application-owned paths and decodes a single frame
-through MediaMTX's private TCP-only RTSP listener. JPEGs are written atomically
-to a persistent shared volume; the last successful image remains when a stream
-ends. The channel API includes a versioned thumbnail URL only after a file
-exists, so cards retain their generated CSS artwork until the first capture.
+through MediaMTX's private HLS listener. This path handles late-joining AV1
+streams more reliably than RTSP. JPEGs are written atomically to a persistent
+shared volume; the last successful image remains when a stream ends. The channel
+API includes a versioned thumbnail URL only after a file exists, so cards retain
+their generated CSS artwork until the first capture.
 
 Thumbnail requests use the same Caddy account boundary as the rest of the site.
 Landing-page browsers download only the JPEG and do not open WebRTC or HLS

@@ -30,16 +30,16 @@ export function encodedMediaPath(mediaPath) {
   return mediaPath.split('/').map(encodeURIComponent).join('/')
 }
 
-export function ffmpegArguments(mediaPath, temporaryPath, rtspOrigin) {
+export function ffmpegArguments(mediaPath, temporaryPath, hlsOrigin) {
   return [
     '-nostdin',
     '-hide_banner',
     '-loglevel',
     'error',
-    '-rtsp_transport',
-    'tcp',
+    '-max_error_rate',
+    '1.0',
     '-i',
-    `${rtspOrigin.replace(/\/$/, '')}/${encodedMediaPath(mediaPath)}`,
+    `${hlsOrigin.replace(/\/$/, '')}/${encodedMediaPath(mediaPath)}/index.m3u8`,
     '-map',
     '0:v:0',
     '-frames:v',
@@ -100,7 +100,7 @@ async function runFfmpeg(arguments_, timeoutMilliseconds) {
 async function captureThumbnail({
   mediaPath,
   outputDirectory,
-  rtspOrigin,
+  hlsOrigin,
   timeoutMilliseconds,
 }) {
   const filename = thumbnailFileName(mediaPath)
@@ -111,7 +111,7 @@ async function captureThumbnail({
   )
   try {
     await runFfmpeg(
-      ffmpegArguments(mediaPath, temporary, rtspOrigin),
+      ffmpegArguments(mediaPath, temporary, hlsOrigin),
       timeoutMilliseconds,
     )
     await rename(temporary, destination)
@@ -124,7 +124,7 @@ async function captureThumbnail({
 
 export async function runThumbnailWorker() {
   const apiOrigin = process.env.MEDIAMTX_API_URL ?? 'http://mediamtx:9997'
-  const rtspOrigin = process.env.MEDIAMTX_RTSP_URL ?? 'rtsp://mediamtx:8554'
+  const hlsOrigin = process.env.MEDIAMTX_HLS_URL ?? 'http://mediamtx:8888'
   const outputDirectory = process.env.THUMBNAIL_DIR ?? '/thumbnails'
   const intervalMilliseconds =
     positiveInteger(process.env.THUMBNAIL_INTERVAL_SECONDS, 180) * 1_000
@@ -175,7 +175,7 @@ export async function runThumbnailWorker() {
           await captureThumbnail({
             mediaPath,
             outputDirectory,
-            rtspOrigin,
+            hlsOrigin,
             timeoutMilliseconds,
           })
           nextCapture.set(mediaPath, Date.now() + intervalMilliseconds)

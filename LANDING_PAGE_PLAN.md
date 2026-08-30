@@ -22,7 +22,7 @@ Verified before and after deployment:
 - the Oracle viewer is healthy and the authenticated live page renders the new
   dashboard, account-specific shortcuts, and current channel state;
 - the landing page creates no WebRTC or HLS connection.
-- the Oracle thumbnail worker is deployed with a private RTSP listener and a
+- the Oracle thumbnail worker is deployed with a private HLS connection and a
   persistent image volume; local MediaMTX integration captures passed with both
   H.264 and AV1 sources. The first production JPEG will be created during the
   next broadcast because the channel was offline at deployment.
