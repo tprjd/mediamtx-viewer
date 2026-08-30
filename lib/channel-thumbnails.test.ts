@@ -42,16 +42,30 @@ describe('channel thumbnails', () => {
     )
   })
 
-  it('keeps an explicitly configured poster', async () => {
-    const { channelThumbnailUrl } = await import('@/lib/channel-thumbnails')
+  it('shows retained captures only while live', async () => {
+    const { channelPosterUrl } = await import('@/lib/channel-thumbnails')
+    const channel = {
+      slug: 'my-friend',
+      mediaPath: 'channels/my-friend',
+    }
+
+    expect(channelPosterUrl(channel, false, testDirectory)).toBeUndefined()
+    expect(channelPosterUrl(channel, true, testDirectory)).toMatch(
+      /^\/api\/channels\/my-friend\/thumbnail\?v=\d+$/,
+    )
+  })
+
+  it('keeps an explicitly configured poster while offline', async () => {
+    const { channelPosterUrl } = await import('@/lib/channel-thumbnails')
 
     expect(
-      channelThumbnailUrl(
+      channelPosterUrl(
         {
           slug: 'my-friend',
           mediaPath: 'channels/my-friend',
           poster: '/configured.jpg',
         },
+        false,
         testDirectory,
       ),
     ).toBe('/configured.jpg')

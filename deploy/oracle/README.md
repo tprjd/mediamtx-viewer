@@ -68,8 +68,9 @@ ssh ubuntu@SERVER_IP 'cd /home/ubuntu/mediamtx-viewer && docker compose --env-fi
 Caddy certificate data, the SQLite authentication database, and derived channel
 thumbnails survive container recreation in named volumes. The worker takes its
 first 640×360 JPEG five seconds after a stream appears and refreshes it every
-three minutes. Its HLS and Control API connections remain private to the Docker
-network. Logs rotate at 10 MiB with three files per container.
+three minutes. Retained JPEGs are shown only while their channel is live. Its HLS
+and Control API connections remain private to the Docker network. Logs rotate at
+10 MiB with three files per container.
 
 Back up SQLite online and encrypt the result with a base64-encoded 32-byte key:
 

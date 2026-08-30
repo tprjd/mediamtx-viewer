@@ -270,7 +270,8 @@ live-dot pulse that is disabled under `prefers-reduced-motion`.
 
 - No video, WebRTC, HLS, or animated canvas is opened by a landing-page browser.
 - A private FFmpeg worker may decode one 640×360 frame per live channel at start
-  and every three minutes; the final JPEG is retained after the stream ends.
+  and every three minutes; the final JPEG is retained after the stream ends but
+  is not displayed while the channel is offline.
 - Keep the existing single batched MediaMTX status request.
 - Use CSS artwork until user-uploaded channel images have a storage design.
 - Avoid a new UI framework or animation dependency.

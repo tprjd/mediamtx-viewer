@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { getChannels } from '@/lib/channels'
-import { channelThumbnailUrl } from '@/lib/channel-thumbnails'
+import { channelPosterUrl } from '@/lib/channel-thumbnails'
 import { getChannelStatuses } from '@/lib/mediamtx'
 import { toPublicChannel } from '@/lib/public-channel'
 import type { ChannelsResponse } from '@/lib/types'
@@ -16,13 +16,14 @@ export async function GET(): Promise<NextResponse<ChannelsResponse>> {
 
   return NextResponse.json(
     {
-      channels: configuredChannels.map((channel) =>
-        toPublicChannel(
+      channels: configuredChannels.map((channel) => {
+        const status = statuses.get(channel.mediaPath)!
+        return toPublicChannel(
           channel,
-          statuses.get(channel.mediaPath)!,
-          channelThumbnailUrl(channel),
-        ),
-      ),
+          status,
+          channelPosterUrl(channel, status.live),
+        )
+      }),
       updatedAt: new Date().toISOString(),
     },
     {

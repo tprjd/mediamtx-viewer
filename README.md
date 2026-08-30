@@ -124,9 +124,10 @@ The thumbnail worker is separate from both Next.js and MediaMTX. It polls the
 private Control API for live application-owned paths and decodes a single frame
 through MediaMTX's private HLS listener. This path handles late-joining AV1
 streams more reliably than RTSP. JPEGs are written atomically to a persistent
-shared volume; the last successful image remains when a stream ends. The channel
-API includes a versioned thumbnail URL only after a file exists, so cards retain
-their generated CSS artwork until the first capture.
+shared volume; the last successful image remains when a stream ends but is shown
+only while that channel is live. The channel API includes a versioned thumbnail
+URL only after a file exists, so cards retain their generated CSS artwork until
+the first capture and whenever the channel is offline.
 
 Thumbnail requests use the same Caddy account boundary as the rest of the site.
 Landing-page browsers download only the JPEG and do not open WebRTC or HLS

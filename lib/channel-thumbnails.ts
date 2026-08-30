@@ -20,11 +20,9 @@ export function channelThumbnailPath(
 }
 
 export function channelThumbnailUrl(
-  channel: Pick<Channel, 'slug' | 'mediaPath' | 'poster'>,
+  channel: Pick<Channel, 'slug' | 'mediaPath'>,
   root = thumbnailRoot,
 ): string | undefined {
-  if (channel.poster) return channel.poster
-
   try {
     const metadata = statSync(channelThumbnailPath(channel.mediaPath, root))
     if (!metadata.isFile()) return undefined
@@ -32,4 +30,13 @@ export function channelThumbnailUrl(
   } catch {
     return undefined
   }
+}
+
+export function channelPosterUrl(
+  channel: Pick<Channel, 'slug' | 'mediaPath' | 'poster'>,
+  live: boolean,
+  root = thumbnailRoot,
+): string | undefined {
+  if (channel.poster) return channel.poster
+  return live ? channelThumbnailUrl(channel, root) : undefined
 }
