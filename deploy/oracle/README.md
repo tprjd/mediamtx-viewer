@@ -6,16 +6,23 @@ entry point.
 
 ## One-time secret setup
 
-Create `secrets/caddy.env` from `caddy.env.example` and
-`secrets/mediamtx.yml` from `mediamtx.yml.example`. These files are ignored by
-Git and by the Docker build context.
+Create `secrets/caddy.env` from `caddy.env.example`, `secrets/admin.env` from
+`admin.env.example`, and `secrets/mediamtx.yml` from `mediamtx.yml.example`.
+These files are ignored by Git and by the Docker build context.
 
-Generate two independent strong passwords:
+Generate independent strong secrets:
 
-- Viewer password: hash it with `caddy hash-password`; put only the hash in
-  `caddy.env` and keep the plaintext in a password manager.
+- `BETTER_AUTH_SECRET` and `INTERNAL_AUTH_SECRET`: generate each with
+  `openssl rand -hex 32` and put them in `caddy.env`.
+- Initial administrator: set username, email, display name, and a password of
+  at least 15 characters in `admin.env`. Bootstrap is skipped after an active
+  administrator exists.
 - Publisher password: put it in `mediamtx.yml`; OBS uses the bearer token
   `publisher:<password>`.
+
+The old viewer username and bcrypt hash remain in `caddy.env` only so
+`Caddyfile.basic-auth` can be restored during rollback. Account auth does not
+use them.
 
 ## Deploy
 
@@ -26,9 +33,10 @@ From the repository root:
 ```
 
 The script copies the source and ignored runtime secrets, validates the Compose
-model, builds the viewer on the ARM VM, restarts MediaMTX so configuration
-changes take effect, and reloads Caddy. This briefly interrupts an active
-stream. It does not delete unrelated remote files or change DNS.
+model, builds the viewer on the ARM VM, applies versioned SQLite migrations,
+creates the first administrator when needed, restarts MediaMTX, and reloads
+Caddy. This briefly interrupts an active stream. It does not delete unrelated
+remote files, the auth volume, or DNS.
 
 ## DNS and OBS
 
@@ -41,16 +49,34 @@ Configure OBS Custom WHIP service with:
 - Server: `https://frankerzspam.duckdns.org/publish/whep/live/whip`
 - Bearer token: `publisher:<publisher-password>`
 
-The viewer is `https://frankerzspam.duckdns.org/` and uses the shared Caddy
-Basic Auth username `gigachad` plus the generated viewer password.
+The viewer is `https://frankerzspam.duckdns.org/`. Sign in with the bootstrap
+administrator, open registration temporarily at `/admin/users`, and activate
+each friend after they register.
 
 ## Operations
 
 ```sh
-ssh ubuntu@SERVER_IP 'cd /home/ubuntu/mediamtx-viewer && docker compose -f deploy/oracle/docker-compose.yml ps'
-ssh ubuntu@SERVER_IP 'cd /home/ubuntu/mediamtx-viewer && docker compose -f deploy/oracle/docker-compose.yml logs --tail=100'
+ssh ubuntu@SERVER_IP 'cd /home/ubuntu/mediamtx-viewer && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml ps'
+ssh ubuntu@SERVER_IP 'cd /home/ubuntu/mediamtx-viewer && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml logs --tail=100'
 ```
 
-Caddy certificate data survives container recreation in named volumes. Logs
-rotate at 10 MiB with three files per container. To rotate credentials, update
-the ignored secret files locally and run `deploy.sh` again.
+Caddy certificate data and the SQLite authentication database survive
+container recreation in named volumes. Logs rotate at 10 MiB with three files
+per container.
+
+Back up SQLite online and encrypt the result with a base64-encoded 32-byte key:
+
+```sh
+docker compose --env-file deploy/oracle/secrets/caddy.env \
+  -f deploy/oracle/docker-compose.yml exec -T \
+  -e AUTH_BACKUP_KEY='...' viewer node scripts/backup-auth.mjs
+```
+
+Set `AUTH_BACKUP_DIR` to persistent storage; the script retains the latest
+seven files. Test restore with `scripts/restore-auth.mjs` while the viewer is
+stopped. The restore command keeps replaced database files beside the restored
+copy.
+
+To roll back the access boundary, copy `Caddyfile.basic-auth` over
+`Caddyfile` on the VM and reload Caddy. Do not delete `auth_data`; keep the
+account database intact for another attempt.

@@ -1,14 +1,16 @@
 'use client'
 
 import { AlertTriangle, LoaderCircle, Radio, Waves } from 'lucide-react'
+import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { PlaybackStats } from '@/components/playback-stats'
 import { useChannelStatus } from '@/hooks/use-channel-status'
+import { authClient } from '@/lib/auth/client'
 import type { PublicChannel } from '@/lib/types'
 
-type PlaybackState = 'loading' | 'playing' | 'reconnecting' | 'error'
+type PlaybackState = 'loading' | 'playing' | 'reconnecting' | 'unauthorized' | 'error'
 
 interface ReaderOptions {
   url: string
@@ -143,7 +145,16 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
           onError: () => {
             if (!active) return
             setPlaybackState('reconnecting')
-            scheduleFallback()
+            void authClient.getSession().then(({ data }) => {
+              if (!active) return
+              if (!data) {
+                reader?.close()
+                clearTimeout(fallbackTimer)
+                setPlaybackState('unauthorized')
+                return
+              }
+              scheduleFallback()
+            })
           },
           onTrack: (event) => {
             if (!active) return
@@ -228,6 +239,20 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
                 </span>
                 <h2>Stream offline</h2>
                 <p>This page will start checking again automatically.</p>
+              </div>
+            ) : playbackState === 'unauthorized' ? (
+              <div className="player-message">
+                <span className="player-icon player-icon-warning">
+                  <AlertTriangle className="size-6" aria-hidden="true" />
+                </span>
+                <h2>Session expired</h2>
+                <p>Sign in again to continue watching.</p>
+                <Link
+                  className={buttonVariants({ size: 'sm', variant: 'secondary' })}
+                  href={`/login?returnTo=${encodeURIComponent(`/watch/${channel.slug}`)}`}
+                >
+                  Sign in
+                </Link>
               </div>
             ) : playbackState === 'error' ? (
               <div className="player-message">

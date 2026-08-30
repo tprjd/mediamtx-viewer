@@ -20,6 +20,21 @@ describe('normalizeMediaMtxPath', () => {
       tracks: ['AV1', 'MPEG-4 Audio'],
     })
   })
+
+  it('accepts null timestamps for a configured offline path', () => {
+    expect(
+      normalizeMediaMtxPath({
+        name: 'live',
+        ready: false,
+        readyTime: null,
+        available: false,
+        availableTime: null,
+        online: false,
+        onlineTime: null,
+        tracks: [],
+      }),
+    ).toMatchObject({ state: 'offline', live: false, startedAt: null })
+  })
 })
 
 describe('getChannelStatus', () => {

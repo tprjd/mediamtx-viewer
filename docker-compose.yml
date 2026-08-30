@@ -9,7 +9,14 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
+      AUTH_DB_PATH: /data/auth.sqlite
+      AUTH_BACKUP_DIR: /data/backups
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-development-only-secret-change-before-production}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-development-only-secret-change-before-production}
       MEDIAMTX_API_URL: http://host.docker.internal:9997
+    volumes:
+      - auth_data:/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -20,3 +27,6 @@ networks:
   feedboard:
     external: true
     name: feedboard_feedboard-net
+
+volumes:
+  auth_data:

@@ -17,6 +17,8 @@ separate private administration interface.
 - Share action, mobile layout, reduced-motion support, and useful 404 pages
 - Unit/component tests, Playwright flows, and production Docker image
 - Example Caddy routing that keeps media bytes out of Next.js
+- Better Auth username accounts with administrator approval and SQLite sessions
+- One authenticated boundary for pages, APIs, HLS, and WHEP through Caddy
 
 WebRTC is the low-latency default, with HLS as an automatic compatibility
 fallback. Custom video controls remain intentionally deferred.
@@ -28,6 +30,9 @@ the default local ports.
 
 ```sh
 npm install
+npm run auth:migrate
+# One time only; use a strong password of at least 15 characters.
+ADMIN_USERNAME=power ADMIN_EMAIL=david05202@gmail.com ADMIN_PASSWORD='...' npm run auth:bootstrap
 npm run dev
 ```
 
@@ -44,6 +49,8 @@ MEDIAMTX_WEBRTC_URL=http://127.0.0.1:8889
 ```
 
 Copy `.env.example` to `.env.local` only when those origins differ.
+Registration starts closed. Sign in as the bootstrap administrator, open it on
+`/admin/users`, and activate each new account after registration.
 
 ## Configure channels
 
@@ -107,9 +114,10 @@ creates the VM, reserved IP, and restricted network, while Docker Compose runs
 Caddy, MediaMTX, and the viewer together. For another hosting provider, use
 [`deploy/Caddyfile.example`](./deploy/Caddyfile.example) as a starting point.
 
-Caddy sends `/media/hls/*` and `/media/whep/*` directly to MediaMTX and sends
-all other viewer traffic to Next.js. Keep Feedboard on a separate private
-hostname or make it LAN/VPN-only.
+Caddy validates the Better Auth session before sending `/media/hls/*` and
+`/media/whep/*` directly to MediaMTX. OBS publishing continues to use its
+separate MediaMTX bearer token. Keep Feedboard on a separate private hostname
+or make it LAN/VPN-only.
 
 ## Codec compatibility
 
@@ -121,6 +129,6 @@ as `fallbackMediaPath`.
 See [`PLAN.md`](./PLAN.md) for the architecture, security boundaries, future
 phases, and acceptance criteria.
 
-See [`AUTHENTICATION_PLAN.md`](./AUTHENTICATION_PLAN.md) for the proposed
+See [`AUTHENTICATION_PLAN.md`](./AUTHENTICATION_PLAN.md) for the implemented
 individual-account, administrator-approval, and media-session authorization
-flow.
+architecture.

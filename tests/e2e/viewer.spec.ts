@@ -21,3 +21,19 @@ test('returns a useful page for unknown channels', async ({ page }) => {
     page.getByRole('heading', { name: 'That channel does not exist.' }),
   ).toBeVisible()
 })
+
+test('shows username login without a shared browser prompt', async ({ page }) => {
+  await page.goto('/login')
+
+  await expect(page.getByRole('heading', { name: 'Welcome back.' })).toBeVisible()
+  await expect(page.getByLabel('Username')).toBeVisible()
+  await expect(page.getByLabel('Password')).toBeVisible()
+})
+
+test('keeps public registration closed by default', async ({ page }) => {
+  await page.goto('/register')
+
+  await expect(
+    page.getByRole('heading', { name: 'Registration is closed.' }),
+  ).toBeVisible()
+})

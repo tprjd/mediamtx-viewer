@@ -2,11 +2,13 @@
 
 import Hls, { ErrorDetails, ErrorTypes } from 'hls.js'
 import { AlertTriangle, LoaderCircle, Radio, RotateCcw } from 'lucide-react'
+import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { PlaybackStats } from '@/components/playback-stats'
 import { useChannelStatus } from '@/hooks/use-channel-status'
+import { authClient } from '@/lib/auth/client'
 import type { PublicChannel } from '@/lib/types'
 
 type PlaybackState =
@@ -14,6 +16,7 @@ type PlaybackState =
   | 'loading'
   | 'playing'
   | 'reconnecting'
+  | 'unauthorized'
   | 'unsupported'
   | 'error'
 
@@ -66,6 +69,9 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
     }
     const handleWaiting = () => setPlaybackState('reconnecting')
     const handleVideoError = () => {
+      void authClient.getSession().then(({ data }) => {
+        if (!data) setPlaybackState('unauthorized')
+      })
       if (video.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
         clearTimeout(codecErrorTimer)
         codecErrorTimer = setTimeout(() => {
@@ -117,6 +123,12 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
       hls.on(Hls.Events.MANIFEST_PARSED, beginPlayback)
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (!data.fatal) return
+
+        if (data.response?.code === 401 || data.response?.code === 403) {
+          setPlaybackState('unauthorized')
+          hls?.destroy()
+          return
+        }
 
         if (isCodecError(data.details)) {
           setPlaybackState('unsupported')
@@ -251,6 +263,22 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
                 <RotateCcw className="size-3.5" aria-hidden="true" />
                 Try again
               </Button>
+            </div>
+          )}
+
+          {visibleState === 'unauthorized' && (
+            <div className="player-message">
+              <span className="player-icon player-icon-warning">
+                <AlertTriangle className="size-6" aria-hidden="true" />
+              </span>
+              <h2>Session expired</h2>
+              <p>Sign in again to continue watching.</p>
+              <Link
+                className={buttonVariants({ size: 'sm', variant: 'secondary' })}
+                href={`/login?returnTo=${encodeURIComponent(`/watch/${channel.slug}`)}`}
+              >
+                Sign in
+              </Link>
             </div>
           )}
           </div>

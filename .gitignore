@@ -4,6 +4,7 @@
 # next.js
 /.next
 /out
+/.data
 
 # testing
 /coverage

@@ -80,6 +80,439 @@ a {
   border-bottom: 1px solid var(--line);
 }
 
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.user-menu a,
+.user-menu button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.65rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: #a1a1aa;
+  font: inherit;
+  font-size: 0.75rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.user-menu a:hover,
+.user-menu button:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+}
+
+.auth-layout {
+  display: grid;
+  width: min(100% - 2rem, 34rem);
+  min-height: calc(100vh - 4.5rem);
+  margin-inline: auto;
+  place-items: center;
+  padding-block: 3rem 6rem;
+}
+
+.auth-card {
+  width: 100%;
+  padding: clamp(1.5rem, 5vw, 2.5rem);
+  border: 1px solid var(--line);
+  border-radius: 1.35rem;
+  background: rgba(17, 17, 20, 0.82);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(18px);
+}
+
+.auth-card > h1,
+.account-layout h1,
+.admin-heading h1 {
+  margin: 0.65rem 0 0;
+  font-size: clamp(2rem, 8vw, 3.4rem);
+  font-weight: 620;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+
+.auth-card > p:not(.eyebrow, .auth-footnote),
+.account-layout > section:first-child > p:last-child,
+.admin-heading p {
+  margin: 1rem 0 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.auth-card-centered {
+  text-align: center;
+}
+
+.auth-icon {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: 0 auto 1.25rem;
+  place-items: center;
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  border-radius: 1rem;
+  background: rgba(139, 92, 246, 0.12);
+  color: #c4b5fd;
+}
+
+.auth-icon svg {
+  width: 1.4rem;
+}
+
+.auth-form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.7rem;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.auth-form label > span {
+  color: #d4d4d8;
+  font-size: 0.78rem;
+  font-weight: 620;
+}
+
+.auth-form input {
+  width: 100%;
+  min-height: 2.8rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 0.65rem;
+  outline: none;
+  background: #09090b;
+  color: white;
+  font: inherit;
+}
+
+.auth-form input:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.14);
+}
+
+.auth-form small {
+  color: #71717a;
+  font-size: 0.7rem;
+}
+
+.auth-form button {
+  min-height: 2.8rem;
+  margin-top: 0.25rem;
+}
+
+.form-error,
+.error-banner {
+  color: #fca5a5 !important;
+}
+
+.form-message,
+.form-success,
+.notice-banner {
+  color: #86efac;
+}
+
+.auth-footnote {
+  margin: 1.35rem 0 0;
+  color: #71717a;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.auth-footnote a,
+.text-link {
+  color: #c4b5fd;
+  text-decoration: none;
+}
+
+.account-layout,
+.admin-layout {
+  width: min(100% - 2rem, 90rem);
+  margin-inline: auto;
+  padding-block: 4rem 7rem;
+}
+
+.account-layout {
+  display: grid;
+  max-width: 48rem;
+  gap: 1.5rem;
+}
+
+.account-panel {
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(17, 17, 20, 0.68);
+}
+
+.account-panel h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.account-panel > p {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.account-session-list {
+  display: grid;
+  gap: 0.7rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-session-list li {
+  color: #d4d4d8;
+  font-size: 0.8rem;
+}
+
+.account-session-list small {
+  display: block;
+  margin-top: 0.2rem;
+  color: #71717a;
+}
+
+.admin-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-bottom: 2.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.registration-control {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.notice-banner,
+.error-banner,
+.reset-banner {
+  margin: 1.5rem 0 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  background: rgba(17, 17, 20, 0.85);
+  font-size: 0.8rem;
+}
+
+.reset-banner {
+  border-color: rgba(167, 139, 250, 0.25);
+}
+
+.reset-banner p {
+  overflow-wrap: anywhere;
+  color: #c4b5fd;
+}
+
+.reset-banner small {
+  color: var(--muted);
+}
+
+.user-group,
+.audit-section {
+  margin-top: 3rem;
+}
+
+.user-group-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.user-group-heading svg {
+  width: 1rem;
+  color: #a78bfa;
+}
+
+.user-group-heading h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.user-group-heading > span {
+  display: grid;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.user-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 28rem), 1fr));
+  gap: 1rem;
+}
+
+.user-card {
+  padding: 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(17, 17, 20, 0.72);
+}
+
+.user-card-heading,
+.user-title-line {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.user-title-line {
+  justify-content: start;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.user-card h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.user-card-heading p,
+.user-meta {
+  margin: 0.3rem 0 0;
+  color: #71717a;
+  font-size: 0.72rem;
+}
+
+.role-badge,
+.activation-badge {
+  padding: 0.25rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.role-badge {
+  background: rgba(139, 92, 246, 0.15);
+  color: #c4b5fd;
+}
+
+.activation-active {
+  background: rgba(52, 211, 153, 0.12);
+  color: #6ee7b7;
+}
+
+.activation-pending {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fcd34d;
+}
+
+.activation-disabled {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.admin-actions form {
+  display: flex;
+  align-items: end;
+  gap: 0.55rem;
+}
+
+.checkbox-label {
+  display: flex;
+  max-width: 10rem;
+  align-items: center;
+  gap: 0.4rem;
+  color: #a1a1aa;
+  font-size: 0.65rem;
+  line-height: 1.35;
+}
+
+.session-list {
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line);
+  color: #a1a1aa;
+  font-size: 0.72rem;
+}
+
+.session-list summary {
+  cursor: pointer;
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.6rem;
+}
+
+.session-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-row small {
+  display: block;
+  color: #71717a;
+}
+
+.empty-state {
+  margin: 0;
+  padding: 1.2rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.8rem;
+  color: #71717a;
+  font-size: 0.8rem;
+}
+
+.audit-list {
+  border-top: 1px solid var(--line);
+}
+
+.audit-list p {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  margin: 0;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line);
+  color: #a1a1aa;
+  font-size: 0.75rem;
+}
+
+.audit-list time {
+  color: #52525b;
+}
+
 .brand {
   display: inline-flex;
   align-items: center;
@@ -377,7 +810,8 @@ a {
   line-height: 1.6;
 }
 
-.player-message button {
+.player-message button,
+.player-message > a {
   margin-top: 1.1rem;
 }
 
@@ -406,6 +840,32 @@ a {
 }
 
 @media (max-width: 700px) {
+  .user-menu a {
+    font-size: 0;
+  }
+
+  .user-menu a svg {
+    width: 1rem;
+  }
+
+  .user-menu button {
+    font-size: 0;
+  }
+
+  .admin-heading,
+  .registration-control {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .registration-control {
+    width: 100%;
+  }
+
+  .audit-list p {
+    grid-template-columns: 1fr;
+    gap: 0.3rem;
+  }
   .hero {
     min-height: 28rem;
     flex-direction: column;

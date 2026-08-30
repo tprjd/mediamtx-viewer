@@ -15,9 +15,11 @@
 		Permissions-Policy "camera=(), geolocation=(), microphone=()"
 	}
 
-	@viewer_access not path /publish/whep/*
-	basic_auth @viewer_access {
-		{$VIEWER_USERNAME} {$VIEWER_PASSWORD_HASH}
+	@account_protected not path /login /register /registration-pending /reset-password /api/auth/* /api/internal/authorize /_next/* /favicon.ico /publish/whep/*
+
+	forward_auth @account_protected viewer:3000 {
+		uri /api/internal/authorize
+		header_up X-Internal-Auth {$INTERNAL_AUTH_SECRET}
 	}
 
 	handle_path /publish/whep/* {
@@ -29,12 +31,14 @@
 	handle_path /media/hls/* {
 		reverse_proxy mediamtx:8888 {
 			header_up -Authorization
+			header_up -Cookie
 		}
 	}
 
 	handle_path /media/whep/* {
 		reverse_proxy mediamtx:8889 {
 			header_up -Authorization
+			header_up -Cookie
 			header_down Location ^/(.*)$ /media/whep/$1
 		}
 	}

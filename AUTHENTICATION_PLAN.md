@@ -1,7 +1,8 @@
 # Account Authentication and Approval Plan
 
-> Status: proposed implementation. The deployed Caddy Basic Auth remains in
-> place until every account-auth acceptance test passes.
+> Status: implemented and deployed. The account flow passed its live smoke
+> test; the original Basic Auth Caddyfile remains available as an operational
+> rollback file.
 
 ## Objective
 
@@ -423,7 +424,7 @@ The shared Basic Auth can be retired when all of these are true:
 - Typecheck, lint, unit/component tests, production build, Compose validation,
   and Playwright flows pass on the production architecture.
 
-## Decisions needed before implementation
+## Decisions applied
 
 Recommended defaults are shown first:
 
@@ -439,8 +440,8 @@ Recommended defaults are shown first:
 - Keep SQLite until multiple application replicas or materially higher traffic
   require PostgreSQL.
 
-Before implementation, choose the initial administrator username/email and
-confirm whether collecting user email is acceptable for the friend group.
+The initial administrator is provisioned from an ignored deployment secret,
+and registration collects an email address plus username for the friend group.
 
 ## Primary references
 

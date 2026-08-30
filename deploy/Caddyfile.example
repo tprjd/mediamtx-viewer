@@ -1,13 +1,26 @@
 viewer.example.com {
 	encode zstd gzip
 
+	@public path /login /register /registration-pending /reset-password /api/auth/* /_next/*
+	@protected not path /login /register /registration-pending /reset-password /api/auth/* /api/internal/authorize /_next/*
+	forward_auth @protected viewer:3000 {
+		uri /api/internal/authorize
+		header_up X-Internal-Auth {$INTERNAL_AUTH_SECRET}
+	}
+
 	# Media is sent from MediaMTX to viewers without passing through Next.js.
 	handle_path /media/hls/* {
-		reverse_proxy host.docker.internal:8888
+		reverse_proxy host.docker.internal:8888 {
+			header_up -Authorization
+			header_up -Cookie
+		}
 	}
 
 	handle_path /media/whep/* {
-		reverse_proxy host.docker.internal:8889
+		reverse_proxy host.docker.internal:8889 {
+			header_up -Authorization
+			header_up -Cookie
+		}
 	}
 
 	handle {

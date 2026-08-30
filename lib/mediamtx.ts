@@ -9,9 +9,9 @@ const mediaMtxPathSchema = z
     ready: z.boolean().optional(),
     available: z.boolean().optional(),
     online: z.boolean().optional(),
-    readyTime: z.string().optional(),
-    availableTime: z.string().optional(),
-    onlineTime: z.string().optional(),
+    readyTime: z.string().nullish(),
+    availableTime: z.string().nullish(),
+    onlineTime: z.string().nullish(),
     tracks: z.array(z.string()).optional(),
   })
   .passthrough()
@@ -75,4 +75,36 @@ export async function getChannelStatus(
       checkedAt: checkedAt(),
     }
   }
+}
+
+interface WebRtcSessionList {
+  items?: Array<{ id?: string }>
+}
+
+export async function disconnectAllWebRtcReaders(
+  fetcher: typeof fetch = fetch,
+): Promise<number> {
+  const response = await fetcher(`${apiOrigin}/v3/webrtcsessions/list`, {
+    cache: 'no-store',
+    signal: AbortSignal.timeout(2500),
+  })
+  if (!response.ok) throw new Error(`MediaMTX returned HTTP ${response.status}`)
+
+  const data = (await response.json()) as WebRtcSessionList
+  const ids = (data.items ?? [])
+    .map((session) => session.id)
+    .filter((id): id is string => Boolean(id))
+
+  await Promise.all(
+    ids.map(async (id) => {
+      const kick = await fetcher(
+        `${apiOrigin}/v3/webrtcsessions/kick/${encodeURIComponent(id)}`,
+        { method: 'POST', signal: AbortSignal.timeout(2500) },
+      )
+      if (!kick.ok && kick.status !== 404) {
+        throw new Error(`MediaMTX returned HTTP ${kick.status}`)
+      }
+    }),
+  )
+  return ids.length
 }

@@ -36,7 +36,9 @@ rsync -az --inplace \
 
 rsync -az --inplace "$script_dir/secrets/" "$deploy_target:$remote_dir/deploy/oracle/secrets/"
 
-ssh "$deploy_target" "cd '$remote_dir' && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml config --quiet && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml up -d --build && docker compose -f deploy/oracle/docker-compose.yml restart mediamtx && docker compose -f deploy/oracle/docker-compose.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile"
+ssh "$deploy_target" "cd '$remote_dir' && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml config --quiet && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml up -d --build && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml restart mediamtx && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile"
+
+ssh "$deploy_target" "cd '$remote_dir' && sh deploy/oracle/bootstrap-admin.sh"
 
 echo "Deployment complete. Inspect it with:"
-echo "ssh $deploy_target \"cd '$remote_dir' && docker compose -f deploy/oracle/docker-compose.yml ps\""
+echo "ssh $deploy_target \"cd '$remote_dir' && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml ps\""

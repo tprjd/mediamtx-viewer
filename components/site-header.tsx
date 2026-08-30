@@ -1,6 +1,8 @@
 import { RadioTower } from 'lucide-react'
 import Link from 'next/link'
 
+import { UserMenu } from '@/components/auth/user-menu'
+
 export function SiteHeader() {
   return (
     <header className="site-header">
@@ -10,9 +12,7 @@ export function SiteHeader() {
         </span>
         <span>Home Stream</span>
       </Link>
-      <span className="hidden text-xs text-neutral-500 sm:block">
-        Independent live video
-      </span>
+      <UserMenu />
     </header>
   )
 }
