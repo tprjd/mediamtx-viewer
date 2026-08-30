@@ -69,7 +69,7 @@ describe('HomeDashboard', () => {
 
   it('uses a generated thumbnail when one is available', () => {
     const withThumbnail = {
-      ...channel('offline'),
+      ...channel('live'),
       poster: '/api/channels/live/thumbnail?v=123',
     }
     const { container } = render(

@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from 'react'
 
 import { Button, buttonVariants } from '@/components/ui/button'
 import { PlaybackStats } from '@/components/playback-stats'
-import { useChannelStatus } from '@/hooks/use-channel-status'
 import { authClient } from '@/lib/auth/client'
 import type { PublicChannel } from '@/lib/types'
 
@@ -91,7 +90,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
   const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(
     null,
   )
-  const status = useChannelStatus(channel.slug, channel.status)
+  const status = channel.status
   const sourceHasAudio = status.tracks.some((track) =>
     /audio|aac|opus|g7/i.test(track),
   )

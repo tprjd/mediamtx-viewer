@@ -7,7 +7,6 @@ import { useEffect, useRef, useState } from 'react'
 
 import { Button, buttonVariants } from '@/components/ui/button'
 import { PlaybackStats } from '@/components/playback-stats'
-import { useChannelStatus } from '@/hooks/use-channel-status'
 import { authClient } from '@/lib/auth/client'
 import type { PublicChannel } from '@/lib/types'
 
@@ -35,7 +34,7 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
   )
   const [reloadKey, setReloadKey] = useState(0)
   const [usingFallback, setUsingFallback] = useState(false)
-  const status = useChannelStatus(channel.slug, channel.status)
+  const status = channel.status
   const sourceUrl =
     usingFallback && channel.playback.fallbackHls
       ? channel.playback.fallbackHls
