@@ -1,6 +1,7 @@
 import { HomeDashboard } from '@/components/home-dashboard'
 import { getActiveSession } from '@/lib/auth/session'
 import { getChannels, getOwnedChannel } from '@/lib/channels'
+import { channelThumbnailUrl } from '@/lib/channel-thumbnails'
 import { getChannelStatuses } from '@/lib/mediamtx'
 import { toPublicChannel } from '@/lib/public-channel'
 
@@ -13,7 +14,11 @@ export default async function HomePage() {
     getActiveSession(),
   ])
   const channels = configuredChannels.map((channel) =>
-    toPublicChannel(channel, statuses.get(channel.mediaPath)!),
+    toPublicChannel(
+      channel,
+      statuses.get(channel.mediaPath)!,
+      channelThumbnailUrl(channel),
+    ),
   )
 
   return (

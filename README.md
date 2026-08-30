@@ -1,7 +1,7 @@
 # MediaMTX Viewer
 
 A viewer-first web frontend for the local MediaMTX streaming stack. It provides
-a clean public channel directory and watch page while Feedboard remains a
+a clean private channel directory and watch page while Feedboard remains a
 separate private administration interface.
 
 ## Implemented
@@ -21,6 +21,8 @@ separate private administration interface.
 - One authenticated boundary for pages, APIs, HLS, and WHEP through Caddy
 - Admin-granted streaming access with hashed, revocable per-channel OBS keys
 - Multiple simultaneous MediaMTX publishers on isolated channel paths
+- Low-frequency live thumbnails with a five-second initial capture and
+  three-minute refresh interval
 
 WebRTC is the low-latency default, with HLS as an automatic compatibility
 fallback. Custom video controls remain intentionally deferred.
@@ -48,6 +50,7 @@ Environment defaults:
 MEDIAMTX_API_URL=http://127.0.0.1:9997
 MEDIAMTX_HLS_URL=http://127.0.0.1:8888
 MEDIAMTX_WEBRTC_URL=http://127.0.0.1:8889
+THUMBNAIL_DIR=.data/thumbnails
 ```
 
 Copy `.env.example` to `.env.local` only when those origins differ.
@@ -100,7 +103,9 @@ docker compose up -d --build
 ```
 
 The development compose file binds the viewer to `127.0.0.1:3000`. It reaches
-the host MediaMTX listeners through `host.docker.internal`.
+the host MediaMTX listeners through `host.docker.internal`. Its thumbnail worker
+requires the host MediaMTX RTSP listener on port 8554, captures one 640×360 JPEG
+five seconds after a channel becomes live, and refreshes it every three minutes.
 
 For public deployment, the reproducible Oracle Cloud stack is documented in
 [`deploy/oracle/README.md`](./deploy/oracle/README.md). Its OpenTofu module
@@ -112,6 +117,20 @@ Caddy validates the Better Auth session before sending `/media/hls/*` and
 `/media/whep/*` directly to MediaMTX. MediaMTX validates each OBS bearer token
 through the private Next.js callback before accepting its exact channel path.
 Keep Feedboard on a separate private hostname or make it LAN/VPN-only.
+
+## Live thumbnails
+
+The thumbnail worker is separate from both Next.js and MediaMTX. It polls the
+private Control API for live application-owned paths and decodes a single frame
+through MediaMTX's private TCP-only RTSP listener. JPEGs are written atomically
+to a persistent shared volume; the last successful image remains when a stream
+ends. The channel API includes a versioned thumbnail URL only after a file
+exists, so cards retain their generated CSS artwork until the first capture.
+
+Thumbnail requests use the same Caddy account boundary as the rest of the site.
+Landing-page browsers download only the JPEG and do not open WebRTC or HLS
+sessions. Thumbnails are derived data and do not need to be included in account
+database backups.
 
 ## Codec compatibility
 

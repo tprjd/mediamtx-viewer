@@ -23,12 +23,17 @@ const status: ChannelStatus = {
 
 describe('toPublicChannel', () => {
   it('returns same-origin playback URLs without exposing the internal API', () => {
-    const result = toPublicChannel(channel, status)
+    const result = toPublicChannel(
+      channel,
+      status,
+      '/api/channels/friend/thumbnail?v=123',
+    )
 
     expect(result.playback.hls).toBe(
       '/media/hls/relay/friend/index.m3u8?cookieCheck=1',
     )
     expect(result.playback.webrtc).toBe('/media/whep/relay/friend/whep')
+    expect(result.poster).toBe('/api/channels/friend/thumbnail?v=123')
     expect(JSON.stringify(result)).not.toContain('9997')
   })
 })

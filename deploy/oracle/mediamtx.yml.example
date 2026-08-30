@@ -3,20 +3,14 @@ logDestinations: [stdout]
 
 authMethod: internal
 authInternalUsers:
-  - user: publisher
-    pass: REPLACE_WITH_A_STRONG_PUBLISHER_PASSWORD
-    ips: []
-    permissions:
-      - action: publish
-        path: live
   - user: any
     pass:
     ips: ["172.28.0.0/24", "127.0.0.1", "::1"]
     permissions:
       - action: read
-        path: live
+        path:
       - action: playback
-        path: live
+        path:
       - action: api
 
 api: true
@@ -25,7 +19,9 @@ metrics: false
 pprof: false
 playback: false
 
-rtsp: false
+rtsp: true
+rtspAddress: :8554
+rtspTransports: [tcp]
 rtmp: false
 srt: false
 moq: false

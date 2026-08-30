@@ -1,0 +1,29 @@
+logLevel: warn
+
+authMethod: internal
+authInternalUsers:
+  - user: any
+    pass:
+    ips: []
+    permissions:
+      - action: publish
+        path: live
+      - action: read
+        path: live
+      - action: api
+
+api: true
+apiAddress: :9997
+rtsp: true
+rtspAddress: :8554
+rtspTransports: [tcp]
+rtmp: false
+hls: false
+webrtc: false
+srt: false
+moq: false
+
+paths:
+  live:
+    source: publisher
+    overridePublisher: false

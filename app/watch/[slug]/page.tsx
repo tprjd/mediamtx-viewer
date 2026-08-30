@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 
 import { ChannelViewer } from '@/components/channel-viewer'
 import { getChannel } from '@/lib/channels'
+import { channelThumbnailUrl } from '@/lib/channel-thumbnails'
 import { getChannelStatus } from '@/lib/mediamtx'
 import { toPublicChannel } from '@/lib/public-channel'
 
@@ -38,5 +39,9 @@ export default async function WatchPage({ params }: WatchPageProps) {
 
   const status = await getChannelStatus(channel.mediaPath)
 
-  return <ChannelViewer channel={toPublicChannel(channel, status)} />
+  return (
+    <ChannelViewer
+      channel={toPublicChannel(channel, status, channelThumbnailUrl(channel))}
+    />
+  )
 }

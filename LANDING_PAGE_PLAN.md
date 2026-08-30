@@ -11,17 +11,21 @@ The watch-first dashboard is live at `https://frankerzspam.duckdns.org/`.
 Implementation includes the featured-live layout, quiet/unavailable/empty
 states, deterministic CSS channel artwork, live-first sorting, synchronized
 polling, last-known-status preservation, conditional streamer/admin shortcuts,
-and responsive header navigation.
+responsive header navigation, and low-frequency stream thumbnails.
 
 Verified before and after deployment:
 
 - type checking, linting, and production builds pass;
-- 36 unit, integration, and component tests pass;
+- 45 unit, integration, component, route, and worker tests pass;
 - 14 desktop/mobile Playwright tests pass, including a 320-pixel overflow check;
 - desktop, mobile, offline, and simulated-live states were visually inspected;
 - the Oracle viewer is healthy and the authenticated live page renders the new
   dashboard, account-specific shortcuts, and current channel state;
 - the landing page creates no WebRTC or HLS connection.
+- the Oracle thumbnail worker is deployed with a private RTSP listener and a
+  persistent image volume; local MediaMTX integration captures passed with both
+  H.264 and AV1 sources. The first production JPEG will be created during the
+  next broadcast because the channel was offline at deployment.
 
 ## Goal
 
@@ -71,6 +75,9 @@ The main rules are:
 - Do not embed or autoplay video on the landing page. A preview would create an
   additional MediaMTX reader, use bandwidth before the viewer chooses a stream,
   and behave poorly on mobile connections.
+- When available, show a server-generated still image captured five seconds
+  after publishing starts and refreshed every three minutes. This is derived
+  artwork, not embedded playback.
 - Do not add search or category filters yet. They add noise for a small friend
   group and can be introduced when the directory grows beyond roughly eight
   channels.
@@ -217,8 +224,9 @@ not be cached or exposed as directory data.
 ## Visual system
 
 Retain the black/neutral base and violet accent, with each channel's existing
-`accentColor` supplying its identity. The redesign should not depend on uploaded
-posters, because poster storage and moderation are outside the current product.
+`accentColor` supplying its identity. Live cards may use the latest derived
+stream thumbnail, but the design must not depend on uploaded posters because
+poster storage and moderation are outside the current product.
 
 Recommended channel artwork fallback:
 
@@ -260,7 +268,9 @@ live-dot pulse that is disabled under `prefers-reduced-motion`.
 
 ## Performance and free-tier constraints
 
-- No video, WebRTC, HLS, animated canvas, or automatic thumbnail capture on `/`.
+- No video, WebRTC, HLS, or animated canvas is opened by a landing-page browser.
+- A private FFmpeg worker may decode one 640×360 frame per live channel at start
+  and every three minutes; the final JPEG is retained after the stream ends.
 - Keep the existing single batched MediaMTX status request.
 - Use CSS artwork until user-uploaded channel images have a storage design.
 - Avoid a new UI framework or animation dependency.
@@ -344,6 +354,7 @@ These defaults are sufficient to implement the plan:
    automatically.
 3. Duplicate the featured stream in `All channels` so the directory stays
    complete and predictable.
-4. Use generated CSS artwork for now rather than adding uploads or stock images.
+4. Use the latest derived stream thumbnail when available, with generated CSS
+   artwork as the reliable fallback; do not add uploads or stock images.
 5. Keep the landing page playback-free until the viewer explicitly selects a
    channel.

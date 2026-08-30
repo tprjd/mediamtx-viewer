@@ -15,6 +15,7 @@ function hlsUrl(path: string): string {
 export function toPublicChannel(
   channel: Channel,
   status: ChannelStatus,
+  poster = channel.poster,
 ): PublicChannel {
   const mediaPath = encodeMediaPath(channel.mediaPath)
 
@@ -23,7 +24,7 @@ export function toPublicChannel(
     displayName: channel.displayName,
     title: channel.title,
     description: channel.description,
-    poster: channel.poster,
+    poster,
     accentColor: channel.accentColor,
     preferredPlayback: channel.preferredPlayback,
     hasCompatibilityFallback: Boolean(channel.fallbackMediaPath),

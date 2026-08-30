@@ -42,6 +42,31 @@ services:
         max-size: 10m
         max-file: "3"
 
+  thumbnailer:
+    build:
+      context: ../..
+      dockerfile: deploy/oracle/thumbnailer.Dockerfile
+    restart: unless-stopped
+    environment:
+      MEDIAMTX_API_URL: http://mediamtx:9997
+      MEDIAMTX_RTSP_URL: rtsp://mediamtx:8554
+      THUMBNAIL_DIR: /thumbnails
+      THUMBNAIL_INITIAL_DELAY_SECONDS: 5
+      THUMBNAIL_INTERVAL_SECONDS: 180
+    volumes:
+      - thumbnail_data:/thumbnails
+    depends_on:
+      mediamtx:
+        condition: service_started
+      viewer:
+        condition: service_healthy
+    networks:
+      - viewer_net
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
   viewer:
     build:
       context: ../..
@@ -58,8 +83,10 @@ services:
       INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:?Set INTERNAL_AUTH_SECRET in caddy.env}
       MEDIAMTX_AUTH_SECRET: ${MEDIAMTX_AUTH_SECRET:?Set MEDIAMTX_AUTH_SECRET in caddy.env}
       MEDIAMTX_API_URL: http://mediamtx:9997
+      THUMBNAIL_DIR: /thumbnails
     volumes:
       - auth_data:/data
+      - thumbnail_data:/thumbnails:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 10s
@@ -83,3 +110,4 @@ volumes:
   caddy_data:
   caddy_config:
   auth_data:
+  thumbnail_data:

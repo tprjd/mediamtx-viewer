@@ -16,8 +16,29 @@ services:
       INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-development-only-secret-change-before-production}
       MEDIAMTX_AUTH_SECRET: ${MEDIAMTX_AUTH_SECRET:-development-only-secret-change-before-production}
       MEDIAMTX_API_URL: http://host.docker.internal:9997
+      THUMBNAIL_DIR: /thumbnails
     volumes:
       - auth_data:/data
+      - thumbnail_data:/thumbnails:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - feedboard
+
+  thumbnailer:
+    build:
+      context: .
+      dockerfile: deploy/oracle/thumbnailer.Dockerfile
+    restart: unless-stopped
+    environment:
+      MEDIAMTX_API_URL: http://host.docker.internal:9997
+      MEDIAMTX_RTSP_URL: rtsp://host.docker.internal:8554
+      THUMBNAIL_DIR: /thumbnails
+      THUMBNAIL_INITIAL_DELAY_SECONDS: 5
+      THUMBNAIL_INTERVAL_SECONDS: 180
+    volumes:
+      - thumbnail_data:/thumbnails
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -31,3 +52,4 @@ networks:
 
 volumes:
   auth_data:
+  thumbnail_data:

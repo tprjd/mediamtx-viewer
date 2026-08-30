@@ -67,6 +67,24 @@ describe('HomeDashboard', () => {
     ).toBeInTheDocument()
   })
 
+  it('uses a generated thumbnail when one is available', () => {
+    const withThumbnail = {
+      ...channel('offline'),
+      poster: '/api/channels/live/thumbnail?v=123',
+    }
+    const { container } = render(
+      <HomeDashboard
+        capabilities={{ hasOwnedChannel: false, isAdmin: false }}
+        initialChannels={[withThumbnail]}
+      />,
+    )
+
+    expect(container.querySelector('img')).toHaveAttribute(
+      'src',
+      withThumbnail.poster,
+    )
+  })
+
   it('offers channel setup only to administrators when the directory is empty', () => {
     const { rerender } = render(
       <HomeDashboard

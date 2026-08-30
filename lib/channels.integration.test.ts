@@ -1,13 +1,21 @@
 // @vitest-environment node
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const testDirectory = mkdtempSync(join(tmpdir(), 'mediamtx-channels-test-'))
 
 process.env.AUTH_DB_PATH = join(testDirectory, 'auth.sqlite')
+process.env.THUMBNAIL_DIR = join(testDirectory, 'thumbnails')
 process.env.BETTER_AUTH_URL = 'http://localhost:3000'
 process.env.BETTER_AUTH_SECRET = 'vitest-better-auth-secret-at-least-32-characters'
 process.env.INTERNAL_AUTH_SECRET = 'vitest-internal-secret-at-least-32-characters'
@@ -63,6 +71,37 @@ describe('account-owned channels', () => {
     expect(() => grantStreaming('admin-id', 'friend-id', 'another')).toThrow(
       'already owns a channel',
     )
+  })
+
+  it('serves a channel thumbnail with private revalidation', async () => {
+    const thumbnailDirectory = process.env.THUMBNAIL_DIR!
+    mkdirSync(thumbnailDirectory, { recursive: true })
+    writeFileSync(
+      join(thumbnailDirectory, 'channels%2Ffriend-channel.jpg'),
+      Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+    )
+    const { GET } = await import(
+      '@/app/api/channels/[slug]/thumbnail/route'
+    )
+    const context = { params: Promise.resolve({ slug: 'friend-channel' }) }
+    const response = await GET(
+      new Request('http://localhost/api/channels/friend-channel/thumbnail'),
+      context,
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/jpeg')
+    expect(response.headers.get('cache-control')).toContain('private')
+    const etag = response.headers.get('etag')
+    expect(etag).toBeTruthy()
+
+    const revalidated = await GET(
+      new Request('http://localhost/api/channels/friend-channel/thumbnail', {
+        headers: { 'if-none-match': etag! },
+      }),
+      context,
+    )
+    expect(revalidated.status).toBe(304)
   })
 
   it('authorizes a generated key only for its exact path and revokes on rotation', async () => {

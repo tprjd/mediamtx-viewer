@@ -29,6 +29,7 @@ rsync -az --inplace \
   --exclude .git \
   --exclude node_modules \
   --exclude .next \
+  --exclude .data \
   --exclude coverage \
   --exclude playwright-report \
   --exclude test-results \
