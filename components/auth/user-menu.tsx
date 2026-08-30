@@ -1,6 +1,6 @@
 'use client'
 
-import { LogOut, Settings, ShieldCheck } from 'lucide-react'
+import { LogOut, RadioTower, Settings, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -25,6 +25,10 @@ export function UserMenu() {
           Admin
         </Link>
       )}
+      <Link href="/account/channel">
+        <RadioTower className="size-4" aria-hidden="true" />
+        Channel
+      </Link>
       <Link href="/account">
         <Settings className="size-4" aria-hidden="true" />
         {session.user.name}

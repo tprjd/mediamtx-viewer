@@ -15,7 +15,7 @@
 		Permissions-Policy "camera=(), geolocation=(), microphone=()"
 	}
 
-	@account_protected not path /login /register /registration-pending /reset-password /api/auth/* /api/internal/authorize /_next/* /favicon.ico /publish/whep/*
+	@account_protected not path /login /register /registration-pending /reset-password /api/auth/* /api/internal/authorize /_next/* /favicon.ico /publish/whep/* /publish/whip/*
 
 	forward_auth @account_protected viewer:3000 {
 		uri /api/internal/authorize
@@ -24,7 +24,15 @@
 
 	handle_path /publish/whep/* {
 		reverse_proxy mediamtx:8889 {
+			header_up -Cookie
 			header_down Location ^/(.*)$ /publish/whep/$1
+		}
+	}
+
+	handle_path /publish/whip/* {
+		reverse_proxy mediamtx:8889 {
+			header_up -Cookie
+			header_down Location ^/(.*)$ /publish/whip/$1
 		}
 	}
 

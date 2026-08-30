@@ -2,18 +2,18 @@ import { ArrowDown } from 'lucide-react'
 
 import { ChannelDirectory } from '@/components/channel-directory'
 import { getChannels } from '@/lib/channels'
-import { getChannelStatus } from '@/lib/mediamtx'
+import { getChannelStatuses } from '@/lib/mediamtx'
 import { toPublicChannel } from '@/lib/public-channel'
 
 export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
   const configuredChannels = getChannels()
-  const statuses = await Promise.all(
-    configuredChannels.map((channel) => getChannelStatus(channel.mediaPath)),
+  const statuses = await getChannelStatuses(
+    configuredChannels.map((channel) => channel.mediaPath),
   )
-  const channels = configuredChannels.map((channel, index) =>
-    toPublicChannel(channel, statuses[index]),
+  const channels = configuredChannels.map((channel) =>
+    toPublicChannel(channel, statuses.get(channel.mediaPath)!),
   )
   const liveCount = channels.filter((channel) => channel.status.live).length
 

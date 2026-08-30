@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const mediaPathSchema = z
+export const mediaPathSchema = z
   .string()
   .min(1)
   .max(160)
@@ -17,12 +17,20 @@ const mediaPathSchema = z
     'Media paths must be normalized relative paths',
   )
 
+export const channelSlugSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Channel slugs must be kebab-case')
+
+export const channelMetadataSchema = z.object({
+  title: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(300),
+})
+
 export const channelSchema = z.object({
-  slug: z
-    .string()
-    .min(1)
-    .max(64)
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Channel slugs must be kebab-case'),
+  slug: channelSlugSchema,
   mediaPath: mediaPathSchema,
   displayName: z.string().min(1).max(80),
   title: z.string().min(1).max(120),
@@ -64,3 +72,4 @@ export const channelsSchema = z
   })
 
 export type Channel = z.infer<typeof channelSchema>
+export type ChannelMetadata = z.infer<typeof channelMetadataSchema>

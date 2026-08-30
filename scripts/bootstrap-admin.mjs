@@ -20,9 +20,33 @@ if (!password || password.length < 15 || password.length > 128) {
 const database = new Database(databasePath)
 database.pragma('foreign_keys = ON')
 const existing = database
-  .prepare('SELECT id FROM user WHERE username = ? OR email = ?')
+  .prepare(
+    `SELECT id, name, role, activationStatus
+     FROM user WHERE username = ? OR email = ?`,
+  )
   .get(username.toLowerCase(), email.toLowerCase())
-if (existing) throw new Error('An account with this username or email already exists')
+if (existing) {
+  if (existing.role !== 'admin' || existing.activationStatus !== 'active') {
+    throw new Error('An account with this username or email already exists')
+  }
+  const now = Date.now()
+  database
+    .prepare(
+      `INSERT OR IGNORE INTO channel (
+        id, owner_user_id, slug, media_path, display_name, title, description,
+        accent_color, preferred_playback, enabled, created_at, updated_at, created_by
+      ) VALUES (?, ?, 'live', 'live', 'Main channel', 'Live stream',
+                'Games and occasional broadcasts, streamed directly from home.',
+                '#8b5cf6', 'webrtc', 1, ?, ?, ?)` ,
+    )
+    .run(randomUUID(), existing.id, now, now, existing.id)
+  database
+    .prepare("UPDATE channel SET display_name = 'Main channel' WHERE owner_user_id = ? AND slug = 'live'")
+    .run(existing.id)
+  database.close()
+  process.stdout.write(`Active administrator ${username} already exists; bootstrap skipped.\n`)
+  process.exit(0)
+}
 
 const now = Date.now()
 const userId = randomUUID()
@@ -63,6 +87,16 @@ database.transaction(() => {
        VALUES (?, ?, ?, 'bootstrap_admin', '{}', ?)`,
     )
     .run(randomUUID(), userId, userId, now)
+  database
+    .prepare(
+      `INSERT INTO channel (
+        id, owner_user_id, slug, media_path, display_name, title, description,
+        accent_color, preferred_playback, enabled, created_at, updated_at, created_by
+      ) VALUES (?, ?, 'live', 'live', 'Main channel', 'Live stream',
+                'Games and occasional broadcasts, streamed directly from home.',
+                '#8b5cf6', 'webrtc', 1, ?, ?, ?)` ,
+    )
+    .run(randomUUID(), userId, now, now, userId)
 })()
 
 database.close()

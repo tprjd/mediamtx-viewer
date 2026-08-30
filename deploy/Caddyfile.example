@@ -2,10 +2,19 @@ viewer.example.com {
 	encode zstd gzip
 
 	@public path /login /register /registration-pending /reset-password /api/auth/* /_next/*
-	@protected not path /login /register /registration-pending /reset-password /api/auth/* /api/internal/authorize /_next/*
+	@protected not path /login /register /registration-pending /reset-password /api/auth/* /api/internal/authorize /_next/* /publish/whip/*
 	forward_auth @protected viewer:3000 {
 		uri /api/internal/authorize
 		header_up X-Internal-Auth {$INTERNAL_AUTH_SECRET}
+	}
+
+	# OBS uses a per-channel bearer token validated by MediaMTX through the
+	# private Next.js authorization callback.
+	handle_path /publish/whip/* {
+		reverse_proxy host.docker.internal:8889 {
+			header_up -Cookie
+			header_down Location ^/(.*)$ /publish/whip/$1
+		}
 	}
 
 	# Media is sent from MediaMTX to viewers without passing through Next.js.

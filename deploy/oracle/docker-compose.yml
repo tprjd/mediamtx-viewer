@@ -28,6 +28,9 @@ services:
   mediamtx:
     image: bluenviron/mediamtx:1.20.1
     restart: unless-stopped
+    environment:
+      MTX_AUTHMETHOD: http
+      MTX_AUTHHTTPADDRESS: http://viewer:3000/api/internal/mediamtx/authorize?secret=${MEDIAMTX_AUTH_SECRET:?Set MEDIAMTX_AUTH_SECRET in caddy.env}
     ports:
       - "8189:8189/udp"
     volumes:
@@ -53,11 +56,10 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in caddy.env}
       BETTER_AUTH_URL: https://${PUBLIC_HOSTNAME:?Set PUBLIC_HOSTNAME in caddy.env}
       INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:?Set INTERNAL_AUTH_SECRET in caddy.env}
+      MEDIAMTX_AUTH_SECRET: ${MEDIAMTX_AUTH_SECRET:?Set MEDIAMTX_AUTH_SECRET in caddy.env}
       MEDIAMTX_API_URL: http://mediamtx:9997
     volumes:
       - auth_data:/data
-    depends_on:
-      - mediamtx
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 10s

@@ -17,6 +17,12 @@ if [ ! -f "$script_dir/secrets/caddy.env" ] || [ ! -f "$script_dir/secrets/media
   exit 1
 fi
 
+if ! grep -q '^MEDIAMTX_AUTH_SECRET=.' "$script_dir/secrets/caddy.env"; then
+  echo "MEDIAMTX_AUTH_SECRET is missing from deploy/oracle/secrets/caddy.env" >&2
+  echo "Run: node scripts/ensure-env-secret.mjs deploy/oracle/secrets/caddy.env MEDIAMTX_AUTH_SECRET" >&2
+  exit 1
+fi
+
 ssh "$deploy_target" "mkdir -p '$remote_dir/deploy/oracle/secrets'"
 
 rsync -az --inplace \

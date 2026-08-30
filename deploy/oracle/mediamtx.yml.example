@@ -48,3 +48,7 @@ webrtcAdditionalHosts: ["158.180.29.172"]
 paths:
   live:
     source: publisher
+    overridePublisher: false
+  "~^channels/[a-z0-9]+(?:-[a-z0-9]+)*$":
+    source: publisher
+    overridePublisher: false

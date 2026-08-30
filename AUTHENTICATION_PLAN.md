@@ -32,7 +32,9 @@ Use these components for the first account-based release:
 - The current internal MediaMTX reader permissions. Caddy removes website
   credentials before proxying media, and MediaMTX remains reachable only on
   the private Docker network.
-- The existing path-scoped MediaMTX publisher credential for OBS, unchanged.
+- Separate path-scoped MediaMTX publishing credentials for OBS. The original
+  shared publisher was superseded by account-owned stream keys in
+  `MULTI_STREAMER_PLAN.md`.
 
 Do not use the hosted Better Auth Infrastructure dashboard. Authentication,
 the database, and the admin UI should remain self-hosted on Oracle.

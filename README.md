@@ -8,7 +8,7 @@ separate private administration interface.
 
 - Next.js App Router, React, and strict TypeScript
 - Responsive Tailwind interface with shadcn-style Radix primitives
-- Validated allowlist of public channels
+- Database-backed account-owned channels with validated stable URLs
 - Server-only MediaMTX status lookup with sanitized public responses
 - HLS playback through hls.js, with native HLS where supported
 - Native accessible video controls
@@ -19,6 +19,8 @@ separate private administration interface.
 - Example Caddy routing that keeps media bytes out of Next.js
 - Better Auth username accounts with administrator approval and SQLite sessions
 - One authenticated boundary for pages, APIs, HLS, and WHEP through Caddy
+- Admin-granted streaming access with hashed, revocable per-channel OBS keys
+- Multiple simultaneous MediaMTX publishers on isolated channel paths
 
 WebRTC is the low-latency default, with HLS as an automatic compatibility
 fallback. Custom video controls remain intentionally deferred.
@@ -52,34 +54,26 @@ Copy `.env.example` to `.env.local` only when those origins differ.
 Registration starts closed. Sign in as the bootstrap administrator, open it on
 `/admin/users`, and activate each new account after registration.
 
-## Configure channels
+## Accounts and channels
 
-Edit [`config/channels.json`](./config/channels.json). Every entry is a public
-allowlisted channel; arbitrary MediaMTX paths are not exposed.
+Activating an account grants viewing access only. To let a friend broadcast,
+open `/admin/users`, enter an immutable channel slug on their active account,
+and select **Grant streaming**. Each account can own one channel.
 
-```json
-{
-  "slug": "friend",
-  "mediaPath": "friend",
-  "displayName": "Friend's channel",
-  "title": "Playing tonight",
-  "description": "An occasional relayed stream.",
-  "accentColor": "#22c55e",
-  "preferredPlayback": "webrtc"
-}
-```
+The streamer signs in and opens `/account/channel`. That page provides the
+channel-specific OBS server URL and generates a random stream key. The key is
+shown once and stored only as a SHA-256 hash. Rotating it invalidates the old
+key and disconnects the current publisher.
 
-The public URL for this example is `/watch/friend`. A publisher key and public
-read permission for the `friend` MediaMTX path must be configured separately.
+Configure OBS with:
 
-`fallbackMediaPath` may identify a separate H.264 compatibility feed. The
-frontend cannot transcode AV1 itself.
+- Service: `WHIP`
+- Server: copy the URL from `/account/channel`
+- Bearer token: copy the one-time stream key
 
-The active OBS profile publishes AV1 video and Opus audio to MediaMTX with WHIP
-at `http://localhost:8889/live/whip`. WHIP avoids the RTMP/Opus compatibility
-problem and enables the viewer's low-latency WebRTC path. OBS publishes a
-single 1080p60 AV1 track because MediaMTX WHEP selects only one video track;
-HLS remains available when WebRTC or AV1 is unsupported.
+Website passwords and browser sessions are never publishing credentials. A key
+can publish only to its assigned MediaMTX path. Different owned channels can be
+live simultaneously; a second publisher on the same channel is rejected.
 
 ## Checks
 
@@ -115,16 +109,15 @@ Caddy, MediaMTX, and the viewer together. For another hosting provider, use
 [`deploy/Caddyfile.example`](./deploy/Caddyfile.example) as a starting point.
 
 Caddy validates the Better Auth session before sending `/media/hls/*` and
-`/media/whep/*` directly to MediaMTX. OBS publishing continues to use its
-separate MediaMTX bearer token. Keep Feedboard on a separate private hostname
-or make it LAN/VPN-only.
+`/media/whep/*` directly to MediaMTX. MediaMTX validates each OBS bearer token
+through the private Next.js callback before accepting its exact channel path.
+Keep Feedboard on a separate private hostname or make it LAN/VPN-only.
 
 ## Codec compatibility
 
 MediaMTX passes codecs through; this application does not transcode them. AV1
-playback depends on the browser, operating system, and hardware. For broad
-compatibility, publish an H.264 rendition on a separate MediaMTX path and set it
-as `fallbackMediaPath`.
+playback depends on the browser, operating system, and hardware. H.264 video
+with Opus audio is the recommended broadly compatible WHIP profile.
 
 See [`PLAN.md`](./PLAN.md) for the architecture, security boundaries, future
 phases, and acceptance criteria.
@@ -132,3 +125,6 @@ phases, and acceptance criteria.
 See [`AUTHENTICATION_PLAN.md`](./AUTHENTICATION_PLAN.md) for the implemented
 individual-account, administrator-approval, and media-session authorization
 architecture.
+
+See [`MULTI_STREAMER_PLAN.md`](./MULTI_STREAMER_PLAN.md) for account-owned
+channels, publishing authorization, rollout, and acceptance criteria.

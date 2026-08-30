@@ -12,7 +12,8 @@ import {
   revokeUserSessions,
   setRegistrationOpen,
 } from '@/lib/auth/store'
-import { disconnectAllWebRtcReaders } from '@/lib/mediamtx'
+import { grantStreaming, setChannelEnabled } from '@/lib/channels'
+import { disconnectChannelSessions } from '@/lib/mediamtx'
 
 function destination(kind: 'notice' | 'error', message: string): string {
   return `/admin/users?${kind}=${encodeURIComponent(message)}`
@@ -37,12 +38,58 @@ export async function activateAction(userId: string) {
   redirect(destination('notice', 'Account activated.'))
 }
 
-export async function disableAction(userId: string, formData: FormData) {
+export async function disableAction(userId: string) {
+  let disconnectWarning = false
   await runAdminAction(async (actorId) => {
-    disableUser(actorId, userId)
-    if (formData.get('disconnect') === 'true') await disconnectAllWebRtcReaders()
+    const mediaPath = disableUser(actorId, userId)
+    if (mediaPath) {
+      try {
+        await disconnectChannelSessions(mediaPath)
+      } catch {
+        disconnectWarning = true
+      }
+    }
   })
-  redirect(destination('notice', 'Account disabled and sessions revoked.'))
+  redirect(
+    destination(
+      'notice',
+      disconnectWarning
+        ? 'Account disabled and credentials revoked. MediaMTX could not confirm active stream disconnection.'
+        : 'Account disabled and sessions revoked.',
+    ),
+  )
+}
+
+export async function grantStreamingAction(userId: string, formData: FormData) {
+  await runAdminAction((actorId) => {
+    grantStreaming(actorId, userId, String(formData.get('slug') ?? ''))
+  })
+  redirect(destination('notice', 'Streaming access granted.'))
+}
+
+export async function channelEnabledAction(userId: string, formData: FormData) {
+  const enabled = formData.get('enabled') === 'true'
+  let disconnectWarning = false
+  await runAdminAction(async (actorId) => {
+    const mediaPath = setChannelEnabled(actorId, userId, enabled)
+    if (!enabled) {
+      try {
+        await disconnectChannelSessions(mediaPath)
+      } catch {
+        disconnectWarning = true
+      }
+    }
+  })
+  redirect(
+    destination(
+      'notice',
+      enabled
+        ? 'Channel enabled. The streamer must generate a new key.'
+        : disconnectWarning
+          ? 'Channel disabled and key revoked. MediaMTX could not confirm active session disconnection.'
+          : 'Channel disabled, key revoked, and sessions disconnected.',
+    ),
+  )
 }
 
 export async function rejectAction(userId: string) {

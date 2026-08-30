@@ -37,3 +37,21 @@ test('keeps public registration closed by default', async ({ page }) => {
     page.getByRole('heading', { name: 'Registration is closed.' }),
   ).toBeVisible()
 })
+
+test('administrator can manage the owned OBS channel and reveal a key once', async ({
+  page,
+}) => {
+  await page.goto('/login?returnTo=/account/channel')
+  await page.getByLabel('Username').fill('power')
+  await page.getByLabel('Password').fill('e2e-administrator-password')
+  await page.getByRole('button', { name: 'Sign in' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Main channel' })).toBeVisible()
+  await expect(page.getByText('/watch/live')).toBeVisible()
+  page.once('dialog', (dialog) => dialog.accept())
+  await page
+    .getByRole('button', { name: /(?:Generate|Rotate) stream key/ })
+    .click()
+  await expect(page.getByText('Copy this key now. It will not be shown again.')).toBeVisible()
+  await expect(page.locator('.stream-key-reveal code')).toContainText('mtx_sk_')
+})

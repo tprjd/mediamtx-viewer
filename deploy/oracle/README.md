@@ -12,13 +12,15 @@ These files are ignored by Git and by the Docker build context.
 
 Generate independent strong secrets:
 
-- `BETTER_AUTH_SECRET` and `INTERNAL_AUTH_SECRET`: generate each with
+- `BETTER_AUTH_SECRET`, `INTERNAL_AUTH_SECRET`, and `MEDIAMTX_AUTH_SECRET`:
+  generate each with
   `openssl rand -hex 32` and put them in `caddy.env`.
 - Initial administrator: set username, email, display name, and a password of
   at least 15 characters in `admin.env`. Bootstrap is skipped after an active
   administrator exists.
-- Publisher password: put it in `mediamtx.yml`; OBS uses the bearer token
-  `publisher:<password>`.
+- The publisher credentials in `mediamtx.yml` are retained only for rollback.
+  Account-owned stream keys are generated from `/account/channel` and stored
+  only as hashes in SQLite.
 
 The old viewer username and bcrypt hash remain in `caddy.env` only so
 `Caddyfile.basic-auth` can be restored during rollback. Account auth does not
@@ -46,12 +48,14 @@ certificate automatically.
 
 Configure OBS Custom WHIP service with:
 
-- Server: `https://frankerzspam.duckdns.org/publish/whep/live/whip`
-- Bearer token: `publisher:<publisher-password>`
+- Server: copy the channel-specific `/publish/whip/.../whip` URL from
+  `/account/channel`.
+- Bearer token: generate and copy the one-time stream key from that page.
 
 The viewer is `https://frankerzspam.duckdns.org/`. Sign in with the bootstrap
 administrator, open registration temporarily at `/admin/users`, and activate
-each friend after they register.
+each friend after they register. Viewing and streaming are separate grants;
+use the same admin page to create one channel for each approved streamer.
 
 ## Operations
 

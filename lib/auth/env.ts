@@ -11,6 +11,9 @@ export const authEnvironment = {
   internalSecret:
     process.env.INTERNAL_AUTH_SECRET ??
     (process.env.NODE_ENV === 'production' ? '' : DEVELOPMENT_SECRET),
+  mediaMtxAuthSecret:
+    process.env.MEDIAMTX_AUTH_SECRET ??
+    (process.env.NODE_ENV === 'production' ? '' : DEVELOPMENT_SECRET),
   secret:
     process.env.BETTER_AUTH_SECRET ??
     (isBuildPhase()
@@ -29,6 +32,9 @@ export function getRuntimeConfigurationErrors(): string[] {
   }
   if (!process.env.INTERNAL_AUTH_SECRET || process.env.INTERNAL_AUTH_SECRET.length < 32) {
     errors.push('INTERNAL_AUTH_SECRET must contain at least 32 characters')
+  }
+  if (!process.env.MEDIAMTX_AUTH_SECRET || process.env.MEDIAMTX_AUTH_SECRET.length < 32) {
+    errors.push('MEDIAMTX_AUTH_SECRET must contain at least 32 characters')
   }
   try {
     const url = new URL(process.env.BETTER_AUTH_URL ?? '')

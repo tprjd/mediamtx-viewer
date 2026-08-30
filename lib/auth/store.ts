@@ -34,7 +34,7 @@ function mapUser(row: UserRow): AuthUser {
   }
 }
 
-function recordAudit(
+export function recordAudit(
   actorId: string,
   targetId: string | null,
   action: string,
@@ -154,9 +154,9 @@ export function countActiveAdmins(): number {
   return row.count
 }
 
-export function disableUser(actorId: string, targetId: string): void {
+export function disableUser(actorId: string, targetId: string): string | null {
   const database = getDatabase()
-  database.transaction(() => {
+  return database.transaction(() => {
     const target = getUserById(targetId)
     if (!target) throw new Error('User not found')
     if (target.id === actorId) throw new Error('You cannot disable your own account')
@@ -174,7 +174,23 @@ export function disableUser(actorId: string, targetId: string): void {
       )
       .run(now, now, targetId)
     database.prepare('DELETE FROM session WHERE userId = ?').run(targetId)
+    const channel = database
+      .prepare('SELECT id, media_path AS mediaPath FROM channel WHERE owner_user_id = ?')
+      .get(targetId) as { id: string; mediaPath: string } | undefined
+    if (channel) {
+      database
+        .prepare('UPDATE channel SET enabled = 0, updated_at = ? WHERE id = ?')
+        .run(now, channel.id)
+      database
+        .prepare('DELETE FROM channel_stream_key WHERE channel_id = ?')
+        .run(channel.id)
+      recordAudit(actorId, targetId, 'streaming_disabled', {
+        channelId: channel.id,
+        reason: 'account_disabled',
+      })
+    }
     recordAudit(actorId, targetId, 'disable')
+    return channel?.mediaPath ?? null
   })()
 }
 
@@ -301,4 +317,3 @@ export function listAuditEntries(limit = 30): AuditEntry[] {
     .all(limit) as Array<Omit<AuditEntry, 'createdAt'> & { createdAt: number }>
   return rows.map((row) => ({ ...row, createdAt: new Date(row.createdAt) }))
 }
-

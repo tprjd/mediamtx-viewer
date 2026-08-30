@@ -1,15 +1,25 @@
-import { Clock3, KeyRound, ShieldCheck, UserCheck, UserX } from 'lucide-react'
+import {
+  Clock3,
+  KeyRound,
+  RadioTower,
+  ShieldCheck,
+  UserCheck,
+  UserX,
+} from 'lucide-react'
+import Link from 'next/link'
 
 import {
   activateAction,
+  channelEnabledAction,
   disableAction,
+  grantStreamingAction,
   registrationAction,
   rejectAction,
   resetLinkAction,
   revokeAllSessionsAction,
   revokeSessionAction,
 } from '@/app/admin/users/actions'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { requireAdminSession } from '@/lib/auth/session'
 import {
   getRegistrationOpen,
@@ -18,6 +28,7 @@ import {
   listUserSessions,
 } from '@/lib/auth/store'
 import type { AuthUser } from '@/lib/auth/types'
+import { listAdminChannels, type AdminChannel } from '@/lib/channels'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +43,23 @@ function formatDate(date: Date): string {
   }).format(date)
 }
 
-function UserCard({ user, currentUserId }: { user: AuthUser; currentUserId: string }) {
+function defaultSlug(user: AuthUser): string {
+  return (user.username ?? user.name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 64)
+}
+
+function UserCard({
+  user,
+  currentUserId,
+  channel,
+}: {
+  user: AuthUser
+  currentUserId: string
+  channel?: AdminChannel
+}) {
   const sessions = listUserSessions(user.id)
 
   return (
@@ -65,10 +92,6 @@ function UserCard({ user, currentUserId }: { user: AuthUser; currentUserId: stri
         )}
         {user.activationStatus === 'active' && user.id !== currentUserId && (
           <form action={disableAction.bind(null, user.id)}>
-            <label className="checkbox-label">
-              <input name="disconnect" type="checkbox" value="true" />
-              Disconnect all current WebRTC viewers
-            </label>
             <Button size="sm" type="submit" variant="secondary">
               <UserX className="size-4" aria-hidden="true" /> Disable
             </Button>
@@ -109,6 +132,55 @@ function UserCard({ user, currentUserId }: { user: AuthUser; currentUserId: stri
           ))}
         </details>
       )}
+
+      {user.activationStatus === 'active' && !channel && (
+        <form
+          action={grantStreamingAction.bind(null, user.id)}
+          className="streaming-grant"
+        >
+          <label>
+            Channel slug
+            <input
+              defaultValue={defaultSlug(user)}
+              maxLength={64}
+              name="slug"
+              pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+              required
+            />
+          </label>
+          <Button size="sm" type="submit" variant="secondary">
+            <RadioTower className="size-4" aria-hidden="true" /> Grant streaming
+          </Button>
+        </form>
+      )}
+
+      {channel && (
+        <div className="admin-channel-summary">
+          <div>
+            <strong>Channel: /watch/{channel.slug}</strong>
+            <small>
+              {channel.enabled ? 'Enabled' : 'Disabled'} · Key{' '}
+              {channel.streamKeyHint ? `ending ${channel.streamKeyHint}` : 'not generated'}
+            </small>
+          </div>
+          <div className="admin-actions">
+            {channel.enabled && (
+              <Link
+                className={buttonVariants({ size: 'sm', variant: 'ghost' })}
+                href={`/watch/${channel.slug}`}
+              >
+                View
+              </Link>
+            )}
+            <form action={channelEnabledAction.bind(null, user.id)}>
+              <input name="enabled" type="hidden" value={channel.enabled ? 'false' : 'true'} />
+              <Button size="sm" type="submit" variant="secondary">
+                {channel.enabled ? 'Disable channel' : 'Enable channel'}
+              </Button>
+            </form>
+          </div>
+        </div>
+      )}
     </article>
   )
 }
@@ -116,6 +188,8 @@ function UserCard({ user, currentUserId }: { user: AuthUser; currentUserId: stri
 export default async function AdminUsersPage({ searchParams }: AdminUsersPageProps) {
   const [session, params] = await Promise.all([requireAdminSession(), searchParams])
   const users = listUsers()
+  const channels = listAdminChannels()
+  const channelsByOwner = new Map(channels.map((channel) => [channel.ownerUserId, channel]))
   const registrationOpen = getRegistrationOpen()
   const auditEntries = listAuditEntries()
   const groups = {
@@ -164,7 +238,12 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
           <div className="user-grid">
             {groups[status].length > 0 ? (
               groups[status].map((user) => (
-                <UserCard currentUserId={session.user.id} key={user.id} user={user} />
+                <UserCard
+                  channel={channelsByOwner.get(user.id)}
+                  currentUserId={session.user.id}
+                  key={user.id}
+                  user={user}
+                />
               ))
             ) : (
               <p className="empty-state">No {status} accounts.</p>
@@ -191,4 +270,3 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     </main>
   )
 }
-

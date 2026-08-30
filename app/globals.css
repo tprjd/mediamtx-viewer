@@ -264,6 +264,145 @@ a {
   font-size: 0.8rem;
 }
 
+.account-panel > a,
+.account-panel > form:last-child,
+.stream-key-manager {
+  margin-top: 1rem;
+}
+
+.channel-account-layout {
+  max-width: 64rem;
+}
+
+.channel-account-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.channel-account-heading > svg {
+  width: 3.5rem;
+  height: 3.5rem;
+  color: #a78bfa;
+}
+
+.channel-account-heading a {
+  color: #c4b5fd;
+  text-decoration: none;
+}
+
+.channel-metadata-form,
+.streaming-grant {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.channel-metadata-form label,
+.streaming-grant label {
+  display: grid;
+  gap: 0.4rem;
+  color: #d4d4d8;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.channel-metadata-form input,
+.channel-metadata-form textarea,
+.streaming-grant input {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 0.65rem;
+  outline: none;
+  background: #09090b;
+  color: white;
+  font: inherit;
+}
+
+.channel-metadata-form input:focus,
+.channel-metadata-form textarea:focus,
+.streaming-grant input:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.14);
+}
+
+.channel-metadata-form button {
+  justify-self: start;
+}
+
+.obs-settings {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+}
+
+.obs-settings > div {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.obs-settings dt {
+  color: #71717a;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.obs-settings dd {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0;
+  color: #d4d4d8;
+  font-size: 0.8rem;
+}
+
+.obs-settings code,
+.stream-key-reveal code {
+  overflow-wrap: anywhere;
+  color: #c4b5fd;
+}
+
+.obs-settings button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.35rem;
+  border: 0;
+  background: transparent;
+  color: #a1a1aa;
+  cursor: pointer;
+  font: inherit;
+}
+
+.obs-settings button svg {
+  width: 0.85rem;
+}
+
+.stream-key-manager > form {
+  margin-top: 1rem;
+}
+
+.stream-key-reveal {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  border-radius: 0.75rem;
+  background: rgba(139, 92, 246, 0.1);
+  font-size: 0.78rem;
+}
+
+.stream-key-reveal button {
+  justify-self: start;
+}
+
 .account-session-list {
   display: grid;
   gap: 0.7rem;
@@ -373,6 +512,41 @@ a {
   border: 1px solid var(--line);
   border-radius: 1rem;
   background: rgba(17, 17, 20, 0.72);
+}
+
+.streaming-grant,
+.admin-channel-summary {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.streaming-grant {
+  grid-template-columns: minmax(10rem, 1fr) auto;
+  align-items: end;
+}
+
+.admin-channel-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-channel-summary strong,
+.admin-channel-summary small {
+  display: block;
+}
+
+.admin-channel-summary strong {
+  color: #d4d4d8;
+  font-size: 0.78rem;
+}
+
+.admin-channel-summary small {
+  margin-top: 0.25rem;
+  color: #71717a;
+  font-size: 0.68rem;
 }
 
 .user-card-heading,
@@ -855,6 +1029,21 @@ a {
   .admin-heading,
   .registration-control {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .channel-account-heading,
+  .admin-channel-summary {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .streaming-grant {
+    grid-template-columns: 1fr;
+  }
+
+  .obs-settings dd {
+    align-items: start;
     flex-direction: column;
   }
 
