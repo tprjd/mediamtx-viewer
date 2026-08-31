@@ -159,9 +159,10 @@ The PowerShell payload source is in
 [`scripts/windows/setup-frankerzspam-obs.ps1`](./scripts/windows/setup-frankerzspam-obs.ps1),
 and the deterministic CMD launcher is generated in
 [`lib/obs-setup-script.ts`](./lib/obs-setup-script.ts). Its payload extraction,
-checksums, parser, and server/device-authorization contract are covered by the
-test suite; final encoder and capture validation requires Windows with an
-AV1-capable NVIDIA, AMD, or Intel GPU.
+checksums, capture-mode defaults, and server/device-authorization contract are
+covered by the test suite. PowerShell parsing and final encoder and capture
+validation require Windows PowerShell and a Windows computer with an AV1-capable
+NVIDIA, AMD, or Intel GPU.
 
 Install Playwright's browser once before running the end-to-end suite:
 

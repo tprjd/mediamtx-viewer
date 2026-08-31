@@ -1,9 +1,9 @@
-# Windows OBS Setup Script Plan
+# Windows OBS Setup Design and Implementation Record
 
-Status: version 1 implemented in the repository. Application, authorization,
-checksum, and PowerShell syntax validation are automated. Final acceptance on
-a Windows 10/11 computer with supported AV1 hardware remains required before
-calling the Windows setup production-proven.
+Status: setup version 1.0.3 is implemented and deployed. Application,
+authorization, artifact checksum, and capture-default validation are automated.
+PowerShell parsing and final acceptance still require Windows PowerShell and a
+Windows 10/11 computer with supported AV1 hardware.
 
 ## Goal
 
@@ -38,7 +38,7 @@ never silently fall back from AV1 to another codec.
 - `migrations/004_obs_setup_sessions.sql`: hashed, expiring, single-use setup
   sessions and rate-limit state.
 
-There will be no separate bootstrapper, ZIP archive, configuration file, or
+There is no separate bootstrapper, ZIP archive, configuration file, or
 stream-key file to download.
 
 ## Command modes
@@ -51,21 +51,27 @@ stream-key file to download.
 .\Setup-FrankerzSpam-OBS.cmd -ResetManagedConfig
 ```
 
-- Default: install or update OBS and create missing managed configuration.
-- `-DryRun`: inspect the computer and describe every proposed change without
-  installing or writing anything.
+- Default: inspect WinGet state, install or update OBS, and create missing
+  managed configuration. Setup 1.0.3 also detects the legacy executable-only
+  capture targets and offers to back up and rebuild that collection.
+- `-DryRun`: inspect whether OBS is registered with WinGet and summarize the
+  proposed managed profile and scenes without installing or writing anything.
 - `-UpdateOnly`: update OBS without touching any OBS configuration.
-- `-RepairManagedConfig`: back up and repair required managed settings while
-  preserving unrelated settings where possible.
+- `-RepairManagedConfig`: back up the managed files and recreate the managed
+  profile settings. It preserves the scene collection unless the legacy-target
+  migration is also required.
 - `-ResetManagedConfig`: require confirmation, back up the managed profile and
   collection, and recreate them from the defaults.
 
-Normal reruns must not overwrite user customizations in the managed scenes.
+Normal reruns preserve user customizations in the managed scenes. The one
+exception is the confirmed setup 1.0.3 migration: collections containing the
+old executable-only capture targets are backed up and rebuilt once.
 
 ## Installation and update behavior
 
 1. Verify Windows 10/11 x64 and PowerShell 5.1 or newer.
-2. Detect `winget` and display a clear installation link if it is unavailable.
+2. Detect `winget` and direct the user to install App Installer from Microsoft
+   Store if it is unavailable.
 3. Ask the user to close OBS if it is running.
 4. Install or upgrade only the exact `OBSProject.OBSStudio` package.
 5. Detect the installed OBS version and configuration directory.
@@ -74,20 +80,20 @@ Normal reruns must not overwrite user customizations in the managed scenes.
 7. Do not keep the entire script elevated. Allow the OBS installer to request
    elevation separately if Windows requires it.
 
-The script will not download OBS installers from arbitrary URLs and will rely
-on WinGet's package verification.
+The script does not download OBS installers from arbitrary URLs and relies on
+WinGet's package verification.
 
 ## Download and one-script setup flow
 
-The channel page will add a **Download Windows OBS setup** action. It will be
-shown only to an active signed-in user who owns an enabled channel.
+The channel page provides a **Download Windows OBS setup** action only to an
+active signed-in user who owns an enabled channel.
 
-The downloaded file will be a generic CMD launcher, not a per-user artifact.
+The downloaded file is a generic CMD launcher, not a per-user artifact.
 This keeps the bytes identical for every user and gives the release artifact a
-stable SHA-256 checksum. It will contain no username, channel slug, WHIP URL,
+stable SHA-256 checksum. It contains no username, channel slug, WHIP URL,
 bearer token, session cookie, or other secret.
 
-Planned flow:
+Implemented flow:
 
 1. The user signs in, opens `/account/channel`, downloads the CMD launcher, and
    double-clicks it.
@@ -144,7 +150,7 @@ must not work around the unsigned status with `ExecutionPolicy Bypass`; its
 
 ### Setup authorization requirements
 
-The authorization protocol will follow a limited device-code style flow:
+The authorization protocol follows a limited device-code style flow:
 
 - The script receives a high-entropy device secret, a short human-readable
   code, a complete browser verification URL, an expiry, and a polling interval.
@@ -175,11 +181,11 @@ content types, enforce small request bodies, and authenticate every operation
 with the high-entropy device secret. The browser approval endpoint remains
 behind normal website authentication.
 
-If credential delivery is interrupted after key rotation, the script must not
-print the key or fall back to an insecure recovery mechanism. It will preserve
-the previous managed profile backup, report that a fresh download/authorization
-is required, and the next successful authorization will rotate the unusable key
-again.
+If credential delivery is interrupted after key rotation, the script does not
+print the key or fall back to an insecure recovery mechanism. It reports the
+failure; rerunning setup and completing a new authorization rotates the unusable
+key again. A normal credential-only rerun does not create a copy of
+`service.json`, because that would duplicate the publishing credential.
 
 ## Managed OBS objects
 
@@ -187,17 +193,17 @@ again.
 - Scene collection: `FrankerzSpam Games`
 - Optional desktop shortcut: `FrankerzSpam OBS`
 
-OBS output settings and scenes are separate objects, so the script will manage
+OBS output settings and scenes are separate objects, so the script manages
 the Profile and Scene Collection independently. Existing objects with other
 names are out of scope and must not be changed.
 
-Before a repair or reset, the script will create a timestamped backup under the
-current user's local application-data directory. It will avoid duplicating the
-WHIP bearer token into ordinary backup or log files.
+Before a repair, reset, or legacy capture-target migration, the script creates a
+timestamped backup under the current user's local application-data directory.
+It avoids duplicating the WHIP bearer token into ordinary backup or log files.
 
 ## Required AV1 profile
 
-Proposed initial defaults:
+Configured defaults:
 
 | Setting | Value |
 | --- | --- |
@@ -218,15 +224,15 @@ Proposed initial defaults:
 | Audio bitrate | 160 Kbps |
 
 The initial 12 Mbps AV1 bitrate is intended as a quality and upload-bandwidth
-balance for 1440p60. The setup prompt will explain that each viewer consumes
-approximately the same outbound stream bitrate because MediaMTX does not
-transcode or create lower-resolution variants.
+balance for 1440p60. Each viewer consumes approximately the same server outbound
+stream bitrate because MediaMTX does not transcode or create lower-resolution
+variants.
 
 ### Encoder selection
 
-The script will inventory GPUs first, then use the installed OBS encoder list as
-the authoritative compatibility check. It will select a hardware encoder in
-this order only when OBS reports it as available:
+The script briefly launches OBS and reads its fresh startup log, using OBS's
+installed encoder list as the authoritative compatibility check. It selects a
+hardware encoder in this order only when OBS reports it as available:
 
 1. NVIDIA NVENC AV1 on a compatible NVIDIA GPU.
 2. AMD AMF AV1 on a compatible AMD GPU.
@@ -236,35 +242,35 @@ The exact internal encoder identifier comes from the fresh OBS startup log for
 the installed, supported version. Version 1 recognizes the current NVIDIA,
 legacy NVIDIA, AMD, and Intel hardware-AV1 identifiers.
 
-There will be no H.264, HEVC, x264, AOM, or SVT-AV1 fallback. Software AV1 is
+There is no H.264, HEVC, x264, AOM, or SVT-AV1 fallback. Software AV1 is
 not an acceptable silent fallback for 1440p60. If no hardware AV1 encoder is
-available, the script will make no managed profile change and will explain the
-GPU or driver requirement.
+available, the script makes no managed profile change and explains the GPU or
+driver requirement.
 
-After setup, OBS will be launched with the managed profile and collection. The
-script will inspect the new OBS log and confirm that the selected AV1 encoder is
-listed. A short manual test stream remains required to prove that the encoder
-can initialize at 1440p60.
+Before writing the managed configuration, the script confirms that the fresh
+OBS startup log lists a supported hardware AV1 encoder. After setup, it launches
+OBS with the managed profile and collection. A short manual test stream remains
+required to prove that the selected encoder can initialize at 1440p60.
 
 ## Publishing configuration
 
-The browser authorization flow will supply the WHIP server URL and one-time OBS
+The browser authorization flow supplies the WHIP server URL and one-time OBS
 bearer token directly to the running script. Neither value needs to be copied
-from `/account/channel`, and the bearer token will never be accepted as a
-command-line parameter.
+from `/account/channel`, and the bearer token is never accepted as a command-line
+parameter.
 
-The token will not be printed, included in diagnostic output, copied to the
+The token is not printed, included in diagnostic output, copied to the
 clipboard, placed in an environment variable, or duplicated in an unencrypted
 backup. OBS necessarily retains the publishing credential in its own managed
-profile configuration. The script will explain this before authorization.
+profile configuration. The script explains key rotation before authorization.
 
-The existing manual Generate/Rotate Stream Key control will remain available as
-a recovery and advanced-user path. Authorizing the script will use the same
-rotation semantics and invalidate any previous OBS key.
+The existing manual Generate/Rotate Stream Key control remains available as a
+recovery and advanced-user path. Authorizing the script uses the same
+rotation semantics and invalidates any previous OBS key.
 
 ## Scene collection
 
-Scene switching will be manual. There will be no process-driven automatic
+Scene switching is manual. There is no process-driven automatic
 scene switcher in version one.
 
 | Scene | Enabled primary source | Included fallback |
@@ -277,8 +283,8 @@ scene switcher in version one.
 | `Path of Exile 2` | Capture any fullscreen game | Disabled Window Capture selected while the game is running |
 | `Generic Game` | Capture any fullscreen game | None |
 
-Every visual source will be fitted to the 2560x1440 canvas. Game Capture will be
-preferred for 3D games. Window Capture fallbacks remain disabled until the user
+Every visual source is fitted to the 2560x1440 canvas. Game Capture is preferred
+for 3D games. Window Capture fallbacks remain disabled until the user
 needs one, preventing two copies of a game from appearing at once.
 
 Executable-only targets are not generated: OBS renders their missing title and
@@ -291,7 +297,7 @@ then enables that fallback.
 ## Optional hotkeys
 
 Hotkeys are opt-in during setup because global combinations can conflict with
-games. The proposed defaults are:
+games. The configured combinations are:
 
 | Hotkey | Scene |
 | --- | --- |
@@ -303,7 +309,8 @@ games. The proposed defaults are:
 | `Ctrl+Alt+6` | Path of Exile 2 |
 | `Ctrl+Alt+0` | Generic Game |
 
-The script will show the proposed combinations and allow hotkeys to be skipped.
+The script asks whether to add the configured combinations; pressing Enter
+skips them by default.
 
 ## Display and audio setup
 
@@ -312,7 +319,7 @@ whether to enable the default microphone. These stay device-default so audio
 hardware changes do not immediately invalidate the collection. Users can
 select a different display or device in OBS after setup.
 
-The first version will not add webcams, overlays, alerts, noise suppression,
+The first version does not add webcams, overlays, alerts, noise suppression,
 compressors, or application-specific audio routing.
 
 ## User-visible safety behavior
@@ -325,7 +332,8 @@ compressors, or application-specific audio routing.
 - Never read or export browser cookies.
 - Create only namespaced FrankerzSpam objects.
 - Never delete unrelated OBS data.
-- Never replace managed objects on a normal rerun.
+- Preserve managed objects on a normal rerun, except for the confirmed one-time
+  migration of legacy executable-only capture targets.
 - Use explicit confirmation for reset mode.
 - Write managed files atomically so a failed write does not leave a partial
   JSON or INI file. Repair/reset backups exclude the credential-bearing service
@@ -340,7 +348,7 @@ compressors, or application-specific audio routing.
 - Version one is unsigned, so Windows may show a publisher or SmartScreen
   warning. Signing can be added later.
 - Running the script still involves normal Windows security confirmation and
-  browser approval; the script will not bypass either one.
+  browser approval; the script does not bypass either one.
 - GPU model detection alone cannot prove encoder availability; the installed
   OBS encoder list and a test stream are required.
 - A GPU that exposes AV1 may still fail 1440p60 because of drivers, concurrent
@@ -357,7 +365,8 @@ compressors, or application-specific audio routing.
 
 ### Automated in the repository
 
-- Parse the complete source with the PowerShell SDK before release.
+- Parse the complete source with Windows PowerShell before release; this is a
+  manual release check until a Windows CI job is added.
 - Test the download headers, exact artifact checksum, authorization state
   transitions, token hashing, expiry, ownership checks, rate limits, replay
   rejection, audit records, and log redaction.
