@@ -146,4 +146,18 @@ describe('account approval authentication', () => {
       targetId: 'admin-id',
     })
   })
+
+  it('clears the complete activity history', async () => {
+    const {
+      clearAuditEntries,
+      listAuditEntries,
+      recordAudit,
+    } = await import('@/lib/auth/store')
+
+    recordAudit('admin-id', null, 'test_activity')
+    expect(listAuditEntries().length).toBeGreaterThan(0)
+    expect(clearAuditEntries()).toBeGreaterThan(0)
+    expect(listAuditEntries()).toEqual([])
+    expect(clearAuditEntries()).toBe(0)
+  })
 })

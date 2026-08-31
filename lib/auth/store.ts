@@ -340,3 +340,7 @@ export function listAuditEntries(limit = 30): AuditEntry[] {
     .all(limit) as Array<Omit<AuditEntry, 'createdAt'> & { createdAt: number }>
   return rows.map((row) => ({ ...row, createdAt: new Date(row.createdAt) }))
 }
+
+export function clearAuditEntries(): number {
+  return getDatabase().prepare('DELETE FROM auth_audit_log').run().changes
+}

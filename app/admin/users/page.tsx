@@ -19,6 +19,7 @@ import {
   revokeAllSessionsAction,
   revokeSessionAction,
 } from '@/app/admin/users/actions'
+import { ClearActivityControl } from '@/components/admin/clear-activity-control'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { requireAdminSession } from '@/lib/auth/session'
 import {
@@ -253,19 +254,26 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
       ))}
 
       <section className="audit-section">
-        <div className="user-group-heading">
-          <ShieldCheck />
-          <h2>Recent activity</h2>
+        <div className="audit-heading">
+          <div className="user-group-heading">
+            <ShieldCheck />
+            <h2>Recent activity</h2>
+          </div>
+          <ClearActivityControl disabled={auditEntries.length === 0} />
         </div>
-        <div className="audit-list">
-          {auditEntries.map((entry) => (
-            <p key={entry.id}>
-              <strong>{entry.actorName}</strong> {entry.action.replaceAll('_', ' ')}
-              {entry.targetName ? ` · ${entry.targetName}` : ''}
-              <time>{formatDate(entry.createdAt)}</time>
-            </p>
-          ))}
-        </div>
+        {auditEntries.length > 0 ? (
+          <div className="audit-list">
+            {auditEntries.map((entry) => (
+              <p key={entry.id}>
+                <strong>{entry.actorName}</strong> {entry.action.replaceAll('_', ' ')}
+                {entry.targetName ? ` · ${entry.targetName}` : ''}
+                <time>{formatDate(entry.createdAt)}</time>
+              </p>
+            ))}
+          </div>
+        ) : (
+          <p className="empty-state">No recent activity.</p>
+        )}
       </section>
     </main>
   )

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { requireAdminSession } from '@/lib/auth/session'
 import {
   activateUser,
+  clearAuditEntries,
   createPasswordResetToken,
   disableUser,
   rejectPendingUser,
@@ -121,4 +122,19 @@ export async function resetLinkAction(userId: string) {
     token = createPasswordResetToken(actorId, userId)
   })
   redirect(`/admin/users?reset=${encodeURIComponent(token)}`)
+}
+
+export async function clearActivityAction() {
+  let clearedEntries = 0
+  await runAdminAction(() => {
+    clearedEntries = clearAuditEntries()
+  })
+  redirect(
+    destination(
+      'notice',
+      clearedEntries === 1
+        ? 'Cleared 1 activity entry.'
+        : `Cleared ${clearedEntries} activity entries.`,
+    ),
+  )
 }

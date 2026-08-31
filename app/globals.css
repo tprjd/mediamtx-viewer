@@ -738,6 +738,18 @@ a {
   border-top: 1px solid var(--line);
 }
 
+.audit-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.audit-heading .user-group-heading {
+  margin-bottom: 0;
+}
+
 .audit-list p {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1536,6 +1548,12 @@ a {
     grid-template-columns: 1fr;
     gap: 0.3rem;
   }
+
+  .audit-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .home-layout {
     width: min(100% - 1.25rem, 90rem);
     padding-bottom: 5rem;
