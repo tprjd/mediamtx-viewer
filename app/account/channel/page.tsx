@@ -80,7 +80,7 @@ export default async function ChannelAccountPage({
             <a
               className={buttonVariants()}
               download={OBS_SETUP_SCRIPT_FILENAME}
-              href="/account/channel/obs-setup.ps1"
+              href="/account/channel/obs-setup.cmd"
             >
               Download Windows setup
             </a>
@@ -89,10 +89,11 @@ export default async function ChannelAccountPage({
               <code>{setupScript.sha256}</code>
             </p>
             <p className="obs-setup-note">
-              Version one is unsigned. After downloading, right-click the file,
-              open Properties, select Unblock if shown, then choose Run with
-              PowerShell. The script opens this site for authorization and never
-              contains your stream key.
+              Version one is unsigned. Verify the checksum, then double-click
+              the downloaded file. It uses a temporary PowerShell process and
+              does not change your permanent execution policy. The launcher
+              opens this site for authorization and never contains your stream
+              key.
             </p>
           </>
         ) : (

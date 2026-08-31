@@ -1,8 +1,8 @@
 import { getActiveSession } from '@/lib/auth/session'
 import {
   OBS_SETUP_SCRIPT_FILENAME,
+  buildObsSetupLauncher,
   getObsSetupScriptMetadata,
-  readObsSetupScript,
 } from '@/lib/obs-setup-script'
 import { getOwnedChannel } from '@/lib/channels'
 
@@ -24,13 +24,13 @@ export async function GET(): Promise<Response> {
     })
   }
 
-  const script = readObsSetupScript()
+  const launcher = buildObsSetupLauncher()
   const metadata = getObsSetupScriptMetadata()
-  return new Response(script.toString('utf8'), {
+  return new Response(launcher.toString('ascii'), {
     headers: {
       'Cache-Control': 'private, no-store, max-age=0',
       'Content-Disposition': `attachment; filename="${OBS_SETUP_SCRIPT_FILENAME}"`,
-      'Content-Type': 'text/plain; charset=utf-8',
+      'Content-Type': 'application/octet-stream',
       Pragma: 'no-cache',
       'X-Checksum-SHA256': metadata.sha256,
       'X-Content-Type-Options': 'nosniff',

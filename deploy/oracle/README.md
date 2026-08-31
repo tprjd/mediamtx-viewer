@@ -48,11 +48,13 @@ Oracle IP from `tofu output public_ip`. Caddy will then obtain its TLS
 certificate automatically.
 
 Each streamer can instead sign in, open `/account/channel`, and download the
-Windows setup script. It installs or updates OBS with WinGet, creates the managed
-1440p60 hardware-AV1 profile and game scenes, then opens a ten-minute browser
-authorization. Approval rotates the channel's previous publishing key and sends
-the new one only to the waiting script. The script is generic and unsigned in
-version 1; its SHA-256 is shown on the download page.
+Windows CMD launcher. Double-clicking it verifies and extracts its embedded
+PowerShell payload without changing the permanent execution policy. It installs
+or updates OBS with WinGet, creates the managed 1440p60 hardware-AV1 profile and
+game scenes, then opens a ten-minute browser authorization. Approval rotates the
+channel's previous publishing key and sends the new one only to the waiting
+script. The launcher is generic and unsigned in version 1; its SHA-256 is shown
+on the download page.
 
 For manual setup, configure OBS Custom WHIP service with:
 

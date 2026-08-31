@@ -83,7 +83,16 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('link', { name: 'Download Windows setup' }).click()
   const download = await downloadPromise
-  expect(download.suggestedFilename()).toBe('Setup-FrankerzSpam-OBS.ps1')
+  expect(download.suggestedFilename()).toBe('Setup-FrankerzSpam-OBS.cmd')
+  const downloadStream = await download.createReadStream()
+  const downloadChunks: Buffer[] = []
+  for await (const chunk of downloadStream) {
+    downloadChunks.push(Buffer.from(chunk))
+  }
+  const launcher = Buffer.concat(downloadChunks).toString('ascii')
+  expect(launcher.startsWith('@echo off\r\n')).toBe(true)
+  expect(launcher).toContain('-ExecutionPolicy RemoteSigned')
+  expect(launcher).not.toContain('-ExecutionPolicy Bypass')
 
   page.once('dialog', (dialog) => dialog.accept())
   await page

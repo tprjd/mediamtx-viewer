@@ -97,7 +97,9 @@ Users can change the profile name shown below their stream from `/account`.
 This does not change their sign-in username or immutable channel URL.
 
 The streamer signs in and opens `/account/channel`. Windows users can download
-the generic `Setup-FrankerzSpam-OBS.ps1` script there. It installs or updates
+the generic `Setup-FrankerzSpam-OBS.cmd` launcher there and double-click it. It
+verifies its embedded PowerShell payload, uses a temporary process-only
+execution policy, and then installs or updates
 OBS Studio through WinGet, verifies that OBS reports a hardware AV1 encoder,
 and creates a separate managed profile and scene collection without modifying
 unrelated OBS profiles.
@@ -107,8 +109,7 @@ displayed code binds that computer to the signed-in user's enabled channel,
 rotates the previous publishing key, and delivers the new credential directly
 to the waiting script. The downloadable file never contains a user or channel
 credential, and the key is not printed. Version 1 is unsigned; use the SHA-256
-shown beside the download and select **Unblock** in the downloaded file's
-Properties if Windows displays that option.
+shown beside the download before accepting any Windows publisher warning.
 
 The same page also provides the channel-specific OBS URL and generates a
 one-time stream key for manual setup. Rotating the key invalidates the old one
@@ -151,11 +152,13 @@ npm test
 npm run build
 ```
 
-The Windows setup source is in
-[`scripts/windows/setup-frankerzspam-obs.ps1`](./scripts/windows/setup-frankerzspam-obs.ps1).
-Its parser and server/device-authorization contract are covered by the test
-suite; final encoder and capture validation requires Windows with an AV1-capable
-NVIDIA, AMD, or Intel GPU.
+The PowerShell payload source is in
+[`scripts/windows/setup-frankerzspam-obs.ps1`](./scripts/windows/setup-frankerzspam-obs.ps1),
+and the deterministic CMD launcher is generated in
+[`lib/obs-setup-script.ts`](./lib/obs-setup-script.ts). Its payload extraction,
+checksums, parser, and server/device-authorization contract are covered by the
+test suite; final encoder and capture validation requires Windows with an
+AV1-capable NVIDIA, AMD, or Intel GPU.
 
 Install Playwright's browser once before running the end-to-end suite:
 

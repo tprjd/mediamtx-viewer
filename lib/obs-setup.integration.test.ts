@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -187,19 +188,36 @@ describe('Windows OBS setup authorization', () => {
   })
 
   it('publishes a stable generic script with no credential material', async () => {
-    const { getObsSetupScriptMetadata, readObsSetupScript } = await import(
-      '@/lib/obs-setup-script'
-    )
-    const source = readObsSetupScript().toString('utf8')
+    const {
+      OBS_SETUP_PAYLOAD_MARKER,
+      buildObsSetupLauncher,
+      getObsSetupScriptMetadata,
+      readObsSetupPowerShellSource,
+    } = await import('@/lib/obs-setup-script')
+    const source = readObsSetupPowerShellSource().toString('utf8')
+    const launcher = buildObsSetupLauncher().toString('ascii')
     const metadata = getObsSetupScriptMetadata()
+    const encodedPayload = launcher
+      .slice(launcher.lastIndexOf(OBS_SETUP_PAYLOAD_MARKER) + OBS_SETUP_PAYLOAD_MARKER.length)
+      .trim()
+    const payloadSha256 = createHash('sha256').update(source).digest('hex')
+    const launcherSha256 = createHash('sha256').update(launcher, 'ascii').digest('hex')
 
     expect(metadata).toMatchObject({ version: '1.0.0' })
-    expect(metadata.sha256).toMatch(/^[a-f0-9]{64}$/)
+    expect(metadata.sha256).toBe(launcherSha256)
+    expect(metadata.size).toBe(Buffer.byteLength(launcher, 'ascii'))
+    expect(launcher.startsWith('@echo off\r\n')).toBe(true)
+    expect(launcher).toContain('-ExecutionPolicy RemoteSigned')
+    expect(launcher).not.toContain('-ExecutionPolicy Bypass')
+    expect(launcher).not.toContain('Set-ExecutionPolicy')
+    expect(launcher).toContain(`if($actual -ne '${payloadSha256}')`)
+    expect(Buffer.from(encodedPayload, 'base64')).toEqual(Buffer.from(source))
     expect(source).toContain("$ScriptVersion = '1.0.0'")
     expect(source).toContain('obs_nvenc_av1_tex')
     expect(source).toContain('av1_texture_amf')
     expect(source).toContain('obs_qsv11_av1')
     expect(source).not.toMatch(/mtx_sk_[A-Za-z0-9_-]{20,}/)
+    expect(launcher).not.toMatch(/mtx_sk_[A-Za-z0-9_-]{20,}/)
   })
 
   it('rejects oversized device requests even without Content-Length', async () => {

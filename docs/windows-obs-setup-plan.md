@@ -7,10 +7,10 @@ calling the Windows setup production-proven.
 
 ## Goal
 
-Create a safe, repeatable PowerShell script that installs or updates OBS Studio
-on Windows 10/11 and creates a FrankerzSpam-specific 2560x1440, 60 FPS AV1
-streaming profile with manually selected scenes for the requested games and the
-desktop.
+Create a safe, repeatable single-file Windows launcher with an embedded
+PowerShell payload that installs or updates OBS Studio on Windows 10/11 and
+creates a FrankerzSpam-specific 2560x1440, 60 FPS AV1 streaming profile with
+manually selected scenes for the requested games and the desktop.
 
 An authenticated user will download the latest script from their channel page
 and run that single file. The script will install or update OBS, configure it,
@@ -23,13 +23,15 @@ never silently fall back from AV1 to another codec.
 
 ## Implemented files
 
-- `scripts/windows/setup-frankerzspam-obs.ps1`: main Windows PowerShell 5.1
-  compatible script and the only file a user downloads.
+- `scripts/windows/setup-frankerzspam-obs.ps1`: reviewed Windows PowerShell 5.1
+  compatible payload source.
+- `lib/obs-setup-script.ts`: deterministic `Setup-FrankerzSpam-OBS.cmd`
+  generator with embedded base64 payload and a fixed payload checksum.
 - `lib/obs-setup.integration.test.ts`: isolated integration coverage for setup
   state transitions, expiry, ownership, replay rejection, rate limits, route
   behavior, artifact metadata, and credential redaction.
-- `app/account/channel/obs-setup.ps1/route.ts`: authenticated generic download
-  served directly from the reviewed source with a stable SHA-256 checksum.
+- `app/account/channel/obs-setup.cmd/route.ts`: authenticated generic launcher
+  download generated from the reviewed source with a stable SHA-256 checksum.
 - `app/account/channel/obs-setup/[code]/page.tsx`: authenticated approval UI.
 - `app/api/obs-setup/device/start` and `poll`: narrowly scoped public device
   endpoints with small streamed request bodies and IP/session rate limits.
@@ -42,11 +44,11 @@ stream-key file to download.
 ## Command modes
 
 ```powershell
-.\setup-frankerzspam-obs.ps1
-.\setup-frankerzspam-obs.ps1 -DryRun
-.\setup-frankerzspam-obs.ps1 -UpdateOnly
-.\setup-frankerzspam-obs.ps1 -RepairManagedConfig
-.\setup-frankerzspam-obs.ps1 -ResetManagedConfig
+.\Setup-FrankerzSpam-OBS.cmd
+.\Setup-FrankerzSpam-OBS.cmd -DryRun
+.\Setup-FrankerzSpam-OBS.cmd -UpdateOnly
+.\Setup-FrankerzSpam-OBS.cmd -RepairManagedConfig
+.\Setup-FrankerzSpam-OBS.cmd -ResetManagedConfig
 ```
 
 - Default: install or update OBS and create missing managed configuration.
@@ -80,33 +82,37 @@ on WinGet's package verification.
 The channel page will add a **Download Windows OBS setup** action. It will be
 shown only to an active signed-in user who owns an enabled channel.
 
-The downloaded file will be a generic script, not a per-user script. This keeps
-the bytes identical for every user and gives the release artifact a stable
-SHA-256 checksum. It will contain no
-username, channel slug, WHIP URL, bearer token, session cookie, or other secret.
+The downloaded file will be a generic CMD launcher, not a per-user artifact.
+This keeps the bytes identical for every user and gives the release artifact a
+stable SHA-256 checksum. It will contain no username, channel slug, WHIP URL,
+bearer token, session cookie, or other secret.
 
 Planned flow:
 
-1. The user signs in, opens `/account/channel`, and downloads the PowerShell
-   script.
-2. The channel page displays the exact version and SHA-256 checksum. Because
-   version one is unsigned, Windows may require the user to open file Properties
-   and select **Unblock** before running it. The script must not disable or
-   bypass Execution Policy, SmartScreen, Defender, or other Windows security
-   controls.
-3. The script installs or updates OBS, performs hardware and AV1 preflight, and
+1. The user signs in, opens `/account/channel`, downloads the CMD launcher, and
+   double-clicks it.
+2. The channel page displays the exact version and SHA-256 checksum. Version one
+   is unsigned, so Windows can still display a publisher or SmartScreen warning.
+   The launcher must not disable SmartScreen, Defender, or persistent Windows
+   security controls.
+3. The launcher verifies its embedded payload checksum, writes it to a random
+   temporary path, unblocks that verified copy, and runs it with `RemoteSigned`
+   for the child PowerShell process only. It does not use `ExecutionPolicy
+   Bypass` or change CurrentUser/LocalMachine policy, and removes the temporary
+   payload after execution.
+4. The script installs or updates OBS, performs hardware and AV1 preflight, and
    prepares the managed profile and scene collection without a stream key.
-4. After preflight succeeds, the script explains that final authorization will
+5. After preflight succeeds, the script explains that final authorization will
    rotate the channel's current OBS key and disconnect an existing publisher.
-5. The script creates a short-lived device setup session and opens the default
+6. The script creates a short-lived device setup session and opens the default
    browser to the site's complete verification URL.
-6. The already signed-in user reviews the channel name and requested action,
+7. The already signed-in user reviews the channel name and requested action,
    then selects **Authorize OBS setup**. Login is required if the browser no
    longer has an active session.
-7. The script polls at the server-provided interval. After authorization, the
+8. The script polls at the server-provided interval. After authorization, the
    server returns the exact channel WHIP URL and a newly generated stream key
    once over HTTPS.
-8. The script writes those values directly into the managed OBS profile, clears
+9. The script writes those values directly into the managed OBS profile, clears
    its in-memory credential variables, verifies the resulting profile without
    printing the key, and launches OBS.
 
@@ -119,22 +125,22 @@ in the downloaded file.
 - Serve the script only from the canonical HTTPS site.
 - Require an active session and an owned, enabled channel on the download page.
 - Send `Content-Disposition: attachment` with a stable filename such as
-  `Setup-FrankerzSpam-OBS.ps1`.
+  `Setup-FrankerzSpam-OBS.cmd`.
 - Send `Cache-Control: private, no-store`, `Pragma: no-cache`, and
   `X-Content-Type-Options: nosniff`.
-- Display the release version, unsigned status, SHA-256 checksum, supported
-  Windows versions, Unblock instructions, and a short explanation of what the
-  script changes.
+- Display the release version, unsigned status, launcher SHA-256 checksum,
+  supported Windows versions, double-click instructions, and a short
+  explanation of what the script changes.
 - Keep the source script in the repository and make the downloadable artifact
   reproducible from that source.
 - Do not generate or store a customized script for each user.
 - Do not include credentials in URLs, filenames, analytics, proxy logs, or
   browser-visible query parameters.
 
-Version one is intentionally unsigned. A trusted Authenticode signature can be
-added later without changing the browser authorization protocol. The
-implementation must not work around the unsigned status by telling users to use
-`ExecutionPolicy Bypass`.
+Version one is intentionally unsigned. A signed executable or installer can be
+added later without changing the browser authorization protocol. The launcher
+must not work around the unsigned status with `ExecutionPolicy Bypass`; its
+`RemoteSigned` override is limited to the verified child process.
 
 ### Setup authorization requirements
 
@@ -315,7 +321,7 @@ compressors, or application-specific audio routing.
 
 - Show a summary and require confirmation before the first write.
 - Redact the bearer token and other secrets from all output.
-- Display that version one is unsigned and publish its exact SHA-256 checksum.
+- Display that version one is unsigned and publish the exact CMD SHA-256 checksum.
 - Complete channel authorization in the authenticated browser rather than
   collecting a website password in PowerShell.
 - Never read or export browser cookies.
@@ -333,8 +339,8 @@ compressors, or application-specific audio routing.
 
 - AV1 playback depends on each viewer's browser, operating system, and decoder
   support. The server passes AV1 through and does not transcode it to H.264.
-- Version one is unsigned, so Windows may require the downloaded file to be
-  unblocked manually. Signing can be added later.
+- Version one is unsigned, so Windows may show a publisher or SmartScreen
+  warning. Signing can be added later.
 - Running the script still involves normal Windows security confirmation and
   browser approval; the script will not bypass either one.
 - GPU model detection alone cannot prove encoder availability; the installed
@@ -367,8 +373,9 @@ WinGet, Windows capture plugins, or an installed hardware encoder.
 ### Windows test machine
 
 1. Run `-DryRun` and confirm that it writes nothing.
-2. Download the script from an authenticated channel page and verify its
-   displayed SHA-256 checksum and Unblock instructions.
+2. Download the launcher from an authenticated channel page, verify its
+   displayed SHA-256 checksum, and confirm it starts by double-click without a
+   permanent execution-policy change.
 3. Install OBS on a clean Windows user account.
 4. Confirm that unrelated OBS objects survive setup and reset tests.
 5. Confirm OBS opens with `FrankerzSpam 1440p60 AV1` and
@@ -397,9 +404,9 @@ Version one is complete when:
 - Unsupported hardware fails clearly without a codec fallback.
 - WHIP credentials can be received without appearing in logs, command-line
   history, manual copy/paste, or the downloaded script.
-- An authenticated channel owner can download one generic PowerShell file and
+- An authenticated channel owner can download one generic CMD launcher and
   complete setup through browser authorization without downloading supporting
-  files.
+  files or manually changing PowerShell policy.
 - Setup authorization is expiring, single-use, ownership-bound, rate-limited,
   replay-resistant, and audited.
 - All requested scenes exist and switch manually.
@@ -416,8 +423,8 @@ Version one is complete when:
 - Require AV1 instead of configuring H.264.
 - Do not silently use a software codec fallback.
 - Preserve existing OBS configuration by default.
-- Deliver one generic unsigned PowerShell script from `/account/channel`, with
-  its exact SHA-256 checksum and Unblock instructions.
+- Deliver one generic unsigned CMD launcher from `/account/channel`, with its
+  exact SHA-256 checksum and an internally checksummed PowerShell payload.
 - Use authenticated browser authorization instead of embedding or asking users
   to paste stream keys.
 
