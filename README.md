@@ -102,7 +102,10 @@ verifies its embedded PowerShell payload, uses a temporary process-only
 execution policy, and then installs or updates
 OBS Studio through WinGet, verifies that OBS reports a hardware AV1 encoder,
 and creates a separate managed profile and scene collection without modifying
-unrelated OBS profiles.
+unrelated OBS profiles. Named game scenes capture the active fullscreen game;
+each also has a disabled Window Capture fallback that can be selected while the
+game is running. Setup 1.0.3 backs up and replaces the earlier unreliable
+executable-only `(null)` capture targets on rerun.
 
 The script opens a ten-minute authorization page in the browser. Approving the
 displayed code binds that computer to the signed-in user's enabled channel,

@@ -270,25 +270,23 @@ scene switcher in version one.
 | Scene | Enabled primary source | Included fallback |
 | --- | --- | --- |
 | `Desktop` | Display Capture for the selected monitor | None |
-| `League of Legends` | Game Capture for the game executable | Window Capture for the League client/lobby |
-| `EVE Online` | Game Capture matched to the detected EVE executable | Disabled Window Capture |
-| `STALKER 2` | Game Capture matched to the detected STALKER 2 executable | Disabled Window Capture |
-| `Path of Exile` | Game Capture matched to the detected PoE 1 executable | Disabled Window Capture |
-| `Path of Exile 2` | Game Capture matched to the detected PoE 2 executable | Disabled Window Capture |
+| `League of Legends` | Capture any fullscreen game | Disabled Window Capture selected while the client is running |
+| `EVE Online` | Capture any fullscreen game | Disabled Window Capture selected while the game is running |
+| `STALKER 2` | Capture any fullscreen game | Disabled Window Capture selected while the game is running |
+| `Path of Exile` | Capture any fullscreen game | Disabled Window Capture selected while the game is running |
+| `Path of Exile 2` | Capture any fullscreen game | Disabled Window Capture selected while the game is running |
 | `Generic Game` | Capture any fullscreen game | None |
 
 Every visual source will be fitted to the 2560x1440 canvas. Game Capture will be
 preferred for 3D games. Window Capture fallbacks remain disabled until the user
 needs one, preventing two copies of a game from appearing at once.
 
-League of Legends needs distinct matching for `LeagueClientUx.exe` and the
-actual `League of Legends.exe` game. Both sources can live in its single scene,
-with Game Capture above the lobby Window Capture.
-
-For the other games, the script checks running processes and common Steam
-locations. If discovery fails, the scene is still created with the expected
-executable so the user can select the running game in OBS if a launcher or game
-update uses a different name.
+Executable-only targets are not generated: OBS renders their missing title and
+window class as `(null)` and they do not bind reliably. The enabled Game Capture
+source instead hooks whichever fullscreen game is running. Each named scene has
+its own copy so it can be customized independently. If a game cannot be hooked,
+the user starts it, selects the disabled Window Capture fallback in OBS, and
+then enables that fallback.
 
 ## Optional hotkeys
 
@@ -347,7 +345,8 @@ compressors, or application-specific audio routing.
   OBS encoder list and a test stream are required.
 - A GPU that exposes AV1 may still fail 1440p60 because of drivers, concurrent
   encoder use, thermals, or load.
-- Game updates can rename executables or change window classes.
+- Existing collections created before setup version 1.0.3 are backed up and
+  rebuilt once to remove executable-only capture targets.
 - Some anti-cheat systems can interfere with Game Capture.
 - OBS and a game normally need compatible Windows privilege levels.
 - A game may need to run once before an exact Window Capture match can be

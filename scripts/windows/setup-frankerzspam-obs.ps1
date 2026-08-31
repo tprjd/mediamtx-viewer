@@ -17,7 +17,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$ScriptVersion = '1.0.2'
+$ScriptVersion = '1.0.3'
 $ProfileName = 'FrankerzSpam 1440p60 AV1'
 $ProfileDirectoryName = 'FrankerzSpam_1440p60_AV1'
 $CollectionName = 'FrankerzSpam Games'
@@ -289,6 +289,20 @@ function Backup-ManagedConfiguration {
     Write-Info "Managed configuration backed up to $backupRoot"
 }
 
+function Test-LegacyExecutableOnlyCaptureTargets {
+    param([string]$CollectionPath)
+    if (-not (Test-Path -LiteralPath $CollectionPath)) { return $false }
+
+    try {
+        $collectionJson = [IO.File]::ReadAllText($CollectionPath)
+        return $collectionJson -match '"capture_mode"\s*:\s*"window"' -and
+            $collectionJson -match '"window"\s*:\s*"::'
+    } catch {
+        Write-Warning "Could not inspect the existing managed scene collection: $($_.Exception.Message)"
+        return $false
+    }
+}
+
 function Get-EncoderSettings {
     param(
         [string]$EncoderId,
@@ -487,25 +501,6 @@ function New-SceneSource {
     }
 }
 
-function Find-GameExecutable {
-    param(
-        [string[]]$Candidates,
-        [string[]]$KnownPaths
-    )
-    foreach ($candidate in $Candidates) {
-        $processName = [IO.Path]::GetFileNameWithoutExtension($candidate)
-        $process = Get-Process -Name $processName -ErrorAction SilentlyContinue |
-            Select-Object -First 1
-        if ($process) { return $candidate }
-    }
-    foreach ($knownPath in $KnownPaths) {
-        if ($knownPath -and (Test-Path -LiteralPath $knownPath)) {
-            return [IO.Path]::GetFileName($knownPath)
-        }
-    }
-    return $Candidates[0]
-}
-
 function Write-ManagedSceneCollection {
     param(
         [string]$CollectionPath,
@@ -519,44 +514,25 @@ function Write-ManagedSceneCollection {
         if ($screens[$index].Primary) { $primaryIndex = $index; break }
     }
 
-    $programFilesX86 = [Environment]::GetFolderPath('ProgramFilesX86')
-    $steamRoot = if ($programFilesX86) {
-        Join-Path $programFilesX86 'Steam\steamapps\common'
-    } else { '' }
     $gameDefinitions = @(
         [ordered]@{
             Name = 'League of Legends'
-            Candidates = @('League of Legends.exe')
-            Paths = @((Join-Path ${env:SystemDrive} 'Riot Games\League of Legends\Game\League of Legends.exe'))
-            WindowFallback = 'LeagueClientUx.exe'
             Hotkey = 'OBS_KEY_2'
         },
         [ordered]@{
             Name = 'EVE Online'
-            Candidates = @('exefile.exe')
-            Paths = @((Join-Path $steamRoot 'Eve Online\SharedCache\tq\bin64\exefile.exe'))
-            WindowFallback = 'exefile.exe'
             Hotkey = 'OBS_KEY_3'
         },
         [ordered]@{
             Name = 'STALKER 2'
-            Candidates = @('Stalker2-Win64-Shipping.exe')
-            Paths = @((Join-Path $steamRoot 'S.T.A.L.K.E.R. 2 Heart of Chornobyl\Stalker2\Binaries\Win64\Stalker2-Win64-Shipping.exe'))
-            WindowFallback = 'Stalker2-Win64-Shipping.exe'
             Hotkey = 'OBS_KEY_4'
         },
         [ordered]@{
             Name = 'Path of Exile'
-            Candidates = @('PathOfExile_x64.exe', 'PathOfExileSteam.exe')
-            Paths = @((Join-Path $steamRoot 'Path of Exile\PathOfExile_x64.exe'))
-            WindowFallback = 'PathOfExile_x64.exe'
             Hotkey = 'OBS_KEY_5'
         },
         [ordered]@{
             Name = 'Path of Exile 2'
-            Candidates = @('PathOfExileSteam.exe', 'PathOfExile.exe')
-            Paths = @((Join-Path $steamRoot 'Path of Exile 2\PathOfExileSteam.exe'))
-            WindowFallback = 'PathOfExileSteam.exe'
             Hotkey = 'OBS_KEY_6'
         }
     )
@@ -577,17 +553,14 @@ function Write-ManagedSceneCollection {
     [void]$sceneOrder.Add([ordered]@{ name = 'Desktop' })
 
     foreach ($game in $gameDefinitions) {
-        $executable = Find-GameExecutable $game.Candidates $game.Paths
         $gameSource = New-ObsInputSource "$($game.Name) - Game Capture" 'game_capture' ([ordered]@{
-            capture_mode = 'window'
-            window = "::$executable"
-            priority = 2
+            capture_mode = 'any_fullscreen'
             capture_cursor = $true
             anti_cheat_hook = $true
             limit_framerate = $false
         })
-        $windowSource = New-ObsInputSource "$($game.Name) - Window fallback" 'window_capture' ([ordered]@{
-            window = "::$($game.WindowFallback)"
+        $windowSource = New-ObsInputSource "$($game.Name) - Window fallback (select while running)" 'window_capture' ([ordered]@{
+            window = ''
             priority = 2
             method = 2
             cursor = $true
@@ -777,13 +750,23 @@ try {
 
     $profileExists = Test-Path -LiteralPath $profileDirectory
     $collectionExists = Test-Path -LiteralPath $collectionPath
+    $needsCaptureTargetMigration = $collectionExists -and
+        (Test-LegacyExecutableOnlyCaptureTargets $collectionPath)
+    if ($needsCaptureTargetMigration) {
+        Write-Warning 'The managed scenes contain unreliable executable-only capture targets. Setup will back them up and rebuild the collection.'
+    }
     $needsProfileWrite = -not $profileExists -or $RepairManagedConfig -or $ResetManagedConfig
-    $needsCollectionWrite = -not $collectionExists -or $ResetManagedConfig
-    if (($RepairManagedConfig -or $ResetManagedConfig) -and
-        -not (Read-Confirmation 'Back up and change the existing managed configuration?' $false)) {
+    $needsCollectionWrite = -not $collectionExists -or $ResetManagedConfig -or
+        $needsCaptureTargetMigration
+    $changesExistingConfiguration = $RepairManagedConfig -or $ResetManagedConfig -or
+        $needsCaptureTargetMigration
+    $changeConfirmationDefault = $needsCaptureTargetMigration -and
+        -not $RepairManagedConfig -and -not $ResetManagedConfig
+    if ($changesExistingConfiguration -and
+        -not (Read-Confirmation 'Back up and change the existing managed configuration?' $changeConfirmationDefault)) {
         throw 'Setup cancelled.'
     }
-    if ($RepairManagedConfig -or $ResetManagedConfig) {
+    if ($changesExistingConfiguration) {
         Backup-ManagedConfiguration $profileDirectory $collectionPath
     }
 

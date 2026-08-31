@@ -29,6 +29,16 @@ package, requires a hardware AV1 encoder reported by OBS, and creates:
 - WHIP service settings obtained through a single-use, ten-minute browser
   authorization.
 
+Each named game scene uses OBS Game Capture's `Capture any fullscreen
+application` mode. This avoids fragile executable-only targets that OBS displays
+as `(null)` and that stop working when a game changes its executable. Each scene
+also includes a disabled Window Capture fallback. If Game Capture does not work,
+start the game, select the fallback's window in OBS, then enable that source.
+
+Setup version 1.0.3 recognizes collections created with the old executable-only
+targets. A normal rerun offers to back up and rebuild that managed collection;
+unrelated OBS profiles and collections remain untouched.
+
 Existing unrelated profiles and collections are untouched. A normal rerun
 preserves the managed scenes and profile. The supported maintenance modes are:
 
