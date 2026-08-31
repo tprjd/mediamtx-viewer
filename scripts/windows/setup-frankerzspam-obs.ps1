@@ -17,7 +17,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$ScriptVersion = '1.0.1'
+$ScriptVersion = '1.0.2'
 $ProfileName = 'FrankerzSpam 1440p60 AV1'
 $ProfileDirectoryName = 'FrankerzSpam_1440p60_AV1'
 $CollectionName = 'FrankerzSpam Games'
@@ -228,17 +228,36 @@ function Write-AtomicText {
     )
     $directory = Split-Path -Parent $Path
     [IO.Directory]::CreateDirectory($directory) | Out-Null
-    $temporaryPath = "$Path.$([Guid]::NewGuid().ToString('N')).tmp"
+    $operationId = [Guid]::NewGuid().ToString('N')
+    $temporaryPath = "$Path.$operationId.tmp"
+    $replacementBackupPath = "$Path.$operationId.replace-backup"
     try {
         [IO.File]::WriteAllText($temporaryPath, $Content, (Get-Utf8NoBomEncoding))
         if (Test-Path -LiteralPath $Path) {
-            [IO.File]::Replace($temporaryPath, $Path, $null)
+            [IO.File]::Replace(
+                $temporaryPath,
+                $Path,
+                $replacementBackupPath,
+                $true
+            )
+            [IO.File]::Delete($replacementBackupPath)
         } else {
             [IO.File]::Move($temporaryPath, $Path)
         }
+    } catch {
+        $writeError = $_
+        if ((Test-Path -LiteralPath $replacementBackupPath) -and
+            -not (Test-Path -LiteralPath $Path)) {
+            [IO.File]::Move($replacementBackupPath, $Path)
+        }
+        throw $writeError
     } finally {
         if (Test-Path -LiteralPath $temporaryPath) {
             Remove-Item -LiteralPath $temporaryPath -Force
+        }
+        if ((Test-Path -LiteralPath $replacementBackupPath) -and
+            (Test-Path -LiteralPath $Path)) {
+            Remove-Item -LiteralPath $replacementBackupPath -Force
         }
     }
 }

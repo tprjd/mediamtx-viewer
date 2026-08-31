@@ -17,7 +17,7 @@ import {
   type GeneratedStreamKey,
 } from '@/lib/channels'
 
-export const OBS_SETUP_SCRIPT_VERSION = '1.0.1'
+export const OBS_SETUP_SCRIPT_VERSION = '1.0.2'
 export const OBS_SETUP_EXPIRES_MS = 10 * 60 * 1000
 export const OBS_SETUP_POLL_INTERVAL_SECONDS = 3
 const START_LIMIT_WINDOW_MS = 10 * 60 * 1000
