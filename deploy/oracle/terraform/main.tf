@@ -171,6 +171,11 @@ resource "oci_core_instance" "viewer" {
   }
 
   lifecycle {
+    # Cloud-init runs only when the instance is created. Updating the
+    # workstation SSH CIDR later must not replace the VM and its boot volume;
+    # apply the security-list change and update UFW on the running host instead.
+    ignore_changes = [metadata["user_data"]]
+
     precondition {
       condition     = length(data.oci_core_images.ubuntu.images) > 0 || var.image_ocid != null
       error_message = "No compatible Ubuntu 24.04 image was found for the selected shape."

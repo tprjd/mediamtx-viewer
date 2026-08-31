@@ -42,6 +42,31 @@ again. Frankfurt currently exposes three indices: `0`, `1`, and `2`.
 After a successful apply, point the public hostname at the `public_ip` output,
 wait for DNS propagation, and deploy the Docker Compose application stack.
 
+## Updating the deployment IP
+
+SSH is restricted to one workstation address in both the Oracle security list
+and UFW on the VM. When that address changes:
+
+1. Set `ssh_allowed_cidr` in `terraform.tfvars` to the new `/32`.
+2. Apply only the network rule so cloud-init does not affect the running VM:
+
+   ```sh
+   tofu plan -target=oci_core_security_list.viewer -out=tfplan-ssh
+   tofu apply tfplan-ssh
+   ```
+
+3. Connect over SSH, add the new UFW rule, and remove the previous one only
+   after the new rule succeeds:
+
+   ```sh
+   sudo ufw allow from NEW_IP/32 to any port 22 proto tcp
+   sudo ufw delete allow from OLD_IP/32 to any port 22 proto tcp
+   ```
+
+The instance lifecycle ignores later `user_data` changes because cloud-init is
+first-boot configuration. This prevents an IP rotation from proposing a VM and
+boot-volume replacement.
+
 ## Existing-resource import
 
 If an earlier manual setup already created resources, import them before
