@@ -10,7 +10,7 @@ export interface ChannelStatus {
 
 export interface PublicChannel {
   slug: string
-  displayName: string
+  ownerName: string
   title: string
   description?: string
   poster?: string

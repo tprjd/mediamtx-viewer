@@ -188,7 +188,7 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
       >
         <video
           ref={videoRef}
-          aria-label={`${channel.displayName} live video`}
+          aria-label={`${channel.title} live video`}
           autoPlay
           className="size-full bg-black object-contain"
           controls

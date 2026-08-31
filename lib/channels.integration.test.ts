@@ -62,6 +62,7 @@ describe('account-owned channels', () => {
 
     expect(channel).toMatchObject({
       ownerUserId: 'friend-id',
+      ownerName: 'Friend',
       slug: 'friend-channel',
       mediaPath: 'channels/friend-channel',
       enabled: true,

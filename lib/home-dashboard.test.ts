@@ -13,7 +13,7 @@ function channel(
 ): PublicChannel {
   return {
     slug,
-    displayName: `${slug} owner`,
+    ownerName: `${slug} owner`,
     title: `${slug} title`,
     accentColor: '#8b5cf6',
     preferredPlayback: 'webrtc',
@@ -82,7 +82,7 @@ describe('newlyLiveChannelNames', () => {
         [channel('one'), channel('two', 'live')],
         [channel('one', 'live'), channel('two', 'live')],
       ),
-    ).toEqual(['one owner'])
+    ).toEqual(['one title'])
   })
 })
 

@@ -32,7 +32,7 @@ export const channelMetadataSchema = z.object({
 export const channelSchema = z.object({
   slug: channelSlugSchema,
   mediaPath: mediaPathSchema,
-  displayName: z.string().min(1).max(80),
+  ownerName: z.string().min(1).max(80),
   title: z.string().min(1).max(120),
   description: z.string().max(300).optional(),
   poster: z.string().min(1).optional(),

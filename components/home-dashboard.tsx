@@ -34,11 +34,11 @@ interface HomeDashboardProps {
 }
 
 function FeaturedChannel({ channel }: { channel: PublicChannel }) {
-  const initial = channel.displayName.trim().charAt(0).toUpperCase() || '•'
+  const initial = channel.title.trim().charAt(0).toUpperCase() || '•'
 
   return (
     <Link
-      aria-label={`Watch ${channel.displayName} — ${channel.title}, live`}
+      aria-label={`Watch ${channel.title} by ${channel.ownerName}, live`}
       className="featured-channel"
       href={`/watch/${encodeURIComponent(channel.slug)}`}
       style={{ '--accent': channel.accentColor } as CSSProperties}
@@ -55,15 +55,19 @@ function FeaturedChannel({ channel }: { channel: PublicChannel }) {
         </div>
       </div>
       <div className="featured-details">
-        <div>
-          <p className="channel-owner">{channel.displayName}</p>
+        <div className="featured-copy">
           <h2>{channel.title}</h2>
-          {channel.description && <p>{channel.description}</p>}
+          {channel.description && (
+            <p className="featured-description">{channel.description}</p>
+          )}
         </div>
-        <span className="featured-action" aria-hidden="true">
-          Watch live
-          <ArrowUpRight className="size-4" />
-        </span>
+        <div className="featured-footer">
+          <p className="channel-owner-name">{channel.ownerName}</p>
+          <span className="featured-action" aria-hidden="true">
+            Watch live
+            <ArrowUpRight className="size-4" />
+          </span>
+        </div>
       </div>
     </Link>
   )

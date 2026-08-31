@@ -7,7 +7,7 @@ import type { ChannelStatus } from '@/lib/types'
 const channel: Channel = {
   slug: 'friend',
   mediaPath: 'relay/friend',
-  displayName: 'Friend',
+  ownerName: 'Friend',
   title: 'Friend stream',
   accentColor: '#22c55e',
   preferredPlayback: 'hls',
@@ -34,6 +34,8 @@ describe('toPublicChannel', () => {
     )
     expect(result.playback.webrtc).toBe('/media/whep/relay/friend/whep')
     expect(result.poster).toBe('/api/channels/friend/thumbnail?v=123')
+    expect(result.ownerName).toBe('Friend')
+    expect(result).not.toHaveProperty('displayName')
     expect(JSON.stringify(result)).not.toContain('9997')
   })
 })

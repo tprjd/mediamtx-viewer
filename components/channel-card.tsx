@@ -9,11 +9,11 @@ interface ChannelCardProps {
 }
 
 export function ChannelCard({ channel }: ChannelCardProps) {
-  const initial = channel.displayName.trim().charAt(0).toUpperCase() || '•'
+  const initial = channel.title.trim().charAt(0).toUpperCase() || '•'
 
   return (
     <Link
-      aria-label={`Watch ${channel.displayName} — ${channel.title}, ${channel.status.state}`}
+      aria-label={`Watch ${channel.title} by ${channel.ownerName}, ${channel.status.state}`}
       className="channel-card group"
       href={`/watch/${encodeURIComponent(channel.slug)}`}
       style={{ '--accent': channel.accentColor } as React.CSSProperties}
@@ -32,18 +32,18 @@ export function ChannelCard({ channel }: ChannelCardProps) {
         </div>
       </div>
       <div className="channel-card-details">
-        <div>
-          <p className="channel-owner">
-            {channel.displayName}
-          </p>
+        <div className="channel-card-copy">
           <h3>{channel.title}</h3>
           {channel.description && (
             <p className="channel-card-description">{channel.description}</p>
           )}
         </div>
-        <span className="channel-card-arrow" aria-hidden="true">
-          <ArrowUpRight className="size-4" aria-hidden="true" />
-        </span>
+        <div className="channel-card-footer">
+          <p className="channel-owner-name">{channel.ownerName}</p>
+          <span className="channel-card-arrow" aria-hidden="true">
+            <ArrowUpRight className="size-4" aria-hidden="true" />
+          </span>
+        </div>
       </div>
     </Link>
   )

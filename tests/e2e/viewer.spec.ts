@@ -8,7 +8,7 @@ test('shows the channel directory', async ({ page }) => {
   ).toBeVisible()
   await expect(page.getByRole('heading', { name: 'All channels' })).toBeVisible()
   await expect(
-    page.getByRole('link', { name: /Watch Main channel — Live stream/ }),
+    page.getByRole('link', { name: /Watch Live stream by power/ }),
   ).toBeVisible()
 })
 
@@ -30,7 +30,7 @@ test('opens a stable watch URL', async ({ page }) => {
   await page.goto('/watch/live')
 
   await expect(page.getByRole('heading', { name: 'Live stream' })).toBeVisible()
-  await expect(page.getByLabel('Main channel live video')).toBeVisible()
+  await expect(page.getByLabel('Live stream live video')).toBeVisible()
 })
 
 test('returns a useful page for unknown channels', async ({ page }) => {
@@ -65,7 +65,7 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
   await page.getByLabel('Password').fill('e2e-administrator-password')
   await page.getByRole('button', { name: 'Sign in' }).click()
 
-  await expect(page.getByRole('heading', { name: 'Main channel' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Live stream' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'My channel' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Admin' })).toBeVisible()
   await expect(page.getByText('/watch/live')).toBeVisible()

@@ -44,7 +44,7 @@ const offlineStatus: ChannelStatus = {
 
 const channel: PublicChannel = {
   slug: 'live',
-  displayName: 'Main channel',
+  ownerName: 'David',
   title: 'Late-night games',
   poster: '/api/channels/live/thumbnail?v=123',
   accentColor: '#8b5cf6',
@@ -72,6 +72,8 @@ describe('ChannelViewer', () => {
     expect(screen.getByText('Offline')).toBeInTheDocument()
     expect(screen.queryByText('Live')).toBeNull()
     expect(screen.queryByText('Opus · AV1')).toBeNull()
+    expect(screen.queryByText('Main channel')).toBeNull()
+    expect(screen.getByText('David')).toBeInTheDocument()
     expect(screen.getByTestId('live-player')).toHaveAttribute(
       'data-status',
       'offline',

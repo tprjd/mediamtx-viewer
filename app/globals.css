@@ -942,27 +942,26 @@ a {
   padding: clamp(1.6rem, 4vw, 3.25rem);
 }
 
-.channel-owner {
+.channel-owner-name {
   overflow: hidden;
   margin: 0;
   color: color-mix(in srgb, var(--accent, #8b5cf6) 65%, #a1a1aa);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  font-size: 0.76rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
   text-overflow: ellipsis;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
 .featured-details h2 {
-  margin: 0.65rem 0 0;
+  margin: 0;
   font-size: clamp(2rem, 4.5vw, 4rem);
   font-weight: 620;
   letter-spacing: -0.055em;
   line-height: 1;
 }
 
-.featured-details p:not(.channel-owner) {
+.featured-description {
   display: -webkit-box;
   overflow: hidden;
   margin: 1.1rem 0 0;
@@ -971,6 +970,18 @@ a {
   line-height: 1.7;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
+}
+
+.featured-copy {
+  min-width: 0;
+}
+
+.featured-footer {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .featured-action {
@@ -1118,19 +1129,20 @@ a {
 .channel-card-details {
   display: flex;
   min-height: 9.5rem;
-  align-items: start;
+  flex-direction: column;
+  align-items: stretch;
   justify-content: space-between;
   gap: 1rem;
   padding: 1.25rem;
 }
 
-.channel-card-details > div {
+.channel-card-copy {
   min-width: 0;
 }
 
 .channel-card-details h3 {
   overflow: hidden;
-  margin: 0.4rem 0 0;
+  margin: 0;
   color: white;
   font-size: 1.05rem;
   font-weight: 620;
@@ -1150,10 +1162,19 @@ a {
   -webkit-line-clamp: 2;
 }
 
+.channel-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
 .channel-card-arrow {
   display: grid;
   flex: 0 0 auto;
-  margin-top: 0.1rem;
   padding: 0.5rem;
   place-items: center;
   border: 1px solid var(--line);
@@ -1486,6 +1507,11 @@ a {
 
   .featured-details h2 {
     font-size: clamp(1.8rem, 10vw, 2.7rem);
+  }
+
+  .featured-footer {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .featured-action {

@@ -40,7 +40,7 @@ export function newlyLiveChannelNames(
       (channel) =>
         channel.status.live && previousStates.get(channel.slug) !== true,
     )
-    .map((channel) => channel.displayName)
+    .map((channel) => channel.title)
 }
 
 export function mergeChannelsWithLastStatus(

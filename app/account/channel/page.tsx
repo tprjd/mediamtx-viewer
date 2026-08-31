@@ -47,7 +47,7 @@ export default async function ChannelAccountPage({
       <section className="channel-account-heading">
         <div>
           <p className="eyebrow">My channel</p>
-          <h1>{channel.displayName}</h1>
+          <h1>{channel.title}</h1>
           <p>
             <Link href={`/watch/${channel.slug}`}>/watch/{channel.slug}</Link> ·{' '}
             {channel.enabled ? 'Streaming enabled' : 'Streaming disabled'}

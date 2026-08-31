@@ -5,7 +5,7 @@ import { channelsSchema } from '@/lib/channel-schema'
 const validChannel = {
   slug: 'main-stream',
   mediaPath: 'live/main',
-  displayName: 'Main stream',
+  ownerName: 'David',
   title: 'Playing games',
   accentColor: '#8b5cf6',
   preferredPlayback: 'hls' as const,

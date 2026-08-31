@@ -21,7 +21,7 @@ export function toPublicChannel(
 
   return {
     slug: channel.slug,
-    displayName: channel.displayName,
+    ownerName: channel.ownerName,
     title: channel.title,
     description: channel.description,
     poster,

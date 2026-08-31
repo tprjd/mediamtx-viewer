@@ -17,7 +17,7 @@ interface ChannelRow {
   ownerUserId: string
   slug: string
   mediaPath: string
-  displayName: string
+  ownerName: string
   title: string
   description: string | null
   accentColor: string
@@ -25,7 +25,6 @@ interface ChannelRow {
   enabled: number
   createdAt: number
   updatedAt: number
-  ownerName?: string
   ownerUsername?: string | null
   ownerStatus?: string
   tokenHint?: string | null
@@ -42,7 +41,6 @@ export interface OwnedChannel extends Channel {
 }
 
 export interface AdminChannel extends OwnedChannel {
-  ownerName: string
   ownerUsername: string | null
   ownerStatus: string
 }
@@ -58,7 +56,7 @@ function toChannel(row: ChannelRow): Channel {
   return channelSchema.parse({
     slug: row.slug,
     mediaPath: row.mediaPath,
-    displayName: row.displayName,
+    ownerName: row.ownerName,
     title: row.title,
     description: row.description ?? undefined,
     accentColor: row.accentColor,
@@ -81,8 +79,8 @@ function toOwnedChannel(row: ChannelRow): OwnedChannel {
 
 const publicColumns = `
   channel.id, channel.owner_user_id AS ownerUserId, channel.slug,
-  channel.media_path AS mediaPath, channel.display_name AS displayName,
-  channel.title, channel.description, channel.accent_color AS accentColor,
+  channel.media_path AS mediaPath, user.name AS ownerName, channel.title,
+  channel.description, channel.accent_color AS accentColor,
   channel.preferred_playback AS preferredPlayback, channel.enabled,
   channel.created_at AS createdAt, channel.updated_at AS updatedAt,
   channel_stream_key.token_hint AS tokenHint`
@@ -123,6 +121,7 @@ export function getOwnedChannel(ownerUserId: string): OwnedChannel | null {
     .prepare(
       `SELECT ${publicColumns}
        FROM channel
+       JOIN user ON user.id = channel.owner_user_id
        LEFT JOIN channel_stream_key ON channel_stream_key.channel_id = channel.id
        WHERE channel.owner_user_id = ?`,
     )
@@ -133,8 +132,8 @@ export function getOwnedChannel(ownerUserId: string): OwnedChannel | null {
 export function listAdminChannels(): AdminChannel[] {
   const rows = getDatabase()
     .prepare(
-      `SELECT ${publicColumns}, user.name AS ownerName,
-              user.username AS ownerUsername, user.activationStatus AS ownerStatus
+      `SELECT ${publicColumns}, user.username AS ownerUsername,
+              user.activationStatus AS ownerStatus
        FROM channel
        JOIN user ON user.id = channel.owner_user_id
        LEFT JOIN channel_stream_key ON channel_stream_key.channel_id = channel.id
@@ -143,7 +142,6 @@ export function listAdminChannels(): AdminChannel[] {
     .all() as ChannelRow[]
   return rows.map((row) => ({
     ...toOwnedChannel(row),
-    ownerName: row.ownerName ?? '',
     ownerUsername: row.ownerUsername ?? null,
     ownerStatus: row.ownerStatus ?? 'disabled',
   }))

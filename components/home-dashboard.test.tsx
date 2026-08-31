@@ -7,7 +7,7 @@ import type { PublicChannel, StreamState } from '@/lib/types'
 function channel(state: StreamState): PublicChannel {
   return {
     slug: 'live',
-    displayName: 'Main channel',
+    ownerName: 'David',
     title: 'Late-night games',
     description: 'Playing from home.',
     accentColor: '#8b5cf6',
@@ -46,9 +46,10 @@ describe('HomeDashboard', () => {
     expect(screen.getByRole('heading', { name: 'Live now' })).toBeInTheDocument()
     expect(
       screen.getAllByRole('link', {
-        name: 'Watch Main channel — Late-night games, live',
+        name: 'Watch Late-night games by David, live',
       }),
     ).toHaveLength(2)
+    expect(screen.getAllByText('David')).toHaveLength(2)
   })
 
   it('shows the intentional quiet state while preserving offline navigation', () => {
@@ -62,7 +63,7 @@ describe('HomeDashboard', () => {
     expect(screen.getByRole('heading', { name: 'Quiet right now.' })).toBeInTheDocument()
     expect(
       screen.getByRole('link', {
-        name: 'Watch Main channel — Late-night games, offline',
+        name: 'Watch Late-night games by David, offline',
       }),
     ).toBeInTheDocument()
   })
