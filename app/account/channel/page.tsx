@@ -50,12 +50,15 @@ export default async function ChannelAccountPage({
   return (
     <main className="account-layout channel-account-layout">
       <section className="channel-account-heading">
-        <div>
+        <div className="channel-account-copy">
           <p className="eyebrow">My channel</p>
           <h1>{channel.title}</h1>
-          <p>
-            <Link href={`/watch/${channel.slug}`}>/watch/{channel.slug}</Link> ·{' '}
-            {channel.enabled ? 'Streaming enabled' : 'Streaming disabled'}
+          <p className="channel-account-meta">
+            <Link href={`/watch/${channel.slug}`}>/watch/{channel.slug}</Link>
+            <span aria-hidden="true">·</span>
+            <span>
+              {channel.enabled ? 'Streaming enabled' : 'Streaming disabled'}
+            </span>
           </p>
         </div>
         <RadioTower aria-hidden="true" />

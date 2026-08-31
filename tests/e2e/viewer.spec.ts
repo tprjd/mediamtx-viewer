@@ -80,6 +80,14 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
   await expect(
     page.getByRole('heading', { name: 'Windows OBS setup' }),
   ).toBeVisible()
+  const channelTitleBox = await page.getByRole('heading', { name: 'Live stream' }).boundingBox()
+  const channelIconBox = await page
+    .locator('.channel-account-heading > svg')
+    .boundingBox()
+  expect(channelTitleBox).not.toBeNull()
+  expect(channelIconBox).not.toBeNull()
+  expect(channelIconBox!.y).toBeLessThan(channelTitleBox!.y + channelTitleBox!.height)
+  expect(channelIconBox!.y + channelIconBox!.height).toBeGreaterThan(channelTitleBox!.y)
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('link', { name: 'Download Windows setup' }).click()
   const download = await downloadPromise

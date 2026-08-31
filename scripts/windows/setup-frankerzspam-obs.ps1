@@ -17,7 +17,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.0.1'
 $ProfileName = 'FrankerzSpam 1440p60 AV1'
 $ProfileDirectoryName = 'FrankerzSpam_1440p60_AV1'
 $CollectionName = 'FrankerzSpam Games'
@@ -85,8 +85,10 @@ function Assert-SupportedObsVersion {
 }
 
 function Assert-ExclusiveModes {
-    $selected = @($UpdateOnly, $RepairManagedConfig, $ResetManagedConfig) |
-        Where-Object { $_ }
+    $selected = @(
+        @($UpdateOnly, $RepairManagedConfig, $ResetManagedConfig) |
+            Where-Object { $_ }
+    )
     if ($selected.Count -gt 1) {
         throw 'Use only one of UpdateOnly, RepairManagedConfig, or ResetManagedConfig.'
     }
@@ -443,7 +445,7 @@ function New-SceneSource {
         id = 'scene'
         versioned_id = 'scene'
         settings = [ordered]@{
-            id_counter = $Items.Count
+            id_counter = @($Items).Count
             custom_size = $false
             items = $Items
         }
@@ -492,7 +494,7 @@ function Write-ManagedSceneCollection {
         [bool]$EnableHotkeys
     )
     Add-Type -AssemblyName System.Windows.Forms
-    $screens = [Windows.Forms.Screen]::AllScreens
+    $screens = @([Windows.Forms.Screen]::AllScreens)
     $primaryIndex = 0
     for ($index = 0; $index -lt $screens.Count; $index += 1) {
         if ($screens[$index].Primary) { $primaryIndex = $index; break }
