@@ -77,6 +77,14 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
   await expect(page.getByText('Name updated.')).toBeVisible()
 
   await page.goto('/account/channel')
+  await expect(
+    page.getByRole('heading', { name: 'Windows OBS setup' }),
+  ).toBeVisible()
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('link', { name: 'Download Windows setup' }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe('Setup-FrankerzSpam-OBS.ps1')
+
   page.once('dialog', (dialog) => dialog.accept())
   await page
     .getByRole('button', { name: /(?:Generate|Rotate) stream key/ })

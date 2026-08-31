@@ -15,6 +15,8 @@ as an automatic compatibility fallback.
 - Self-service profile names shown as channel ownership labels
 - Private channel directory and dynamic live/offline status
 - One administrator-granted channel and revocable OBS key per streamer
+- Downloadable Windows setup that installs or updates OBS and creates a managed
+  1440p60 hardware-AV1 profile and game scenes
 - Multiple simultaneous publishers on isolated MediaMTX paths
 - WebRTC playback with automatic HLS compatibility fallback
 - Native accessible video controls and playback diagnostics
@@ -94,9 +96,23 @@ select **Grant streaming**. Each account can own one channel.
 Users can change the profile name shown below their stream from `/account`.
 This does not change their sign-in username or immutable channel URL.
 
-The streamer signs in and opens `/account/channel`. That page provides the
-channel-specific OBS URL and generates a one-time stream key. Rotating the key
-invalidates the old one and disconnects its current publisher.
+The streamer signs in and opens `/account/channel`. Windows users can download
+the generic `Setup-FrankerzSpam-OBS.ps1` script there. It installs or updates
+OBS Studio through WinGet, verifies that OBS reports a hardware AV1 encoder,
+and creates a separate managed profile and scene collection without modifying
+unrelated OBS profiles.
+
+The script opens a ten-minute authorization page in the browser. Approving the
+displayed code binds that computer to the signed-in user's enabled channel,
+rotates the previous publishing key, and delivers the new credential directly
+to the waiting script. The downloadable file never contains a user or channel
+credential, and the key is not printed. Version 1 is unsigned; use the SHA-256
+shown beside the download and select **Unblock** in the downloaded file's
+Properties if Windows displays that option.
+
+The same page also provides the channel-specific OBS URL and generates a
+one-time stream key for manual setup. Rotating the key invalidates the old one
+and disconnects its current publisher.
 
 Configure OBS with:
 
@@ -134,6 +150,12 @@ npm run lint
 npm test
 npm run build
 ```
+
+The Windows setup source is in
+[`scripts/windows/setup-frankerzspam-obs.ps1`](./scripts/windows/setup-frankerzspam-obs.ps1).
+Its parser and server/device-authorization contract are covered by the test
+suite; final encoder and capture validation requires Windows with an AV1-capable
+NVIDIA, AMD, or Intel GPU.
 
 Install Playwright's browser once before running the end-to-end suite:
 
@@ -195,5 +217,7 @@ reports, and dependencies are ignored by Git.
 ## Codec compatibility
 
 MediaMTX passes codecs through; the site does not transcode playback. AV1
-depends on browser, operating-system, and hardware support. H.264 video with
-Opus audio is the recommended broadly compatible WHIP profile.
+depends on browser, operating-system, and hardware support. The downloadable
+Windows profile intentionally requires hardware AV1 and uses Opus audio. For a
+manual profile serving older viewer devices, H.264 video with Opus audio remains
+the broadly compatible WHIP option.

@@ -332,6 +332,49 @@ a {
   justify-self: start;
 }
 
+.obs-setup-panel > a {
+  margin-top: 1.25rem;
+}
+
+.obs-setup-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.obs-setup-heading > div > p,
+.obs-setup-note,
+.obs-setup-version {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+
+.obs-setup-heading > svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  color: #a78bfa;
+}
+
+.obs-setup-version code {
+  overflow-wrap: anywhere;
+  color: #d4d4d8;
+}
+
+.obs-setup-note {
+  max-width: 48rem;
+}
+
+.obs-setup-approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
 .obs-settings {
   display: grid;
   gap: 0.85rem;

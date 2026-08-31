@@ -47,7 +47,14 @@ After the stack is healthy, point `frankerzspam.duckdns.org` to the reserved
 Oracle IP from `tofu output public_ip`. Caddy will then obtain its TLS
 certificate automatically.
 
-Configure OBS Custom WHIP service with:
+Each streamer can instead sign in, open `/account/channel`, and download the
+Windows setup script. It installs or updates OBS with WinGet, creates the managed
+1440p60 hardware-AV1 profile and game scenes, then opens a ten-minute browser
+authorization. Approval rotates the channel's previous publishing key and sends
+the new one only to the waiting script. The script is generic and unsigned in
+version 1; its SHA-256 is shown on the download page.
+
+For manual setup, configure OBS Custom WHIP service with:
 
 - Server: copy the channel-specific `/publish/whip/.../whip` URL from
   `/account/channel`.
@@ -57,6 +64,12 @@ The viewer is `https://frankerzspam.duckdns.org/`. Sign in with the bootstrap
 administrator, open registration temporarily at `/admin/users`, and activate
 each friend after they register. Viewing and streaming are separate grants;
 use the same admin page to create one channel for each approved streamer.
+
+The device start and poll endpoints are the only OBS setup routes excluded from
+Caddy's browser-session check. They accept short-lived opaque setup secrets,
+are rate-limited, and do not issue a publishing credential until an active
+signed-in channel owner approves the browser code. The script download and
+approval pages remain behind normal account authentication.
 
 ## Operations
 

@@ -2,7 +2,7 @@ viewer.example.com {
 	encode zstd gzip
 
 	@public path /login /register /registration-pending /reset-password /api/auth/* /_next/*
-	@protected not path /login /register /registration-pending /reset-password /api/auth/* /api/internal/authorize /_next/* /publish/whip/*
+	@protected not path /login /register /registration-pending /reset-password /api/auth/* /api/internal/authorize /api/obs-setup/device/start /api/obs-setup/device/poll /_next/* /publish/whip/*
 	forward_auth @protected viewer:3000 {
 		uri /api/internal/authorize
 		header_up X-Internal-Auth {$INTERNAL_AUTH_SECRET}

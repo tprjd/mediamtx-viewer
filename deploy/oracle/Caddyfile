@@ -15,7 +15,7 @@
 		Permissions-Policy "camera=(), geolocation=(), microphone=()"
 	}
 
-	@account_protected not path /login /register /registration-pending /reset-password /api/auth/* /api/internal/authorize /_next/* /favicon.ico /publish/whep/* /publish/whip/*
+	@account_protected not path /login /register /registration-pending /reset-password /api/auth/* /api/internal/authorize /api/obs-setup/device/start /api/obs-setup/device/poll /_next/* /favicon.ico /publish/whep/* /publish/whip/*
 
 	forward_auth @account_protected viewer:3000 {
 		uri /api/internal/authorize

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { RadioTower } from 'lucide-react'
+import { Download, RadioTower } from 'lucide-react'
 
 import {
   disconnectBroadcastAction,
@@ -10,6 +10,10 @@ import { StreamKeyManager } from '@/components/auth/stream-key-manager'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { requireActiveSession } from '@/lib/auth/session'
 import { getOwnedChannel } from '@/lib/channels'
+import {
+  OBS_SETUP_SCRIPT_FILENAME,
+  getObsSetupScriptMetadata,
+} from '@/lib/obs-setup-script'
 
 export const metadata: Metadata = { title: 'My channel' }
 export const dynamic = 'force-dynamic'
@@ -41,6 +45,7 @@ export default async function ChannelAccountPage({
 
   const origin = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'
   const serverUrl = `${origin}/publish/whip/${channel.mediaPath}/whip`
+  const setupScript = getObsSetupScriptMetadata()
 
   return (
     <main className="account-layout channel-account-layout">
@@ -58,6 +63,42 @@ export default async function ChannelAccountPage({
 
       {params.notice && <p className="notice-banner">{params.notice}</p>}
       {params.error && <p className="error-banner" role="alert">{params.error}</p>}
+
+      <section className="account-panel obs-setup-panel">
+        <div className="obs-setup-heading">
+          <div>
+            <h2>Windows OBS setup</h2>
+            <p>
+              Install or update OBS and create a 1440p60 hardware-AV1 profile
+              with ready-made game and desktop scenes.
+            </p>
+          </div>
+          <Download aria-hidden="true" />
+        </div>
+        {channel.enabled ? (
+          <>
+            <a
+              className={buttonVariants()}
+              download={OBS_SETUP_SCRIPT_FILENAME}
+              href="/account/channel/obs-setup.ps1"
+            >
+              Download Windows setup
+            </a>
+            <p className="obs-setup-version">
+              Version {setupScript.version} · SHA-256{' '}
+              <code>{setupScript.sha256}</code>
+            </p>
+            <p className="obs-setup-note">
+              Version one is unsigned. After downloading, right-click the file,
+              open Properties, select Unblock if shown, then choose Run with
+              PowerShell. The script opens this site for authorization and never
+              contains your stream key.
+            </p>
+          </>
+        ) : (
+          <p className="error-banner">Streaming must be enabled before setup.</p>
+        )}
+      </section>
 
       <section className="account-panel">
         <h2>OBS publishing</h2>
