@@ -126,5 +126,24 @@ describe('account approval authentication', () => {
       'You cannot disable your own account',
     )
   })
-})
 
+  it('updates and audits a profile name', async () => {
+    const { getDatabase } = await import('@/lib/auth/database')
+    const { getUserById, updateUserName } = await import('@/lib/auth/store')
+
+    expect(updateUserName('admin-id', '  David  ')).toBe('David')
+    expect(getUserById('admin-id')?.name).toBe('David')
+    expect(
+      getDatabase()
+        .prepare(
+          `SELECT action, actor_id AS actorId, target_id AS targetId
+           FROM auth_audit_log WHERE action = 'profile_name_updated'`,
+        )
+        .get(),
+    ).toMatchObject({
+      action: 'profile_name_updated',
+      actorId: 'admin-id',
+      targetId: 'admin-id',
+    })
+  })
+})

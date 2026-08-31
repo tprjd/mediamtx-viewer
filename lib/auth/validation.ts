@@ -10,8 +10,14 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Enter your password.').max(128),
 })
 
+export const profileNameSchema = z
+  .string()
+  .trim()
+  .min(2, 'Enter your name.')
+  .max(80, 'Your name must be at most 80 characters.')
+
 export const registrationSchema = z.object({
-  name: z.string().trim().min(2, 'Enter your name.').max(80),
+  name: profileNameSchema,
   username: z
     .string()
     .trim()
@@ -43,4 +49,3 @@ export function safeReturnTo(value: string | null | undefined): string {
   if (!value?.startsWith('/') || value.startsWith('//')) return '/'
   return value
 }
-

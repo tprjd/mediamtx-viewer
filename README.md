@@ -12,6 +12,7 @@ as an automatic compatibility fallback.
 
 - Responsive Next.js App Router interface with strict TypeScript
 - Better Auth username accounts, SQLite sessions, and administrator approval
+- Self-service profile names shown as channel ownership labels
 - Private channel directory and dynamic live/offline status
 - One administrator-granted channel and revocable OBS key per streamer
 - Multiple simultaneous publishers on isolated MediaMTX paths
@@ -89,6 +90,9 @@ activate each new account after registration.
 Account activation grants viewing access only. To let someone broadcast, open
 `/admin/users`, enter an immutable channel slug on their active account, and
 select **Grant streaming**. Each account can own one channel.
+
+Users can change the profile name shown below their stream from `/account`.
+This does not change their sign-in username or immutable channel URL.
 
 The streamer signs in and opens `/account/channel`. That page provides the
 channel-specific OBS URL and generates a one-time stream key. Rotating the key

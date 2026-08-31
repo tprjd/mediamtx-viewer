@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
-import { safeReturnTo } from '@/lib/auth/validation'
+import { profileNameSchema, safeReturnTo } from '@/lib/auth/validation'
+
+describe('profileNameSchema', () => {
+  it('trims a valid profile name', () => {
+    expect(profileNameSchema.parse('  David  ')).toBe('David')
+  })
+
+  it.each(['', ' ', 'D', 'x'.repeat(81)])('rejects an invalid profile name', (name) => {
+    expect(profileNameSchema.safeParse(name).success).toBe(false)
+  })
+})
 
 describe('safeReturnTo', () => {
   it('accepts same-origin paths', () => {
@@ -18,4 +28,3 @@ describe('safeReturnTo', () => {
     expect(safeReturnTo(value)).toBe('/')
   })
 })
-

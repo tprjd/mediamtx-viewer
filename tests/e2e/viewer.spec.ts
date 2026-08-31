@@ -69,6 +69,14 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
   await expect(page.getByRole('link', { name: 'My channel' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Admin' })).toBeVisible()
   await expect(page.getByText('/watch/live')).toBeVisible()
+
+  await page.goto('/account')
+  await expect(page.getByRole('heading', { name: 'Profile name' })).toBeVisible()
+  await expect(page.getByLabel('Name')).toHaveValue('power')
+  await page.getByRole('button', { name: 'Save name' }).click()
+  await expect(page.getByText('Name updated.')).toBeVisible()
+
+  await page.goto('/account/channel')
   page.once('dialog', (dialog) => dialog.accept())
   await page
     .getByRole('button', { name: /(?:Generate|Rotate) stream key/ })

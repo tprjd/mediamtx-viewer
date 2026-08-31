@@ -7,6 +7,7 @@ import type {
   AuthSessionView,
   AuthUser,
 } from '@/lib/auth/types'
+import { profileNameSchema } from '@/lib/auth/validation'
 
 interface UserRow {
   id: string
@@ -122,6 +123,28 @@ export function getUserStatus(userId: string): ActivationStatus | null {
     .prepare('SELECT activationStatus FROM user WHERE id = ?')
     .get(userId) as { activationStatus: ActivationStatus } | undefined
   return row?.activationStatus ?? null
+}
+
+export function updateUserName(userId: string, rawName: string): string {
+  const result = profileNameSchema.safeParse(rawName)
+  if (!result.success) {
+    throw new Error(result.error.issues[0]?.message ?? 'Enter your name.')
+  }
+  const name = result.data
+  const database = getDatabase()
+  return database.transaction(() => {
+    const user = database
+      .prepare('SELECT name FROM user WHERE id = ?')
+      .get(userId) as { name: string } | undefined
+    if (!user) throw new Error('User not found')
+    if (user.name === name) return name
+
+    database
+      .prepare('UPDATE user SET name = ?, updatedAt = ? WHERE id = ?')
+      .run(name, Date.now(), userId)
+    recordAudit(userId, userId, 'profile_name_updated')
+    return name
+  })()
 }
 
 export function activateUser(actorId: string, targetId: string): void {

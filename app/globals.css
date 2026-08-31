@@ -979,9 +979,15 @@ a {
 .featured-footer {
   display: flex;
   width: 100%;
+  height: 3rem;
+  flex: 0 0 3rem;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.featured-footer .channel-owner-name {
+  min-width: 0;
 }
 
 .featured-action {
@@ -1070,6 +1076,8 @@ a {
 
 .channel-card {
   position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 1.25rem;
@@ -1131,7 +1139,6 @@ a {
   min-height: 9.5rem;
   flex-direction: column;
   align-items: stretch;
-  justify-content: space-between;
   gap: 1rem;
   padding: 1.25rem;
 }
@@ -1164,10 +1171,13 @@ a {
 
 .channel-card-footer {
   display: flex;
+  height: 3.25rem;
+  flex: 0 0 3.25rem;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-top: 1rem;
+  box-sizing: border-box;
+  margin-top: auto;
   padding-top: 0.85rem;
   border-top: 1px solid var(--line);
 }
@@ -1510,13 +1520,13 @@ a {
   }
 
   .featured-footer {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
   }
 
   .featured-action {
-    width: 100%;
-    min-height: 2.85rem;
+    width: auto;
+    min-height: 2.75rem;
     justify-content: center;
   }
 
