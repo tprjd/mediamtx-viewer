@@ -18,6 +18,7 @@ const status: ChannelStatus = {
   live: true,
   startedAt: '2026-08-27T20:00:00Z',
   tracks: ['AV1', 'MPEG-4 Audio'],
+  viewerCount: 1,
   checkedAt: '2026-08-27T20:01:00Z',
 }
 

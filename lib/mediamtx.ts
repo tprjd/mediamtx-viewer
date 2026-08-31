@@ -14,6 +14,14 @@ const mediaMtxPathSchema = z
     availableTime: z.string().nullish(),
     onlineTime: z.string().nullish(),
     tracks: z.array(z.string()).optional(),
+    readers: z
+      .array(
+        z.object({
+          id: z.string(),
+          type: z.string(),
+        }),
+      )
+      .optional(),
   })
   .passthrough()
 
@@ -22,14 +30,85 @@ const mediaMtxPathListSchema = z
   .passthrough()
 
 const apiOrigin = process.env.MEDIAMTX_API_URL ?? 'http://127.0.0.1:9997'
+const thumbnailQueryParameter = 'frankerzspam_internal'
+const thumbnailQueryValue = 'thumbnail'
+
+const hlsSessionListSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            id: z.string().optional(),
+            query: z.string().optional(),
+            userAgent: z.string().optional(),
+          })
+          .passthrough(),
+      )
+      .optional(),
+  })
+  .passthrough()
 
 function checkedAt(): string {
   return new Date().toISOString()
 }
 
-export function normalizeMediaMtxPath(data: unknown): ChannelStatus {
+function hasHlsReaders(
+  path: z.infer<typeof mediaMtxPathSchema>,
+): boolean {
+  return (path.readers ?? []).some((reader) => reader.type === 'hlsSession')
+}
+
+function isThumbnailSession(
+  query: string | undefined,
+  userAgent: string | undefined,
+): boolean {
+  return (
+    userAgent === 'FrankerzSpamThumbnailer/1.0' ||
+    (Boolean(query) &&
+      new URLSearchParams(query).get(thumbnailQueryParameter) ===
+        thumbnailQueryValue)
+  )
+}
+
+async function getThumbnailReaderIds(
+  fetcher: typeof fetch,
+): Promise<Set<string> | null> {
+  try {
+    const response = await fetcher(`${apiOrigin}/v3/hlssessions/list`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(2500),
+    })
+    if (!response.ok) return null
+    const data = hlsSessionListSchema.parse(await response.json())
+    return new Set(
+      (data.items ?? [])
+        .filter(
+          (session) =>
+            session.id &&
+            isThumbnailSession(session.query, session.userAgent),
+        )
+        .map((session) => session.id!),
+    )
+  } catch {
+    return null
+  }
+}
+
+export function normalizeMediaMtxPath(
+  data: unknown,
+  thumbnailReaderIds: ReadonlySet<string> | null = new Set(),
+): ChannelStatus {
   const path = mediaMtxPathSchema.parse(data)
   const live = path.ready ?? path.available ?? path.online ?? false
+  const viewerCount = !live
+    ? 0
+    : !path.readers || (hasHlsReaders(path) && thumbnailReaderIds === null)
+      ? null
+      : path.readers.filter(
+          (reader) =>
+            reader.type !== 'hidden' && !thumbnailReaderIds?.has(reader.id),
+        ).length
 
   return {
     state: live ? 'live' : 'offline',
@@ -37,6 +116,7 @@ export function normalizeMediaMtxPath(data: unknown): ChannelStatus {
     startedAt:
       path.readyTime ?? path.availableTime ?? path.onlineTime ?? null,
     tracks: [...new Set(path.tracks ?? [])],
+    viewerCount,
     checkedAt: checkedAt(),
   }
 }
@@ -62,6 +142,7 @@ export async function getChannelStatus(
         live: false,
         startedAt: null,
         tracks: [],
+        viewerCount: 0,
         checkedAt: checkedAt(),
       }
     }
@@ -70,13 +151,18 @@ export async function getChannelStatus(
       throw new Error(`MediaMTX returned HTTP ${response.status}`)
     }
 
-    return normalizeMediaMtxPath(await response.json())
+    const path = mediaMtxPathSchema.parse(await response.json())
+    const thumbnailReaderIds = hasHlsReaders(path)
+      ? await getThumbnailReaderIds(fetcher)
+      : new Set<string>()
+    return normalizeMediaMtxPath(path, thumbnailReaderIds)
   } catch {
     return {
       state: 'unavailable',
       live: false,
       startedAt: null,
       tracks: [],
+      viewerCount: null,
       checkedAt: checkedAt(),
     }
   }
@@ -88,6 +174,7 @@ function unavailableStatus(): ChannelStatus {
     live: false,
     startedAt: null,
     tracks: [],
+    viewerCount: null,
     checkedAt: checkedAt(),
   }
 }
@@ -98,6 +185,7 @@ function offlineStatus(): ChannelStatus {
     live: false,
     startedAt: null,
     tracks: [],
+    viewerCount: 0,
     checkedAt: checkedAt(),
   }
 }
@@ -114,10 +202,17 @@ export async function getChannelStatuses(
     })
     if (!response.ok) throw new Error(`MediaMTX returned HTTP ${response.status}`)
     const data = mediaMtxPathListSchema.parse(await response.json())
+    const paths = data.items ?? []
+    const thumbnailReaderIds = paths.some(hasHlsReaders)
+      ? await getThumbnailReaderIds(fetcher)
+      : new Set<string>()
     const active = new Map(
-      (data.items ?? [])
+      paths
         .filter((item): item is typeof item & { name: string } => Boolean(item.name))
-        .map((item) => [item.name, normalizeMediaMtxPath(item)]),
+        .map((item) => [
+          item.name,
+          normalizeMediaMtxPath(item, thumbnailReaderIds),
+        ]),
     )
     return new Map(mediaPaths.map((path) => [path, active.get(path) ?? offlineStatus()]))
   } catch {

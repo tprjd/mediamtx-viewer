@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { spawn } from 'node:child_process'
 
 const supportedPathPattern = /^(?:live|channels\/[a-z0-9]+(?:-[a-z0-9]+)*)$/
+const thumbnailQuery = 'frankerzspam_internal=thumbnail'
 
 export function thumbnailFileName(mediaPath) {
   return `${encodeURIComponent(mediaPath)}.jpg`
@@ -38,8 +39,10 @@ export function ffmpegArguments(mediaPath, temporaryPath, hlsOrigin) {
     'error',
     '-max_error_rate',
     '1.0',
+    '-user_agent',
+    'FrankerzSpamThumbnailer/1.0',
     '-i',
-    `${hlsOrigin.replace(/\/$/, '')}/${encodedMediaPath(mediaPath)}/index.m3u8`,
+    `${hlsOrigin.replace(/\/$/, '')}/${encodedMediaPath(mediaPath)}/index.m3u8?${thumbnailQuery}`,
     '-map',
     '0:v:0',
     '-frames:v',

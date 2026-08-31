@@ -87,6 +87,13 @@ three minutes. Retained JPEGs are shown only while their channel is live. Its HL
 and Control API connections remain private to the Docker network. Logs rotate at
 10 MiB with three files per container.
 
+Channel state and reader counts reach authenticated pages through
+`/api/channel-events`. Caddy disables response buffering for that SSE route.
+Next.js performs one private MediaMTX status check every two seconds while any
+page is connected, and browsers fall back to the JSON directory every 30 seconds
+only if the event stream remains unhealthy. The thumbnailer's marked HLS reader
+is excluded from viewer counts.
+
 Back up SQLite online and encrypt the result with a base64-encoded 32-byte key:
 
 ```sh
@@ -102,4 +109,6 @@ copy.
 
 To roll back the access boundary, copy `Caddyfile.basic-auth` over
 `Caddyfile` on the VM and reload Caddy. Do not delete `auth_data`; keep the
-account database intact for another attempt.
+account database intact for another attempt. The SSE endpoint requires a Better
+Auth session, so a basic-auth rollback uses the browser's degraded 30-second
+JSON status fallback until the normal Caddyfile is restored.

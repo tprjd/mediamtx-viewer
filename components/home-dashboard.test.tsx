@@ -22,6 +22,7 @@ function channel(state: StreamState): PublicChannel {
       live: state === 'live',
       startedAt: null,
       tracks: [],
+      viewerCount: state === 'live' ? 1 : state === 'offline' ? 0 : null,
       checkedAt: '2026-08-30T12:00:00.000Z',
     },
   }
@@ -50,6 +51,7 @@ describe('HomeDashboard', () => {
       }),
     ).toHaveLength(2)
     expect(screen.getAllByText('David')).toHaveLength(2)
+    expect(screen.getAllByLabelText('1 viewer')).toHaveLength(2)
   })
 
   it('shows the intentional quiet state while preserving offline navigation', () => {

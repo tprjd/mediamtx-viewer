@@ -18,12 +18,13 @@ import {
 
 import { ChannelCard } from '@/components/channel-card'
 import { StatusBadge } from '@/components/status-badge'
+import { ViewerCount } from '@/components/viewer-count'
+import { useChannelEvents } from '@/hooks/use-channel-events'
 import {
   buildHomeDashboardModel,
-  mergeChannelsWithLastStatus,
   newlyLiveChannelNames,
 } from '@/lib/home-dashboard'
-import type { ChannelsResponse, PublicChannel } from '@/lib/types'
+import type { PublicChannel } from '@/lib/types'
 
 interface HomeDashboardProps {
   initialChannels: PublicChannel[]
@@ -52,6 +53,11 @@ function FeaturedChannel({ channel }: { channel: PublicChannel }) {
         )}
         <div className="featured-status">
           <StatusBadge compact state={channel.status.state} />
+          <ViewerCount
+            compact
+            count={channel.status.viewerCount}
+            live={channel.status.live}
+          />
         </div>
       </div>
       <div className="featured-details">
@@ -77,101 +83,22 @@ export function HomeDashboard({
   initialChannels,
   capabilities,
 }: HomeDashboardProps) {
-  const [channels, setChannels] = useState(initialChannels)
-  const [pollFailures, setPollFailures] = useState(0)
+  const { channels, statusDelayed: eventStatusDelayed } =
+    useChannelEvents(initialChannels)
   const [announcement, setAnnouncement] = useState('')
-  const channelsRef = useRef(channels)
+  const previousChannels = useRef(initialChannels)
   const model = useMemo(() => buildHomeDashboardModel(channels), [channels])
-  const statusDelayed = model.statusUnavailable || pollFailures >= 2
+  const statusDelayed = model.statusUnavailable || eventStatusDelayed
 
   useEffect(() => {
-    let active = true
-    let polling = false
-    let timer: ReturnType<typeof setTimeout> | undefined
-    let controller: AbortController | undefined
-
-    const schedule = (delay = 5_000) => {
-      clearTimeout(timer)
-      if (active) timer = setTimeout(poll, delay)
+    const newlyLive = newlyLiveChannelNames(previousChannels.current, channels)
+    previousChannels.current = channels
+    if (newlyLive.length > 0) {
+      setAnnouncement(
+        `${newlyLive.join(', ')} ${newlyLive.length === 1 ? 'is' : 'are'} live now.`,
+      )
     }
-
-    const recordFailure = () => {
-      if (active) setPollFailures((count) => count + 1)
-    }
-
-    const poll = async () => {
-      if (!active || polling) return
-      if (document.hidden) {
-        schedule()
-        return
-      }
-
-      polling = true
-      controller = new AbortController()
-      try {
-        const response = await fetch('/api/channels', {
-          cache: 'no-store',
-          signal: controller.signal,
-        })
-        if (!response.ok) throw new Error('Channel status request failed')
-        const data = (await response.json()) as ChannelsResponse
-        const allUnavailable =
-          data.channels.length > 0 &&
-          data.channels.every(
-            (channel) => channel.status.state === 'unavailable',
-          )
-
-        if (allUnavailable) {
-          recordFailure()
-          if (active) {
-            const merged = mergeChannelsWithLastStatus(
-              channelsRef.current,
-              data.channels,
-            )
-            channelsRef.current = merged
-            setChannels(merged)
-          }
-          return
-        }
-
-        const newlyLive = newlyLiveChannelNames(
-          channelsRef.current,
-          data.channels,
-        )
-        if (active) {
-          channelsRef.current = data.channels
-          setChannels(data.channels)
-          setPollFailures(0)
-          if (newlyLive.length > 0) {
-            setAnnouncement(
-              `${newlyLive.join(', ')} ${newlyLive.length === 1 ? 'is' : 'are'} live now.`,
-            )
-          }
-        }
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === 'AbortError')) {
-          recordFailure()
-        }
-      } finally {
-        polling = false
-        schedule()
-      }
-    }
-
-    const handleVisibility = () => {
-      if (!document.hidden) schedule(0)
-    }
-
-    document.addEventListener('visibilitychange', handleVisibility)
-    schedule()
-
-    return () => {
-      active = false
-      clearTimeout(timer)
-      controller?.abort()
-      document.removeEventListener('visibilitychange', handleVisibility)
-    }
-  }, [])
+  }, [channels])
 
   return (
     <main className="home-layout">

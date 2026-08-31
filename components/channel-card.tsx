@@ -2,6 +2,7 @@ import { ArrowUpRight } from 'lucide-react'
 import Link from 'next/link'
 
 import { StatusBadge } from '@/components/status-badge'
+import { ViewerCount } from '@/components/viewer-count'
 import type { PublicChannel } from '@/lib/types'
 
 interface ChannelCardProps {
@@ -27,8 +28,13 @@ export function ChannelCard({ channel }: ChannelCardProps) {
             <span aria-hidden="true">{initial}</span>
           </div>
         )}
-        <div className="absolute left-4 top-4">
+        <div className="channel-card-status">
           <StatusBadge compact state={channel.status.state} />
+          <ViewerCount
+            compact
+            count={channel.status.viewerCount}
+            live={channel.status.live}
+          />
         </div>
       </div>
       <div className="channel-card-details">

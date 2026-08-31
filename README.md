@@ -13,7 +13,7 @@ as an automatic compatibility fallback.
 - Responsive Next.js App Router interface with strict TypeScript
 - Better Auth username accounts, SQLite sessions, and administrator approval
 - Self-service profile names shown as channel ownership labels
-- Private channel directory and dynamic live/offline status
+- Private channel directory with real-time live/offline status and viewer counts
 - One administrator-granted channel and revocable OBS key per streamer
 - Downloadable Windows setup that installs or updates OBS and creates a managed
   1440p60 hardware-AV1 profile and game scenes
@@ -21,7 +21,7 @@ as an automatic compatibility fallback.
 - WebRTC playback with automatic HLS compatibility fallback
 - Native accessible video controls and playback diagnostics
 - Loading, reconnecting, offline, codec, and authorization states
-- Five-second status polling while live and automatic playback recovery
+- Authenticated server-sent status events with automatic degraded-mode recovery
 - Low-frequency 640×360 thumbnails captured at stream start and every three
   minutes
 - Unit, integration, component, route, worker, and Playwright coverage
@@ -33,8 +33,11 @@ as an automatic compatibility fallback.
 OBS ── WHIP + channel stream key ──> Caddy ──> MediaMTX
 
 Browser ── session cookie ──> Caddy
-                               ├── pages and APIs ──> Next.js ──> SQLite
+                               ├── pages, APIs, SSE ─> Next.js ──> SQLite
                                └── HLS and WHEP ───> MediaMTX
+
+Next.js status monitor ── private Control API ──> MediaMTX
+                       └── status/count events ──> Browser
 
 Thumbnail worker ── private API + HLS ──> MediaMTX
                  └── JPEG volume ───────> Next.js thumbnail route
@@ -127,11 +130,22 @@ Configure OBS with:
 Different owned channels can be live simultaneously. A second publisher on the
 same channel is rejected instead of replacing the first one.
 
-## Status and thumbnails
+## Status, viewer counts, and thumbnails
 
-The landing page polls the channel directory every five seconds. The watch page
-checks every five seconds while live and every three seconds while offline. Its
-badge, player, tracks, and generated poster all use the same status.
+The landing and watch pages receive live state, viewer counts, tracks, and
+generated-poster changes through one authenticated Server-Sent Events feed.
+While at least one page is subscribed, a shared monitor checks the private
+MediaMTX Control API every two seconds and emits only meaningful changes. Five
+open pages therefore still produce one status check rather than five. A
+20-second heartbeat detects stale connections, native browser reconnection is
+enabled, and the existing JSON directory becomes a 30-second fallback only
+while SSE is unhealthy.
+
+Viewer counts represent active MediaMTX reader sessions rather than unique
+accounts, so two tabs count twice. Counts are shown only while live. The
+thumbnail worker marks its private HLS session and the status monitor excludes
+that session from the public number. If MediaMTX cannot safely classify HLS
+sessions, the count is hidden instead of reporting a misleading value.
 
 The thumbnail worker polls the private MediaMTX Control API and decodes one frame
 through its private HLS listener. It captures approximately five seconds after a
@@ -143,8 +157,9 @@ do not accumulate. The last image remains stored when a stream ends but is shown
 only while the channel is live. A deleted or renamed channel can leave one
 orphaned JPEG; automatic orphan cleanup is not currently implemented.
 
-Thumbnail requests pass through the same Caddy account boundary. Landing-page
-browsers download only JPEGs and do not open WebRTC or HLS playback sessions.
+Thumbnail requests and the SSE feed pass through the same Caddy account
+boundary. Landing-page browsers download only JPEGs and do not open WebRTC or
+HLS playback sessions.
 
 ## Checks
 

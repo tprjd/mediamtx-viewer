@@ -5,11 +5,11 @@ import { ChannelViewer } from '@/components/channel-viewer'
 import type { ChannelStatus, PublicChannel } from '@/lib/types'
 
 const mocks = vi.hoisted(() => ({
-  useChannelStatus: vi.fn(),
+  useChannelEvents: vi.fn(),
 }))
 
-vi.mock('@/hooks/use-channel-status', () => ({
-  useChannelStatus: mocks.useChannelStatus,
+vi.mock('@/hooks/use-channel-events', () => ({
+  useChannelEvents: mocks.useChannelEvents,
 }))
 
 vi.mock('@/components/live-player', () => ({
@@ -31,6 +31,7 @@ const liveStatus: ChannelStatus = {
   live: true,
   startedAt: '2026-08-30T12:00:00.000Z',
   tracks: ['Opus', 'AV1'],
+  viewerCount: 2,
   checkedAt: '2026-08-30T12:00:00.000Z',
 }
 
@@ -39,6 +40,7 @@ const offlineStatus: ChannelStatus = {
   live: false,
   startedAt: null,
   tracks: [],
+  viewerCount: 0,
   checkedAt: '2026-08-30T12:05:00.000Z',
 }
 
@@ -59,13 +61,22 @@ const channel: PublicChannel = {
 
 describe('ChannelViewer', () => {
   beforeEach(() => {
-    mocks.useChannelStatus.mockReset()
+    mocks.useChannelEvents.mockReset()
   })
 
   afterEach(cleanup)
 
-  it('uses the polled status for the badge, player, and track metadata', () => {
-    mocks.useChannelStatus.mockReturnValue(offlineStatus)
+  it('uses the event status for the badge, player, and track metadata', () => {
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [
+        {
+          ...channel,
+          poster: undefined,
+          status: offlineStatus,
+        },
+      ],
+      statusDelayed: false,
+    })
 
     render(<ChannelViewer channel={channel} />)
 
@@ -82,7 +93,16 @@ describe('ChannelViewer', () => {
   })
 
   it('keeps a manually configured poster while offline', () => {
-    mocks.useChannelStatus.mockReturnValue(offlineStatus)
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [
+        {
+          ...channel,
+          poster: '/configured.jpg',
+          status: offlineStatus,
+        },
+      ],
+      statusDelayed: false,
+    })
 
     render(<ChannelViewer channel={{ ...channel, poster: '/configured.jpg' }} />)
 
@@ -90,5 +110,16 @@ describe('ChannelViewer', () => {
       'data-poster',
       '/configured.jpg',
     )
+  })
+
+  it('shows the current viewer count while live', () => {
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [{ ...channel, status: liveStatus }],
+      statusDelayed: false,
+    })
+
+    render(<ChannelViewer channel={channel} />)
+
+    expect(screen.getByLabelText('2 viewers')).toHaveTextContent('2 viewers')
   })
 })

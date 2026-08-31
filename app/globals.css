@@ -1008,6 +1008,35 @@ a {
   top: 1.25rem;
   left: 1.25rem;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.viewer-count {
+  display: inline-flex;
+  min-height: 1.75rem;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(9, 9, 11, 0.76);
+  color: #d4d4d8;
+  font-size: 0.7rem;
+  font-weight: 650;
+  line-height: 1;
+  backdrop-filter: blur(12px);
+}
+
+.viewer-count svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.viewer-count-compact {
+  min-width: 2.75rem;
+  justify-content: center;
 }
 
 .featured-details {
@@ -1182,6 +1211,16 @@ a {
   aspect-ratio: 16 / 9;
   overflow: hidden;
   background: #050506;
+}
+
+.channel-card-status {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
 }
 
 .channel-card-preview::after {

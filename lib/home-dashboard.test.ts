@@ -27,6 +27,7 @@ function channel(
       live: state === 'live',
       startedAt: null,
       tracks: [],
+      viewerCount: state === 'live' ? 1 : state === 'offline' ? 0 : null,
       checkedAt: '2026-08-30T12:00:00.000Z',
     },
   }

@@ -32,6 +32,13 @@ viewer.example.com {
 		}
 	}
 
+	@channel_events path /api/channel-events
+	handle @channel_events {
+		reverse_proxy viewer:3000 {
+			flush_interval -1
+		}
+	}
+
 	handle {
 		reverse_proxy viewer:3000
 	}

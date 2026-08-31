@@ -23,6 +23,7 @@ describe('normalizeMediaMtxPath', () => {
       live: true,
       startedAt: '2026-08-27T20:00:00Z',
       tracks: ['AV1', 'MPEG-4 Audio'],
+      viewerCount: null,
     })
   })
 
@@ -38,7 +39,30 @@ describe('normalizeMediaMtxPath', () => {
         onlineTime: null,
         tracks: [],
       }),
-    ).toMatchObject({ state: 'offline', live: false, startedAt: null })
+    ).toMatchObject({
+      state: 'offline',
+      live: false,
+      startedAt: null,
+      viewerCount: 0,
+    })
+  })
+
+  it('counts public readers while excluding hidden and thumbnail sessions', () => {
+    expect(
+      normalizeMediaMtxPath(
+        {
+          name: 'live',
+          ready: true,
+          readers: [
+            { id: 'viewer-webrtc', type: 'webRTCSession' },
+            { id: 'viewer-hls', type: 'hlsSession' },
+            { id: 'thumbnail', type: 'hlsSession' },
+            { id: 'internal', type: 'hidden' },
+          ],
+        },
+        new Set(['thumbnail']),
+      ),
+    ).toMatchObject({ viewerCount: 2 })
   })
 })
 
@@ -53,6 +77,7 @@ describe('getChannelStatus', () => {
     await expect(getChannelStatus('missing', fetcher)).resolves.toMatchObject({
       state: 'offline',
       live: false,
+      viewerCount: 0,
     })
   })
 
@@ -63,6 +88,7 @@ describe('getChannelStatus', () => {
       state: 'unavailable',
       live: false,
       tracks: [],
+      viewerCount: null,
     })
   })
 })
@@ -89,6 +115,67 @@ describe('getChannelStatuses', () => {
     expect(statuses.get('channels/alice')).toMatchObject({ live: true })
     expect(statuses.get('channels/bob')).toMatchObject({ state: 'offline' })
     expect(fetcher).toHaveBeenCalledOnce()
+  })
+
+  it('cross-references HLS sessions to exclude thumbnail readers', async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input)
+      if (url.endsWith('/v3/paths/list')) {
+        return Response.json({
+          items: [
+            {
+              name: 'channels/alice',
+              ready: true,
+              readers: [
+                { id: 'hls-viewer', type: 'hlsSession' },
+                { id: 'thumbnail', type: 'hlsSession' },
+                { id: 'webrtc-viewer', type: 'webRTCSession' },
+              ],
+            },
+          ],
+        })
+      }
+      if (url.endsWith('/v3/hlssessions/list')) {
+        return Response.json({
+          items: [
+            { id: 'hls-viewer', query: 'cookieCheck=1' },
+            {
+              id: 'thumbnail',
+              query: 'frankerzspam_internal=thumbnail',
+            },
+          ],
+        })
+      }
+      return new Response(null, { status: 404 })
+    })
+
+    const statuses = await getChannelStatuses(['channels/alice'], fetcher)
+
+    expect(statuses.get('channels/alice')).toMatchObject({
+      live: true,
+      viewerCount: 2,
+    })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses an unknown count when HLS sessions cannot be classified', async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input) =>
+      String(input).endsWith('/v3/paths/list')
+        ? Response.json({
+            items: [
+              {
+                name: 'channels/alice',
+                ready: true,
+                readers: [{ id: 'hls-viewer', type: 'hlsSession' }],
+              },
+            ],
+          })
+        : new Response(null, { status: 503 }),
+    )
+
+    const statuses = await getChannelStatuses(['channels/alice'], fetcher)
+
+    expect(statuses.get('channels/alice')?.viewerCount).toBeNull()
   })
 })
 

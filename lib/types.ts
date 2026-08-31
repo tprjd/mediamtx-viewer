@@ -5,7 +5,19 @@ export interface ChannelStatus {
   live: boolean
   startedAt: string | null
   tracks: string[]
+  viewerCount: number | null
   checkedAt: string
+}
+
+export interface ChannelLiveUpdate {
+  slug: string
+  status: ChannelStatus
+  poster: string | null
+}
+
+export interface ChannelStatusSnapshot {
+  channels: ChannelLiveUpdate[]
+  updatedAt: string
 }
 
 export interface PublicChannel {

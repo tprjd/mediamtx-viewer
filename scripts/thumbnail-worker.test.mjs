@@ -43,9 +43,10 @@ describe('thumbnail worker', () => {
     )
 
     expect(arguments_).toContain(
-      'http://mediamtx:8888/channels/my-friend/index.m3u8',
+      'http://mediamtx:8888/channels/my-friend/index.m3u8?frankerzspam_internal=thumbnail',
     )
     expect(arguments_).toContain('1.0')
+    expect(arguments_).toContain('FrankerzSpamThumbnailer/1.0')
     expect(arguments_).toContain('1')
     expect(arguments_.at(-1)).toBe('/thumbnails/.temporary.jpg')
   })

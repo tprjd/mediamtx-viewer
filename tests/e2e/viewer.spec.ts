@@ -70,6 +70,30 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
   await expect(page.getByRole('link', { name: 'Admin' })).toBeVisible()
   await expect(page.getByText('/watch/live')).toBeVisible()
 
+  const eventChannelCount = await page.evaluate<number>(() =>
+    new Promise((resolve, reject) => {
+      const source = new EventSource('/api/channel-events')
+      const timeout = window.setTimeout(() => {
+        source.close()
+        reject(new Error('Timed out waiting for channel status snapshot'))
+      }, 5_000)
+      source.addEventListener('snapshot', (event) => {
+        window.clearTimeout(timeout)
+        source.close()
+        const data = JSON.parse((event as MessageEvent<string>).data) as {
+          channels: unknown[]
+        }
+        resolve(data.channels.length)
+      })
+      source.addEventListener('error', () => {
+        window.clearTimeout(timeout)
+        source.close()
+        reject(new Error('Channel status event stream failed'))
+      })
+    }),
+  )
+  expect(eventChannelCount).toBeGreaterThan(0)
+
   await page.goto('/account')
   await expect(page.getByRole('heading', { name: 'Profile name' })).toBeVisible()
   await expect(page.getByLabel('Name')).toHaveValue('power')
