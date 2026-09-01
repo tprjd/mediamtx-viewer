@@ -1894,7 +1894,7 @@ a {
 
 .playback-stats {
   display: grid;
-  grid-template-columns: repeat(9, minmax(6.5rem, 1fr));
+  grid-template-columns: repeat(17, minmax(6.5rem, 1fr));
   overflow-x: auto;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, #0c0c0e, #080809);
@@ -1948,6 +1948,37 @@ a {
 .playback-stat-state i[data-playing="true"] {
   background: #34d399;
   box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.12);
+}
+
+.playback-stat-pacing-chart {
+  grid-column: span 2;
+  min-width: 13rem;
+}
+
+.playback-pacing-chart {
+  width: 100%;
+  height: 1.9rem;
+  overflow: visible;
+}
+
+.playback-pacing-target {
+  stroke: rgba(161, 161, 170, 0.35);
+  stroke-dasharray: 3 3;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.playback-pacing-line {
+  fill: none;
+  stroke: #34d399;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.playback-pacing-empty {
+  color: #71717a;
 }
 
 .player-message {

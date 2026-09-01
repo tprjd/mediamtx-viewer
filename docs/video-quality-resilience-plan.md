@@ -1,5 +1,11 @@
 # Video quality and playback resilience plan
 
+Status: planning is complete. Setup 1.2.0's OBS quality baseline and the
+browser's rolling frame-pacing diagnostics are implemented. The delivery-path,
+buffering-default, recovery-controller, transport, and observability phases
+below remain implementation work; this document is not claiming those rollout
+phases are already deployed.
+
 ## Objective
 
 Deliver the highest source-faithful video quality the current OBS profiles can
@@ -220,8 +226,10 @@ The repository already has several good foundations:
   progress, rebuilds once, then falls back to HLS on another stall.
 - MediaMTX's bundled WHEP reader independently retries failed/closed peer
   connections after two seconds.
-- Browser diagnostics already display received bitrate, resolution, frame rate,
-  dropped frames, cumulative packet loss, and RTT.
+- Browser diagnostics display received bitrate, resolution, frame rate, dropped
+  frames, cumulative packet loss, RTT, rolling source/presentation frame times,
+  a ten-second pacing graph, late-frame count, decode/processing time, WebRTC
+  jitter-buffer delay, and receiver-reported freezes.
 - The host and MediaMTX already use a 2.5 MB UDP receive buffer, allow IPv4
   path-MTU discovery messages, and keep RTSP on TCP.
 - Stream state reaches the watch page through SSE, so an offline stream can be
@@ -445,7 +453,10 @@ state:
 Do not expose port 9998 publicly or retain viewer IP labels in a public-facing
 dashboard.
 
-Improve browser diagnostics to calculate rolling deltas and rates:
+The rolling frame-pacing slice is implemented for both HLS and WebRTC with
+`requestVideoFrameCallback`; WebRTC also reads decoder, jitter-buffer, and
+freeze counters from `getStats()`. Continue improving browser diagnostics to
+calculate the remaining rolling deltas and rates:
 
 - received packets and loss percentage by audio/video track;
 - jitter, average jitter-buffer delay, and discarded-late packets;
@@ -771,6 +782,7 @@ Reviewed on 2026-09-02. Recheck version-specific behavior during implementation.
 - [MediaMTX: metrics](https://mediamtx.org/docs/features/metrics)
 - [MediaMTX: browser playback and WHEP reader](https://mediamtx.org/docs/read/web-browsers)
 - [HLS.js API and live/retry tuning](https://github.com/video-dev/hls.js/blob/master/docs/API.md)
+- [Video frame presentation callback specification](https://wicg.github.io/video-rvfc/)
 - [W3C WebRTC statistics](https://www.w3.org/TR/webrtc-stats/)
 - [Caddy protocol configuration](https://caddyserver.com/docs/caddyfile/options#protocols)
 - [OBS WHIP and simulcast guide](https://obsproject.com/kb/whip-streaming-guide)
