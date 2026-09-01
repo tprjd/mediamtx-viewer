@@ -8,6 +8,7 @@ MediaMTX viewer:
 - Security list exposing only HTTPS, ACME HTTP, WebRTC UDP, and restricted SSH
 - Always Free-oriented Ampere A1 VM running Ubuntu 24.04
 - Reserved public IPv4 address
+- Exact-instance dynamic group and read-only usage/monitoring policy
 - Cloud-init bootstrap for Docker, Compose, UFW, and WebRTC socket buffers
 
 It does not create DNS records or deploy application secrets.
@@ -23,6 +24,11 @@ It does not create DNS records or deploy application secrets.
 
 The current browser-backed profile uses a one-hour security token. Refresh or
 recreate it before `plan`, `apply`, or `destroy` when it has expired.
+
+`compartment_ocid` currently points at the root tenancy. If the application is
+moved into a child compartment, set `tenancy_ocid` separately so the dynamic
+group and tenancy usage-report policy are created at the root while compute,
+volume, and metric reads remain limited to the application compartment.
 
 ## Commands
 
@@ -80,3 +86,30 @@ tofu import oci_core_subnet.viewer <subnet-ocid>
 
 Always inspect `tofu plan` after importing. State files, variable files, and
 saved plans are intentionally excluded from Git.
+
+## Statistics-page permissions
+
+With `enable_oracle_statistics = true`, the module matches only the viewer
+instance OCID in a fallback dynamic group for compute, volume, and metric reads.
+It also creates a dedicated OCI user and group with read-only access to usage
+reports, compute/volume inventory, and metrics; disables all of that user's
+credential types except API keys; and generates one RSA key.
+The private key and its non-secret identifiers are written with mode `0600` to
+`deploy/oracle/secrets/oci-usage-api-key.pem` and `oci-usage.env`. Both paths are
+git-ignored and are copied by the deployment script, then mounted read-only.
+
+Set `statistics_usage_user_email` in `terraform.tfvars`; OCI Identity Domains
+requires a primary email even though this service identity has no console
+password. Treat the Terraform state as sensitive because it contains the key.
+
+The instance configuration also enables the **Compute Instance Monitoring**
+Oracle Cloud Agent plugin. On an older imported Ubuntu VM, confirm the agent is
+installed as a snap before applying:
+
+```sh
+snap list oracle-cloud-agent
+```
+
+If it is missing, follow Oracle's Ubuntu agent installation instructions before
+expecting memory, load, disk, and network series. Billing and allocation remain
+usable when monitoring-agent data is absent.

@@ -12,8 +12,12 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 project_dir=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 remote_dir=/home/ubuntu/mediamtx-viewer
 
-if [ ! -f "$script_dir/secrets/caddy.env" ] || [ ! -f "$script_dir/secrets/mediamtx.yml" ]; then
-  echo "Missing deploy/oracle/secrets/caddy.env or mediamtx.yml" >&2
+if [ ! -f "$script_dir/secrets/caddy.env" ] || \
+  [ ! -f "$script_dir/secrets/mediamtx.yml" ] || \
+  [ ! -f "$script_dir/secrets/oci-usage.env" ] || \
+  [ ! -f "$script_dir/secrets/oci-usage-api-key.pem" ]; then
+  echo "Missing an Oracle deployment secret (caddy.env, mediamtx.yml, oci-usage.env, or oci-usage-api-key.pem)" >&2
+  echo "Apply deploy/oracle/terraform before deploying the statistics-enabled stack." >&2
   exit 1
 fi
 

@@ -3,6 +3,13 @@ variable "compartment_ocid" {
   type        = string
 }
 
+variable "tenancy_ocid" {
+  description = "Root tenancy OCID used for IAM resources. Defaults to compartment_ocid when the deployment uses the root compartment."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
 variable "region" {
   description = "OCI region in which to create the deployment."
   type        = string
@@ -89,4 +96,15 @@ variable "image_ocid" {
   type        = string
   default     = null
   nullable    = true
+}
+
+variable "enable_oracle_statistics" {
+  description = "Create the service identity, exact-instance fallback dynamic group, and read-only IAM policy used by the signed-in statistics page."
+  type        = bool
+  default     = true
+}
+
+variable "statistics_usage_user_email" {
+  description = "Primary email required by OCI Identity Domains for the read-only statistics service user."
+  type        = string
 }

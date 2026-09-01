@@ -25,6 +25,7 @@ as an automatic compatibility fallback.
 - Low-frequency 640×360 thumbnails captured at stream start and every three
   minutes
 - Unit, integration, component, route, worker, and Playwright coverage
+- Signed-in OCI cost, Free Tier guardrail, allocation, and VM-health dashboard
 - Reproducible Docker Compose and OpenTofu deployment
 
 ## Architecture
@@ -219,6 +220,16 @@ backup and restore, and rollback instructions are maintained in
 are in [`deploy/oracle/terraform/README.md`](./deploy/oracle/terraform/README.md).
 For another hosting provider, start from
 [`deploy/Caddyfile.example`](./deploy/Caddyfile.example).
+
+After applying the Terraform statistics identities and policy, signed-in viewers can use
+`/statistics` to compare tenancy-wide OCI costs and projected reference
+allowances with the current VM allocation and Monitoring telemetry. The page
+fails closed to `Unknown` when billing cannot be verified. Compute and Monitoring
+use the same dedicated read-only API key as billing in production, with the VM
+instance principal retained as a fallback for inventory and metrics. The OCI
+user can only read usage reports, compute/volume inventory, and metrics. Its key
+is mounted from the git-ignored deployment secrets directory and is never
+included in the image.
 
 The deployment script rebuilds the stack, applies database migrations, and
 briefly interrupts active streams when it restarts MediaMTX:

@@ -70,6 +70,22 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
   await expect(page.getByRole('link', { name: 'Admin' })).toBeVisible()
   await expect(page.getByText('/watch/live')).toBeVisible()
 
+  await page.goto('/statistics')
+  await expect(page.getByRole('heading', { name: 'Oracle usage' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Unknown' })).toBeVisible()
+  await expect(
+    page.getByText('This local deployment has Oracle statistics disabled.'),
+  ).toBeVisible()
+  await expect(page.getByText('OCI billing data is unavailable')).toBeVisible()
+  const statisticsSizes = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }))
+  expect(statisticsSizes.scrollWidth).toBeLessThanOrEqual(statisticsSizes.clientWidth)
+
+  await page.goto('/account/channel')
+  await expect(page.getByRole('heading', { name: 'Live stream' })).toBeVisible()
+
   const eventChannelCount = await page.evaluate<number>(() =>
     new Promise((resolve, reject) => {
       const source = new EventSource('/api/channel-events')

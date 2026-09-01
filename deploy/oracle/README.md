@@ -67,6 +67,18 @@ administrator, open registration temporarily at `/admin/users`, and activate
 each friend after they register. Viewing and streaming are separate grants;
 use the same admin page to create one channel for each approved streamer.
 
+Signed-in viewers can open `/statistics` for tenancy-wide current-month OCI
+costs, reference Free Tier projections, the viewer VM allocation, and live
+compute metrics. Production OCI SDK calls use a dedicated Terraform-managed
+user that has API-key access only and read-only access to usage reports, the
+viewer compartment's compute/volume inventory, and metrics. Inventory and
+monitoring can fall back to the exact-instance VM principal if the service key
+is omitted. Terraform writes the key and environment file to
+`deploy/oracle/secrets/`; the deployment mounts the key read-only and never
+builds it into an image. OCI cost reporting can lag, so the page shows source timestamps and
+never reports `Safe` when billing data is unavailable. Its metric charts are
+operational telemetry and are not treated as billable outbound-transfer totals.
+
 The device start and poll endpoints are the only OBS setup routes excluded from
 Caddy's browser-session check. They accept short-lived opaque setup secrets,
 are rate-limited, and do not issue a publishing credential until an active

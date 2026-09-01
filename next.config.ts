@@ -7,6 +7,25 @@ const webrtcOrigin =
 const nextConfig: NextConfig = {
   output: 'standalone',
   poweredByHeader: false,
+  serverExternalPackages: [
+    'oci-common',
+    'oci-core',
+    'oci-monitoring',
+    'oci-usageapi',
+  ],
+  async headers() {
+    return [
+      {
+        source: '/statistics',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'private, no-store, max-age=0',
+          },
+        ],
+      },
+    ]
+  },
   async rewrites() {
     return [
       {

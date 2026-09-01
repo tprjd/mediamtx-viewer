@@ -1,6 +1,6 @@
 'use client'
 
-import { LogOut, RadioTower, Settings, ShieldCheck } from 'lucide-react'
+import { ChartNoAxesCombined, LogOut, RadioTower, Settings, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -32,6 +32,10 @@ export function UserMenu({ hasOwnedChannel, user }: UserMenuProps) {
           Admin
         </Link>
       )}
+      <Link href="/statistics">
+        <ChartNoAxesCombined className="size-4" aria-hidden="true" />
+        Statistics
+      </Link>
       {hasOwnedChannel && (
         <Link href="/account/channel">
           <RadioTower className="size-4" aria-hidden="true" />

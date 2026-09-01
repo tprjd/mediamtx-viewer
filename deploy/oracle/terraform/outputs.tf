@@ -22,3 +22,8 @@ output "viewer_url" {
   description = "Final viewer URL after DNS and TLS cutover."
   value       = "https://${var.hostname}"
 }
+
+output "statistics_dynamic_group" {
+  description = "Dynamic group used by the viewer's instance-principal OCI integration."
+  value       = var.enable_oracle_statistics ? oci_identity_dynamic_group.viewer_statistics[0].name : null
+}

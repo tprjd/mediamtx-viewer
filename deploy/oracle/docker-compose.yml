@@ -75,6 +75,8 @@ services:
         MEDIAMTX_HLS_URL: http://mediamtx:8888
         MEDIAMTX_WEBRTC_URL: http://mediamtx:8889
     restart: unless-stopped
+    env_file:
+      - ./secrets/oci-usage.env
     environment:
       AUTH_DB_PATH: /data/auth.sqlite
       AUTH_BACKUP_DIR: /data/backups
@@ -83,10 +85,16 @@ services:
       INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:?Set INTERNAL_AUTH_SECRET in caddy.env}
       MEDIAMTX_AUTH_SECRET: ${MEDIAMTX_AUTH_SECRET:?Set MEDIAMTX_AUTH_SECRET in caddy.env}
       MEDIAMTX_API_URL: http://mediamtx:9997
+      OCI_STATS_ENABLED: "true"
+      OCI_FREE_A1_OCPU_HOURS: ${OCI_FREE_A1_OCPU_HOURS:-3000}
+      OCI_FREE_A1_MEMORY_GB_HOURS: ${OCI_FREE_A1_MEMORY_GB_HOURS:-18000}
+      OCI_FREE_BLOCK_STORAGE_GB: ${OCI_FREE_BLOCK_STORAGE_GB:-200}
+      OCI_FREE_OUTBOUND_GB: ${OCI_FREE_OUTBOUND_GB:-10000}
       THUMBNAIL_DIR: /thumbnails
     volumes:
       - auth_data:/data
       - thumbnail_data:/thumbnails:ro
+      - ./secrets/oci-usage-api-key.pem:/run/secrets/oci-usage-api-key.pem:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 10s
