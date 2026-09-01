@@ -22,6 +22,7 @@ playback: false
 rtsp: true
 rtspAddress: :8554
 rtspTransports: [tcp]
+udpReadBufferSize: 2500000
 rtmp: false
 srt: false
 moq: false

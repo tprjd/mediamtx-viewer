@@ -18,6 +18,7 @@ interface PlaybackMetrics {
   droppedFrames?: number
   framesPerSecond?: number
   height?: number
+  packetsLost?: number
   roundTripTime?: number
   videoCodec?: string
   width?: number
@@ -41,6 +42,7 @@ interface InboundRtpStats extends RTCStats {
   frameWidth?: number
   kind?: string
   mediaType?: string
+  packetsLost?: number
 }
 
 interface CodecStats extends RTCStats {
@@ -103,6 +105,22 @@ function formatResolution(width?: number, height?: number): string {
 function getVideoQuality(video: HTMLVideoElement) {
   if (typeof video.getVideoPlaybackQuality !== 'function') return undefined
   return video.getVideoPlaybackQuality()
+}
+
+export function sumInboundPacketsLost(
+  inbound: ReadonlyArray<Pick<InboundRtpStats, 'packetsLost'>>,
+): number | undefined {
+  let total = 0
+  let reported = false
+
+  for (const stream of inbound) {
+    if (stream.packetsLost !== undefined) {
+      total += stream.packetsLost
+      reported = true
+    }
+  }
+
+  return reported ? total : undefined
 }
 
 async function readMetrics(
@@ -193,6 +211,7 @@ async function readMetrics(
 
   cursor.bytesReceived = totalBytesReceived
   cursor.framesDecoded = videoFramesDecoded
+  metrics.packetsLost = sumInboundPacketsLost(inbound)
   metrics.roundTripTime = roundTripTime
 
   if (
@@ -297,6 +316,12 @@ export function PlaybackStats({
         <span>Dropped</span>
         <strong>
           {metrics.droppedFrames === undefined ? '—' : metrics.droppedFrames.toLocaleString()}
+        </strong>
+      </div>
+      <div className="playback-stat">
+        <span>Packets lost</span>
+        <strong>
+          {metrics.packetsLost === undefined ? '—' : metrics.packetsLost.toLocaleString()}
         </strong>
       </div>
       <div className="playback-stat">

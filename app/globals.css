@@ -1894,7 +1894,7 @@ a {
 
 .playback-stats {
   display: grid;
-  grid-template-columns: repeat(8, minmax(6.5rem, 1fr));
+  grid-template-columns: repeat(9, minmax(6.5rem, 1fr));
   overflow-x: auto;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, #0c0c0e, #080809);

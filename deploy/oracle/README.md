@@ -62,6 +62,14 @@ For manual setup, configure OBS Custom WHIP service with:
   `/account/channel`.
 - Bearer token: generate and copy the one-time stream key from that page.
 
+### Stream quality troubleshooting
+
+Publisher-side RTP loss can leave incomplete AV1 fragments. Use a stable wired
+upload connection or lower the video bitrate when MediaMTX logs publisher loss;
+viewer-side loss is reported in the playback diagnostics. MediaMTX passes the
+stream through and cannot restore compression detail lost before or during
+publishing. For fine detail, prefer 1440p60 at 12–16 Mbps over 4K60 at 10 Mbps.
+
 The viewer is `https://frankerzspam.duckdns.org/`. Sign in with the bootstrap
 administrator, open registration temporarily at `/admin/users`, and activate
 each friend after they register. Viewing and streaming are separate grants;
