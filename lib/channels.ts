@@ -177,7 +177,7 @@ export function grantStreaming(
             id, owner_user_id, slug, media_path, display_name, title,
             description, accent_color, preferred_playback, enabled,
             created_at, updated_at, created_by
-          ) VALUES (?, ?, ?, ?, ?, ?, NULL, '#8b5cf6', 'webrtc', 1, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, NULL, '#8b5cf6', 'hls', 1, ?, ?, ?)`,
         )
         .run(
           id,

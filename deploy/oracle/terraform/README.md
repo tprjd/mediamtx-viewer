@@ -5,11 +5,11 @@ MediaMTX viewer:
 
 - Dedicated VCN and public subnet
 - Internet gateway and explicit route table
-- Security list exposing only HTTPS, ACME HTTP, WebRTC UDP, and restricted SSH
+- Security list exposing HTTPS/HTTP3, ACME HTTP, WebRTC UDP/TCP ICE, and restricted SSH
 - Always Free-oriented Ampere A1 VM running Ubuntu 24.04
 - Reserved public IPv4 address
 - Exact-instance dynamic group and read-only usage/monitoring policy
-- Cloud-init bootstrap for Docker, Compose, UFW, and WebRTC socket buffers
+- Cloud-init bootstrap for Docker, Compose, matching UFW rules, and WebRTC socket buffers
 
 It does not create DNS records or deploy application secrets.
 

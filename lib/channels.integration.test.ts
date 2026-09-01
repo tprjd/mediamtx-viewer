@@ -65,6 +65,7 @@ describe('account-owned channels', () => {
       ownerName: 'Friend',
       slug: 'friend-channel',
       mediaPath: 'channels/friend-channel',
+      preferredPlayback: 'hls',
       enabled: true,
       hasStreamKey: false,
     })
@@ -148,6 +149,25 @@ describe('account-owned channels', () => {
     await expect(
       callback(process.env.MEDIAMTX_AUTH_SECRET!, 'channels/friend-channel'),
     ).resolves.toMatchObject({ status: 204 })
+  })
+
+  it('allows private MediaMTX health and metrics probes but not pprof', async () => {
+    const { POST } = await import('@/app/api/internal/mediamtx/authorize/route')
+    const callback = (action: 'api' | 'metrics' | 'pprof') =>
+      POST(
+        new Request(
+          `http://localhost:3000/api/internal/mediamtx/authorize?secret=${process.env.MEDIAMTX_AUTH_SECRET}`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ action, path: '', token: '' }),
+          },
+        ),
+      )
+
+    await expect(callback('api')).resolves.toMatchObject({ status: 204 })
+    await expect(callback('metrics')).resolves.toMatchObject({ status: 204 })
+    await expect(callback('pprof')).resolves.toMatchObject({ status: 403 })
   })
 
   it('authorizes two owned channels concurrently without cross-path access', async () => {

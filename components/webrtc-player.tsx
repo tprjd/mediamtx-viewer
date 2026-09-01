@@ -72,7 +72,7 @@ function loadReader(): Promise<MediaMtxReaderConstructor> {
     )
 
     if (!existing) {
-      script.src = '/media/whep/reader.js'
+      script.src = '/vendor/mediamtx-reader-1.20.1.js'
       script.async = true
       script.dataset.mediamtxReader = 'true'
       document.head.appendChild(script)
@@ -120,7 +120,9 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
 
     let active = true
     let reader: MediaMtxReader | undefined
+    let readerToRetire: MediaMtxReader | undefined
     let fallbackTimer: ReturnType<typeof setTimeout> | undefined
+    let repairTimer: ReturnType<typeof setTimeout> | undefined
     let audioTimer: ReturnType<typeof setTimeout> | undefined
     let watchdogTimer: ReturnType<typeof setInterval> | undefined
     let readerGeneration = 0
@@ -317,7 +319,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
           readerGeneration += 1
           const oldReader = reader
           reader = undefined
-          oldReader?.close()
+          readerToRetire = oldReader
           peerConnectionForWatchdog = undefined
           expectedVideoTrack = false
           stopWatchdog()
@@ -330,6 +332,8 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
           stopWatchdog()
           reader?.close()
           reader = undefined
+          readerToRetire?.close()
+          readerToRetire = undefined
           clearTimeout(fallbackTimer)
           clearMedia()
           fallbackRef.current()
@@ -386,11 +390,28 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
             if (!active || generation !== readerGeneration) return
             if (!data) {
               reader?.close()
+              readerToRetire?.close()
+              readerToRetire = undefined
               clearTimeout(fallbackTimer)
               setPlaybackState('unauthorized')
               return
             }
-            scheduleFallback()
+            if (recoveryCount === 0 && ReaderConstructor) {
+              recoveryCount = 1
+              readerGeneration += 1
+              readerToRetire = reader
+              reader = undefined
+              peerConnectionForWatchdog = undefined
+              expectedVideoTrack = false
+              stopWatchdog()
+              setPeerConnection(null)
+              clearTimeout(repairTimer)
+              repairTimer = setTimeout(() => {
+                if (active && ReaderConstructor) createReader(ReaderConstructor)
+              }, 1_000)
+            } else {
+              scheduleFallback(5_000)
+            }
           })
         },
         onTrack: (event) => {
@@ -417,6 +438,25 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
           if (video.srcObject !== stream) {
             video.srcObject = stream
           }
+
+          if (readerToRetire) {
+            const retireAfterFirstFrame = () => {
+              if (
+                active &&
+                generation === readerGeneration &&
+                video.srcObject === stream
+              ) {
+                readerToRetire?.close()
+                readerToRetire = undefined
+              }
+            }
+            const frameVideo = video as VideoFrameCallbackElement
+            if (frameVideo.requestVideoFrameCallback) {
+              frameVideo.requestVideoFrameCallback(retireAfterFirstFrame)
+            } else {
+              video.addEventListener('playing', retireAfterFirstFrame, { once: true })
+            }
+          }
           void video.play().catch(() => {
             // The native controls remain available if autoplay is blocked.
           })
@@ -431,7 +471,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
           }
         },
       })
-      scheduleFallback(8_000)
+      scheduleFallback(recoveryCount > 0 ? 5_000 : 8_000)
     }
 
     void loadReader()
@@ -450,11 +490,13 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
       active = false
       readerGeneration += 1
       clearTimeout(fallbackTimer)
+      clearTimeout(repairTimer)
       clearTimeout(audioTimer)
       video.removeEventListener('playing', handlePlaying)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       stopWatchdog()
       reader?.close()
+      readerToRetire?.close()
       clearMedia()
     }
   }, [channel.playback.webrtc, status.live])

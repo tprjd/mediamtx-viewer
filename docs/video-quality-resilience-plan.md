@@ -1,10 +1,15 @@
 # Video quality and playback resilience plan
 
-Status: planning is complete. Setup 1.2.0's OBS quality baseline and the
-browser's rolling frame-pacing diagnostics are implemented. The delivery-path,
-buffering-default, recovery-controller, transport, and observability phases
-below remain implementation work; this document is not claiming those rollout
-phases are already deployed.
+Status: the repository implementation is complete for the no-transcode design:
+Setup 1.2.0's OBS baseline, smooth-mode default and migration, warm LL-HLS,
+manifest-driven buffering, progress-aware HLS recovery, bounded make-before-break
+WebRTC repair and HLS fallback, browser diagnostics, TCP ICE, HTTP/3, private
+MediaMTX metrics/health checks, and safe deployment are implemented. Production
+rollout and the hardware/network impairment matrix below still require the real
+OBS machines, browsers, Oracle security-list apply, and measured stream load.
+Evidence-gated TURN, publisher-session kicking, extra renditions/transcoding,
+queue changes, and OCI resizing remain deliberately disabled until their stated
+signals justify them.
 
 ## Objective
 

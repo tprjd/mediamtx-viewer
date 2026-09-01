@@ -27,7 +27,9 @@ runcmd:
   - [ufw, allow, from, "${ssh_allowed_cidr}", to, any, port, "22", proto, tcp]
   - [ufw, allow, "80/tcp"]
   - [ufw, allow, "443/tcp"]
+  - [ufw, allow, "443/udp"]
   - [ufw, allow, "8189/udp"]
+  - [ufw, allow, "8189/tcp"]
   - [ufw, --force, enable]
 
 final_message: "MediaMTX viewer host bootstrap completed"

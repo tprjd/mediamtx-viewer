@@ -216,9 +216,10 @@ listeners through `host.docker.internal`.
 
 The production Compose stack runs Caddy, MediaMTX, Next.js, and the thumbnail
 worker on one Oracle VM. The OpenTofu module creates the VM, reserved IP, and
-restricted network. Caddy is the only public HTTP entry point; WebRTC ICE also
-uses UDP 8189. Next.js, SQLite, the MediaMTX Control API, HLS origin, RTSP, and
-thumbnail storage remain private inside Docker.
+restricted network. Caddy is the only public HTTP entry point; WebRTC ICE uses
+UDP 8189 with TCP 8189 as a fallback, and HTTP/3 uses UDP 443 while HTTP/2
+remains available on TCP 443. Next.js, SQLite, the MediaMTX Control API, HLS
+origin, metrics, RTSP, and thumbnail storage remain private inside Docker.
 
 Deployment, secret generation, OBS setup, routine operations, encrypted SQLite
 backup and restore, and rollback instructions are maintained in
@@ -237,8 +238,9 @@ user can only read usage reports, compute/volume inventory, and metrics. Its key
 is mounted from the git-ignored deployment secrets directory and is never
 included in the image.
 
-The deployment script rebuilds the stack, applies database migrations, and
-briefly interrupts active streams when it restarts MediaMTX:
+The deployment script validates staged MediaMTX configuration, rebuilds the
+stack, applies database migrations, and leaves an unchanged MediaMTX container
+running. Valid configuration changes are hot-reloaded where supported:
 
 ```sh
 ./deploy/oracle/deploy.sh ubuntu@SERVER_IP

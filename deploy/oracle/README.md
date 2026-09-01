@@ -34,12 +34,14 @@ From the repository root:
 ./deploy/oracle/deploy.sh ubuntu@$(cd deploy/oracle/terraform && tofu output -raw public_ip)
 ```
 
-The script copies the source and ignored runtime secrets, validates the Compose
-model, builds the viewer and FFmpeg thumbnail worker on the ARM VM, applies
-versioned SQLite migrations,
-creates the first administrator when needed, restarts MediaMTX, and reloads
-Caddy. This briefly interrupts an active stream. It does not delete unrelated
-remote files, the auth volume, or DNS.
+The script copies the source and ignored runtime secrets, validates the staged
+MediaMTX configuration in an isolated container and the Compose model, builds
+the viewer and FFmpeg thumbnail worker on the ARM VM, applies versioned SQLite
+migrations, creates the first administrator when needed, updates the UDP 443
+and TCP 8189 UFW rules, and reloads Caddy. Compose recreates MediaMTX only when
+its image or service definition changes; valid config-only changes are
+hot-reloaded where supported. It does not delete unrelated remote files, the
+auth volume, or DNS.
 
 ## DNS and OBS
 
@@ -61,6 +63,30 @@ For manual setup, configure OBS Custom WHIP service with:
 - Server: copy the channel-specific `/publish/whip/.../whip` URL from
   `/account/channel`.
 - Bearer token: generate and copy the one-time stream key from that page.
+
+### Stream quality and resilience
+
+Smooth LL-HLS is the default viewer mode and runs a few seconds behind the live
+edge. Viewers can explicitly select WebRTC low latency. A failed WebRTC repair
+falls back to the already-warm HLS muxer, and the player waits 60 seconds before
+offering another low-latency attempt. HLS retries transient failures with
+bounded exponential backoff while the stream remains live; hidden tabs and
+intentional pauses do not create reconnect storms.
+
+MediaMTX metrics and its Control API remain private on the Compose network. The
+health sidecar checks them and the RTSP, HLS, WHEP, and TCP ICE listeners without
+restarting MediaMTX on a failed probe. Inspect the counters with:
+
+```sh
+docker compose --env-file deploy/oracle/secrets/caddy.env \
+  -f deploy/oracle/docker-compose.yml exec -T mediamtx-health \
+  wget -qO- http://mediamtx:9998/metrics
+```
+
+Confirm HTTP/3 in browser DevTools or with a QUIC-enabled client; blocking UDP
+443 must still leave HLS working over HTTP/2. Blocking UDP 8189 should select
+TCP ICE, visible in the browser playback diagnostics. Blocking both ICE ports
+should lead to HLS without a page refresh.
 
 ### Stream quality troubleshooting
 

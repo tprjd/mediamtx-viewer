@@ -7,7 +7,7 @@ CREATE TABLE channel (
   title TEXT NOT NULL,
   description TEXT,
   accent_color TEXT NOT NULL DEFAULT '#8b5cf6',
-  preferred_playback TEXT NOT NULL DEFAULT 'webrtc'
+  preferred_playback TEXT NOT NULL DEFAULT 'hls'
     CHECK (preferred_playback IN ('hls', 'webrtc')),
   enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
   created_at INTEGER NOT NULL,
@@ -32,7 +32,7 @@ INSERT INTO channel (
 SELECT
   lower(hex(randomblob(16))), id, 'live', 'live', 'Main channel', 'Live stream',
   'Games and occasional broadcasts, streamed directly from home.',
-  '#8b5cf6', 'webrtc', 1, CAST(strftime('%s', 'now') AS INTEGER) * 1000,
+  '#8b5cf6', 'hls', 1, CAST(strftime('%s', 'now') AS INTEGER) * 1000,
   CAST(strftime('%s', 'now') AS INTEGER) * 1000, id
 FROM user
 WHERE role = 'admin' AND activationStatus = 'active'

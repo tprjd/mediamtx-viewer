@@ -1,7 +1,13 @@
 'use client'
 
 import Hls, { ErrorDetails, ErrorTypes } from 'hls.js'
-import { AlertTriangle, LoaderCircle, Radio, RotateCcw } from 'lucide-react'
+import {
+  AlertTriangle,
+  LoaderCircle,
+  Radio,
+  RotateCcw,
+  ShieldCheck,
+} from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
@@ -29,6 +35,7 @@ function isCodecError(details: ErrorDetails): boolean {
 
 export function HlsPlayer({ channel }: HlsPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const recoveryRef = useRef({ attempts: 0 })
   const [playbackState, setPlaybackState] = useState<Exclude<PlaybackState, 'offline'>>(
     'loading',
   )
@@ -44,11 +51,18 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
     const video = videoRef.current
     if (!video) return
 
+    let active = true
     let hls: Hls | undefined
     let unsupportedTimer: ReturnType<typeof setTimeout> | undefined
     let codecErrorTimer: ReturnType<typeof setTimeout> | undefined
-    let networkRetries = 0
-    let recoveredMediaError = false
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+    let stableTimer: ReturnType<typeof setTimeout> | undefined
+    let mediaRecoveryAttempted = false
+    let softRecoveryAttempted = false
+    let stagnantSamples = 0
+    let lastProgress: number | undefined
+    let everPlayed = false
+    let needsRecovery = false
 
     const resetVideo = () => {
       video.pause()
@@ -61,25 +75,118 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
       return
     }
 
-    const handleLoadStart = () => setPlaybackState('loading')
+    const canRecover = () =>
+      active &&
+      status.live &&
+      document.visibilityState === 'visible' &&
+      navigator.onLine !== false &&
+      !(everPlayed && video.paused && !video.ended)
+
+    const scheduleRecreate = (immediate = false) => {
+      needsRecovery = true
+      setPlaybackState('reconnecting')
+      clearTimeout(retryTimer)
+      if (!canRecover()) return
+
+      const attempt = recoveryRef.current.attempts
+      const delay = immediate ? 0 : Math.min(1_000 * 2 ** attempt, 15_000)
+      recoveryRef.current.attempts = Math.min(attempt + 1, 8)
+      retryTimer = setTimeout(() => {
+        if (canRecover()) setReloadKey((key) => key + 1)
+      }, delay)
+    }
+
+    const readProgress = () => {
+      try {
+        const quality = video.getVideoPlaybackQuality?.()
+        if (quality && quality.totalVideoFrames > 0) {
+          return quality.totalVideoFrames
+        }
+      } catch {
+        // Fall back to the media clock on browsers with partial support.
+      }
+      return video.currentTime * 1_000
+    }
+
+    const pollProgress = () => {
+      if (!canRecover() || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        stagnantSamples = 0
+        lastProgress = undefined
+        return
+      }
+
+      const progress = readProgress()
+      if (lastProgress === undefined || progress > lastProgress) {
+        lastProgress = progress
+        stagnantSamples = 0
+        return
+      }
+
+      stagnantSamples += 1
+      if (stagnantSamples < 5) return
+      stagnantSamples = 0
+      setPlaybackState('reconnecting')
+
+      if (hls && !softRecoveryAttempted) {
+        softRecoveryAttempted = true
+        const liveEdge = hls.liveSyncPosition
+        if (liveEdge !== null && liveEdge !== undefined) {
+          video.currentTime = liveEdge
+        }
+        hls.startLoad()
+        return
+      }
+
+      scheduleRecreate()
+    }
+
+    const handleLoadStart = () => {
+      if (!everPlayed) setPlaybackState('loading')
+    }
     const handlePlaying = () => {
       clearTimeout(codecErrorTimer)
+      clearTimeout(stableTimer)
+      everPlayed = true
+      needsRecovery = false
+      stagnantSamples = 0
+      lastProgress = readProgress()
       setPlaybackState('playing')
+      stableTimer = setTimeout(() => {
+        recoveryRef.current.attempts = 0
+        mediaRecoveryAttempted = false
+        softRecoveryAttempted = false
+      }, 60_000)
     }
-    const handleWaiting = () => setPlaybackState('reconnecting')
+    const handleWaiting = () => {
+      if (!video.paused) {
+        needsRecovery = true
+        setPlaybackState('reconnecting')
+      }
+    }
+    const handlePause = () => {
+      stagnantSamples = 0
+      lastProgress = undefined
+    }
     const handleVideoError = () => {
       void authClient.getSession().then(({ data }) => {
-        if (!data) setPlaybackState('unauthorized')
+        if (!active) return
+        if (!data) {
+          clearTimeout(retryTimer)
+          setPlaybackState('unauthorized')
+        } else if (video.error?.code !== MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+          scheduleRecreate()
+        }
       })
       if (video.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
         clearTimeout(codecErrorTimer)
         codecErrorTimer = setTimeout(() => {
-          if (video.paused || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+          if (
+            active &&
+            (video.paused || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA)
+          ) {
             setPlaybackState('unsupported')
           }
         }, 2_500)
-      } else {
-        setPlaybackState('error')
       }
     }
     const handlePlay = () => {
@@ -97,8 +204,18 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
     video.addEventListener('playing', handlePlaying)
     video.addEventListener('waiting', handleWaiting)
     video.addEventListener('stalled', handleWaiting)
+    video.addEventListener('pause', handlePause)
     video.addEventListener('error', handleVideoError)
     video.addEventListener('play', handlePlay)
+
+    const resumeRecovery = () => {
+      stagnantSamples = 0
+      lastProgress = undefined
+      if (needsRecovery && canRecover()) scheduleRecreate(true)
+    }
+    window.addEventListener('online', resumeRecovery)
+    document.addEventListener('visibilitychange', resumeRecovery)
+    const progressTimer = setInterval(pollProgress, 1_000)
 
     const beginPlayback = () => {
       void video.play().catch(() => {
@@ -114,9 +231,6 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
       hls = new Hls({
         lowLatencyMode: true,
         backBufferLength: 30,
-        liveSyncDuration: 1,
-        liveMaxLatencyDuration: 3,
-        maxLiveSyncPlaybackRate: 1.5,
       })
 
       hls.on(Hls.Events.MANIFEST_PARSED, beginPlayback)
@@ -135,26 +249,25 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
           return
         }
 
-        if (data.type === ErrorTypes.NETWORK_ERROR && networkRetries < 3) {
-          networkRetries += 1
-          setPlaybackState('reconnecting')
-          hls?.startLoad()
+        if (data.type === ErrorTypes.NETWORK_ERROR) {
+          scheduleRecreate()
           return
         }
 
-        if (data.type === ErrorTypes.MEDIA_ERROR && !recoveredMediaError) {
-          recoveredMediaError = true
+        if (data.type === ErrorTypes.MEDIA_ERROR && !mediaRecoveryAttempted) {
+          mediaRecoveryAttempted = true
           setPlaybackState('reconnecting')
           hls?.recoverMediaError()
           return
         }
 
-        setPlaybackState(
-          data.details === ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR
-            ? 'unsupported'
-            : 'error',
-        )
-        hls?.destroy()
+        if (data.details === ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR) {
+          setPlaybackState('unsupported')
+          hls?.destroy()
+          return
+        }
+
+        scheduleRecreate()
       })
 
       hls.loadSource(sourceUrl)
@@ -164,15 +277,22 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
     }
 
     return () => {
+      active = false
       video.removeEventListener('loadstart', handleLoadStart)
       video.removeEventListener('playing', handlePlaying)
       video.removeEventListener('waiting', handleWaiting)
       video.removeEventListener('stalled', handleWaiting)
+      video.removeEventListener('pause', handlePause)
       video.removeEventListener('error', handleVideoError)
       video.removeEventListener('play', handlePlay)
+      window.removeEventListener('online', resumeRecovery)
+      document.removeEventListener('visibilitychange', resumeRecovery)
       hls?.destroy()
       clearTimeout(unsupportedTimer)
       clearTimeout(codecErrorTimer)
+      clearTimeout(retryTimer)
+      clearTimeout(stableTimer)
+      clearInterval(progressTimer)
       resetVideo()
     }
   }, [reloadKey, sourceUrl, status.live])
@@ -196,6 +316,13 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
           playsInline
           poster={channel.poster}
         />
+
+        {visibleState === 'playing' && (
+          <span className="protocol-badge">
+            <ShieldCheck className="size-3" aria-hidden="true" />
+            HLS · Smooth
+          </span>
+        )}
 
         {visibleState !== 'playing' && (
           <div className="player-overlay" aria-live="polite">
@@ -222,8 +349,8 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
               </h2>
               <p>
                 {visibleState === 'loading'
-                  ? 'Preparing low-latency playback…'
-                  : 'The connection was interrupted. Retrying now…'}
+                  ? 'Preparing smooth playback…'
+                  : 'The connection was interrupted. Retrying automatically…'}
               </p>
             </div>
           )}

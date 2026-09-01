@@ -12,10 +12,12 @@ authInternalUsers:
       - action: playback
         path:
       - action: api
+      - action: metrics
 
 api: true
 apiAddress: :9997
-metrics: false
+metrics: true
+metricsAddress: :9998
 pprof: false
 playback: false
 
@@ -31,6 +33,7 @@ hls: true
 hlsAddress: :8888
 hlsEncryption: false
 hlsAllowOrigins: ["https://frankerzspam.duckdns.org"]
+hlsAlwaysRemux: true
 hlsVariant: lowLatency
 
 webrtc: true
@@ -38,7 +41,7 @@ webrtcAddress: :8889
 webrtcEncryption: false
 webrtcAllowOrigins: ["https://frankerzspam.duckdns.org"]
 webrtcLocalUDPAddress: :8189
-webrtcLocalTCPAddress: ""
+webrtcLocalTCPAddress: :8189
 webrtcIPsFromInterfaces: false
 webrtcAdditionalHosts: ["158.180.29.172"]
 

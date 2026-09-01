@@ -99,12 +99,36 @@ resource "oci_core_security_list" "viewer" {
   }
 
   ingress_security_rules {
+    description = "HTTP/3 viewer and HLS"
+    protocol    = "17"
+    source      = "0.0.0.0/0"
+    source_type = "CIDR_BLOCK"
+
+    udp_options {
+      min = 443
+      max = 443
+    }
+  }
+
+  ingress_security_rules {
     description = "MediaMTX WebRTC ICE"
     protocol    = "17"
     source      = "0.0.0.0/0"
     source_type = "CIDR_BLOCK"
 
     udp_options {
+      min = 8189
+      max = 8189
+    }
+  }
+
+  ingress_security_rules {
+    description = "MediaMTX WebRTC TCP ICE fallback"
+    protocol    = "6"
+    source      = "0.0.0.0/0"
+    source_type = "CIDR_BLOCK"
+
+    tcp_options {
       min = 8189
       max = 8189
     }

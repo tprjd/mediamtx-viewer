@@ -134,9 +134,10 @@ describe('WebRtcPlayer watchdog', () => {
     await vi.advanceTimersByTimeAsync(5_000)
 
     expect(FakeReader.instances).toHaveLength(2)
-    expect(FakeReader.instances[0].close).toHaveBeenCalledOnce()
+    expect(FakeReader.instances[0].close).not.toHaveBeenCalled()
 
     connect(FakeReader.instances[1], peer)
+    expect(FakeReader.instances[0].close).toHaveBeenCalledOnce()
     await vi.advanceTimersByTimeAsync(5_000)
 
     expect(fallback).toHaveBeenCalledOnce()
@@ -163,6 +164,8 @@ describe('WebRtcPlayer watchdog', () => {
     await vi.advanceTimersByTimeAsync(5_000)
 
     expect(FakeReader.instances).toHaveLength(3)
+    expect(FakeReader.instances[1].close).not.toHaveBeenCalled()
+    connect(FakeReader.instances[2], peer)
     expect(FakeReader.instances[1].close).toHaveBeenCalledOnce()
     expect(fallback).not.toHaveBeenCalled()
   })
@@ -248,6 +251,26 @@ describe('WebRtcPlayer watchdog', () => {
     expect(screen.getByText('Session expired')).toBeInTheDocument()
     expect(FakeReader.instances[0].close).toHaveBeenCalledOnce()
     expect(fallback).not.toHaveBeenCalled()
+  })
+
+  it('repairs one reader error before falling back to smooth playback', async () => {
+    const fallback = vi.fn()
+    await renderPlayer(fallback)
+
+    await act(async () => {
+      FakeReader.instances[0].options.onError?.('peer connection closed')
+      await Promise.resolve()
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(FakeReader.instances).toHaveLength(2)
+    expect(fallback).not.toHaveBeenCalled()
+
+    await act(async () => {
+      FakeReader.instances[1].options.onError?.('peer connection closed')
+      await Promise.resolve()
+      await vi.advanceTimersByTimeAsync(5_000)
+    })
+    expect(fallback).toHaveBeenCalledOnce()
   })
 
   it('cleans up the reader and watchdog timers on unmount', async () => {

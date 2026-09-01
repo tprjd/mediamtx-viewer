@@ -38,7 +38,12 @@ export async function POST(request: Request): Promise<Response> {
     })
   }
 
-  if (payload.action === 'read' || payload.action === 'playback' || payload.action === 'api') {
+  if (
+    payload.action === 'read' ||
+    payload.action === 'playback' ||
+    payload.action === 'api' ||
+    payload.action === 'metrics'
+  ) {
     return new Response(null, { status: 204 })
   }
 

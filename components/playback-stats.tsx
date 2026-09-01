@@ -22,8 +22,10 @@ interface PlaybackMetrics {
   freezes?: number
   height?: number
   jitterBufferDelayMs?: number
+  packetLossPercent?: number
   packetsLost?: number
   roundTripTime?: number
+  transport?: string
   videoCodec?: string
   width?: number
 }
@@ -50,6 +52,8 @@ export interface FramePacingSummary {
 interface SampleCursor {
   bytesReceived?: number
   framesDecoded?: number
+  packetsLost?: number
+  packetsReceived?: number
   sampledAt: number
   videoBytesDecoded?: number
   videoFrames?: number
@@ -70,6 +74,7 @@ interface InboundRtpStats extends RTCStats {
   kind?: string
   mediaType?: string
   packetsLost?: number
+  packetsReceived?: number
   totalDecodeTime?: number
 }
 
@@ -79,9 +84,16 @@ interface CodecStats extends RTCStats {
 
 interface CandidatePairStats extends RTCStats {
   currentRoundTripTime?: number
+  localCandidateId?: string
   nominated?: boolean
+  remoteCandidateId?: string
   selected?: boolean
   state?: string
+}
+
+interface CandidateStats extends RTCStats {
+  candidateType?: string
+  protocol?: string
 }
 
 interface VideoWithWebkitMetrics extends HTMLVideoElement {
@@ -330,11 +342,16 @@ async function readMetrics(
 
   const report = await peerConnection.getStats()
   const codecs = new Map<string, CodecStats>()
+  const candidates = new Map<string, CandidateStats>()
   const inbound: InboundRtpStats[] = []
   let roundTripTime: number | undefined
+  let selectedPair: CandidatePairStats | undefined
 
   report.forEach((stat) => {
     if (stat.type === 'codec') codecs.set(stat.id, stat as CodecStats)
+    if (stat.type === 'local-candidate' || stat.type === 'remote-candidate') {
+      candidates.set(stat.id, stat as CandidateStats)
+    }
     if (stat.type === 'inbound-rtp') inbound.push(stat as InboundRtpStats)
 
     if (stat.type === 'candidate-pair') {
@@ -346,15 +363,28 @@ async function readMetrics(
       ) {
         roundTripTime = pair.currentRoundTripTime
       }
+      if (pair.state === 'succeeded' && (pair.nominated || pair.selected)) {
+        selectedPair = pair
+      }
     }
   })
 
   let totalBytesReceived = 0
+  let totalPacketsLost = 0
+  let totalPacketsReceived = 0
+  let packetsReported = false
   let videoFramesDecoded: number | undefined
 
   for (const stream of inbound) {
     const kind = stream.kind ?? stream.mediaType
     totalBytesReceived += stream.bytesReceived ?? 0
+    if (stream.packetsLost !== undefined) {
+      totalPacketsLost += stream.packetsLost
+      packetsReported = true
+    }
+    if (stream.packetsReceived !== undefined) {
+      totalPacketsReceived += stream.packetsReceived
+    }
     const codec = stream.codecId ? codecs.get(stream.codecId)?.mimeType : undefined
 
     if (kind === 'video') {
@@ -387,8 +417,36 @@ async function readMetrics(
 
   cursor.bytesReceived = totalBytesReceived
   cursor.framesDecoded = videoFramesDecoded
-  metrics.packetsLost = sumInboundPacketsLost(inbound)
+  cursor.packetsLost = packetsReported ? totalPacketsLost : undefined
+  cursor.packetsReceived = totalPacketsReceived
+  metrics.packetsLost = packetsReported ? totalPacketsLost : undefined
   metrics.roundTripTime = roundTripTime
+
+  if (selectedPair) {
+    const local = selectedPair.localCandidateId
+      ? candidates.get(selectedPair.localCandidateId)
+      : undefined
+    const remote = selectedPair.remoteCandidateId
+      ? candidates.get(selectedPair.remoteCandidateId)
+      : undefined
+    const protocol = local?.protocol ?? remote?.protocol
+    const candidateType = remote?.candidateType ?? local?.candidateType
+    metrics.transport = [protocol?.toUpperCase(), candidateType]
+      .filter(Boolean)
+      .join(' · ') || undefined
+  }
+
+  if (
+    previous?.packetsLost !== undefined &&
+    previous.packetsReceived !== undefined &&
+    cursor.packetsLost !== undefined &&
+    cursor.packetsReceived !== undefined
+  ) {
+    const lost = Math.max(0, cursor.packetsLost - previous.packetsLost)
+    const received = Math.max(0, cursor.packetsReceived - previous.packetsReceived)
+    const total = lost + received
+    if (total > 0) metrics.packetLossPercent = lost / total * 100
+  }
 
   if (
     elapsedSeconds > 0 &&
@@ -636,6 +694,18 @@ export function PlaybackStats({
         <strong>
           {metrics.packetsLost === undefined ? '—' : metrics.packetsLost.toLocaleString()}
         </strong>
+      </div>
+      <div className="playback-stat" title="Packet loss during the latest one-second sample">
+        <span>Loss rate</span>
+        <strong>
+          {metrics.packetLossPercent === undefined
+            ? '—'
+            : `${metrics.packetLossPercent.toFixed(2)}%`}
+        </strong>
+      </div>
+      <div className="playback-stat" title="Selected WebRTC candidate transport">
+        <span>Transport</span>
+        <strong>{metrics.transport ?? (protocol === 'HLS' ? 'HTTPS' : '—')}</strong>
       </div>
       <div className="playback-stat">
         <span>Network RTT</span>
