@@ -20,14 +20,37 @@ after setup. It does not use `ExecutionPolicy Bypass` or modify the user or
 machine execution policy.
 
 The default run installs or updates the exact `OBSProject.OBSStudio` WinGet
-package, requires a hardware AV1 encoder reported by OBS, and creates:
+package, probes the hardware encoders that OBS actually reports, and creates a
+managed profile for every requested codec and resolution it can encode. The
+defaults request AV1, HEVC (H.265), and H.264 at 1440p and 1080p, producing up
+to six 60 fps CBR profiles with two-second keyframes, zero B-frames, and Opus
+audio:
 
-- profile `FrankerzSpam 1440p60 AV1` at 2560×1440, 60 fps, 12 Mbps CBR, two-second
-  keyframes, zero B-frames, and Opus audio;
+- `FrankerzSpam 1440p60 AV1` — 2560×1440, 12 Mbps, the default/shortcut profile;
+- `FrankerzSpam 1440p60 HEVC` — 2560×1440, 14 Mbps, limited browser support;
+- `FrankerzSpam 1440p60 H264` — 2560×1440, 16 Mbps, broadest compatibility;
+- `FrankerzSpam 1080p60 AV1` — 1920×1080, 8 Mbps;
+- `FrankerzSpam 1080p60 HEVC` — 1920×1080, 9 Mbps;
+- `FrankerzSpam 1080p60 H264` — 1920×1080, 10 Mbps.
+
+All profiles use the shared scene collection's 2560×1440 base canvas. The
+1080p profiles downscale that canvas to 1920×1080 with Lanczos, so scene-item
+positions and bounds remain correct when switching profiles.
+
+Requested codecs whose hardware encoder OBS does not report are skipped after
+confirmation; naming them explicitly with `-Codecs` makes the run fail before
+any write. The same WHIP credential, the `FrankerzSpam Games` collection, and
+the desktop shortcut (which launches the preferred profile) apply to every
+managed profile:
+
 - collection `FrankerzSpam Games` with separate Desktop, League of Legends,
   EVE Online, STALKER 2, Path of Exile, Path of Exile 2, and Generic Game scenes;
 - WHIP service settings obtained through a single-use, ten-minute browser
   authorization.
+
+`-Codecs` and `-Resolutions` narrow the matrix (for example
+`-Codecs AV1,H264 -Resolutions 1080p`), and `-BitrateKbps` remains a
+backward-compatible override for the 1440p60 AV1 profile only.
 
 Each named game scene uses OBS Game Capture's `Capture any fullscreen
 application` mode. This avoids fragile executable-only targets that OBS displays
@@ -35,9 +58,12 @@ as `(null)` and that stop working when a game changes its executable. Each scene
 also includes a disabled Window Capture fallback. If Game Capture does not work,
 start the game, select the fallback's window in OBS, then enable that source.
 
-Setup version 1.0.3 recognizes collections created with the old executable-only
-targets. A normal rerun offers to back up and rebuild that managed collection;
-unrelated OBS profiles and collections remain untouched.
+Setup version 1.1.0 recognizes collections created with the old executable-only
+targets and upgrades the single AV1 profile from earlier versions: the existing
+`FrankerzSpam 1440p60 AV1` profile is preserved when it is unchanged and
+rebuilt (from a backup) when repair or reset is requested. A normal rerun offers
+to back up and rebuild the managed collection; unrelated OBS profiles and
+collections remain untouched.
 
 Existing unrelated profiles and collections are untouched. A normal rerun
 preserves the managed scenes and profile. The supported maintenance modes are:

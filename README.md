@@ -15,8 +15,8 @@ as an automatic compatibility fallback.
 - Self-service profile names shown as channel ownership labels
 - Private channel directory with real-time live/offline status and viewer counts
 - One administrator-granted channel and revocable OBS key per streamer
-- Downloadable Windows setup that installs or updates OBS and creates a managed
-  1440p60 hardware-AV1 profile and game scenes
+- Downloadable Windows setup that installs or updates OBS and creates managed
+  60 fps AV1, HEVC, and H.264 profiles at 1440p and 1080p plus game scenes
 - Multiple simultaneous publishers on isolated MediaMTX paths
 - WebRTC playback with automatic HLS compatibility fallback
 - Native accessible video controls and playback diagnostics
@@ -104,12 +104,15 @@ The streamer signs in and opens `/account/channel`. Windows users can download
 the generic `Setup-FrankerzSpam-OBS.cmd` launcher there and double-click it. It
 verifies its embedded PowerShell payload, uses a temporary process-only
 execution policy, and then installs or updates
-OBS Studio through WinGet, verifies that OBS reports a hardware AV1 encoder,
-and creates a separate managed profile and scene collection without modifying
-unrelated OBS profiles. Named game scenes capture the active fullscreen game;
-each also has a disabled Window Capture fallback that can be selected while the
-game is running. Setup 1.0.3 backs up and replaces the earlier unreliable
-executable-only `(null)` capture targets on rerun.
+OBS Studio through WinGet, checks the hardware encoders OBS actually reports,
+and creates one managed profile per requested codec and resolution — by default
+AV1, HEVC (H.265), and H.264 at 1440p and 1080p, all 60 fps CBR with Opus
+audio — plus a shared scene collection, without modifying unrelated OBS
+profiles. Named game scenes capture the active fullscreen game; each also has a
+disabled Window Capture fallback that can be selected while the game is
+running. Setup 1.1.0 backs up and replaces the earlier unreliable
+executable-only `(null)` capture targets on rerun and preserves the existing
+1440p60 AV1 profile created by earlier setup versions.
 
 The script opens a ten-minute authorization page in the browser. Approving the
 displayed code binds that computer to the signed-in user's enabled channel,
@@ -177,8 +180,11 @@ and the deterministic CMD launcher is generated in
 [`lib/obs-setup-script.ts`](./lib/obs-setup-script.ts). Its payload extraction,
 checksums, capture-mode defaults, and server/device-authorization contract are
 covered by the test suite. PowerShell parsing and final encoder and capture
-validation require Windows PowerShell and a Windows computer with an AV1-capable
-NVIDIA, AMD, or Intel GPU.
+validation require Windows PowerShell and a Windows computer with an
+appropriate NVIDIA, AMD, or Intel hardware encoder. OBS 30 removed the old AMF
+plugin, but OBS 31/32 retain the texture-based AMD hardware encoders. The encoder
+identifiers and property names are verified against the obsproject/obs-studio
+sources but still need fixture verification against fresh OBS logs on Windows.
 
 Install Playwright's browser once before running the end-to-end suite:
 
@@ -250,7 +256,8 @@ reports, and dependencies are ignored by Git.
 ## Codec compatibility
 
 MediaMTX passes codecs through; the site does not transcode playback. AV1
-depends on browser, operating-system, and hardware support. The downloadable
-Windows profile intentionally requires hardware AV1 and uses Opus audio. For a
-manual profile serving older viewer devices, H.264 video with Opus audio remains
-the broadly compatible WHIP option.
+depends on browser, operating-system, and hardware support, and HEVC support
+is limited in some browsers. The downloadable Windows setup creates a profile
+for every hardware encoder OBS reports — AV1, HEVC (H.265), and H.264 at 1440p
+and 1080p by default — all with Opus audio. H.264 remains the broadly
+compatible profile for older viewer devices.

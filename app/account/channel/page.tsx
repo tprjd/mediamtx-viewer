@@ -72,8 +72,9 @@ export default async function ChannelAccountPage({
           <div>
             <h2>Windows OBS setup</h2>
             <p>
-              Install or update OBS and create a 1440p60 hardware-AV1 profile
-              with ready-made game and desktop scenes.
+              Install or update OBS and create managed AV1, HEVC, and H.264
+              profiles at 1440p and 1080p with ready-made game and desktop
+              scenes.
             </p>
           </div>
           <Download aria-hidden="true" />

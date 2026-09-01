@@ -1,9 +1,13 @@
 # Windows OBS Setup Design and Implementation Record
 
-Status: setup version 1.0.3 is implemented and deployed. Application,
-authorization, artifact checksum, and capture-default validation are automated.
-PowerShell parsing and final acceptance still require Windows PowerShell and a
-Windows 10/11 computer with supported AV1 hardware.
+Status: setup version 1.1.0 is implemented. It supersedes the single AV1
+profile described below with a managed AV1/HEVC/H.264 profile matrix at 1440p
+and 1080p; see `windows-obs-multi-profile-plan.md` for that design.
+Application, authorization, artifact checksum, and capture-default validation
+are automated. PowerShell parsing and final acceptance still require Windows
+PowerShell and a Windows 10/11 computer with supported hardware encoders, and
+the H.264/HEVC encoder settings still need fixture verification against fresh
+OBS logs.
 
 ## Goal
 

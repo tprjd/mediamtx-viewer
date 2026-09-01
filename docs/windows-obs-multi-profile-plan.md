@@ -124,8 +124,10 @@ entry contains:
 - preferred-launch priority;
 - the selected OBS encoder identifier, populated after capability detection.
 
-Keep canvas and output dimensions equal per profile. This avoids hidden rescale
-behavior and makes profile switching self-contained.
+Keep a 2560x1440 base canvas in every profile because the shared scene
+collection stores transforms in canvas pixels. The 1440p profiles output that
+canvas directly; the 1080p profiles downscale it to 1920x1080 with Lanczos.
+This keeps one scene layout correct when switching between resolutions.
 
 ### 2. Generalize encoder discovery
 
@@ -140,9 +142,24 @@ H264 -> selected NVIDIA, AMD, or Intel hardware encoder ID
 
 Maintain explicit allowlists of OBS 31/32 internal encoder identifiers by codec
 and vendor. Select NVIDIA, then AMD, then Intel within each codec, matching the
-existing AV1 behavior. Confirm the exact H.264 and HEVC identifiers against
+existing AV1 behavior. OBS 30 removed the old `enc-amf` plugin, but the
+texture-based AMF encoders remain part of OBS 31/32. Confirm the exact H.264 and
+HEVC identifiers against
 fresh OBS 31 and 32 Windows logs before merging; do not infer identifiers solely
 from current source names or GPU models.
+
+Deviations recorded during implementation: the identifiers below were verified
+against the `obsproject/obs-studio` 31/32 sources (`plugins/obs-nvenc`,
+`plugins/obs-ffmpeg/texture-amf`, and `plugins/obs-qsv11`) rather than Windows
+log fixtures, which are still owed:
+
+- NVIDIA: `obs_nvenc_av1_tex`, `obs_nvenc_hevc_tex`, `obs_nvenc_h264_tex`
+- AMD: `av1_texture_amf`, `h265_texture_amf`, `h264_texture_amf`
+- Intel: `obs_qsv11_av1`, `obs_qsv11_hevc`, `obs_qsv11_v2`, with deprecated
+  `obs_qsv11` retained only as a fallback
+- Profile writes are per-profile: an existing managed profile directory is
+  never overwritten by a run that only needs to create other missing profiles.
+  Rewrite happens only under `-RepairManagedConfig` or `-ResetManagedConfig`.
 
 The capability resolver must distinguish:
 
@@ -158,10 +175,11 @@ both codec and encoder vendor. Common settings are CBR, bitrate, two-second
 keyframes, and zero B-frames.
 
 - NVIDIA: retain P5, high-quality tuning, quarter-resolution multipass,
-  look-ahead off, and psycho-visual tuning on where the codec-specific plugin
-  supports those keys.
-- AMD: retain the Quality preset where exposed.
-- Intel: retain Balanced target usage where exposed.
+  look-ahead off, and adaptive quantization on (OBS 31+ NVENC property names:
+  `preset`, `tune`, `multipass`, `lookahead`, `adaptive_quantization`).
+- AMD: retain the Quality preset exposed by the texture-AMF encoders.
+- Intel: retain Balanced target usage (`target_usage`, migrated to TU4 by the
+  QSV plugin for all codecs).
 - AV1: retain Main profile.
 - HEVC: use Main, 8-bit 4:2:0 output; do not enable Main10/HDR in this revision.
 - H.264: prefer Baseline/Constrained Baseline for browser compatibility. If a
@@ -169,7 +187,7 @@ keyframes, and zero B-frames.
   profile in the test matrix instead of assuming `profile=main` or `high` is
   universally safe.
 
-Encoder JSON property names vary between NVIDIA, AMD, and Intel plugins. Capture
+Encoder JSON property names vary between the NVIDIA, AMD, and Intel plugins. Capture
 known-good `streamEncoder.json` fixtures from OBS 31 and 32 for each available
 vendor/codec combination and use those fixtures to validate the generated keys.
 
@@ -178,7 +196,7 @@ vendor/codec combination and use those fixtures to validate the generated keys.
 Update `Write-ManagedProfile` to receive a profile definition. Parameterize:
 
 - profile name;
-- base/output width and height;
+- common base-canvas width and height plus profile output width and height;
 - encoder identifier;
 - bitrate and codec-specific JSON.
 

@@ -9,6 +9,8 @@ param(
     [switch]$ResetManagedConfig,
     [ValidateRange(8000, 20000)]
     [int]$BitrateKbps = 12000,
+    [string]$Codecs = 'AV1,HEVC,H264',
+    [string]$Resolutions = '1440p,1080p',
     [string]$SiteOrigin = 'https://frankerzspam.duckdns.org'
 )
 
@@ -17,12 +19,115 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$ScriptVersion = '1.0.3'
-$ProfileName = 'FrankerzSpam 1440p60 AV1'
-$ProfileDirectoryName = 'FrankerzSpam_1440p60_AV1'
+$ScriptVersion = '1.1.0'
 $CollectionName = 'FrankerzSpam Games'
 $CollectionFileName = 'FrankerzSpam_Games.json'
 $ObsPackageId = 'OBSProject.OBSStudio'
+$SceneCanvasWidth = 2560
+$SceneCanvasHeight = 1440
+
+# Managed profile matrix. Every profile uses the shared scene collection's
+# 2560x1440 canvas; Width and Height are the stream output dimensions. The
+# 1080p profiles therefore downscale the common canvas with Lanczos.
+# LaunchPriority picks the shortcut/default profile: 1440p60 AV1 first, then
+# 1080p60 H.264, then the first matrix entry managed by this run.
+$ManagedProfiles = @(
+    [pscustomobject]@{
+        Key = '1440p60-av1'
+        Name = 'FrankerzSpam 1440p60 AV1'
+        DirectoryName = 'FrankerzSpam_1440p60_AV1'
+        Codec = 'AV1'
+        Resolution = '1440p'
+        Width = 2560
+        Height = 1440
+        DefaultBitrateKbps = 12000
+        Compatibility = 'Best quality-per-bit; current default'
+        LaunchPriority = 1
+    },
+    [pscustomobject]@{
+        Key = '1440p60-hevc'
+        Name = 'FrankerzSpam 1440p60 HEVC'
+        DirectoryName = 'FrankerzSpam_1440p60_HEVC'
+        Codec = 'HEVC'
+        Resolution = '1440p'
+        Width = 2560
+        Height = 1440
+        DefaultBitrateKbps = 14000
+        Compatibility = 'Experimental; limited browser compatibility'
+        LaunchPriority = 3
+    },
+    [pscustomobject]@{
+        Key = '1440p60-h264'
+        Name = 'FrankerzSpam 1440p60 H264'
+        DirectoryName = 'FrankerzSpam_1440p60_H264'
+        Codec = 'H264'
+        Resolution = '1440p'
+        Width = 2560
+        Height = 1440
+        DefaultBitrateKbps = 16000
+        Compatibility = 'Broad compatibility, higher bandwidth'
+        LaunchPriority = 3
+    },
+    [pscustomobject]@{
+        Key = '1080p60-av1'
+        Name = 'FrankerzSpam 1080p60 AV1'
+        DirectoryName = 'FrankerzSpam_1080p60_AV1'
+        Codec = 'AV1'
+        Resolution = '1080p'
+        Width = 1920
+        Height = 1080
+        DefaultBitrateKbps = 8000
+        Compatibility = 'Efficient lower-bandwidth option'
+        LaunchPriority = 3
+    },
+    [pscustomobject]@{
+        Key = '1080p60-hevc'
+        Name = 'FrankerzSpam 1080p60 HEVC'
+        DirectoryName = 'FrankerzSpam_1080p60_HEVC'
+        Codec = 'HEVC'
+        Resolution = '1080p'
+        Width = 1920
+        Height = 1080
+        DefaultBitrateKbps = 9000
+        Compatibility = 'Experimental; limited browser compatibility'
+        LaunchPriority = 3
+    },
+    [pscustomobject]@{
+        Key = '1080p60-h264'
+        Name = 'FrankerzSpam 1080p60 H264'
+        DirectoryName = 'FrankerzSpam_1080p60_H264'
+        Codec = 'H264'
+        Resolution = '1080p'
+        Width = 1920
+        Height = 1080
+        DefaultBitrateKbps = 10000
+        Compatibility = 'Recommended compatibility option'
+        LaunchPriority = 2
+    }
+)
+
+# Hardware encoder identifiers verified against the OBS 31/32 sources
+# (plugins/obs-nvenc, plugins/obs-ffmpeg/texture-amf, and plugins/obs-qsv11).
+# OBS 30 removed the old enc-amf plugin, but its texture-based AMF replacement
+# remains supported. Vendor preference matches the original setup behavior.
+$EncoderVendorOrder = @('NVIDIA', 'AMD', 'Intel')
+$EncoderAllowlists = [ordered]@{
+    AV1 = [ordered]@{
+        NVIDIA = @('obs_nvenc_av1_tex')
+        AMD = @('av1_texture_amf')
+        Intel = @('obs_qsv11_av1')
+    }
+    HEVC = [ordered]@{
+        NVIDIA = @('obs_nvenc_hevc_tex')
+        AMD = @('h265_texture_amf')
+        Intel = @('obs_qsv11_hevc')
+    }
+    H264 = [ordered]@{
+        NVIDIA = @('obs_nvenc_h264_tex')
+        AMD = @('h264_texture_amf')
+        Intel = @('obs_qsv11_v2', 'obs_qsv11')
+    }
+}
 
 function Write-Step {
     param([string]$Message)
@@ -94,6 +199,42 @@ function Assert-ExclusiveModes {
     }
 }
 
+function Get-CodecSelection {
+    param([string]$Value)
+    $allowed = @('AV1', 'HEVC', 'H264')
+    $selected = @()
+    foreach ($token in ($Value -split ',')) {
+        $codec = $token.Trim().ToUpperInvariant()
+        if ($codec -eq '') { continue }
+        if ($codec -notin $allowed) {
+            throw "Unknown codec '$token'. -Codecs accepts a comma-separated list of: AV1, HEVC, H264."
+        }
+        if ($selected -notcontains $codec) { $selected += $codec }
+    }
+    if ($selected.Count -eq 0) {
+        throw '-Codecs must include at least one of: AV1, HEVC, H264.'
+    }
+    return $selected
+}
+
+function Get-ResolutionSelection {
+    param([string]$Value)
+    $allowed = @('1440p', '1080p')
+    $selected = @()
+    foreach ($token in ($Value -split ',')) {
+        $resolution = $token.Trim().ToLowerInvariant()
+        if ($resolution -eq '') { continue }
+        if ($resolution -notin $allowed) {
+            throw "Unknown resolution '$token'. -Resolutions accepts a comma-separated list of: 1440p, 1080p."
+        }
+        if ($selected -notcontains $resolution) { $selected += $resolution }
+    }
+    if ($selected.Count -eq 0) {
+        throw '-Resolutions must include at least one of: 1440p, 1080p.'
+    }
+    return $selected
+}
+
 function Get-WinGetCommand {
     $command = Get-Command winget.exe -ErrorAction SilentlyContinue
     if (-not $command) {
@@ -149,7 +290,7 @@ function Get-ObsExecutable {
 function Assert-ObsClosed {
     $running = Get-Process obs64 -ErrorAction SilentlyContinue
     if (-not $running) { return }
-    Write-Info 'OBS Studio must be closed before its profile is changed.'
+    Write-Info 'OBS Studio must be closed before its profiles are changed.'
     if (-not (Read-Confirmation 'Close OBS and continue when it has exited?' $true)) {
         throw 'Setup cancelled because OBS Studio is running.'
     }
@@ -160,50 +301,71 @@ function Assert-ObsClosed {
     throw 'OBS Studio is still running. Close it and run setup again.'
 }
 
-function Find-EncoderInLogs {
+function Get-EncoderCapabilityMap {
     param(
         [string]$LogsDirectory,
         [datetime]$Since = [datetime]::MinValue
     )
-    if (-not (Test-Path -LiteralPath $LogsDirectory)) { return $null }
-    $logs = Get-ChildItem -LiteralPath $LogsDirectory -Filter '*.txt' -File |
-        Where-Object { $_.LastWriteTime -ge $Since } |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -First 5
-    $encoderIds = @(
-        'obs_nvenc_av1_tex',
-        'jim_av1_nvenc',
-        'av1_texture_amf',
-        'obs_qsv11_av1'
+    $capabilities = [ordered]@{
+        AV1 = $null
+        HEVC = $null
+        H264 = $null
+    }
+    if (-not (Test-Path -LiteralPath $LogsDirectory)) { return $capabilities }
+    $logs = @(
+        Get-ChildItem -LiteralPath $LogsDirectory -Filter '*.txt' -File |
+            Where-Object { $_.LastWriteTime -ge $Since } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 5
     )
-    foreach ($encoderId in $encoderIds) {
-        foreach ($log in $logs) {
-            if (Select-String -LiteralPath $log.FullName -SimpleMatch "- $encoderId (" -Quiet) {
-                return $encoderId
+    if ($logs.Count -eq 0) { return $capabilities }
+    $logText = @()
+    foreach ($log in $logs) {
+        $logText += Get-Content -LiteralPath $log.FullName -Raw -ErrorAction SilentlyContinue
+    }
+    $logText = $logText -join "`n"
+    if (-not $logText) { return $capabilities }
+    foreach ($codec in @('AV1', 'HEVC', 'H264')) {
+        foreach ($vendor in $EncoderVendorOrder) {
+            foreach ($encoderId in $EncoderAllowlists[$codec][$vendor]) {
+                if ($logText -like "*- $encoderId (*") {
+                    $capabilities[$codec] = [pscustomobject]@{
+                        Vendor = $vendor
+                        EncoderId = $encoderId
+                    }
+                    break
+                }
             }
+            if ($capabilities[$codec]) { break }
         }
     }
-    return $null
+    return $capabilities
 }
 
-function Get-HardwareAv1Encoder {
+function Get-HardwareEncoderCapabilities {
     param(
         [string]$ObsExecutable,
-        [string]$LogsDirectory
+        [string]$LogsDirectory,
+        [string[]]$CodecsToFind
     )
 
-    if ($DryRun) { return Find-EncoderInLogs $LogsDirectory }
+    if ($DryRun) { return Get-EncoderCapabilityMap $LogsDirectory }
 
     Write-Info 'Launching OBS briefly to read its hardware encoder inventory.'
     $probeStartedAt = (Get-Date).AddSeconds(-2)
     $workingDirectory = Split-Path -Parent $ObsExecutable
     $probe = Start-Process -FilePath $ObsExecutable -WorkingDirectory $workingDirectory `
         -ArgumentList '--minimize-to-tray', '--disable-shutdown-check' -PassThru
+    $capabilities = $null
     try {
         for ($attempt = 0; $attempt -lt 20; $attempt += 1) {
             Start-Sleep -Seconds 1
-            $encoder = Find-EncoderInLogs $LogsDirectory $probeStartedAt
-            if ($encoder) { break }
+            $capabilities = Get-EncoderCapabilityMap $LogsDirectory $probeStartedAt
+            $allFound = $true
+            foreach ($codec in $CodecsToFind) {
+                if (-not $capabilities[$codec]) { $allFound = $false; break }
+            }
+            if ($allFound) { break }
             if ($probe.HasExited) { break }
         }
     } finally {
@@ -214,7 +376,86 @@ function Get-HardwareAv1Encoder {
             }
         }
     }
-    return $encoder
+    if (-not $capabilities) {
+        $capabilities = Get-EncoderCapabilityMap $LogsDirectory $probeStartedAt
+    }
+    return $capabilities
+}
+
+function Show-EncoderCapabilities {
+    param(
+        $Capabilities,
+        [string[]]$Codecs,
+        [bool]$Probed
+    )
+    Write-Info 'Hardware encoder capability summary:'
+    foreach ($codec in $Codecs) {
+        $capability = $Capabilities[$codec]
+        if ($capability) {
+            Write-Info "  $codec : $($capability.Vendor) ($($capability.EncoderId))"
+        }
+        elseif ($Probed) {
+            Write-Info "  $codec : no supported hardware encoder in the OBS inventory"
+        }
+        else {
+            Write-Info "  $codec : not verified yet (no recent OBS logs found)"
+        }
+    }
+}
+
+function Resolve-ManagedSelection {
+    param(
+        [string[]]$RequestedCodecs,
+        [string[]]$RequestedResolutions,
+        $Capabilities,
+        [bool]$Probed,
+        [bool]$CodecsExplicit
+    )
+    $selected = @()
+    $skipped = @()
+    foreach ($codec in $RequestedCodecs) {
+        $capability = $Capabilities[$codec]
+        if ($capability) {
+            foreach ($resolution in $RequestedResolutions) {
+                $profile = $ManagedProfiles |
+                    Where-Object { $_.Codec -eq $codec -and $_.Resolution -eq $resolution } |
+                    Select-Object -First 1
+                $profile | Add-Member -NotePropertyName Encoder `
+                    -NotePropertyValue $capability -Force
+                $bitrate = $profile.DefaultBitrateKbps
+                if ($profile.Key -eq '1440p60-av1') {
+                    # -BitrateKbps remains a backward-compatible override for
+                    # the 1440p60 AV1 profile only.
+                    $bitrate = $BitrateKbps
+                }
+                $profile | Add-Member -NotePropertyName BitrateKbps `
+                    -NotePropertyValue $bitrate -Force
+                $selected += $profile
+            }
+        }
+        elseif ($Probed) {
+            $skipped += [pscustomobject]@{
+                Codec = $codec
+                Reason = 'No supported hardware encoder in the OBS encoder inventory.'
+            }
+        }
+    }
+    if ($skipped.Count -gt 0) {
+        foreach ($skip in $skipped) {
+            Write-Info "Skipped $($skip.Codec): $($skip.Reason)"
+        }
+        if ($CodecsExplicit) {
+            $names = ($skipped | ForEach-Object { $_.Codec }) -join ', '
+            throw "Requested codec(s) $names have no supported hardware encoder. Update the GPU driver or choose available codecs with -Codecs."
+        }
+    }
+    if ($selected.Count -eq 0 -and $Probed) {
+        throw 'OBS did not report a supported hardware video encoder for AV1, HEVC, or H.264. Update the GPU driver or use a supported GPU.'
+    }
+    return [pscustomobject]@{
+        Profiles = $selected
+        Skipped = $skipped
+    }
 }
 
 function Get-Utf8NoBomEncoding {
@@ -264,26 +505,27 @@ function Write-AtomicText {
 
 function Backup-ManagedConfiguration {
     param(
-        [string]$ProfileDirectory,
+        [string[]]$ProfileDirectories,
         [string]$CollectionPath
     )
-    if (-not (Test-Path -LiteralPath $ProfileDirectory) -and
-        -not (Test-Path -LiteralPath $CollectionPath)) { return }
+    $existingProfiles = @($ProfileDirectories | Where-Object { Test-Path -LiteralPath $_ })
+    $collectionExists = Test-Path -LiteralPath $CollectionPath
+    if ($existingProfiles.Count -eq 0 -and -not $collectionExists) { return }
 
     $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
     $backupRoot = Join-Path $env:LOCALAPPDATA "FrankerzSpam\OBS Backups\$timestamp"
     [IO.Directory]::CreateDirectory($backupRoot) | Out-Null
-    if (Test-Path -LiteralPath $ProfileDirectory) {
-        $profileBackup = Join-Path $backupRoot 'profile'
+    foreach ($profileDirectory in $existingProfiles) {
+        $profileBackup = Join-Path $backupRoot (Split-Path -Leaf $profileDirectory)
         [IO.Directory]::CreateDirectory($profileBackup) | Out-Null
         foreach ($name in @('basic.ini', 'streamEncoder.json')) {
-            $source = Join-Path $ProfileDirectory $name
+            $source = Join-Path $profileDirectory $name
             if (Test-Path -LiteralPath $source) {
                 Copy-Item -LiteralPath $source -Destination $profileBackup
             }
         }
     }
-    if (Test-Path -LiteralPath $CollectionPath) {
+    if ($collectionExists) {
         Copy-Item -LiteralPath $CollectionPath -Destination $backupRoot
     }
     Write-Info "Managed configuration backed up to $backupRoot"
@@ -304,27 +546,53 @@ function Test-LegacyExecutableOnlyCaptureTargets {
 }
 
 function Get-EncoderSettings {
-    param(
-        [string]$EncoderId,
-        [int]$Bitrate
-    )
+    param($Profile)
     $settings = [ordered]@{
         rate_control = 'CBR'
-        bitrate = $Bitrate
+        bitrate = $Profile.BitrateKbps
         keyint_sec = 2
         bf = 0
     }
-    if ($EncoderId -in @('obs_nvenc_av1_tex', 'jim_av1_nvenc')) {
-        $settings.preset2 = 'p5'
-        $settings.tuning = 'hq'
+    $vendor = $Profile.Encoder.Vendor
+    $codec = $Profile.Codec
+    if ($vendor -eq 'NVIDIA') {
+        # OBS 31+ NVENC property names (plugins/obs-nvenc/nvenc-properties.c):
+        # preset p1-p7, tune, multipass, lookahead, adaptive_quantization.
+        $settings.preset = 'p5'
+        $settings.tune = 'hq'
         $settings.multipass = 'qres'
-        $settings.profile = 'main'
         $settings.lookahead = $false
-        $settings.psycho_aq = $true
-    } elseif ($EncoderId -eq 'av1_texture_amf') {
-        $settings.quality = 'quality'
-    } elseif ($EncoderId -eq 'obs_qsv11_av1') {
+        $settings.adaptive_quantization = $true
+        if ($codec -eq 'H264') {
+            # Baseline keeps the H.264 stream WebRTC-friendly.
+            $settings.profile = 'baseline'
+        }
+        else {
+            # Main profile, 8-bit 4:2:0 output. Main10/HDR is out of scope.
+            $settings.profile = 'main'
+        }
+    }
+    elseif ($vendor -eq 'AMD') {
+        # OBS 31+ texture-AMF property names. AV1 has a single Main profile;
+        # HEVC defaults to Main, while H.264 is pinned to Baseline for WebRTC.
+        $settings.preset = 'quality'
+        if ($codec -eq 'H264') {
+            $settings.profile = 'baseline'
+        }
+        elseif ($codec -eq 'HEVC') {
+            $settings.profile = 'main'
+        }
+    }
+    elseif ($vendor -eq 'Intel') {
+        # QSV quality knob is target_usage (TU1-TU7); 'balanced' is migrated
+        # to TU4 by the plugin (plugins/obs-qsv11/obs-qsv11.c).
         $settings.target_usage = 'balanced'
+        if ($codec -eq 'H264') {
+            $settings.profile = 'baseline'
+        }
+        elseif ($codec -eq 'HEVC') {
+            $settings.profile = 'main'
+        }
     }
     return $settings
 }
@@ -332,14 +600,13 @@ function Get-EncoderSettings {
 function Write-ManagedProfile {
     param(
         [string]$ProfileDirectory,
-        [string]$EncoderId,
-        [int]$Bitrate
+        $Profile
     )
     [IO.Directory]::CreateDirectory($ProfileDirectory) | Out-Null
     $videosPath = [Environment]::GetFolderPath('MyVideos')
     $basicIni = @"
 [General]
-Name=$ProfileName
+Name=$($Profile.Name)
 
 [Output]
 Mode=Advanced
@@ -360,7 +627,7 @@ WHIPSimulcastTotalLayers=1
 ApplyServiceSettings=true
 UseRescale=false
 TrackIndex=1
-Encoder=$EncoderId
+Encoder=$($Profile.Encoder.EncoderId)
 AudioEncoder=ffmpeg_opus
 Track1Bitrate=160
 RecType=Standard
@@ -370,10 +637,10 @@ RecUseRescale=false
 RecTracks=1
 
 [Video]
-BaseCX=2560
-BaseCY=1440
-OutputCX=2560
-OutputCY=1440
+BaseCX=$SceneCanvasWidth
+BaseCY=$SceneCanvasHeight
+OutputCX=$($Profile.Width)
+OutputCY=$($Profile.Height)
 FPSType=0
 FPSCommon=60
 ScaleType=lanczos
@@ -390,7 +657,7 @@ SampleRate=48000
 ChannelSetup=Stereo
 "@
     Write-AtomicText (Join-Path $ProfileDirectory 'basic.ini') $basicIni
-    $encoderJson = Get-EncoderSettings $EncoderId $Bitrate |
+    $encoderJson = Get-EncoderSettings $Profile |
         ConvertTo-Json -Depth 10
     Write-AtomicText (Join-Path $ProfileDirectory 'streamEncoder.json') $encoderJson
 }
@@ -444,7 +711,10 @@ function New-SceneItem {
         align = 5
         bounds_type = 2
         bounds_align = 0
-        bounds = [ordered]@{ x = 2560.0; y = 1440.0 }
+        bounds = [ordered]@{
+            x = [double]$SceneCanvasWidth
+            y = [double]$SceneCanvasHeight
+        }
         crop_left = 0
         crop_top = 0
         crop_right = 0
@@ -678,7 +948,7 @@ function Start-DeviceAuthorization {
 
 function Write-WhipService {
     param(
-        [string]$ProfileDirectory,
+        [string[]]$ProfileDirectories,
         [string]$ServerUrl,
         [string]$BearerToken
     )
@@ -687,6 +957,10 @@ function Write-WhipService {
     }
     if (-not $BearerToken.StartsWith('mtx_sk_') -or $BearerToken.Length -lt 48) {
         throw 'The site returned an invalid OBS publishing credential.'
+    }
+    $targets = @($ProfileDirectories | Where-Object { Test-Path -LiteralPath $_ })
+    if ($targets.Count -eq 0) {
+        throw 'No managed OBS profiles were available to receive the publishing settings.'
     }
     $service = [ordered]@{
         type = 'whip_custom'
@@ -697,11 +971,29 @@ function Write-WhipService {
         }
         hotkeys = [ordered]@{}
     } | ConvertTo-Json -Depth 10
-    Write-AtomicText (Join-Path $ProfileDirectory 'service.json') $service
+    $updatedDirectories = @()
+    foreach ($profileDirectory in $targets) {
+        try {
+            Write-AtomicText (Join-Path $profileDirectory 'service.json') $service
+            $updatedDirectories += $profileDirectory
+        } catch {
+            $writeError = $_
+            $updatedNames = @($updatedDirectories | ForEach-Object { Split-Path -Leaf $_ }) -join ', '
+            $pendingNames = @($targets |
+                Where-Object { $_ -notin $updatedDirectories } |
+                ForEach-Object { Split-Path -Leaf $_ }) -join ', '
+            $summary = if ($updatedNames) { "Updated: $updatedNames. " } else { '' }
+            $summary += "Not updated: $pendingNames. Rerun setup to rotate the credential again."
+            throw "$summary Original error: $($writeError.Exception.Message)"
+        }
+    }
 }
 
 function New-DesktopShortcut {
-    param([string]$ObsExecutable)
+    param(
+        [string]$ObsExecutable,
+        [string]$ProfileName
+    )
     $desktop = [Environment]::GetFolderPath('Desktop')
     $shortcutPath = Join-Path $desktop 'FrankerzSpam OBS.lnk'
     $shell = New-Object -ComObject WScript.Shell
@@ -716,17 +1008,51 @@ function New-DesktopShortcut {
 try {
     Assert-SupportedHost
     Assert-ExclusiveModes
+    $requestedCodecs = Get-CodecSelection $Codecs
+    $requestedResolutions = Get-ResolutionSelection $Resolutions
+    $codecsExplicit = $MyInvocation.BoundParameters.ContainsKey('Codecs')
     Write-Host "FrankerzSpam OBS setup v$ScriptVersion" -ForegroundColor Magenta
-    Write-Info 'One managed profile, separate manual scenes, hardware AV1 only.'
+    Write-Info 'Managed streaming profiles: AV1, HEVC, and H.264 at 1440p60 and 1080p60.'
+    Write-Info 'Profiles are alternatives, not simultaneous adaptive renditions.'
 
     Write-Step 'Inspecting Windows and OBS Studio'
     $winget = Get-WinGetCommand
     if (-not $DryRun) { Assert-ObsClosed }
     Invoke-ObsInstallOrUpdate $winget
+    $obsRoot = Join-Path $env:APPDATA 'obs-studio'
+    $logsDirectory = Join-Path $obsRoot 'logs'
+    $collectionPath = Join-Path $obsRoot "basic\scenes\$CollectionFileName"
     if ($DryRun) {
-        Write-Info "Would configure $ProfileName at 2560x1440, 60 FPS, AV1 CBR $BitrateKbps Kbps."
-        Write-Info 'Would create Desktop, League of Legends, EVE Online, STALKER 2, Path of Exile, Path of Exile 2, and Generic Game scenes.'
-        Write-Info 'Would open the site for short-lived channel authorization only after AV1 preflight.'
+        Write-Info 'Dry run: reading capability information from existing OBS logs only.'
+        $capabilities = Get-EncoderCapabilityMap $logsDirectory
+        Show-EncoderCapabilities $capabilities $requestedCodecs $false
+        Write-Step 'Dry run: resolved profile matrix'
+        $matrixProfiles = @($ManagedProfiles |
+            Where-Object { $requestedCodecs -contains $_.Codec -and
+                $requestedResolutions -contains $_.Resolution })
+        foreach ($profile in $matrixProfiles) {
+            $bitrate = $profile.DefaultBitrateKbps
+            if ($profile.Key -eq '1440p60-av1') { $bitrate = $BitrateKbps }
+            if ($capabilities[$profile.Codec]) {
+                $status = 'would create'
+            } else {
+                # Without a probe, absence in old logs is not proof of absence.
+                $status = 'would create if the encoder verifies during a normal run'
+            }
+            Write-Info "  ${status} : $($profile.Name) - $($profile.Width)x$($profile.Height) 60 FPS, $($profile.Codec) CBR $bitrate Kbps"
+        }
+        $unverifiedCodecs = @($requestedCodecs | Where-Object { -not $capabilities[$_] })
+        if ($unverifiedCodecs.Count -gt 0) {
+            $names = $unverifiedCodecs -join ', '
+            if ($codecsExplicit) {
+                Write-Info "Requested codec(s) $names are unverified; a normal run fails before any write if the probe finds no encoder."
+            } else {
+                Write-Info "Codec(s) $names are unverified; a normal run skips them (after confirmation) if the probe finds no encoder."
+            }
+        }
+        Write-Info "Would manage the shared scene collection $CollectionName."
+        Write-Info 'Would open the site for short-lived channel authorization, then write the credential to every managed profile.'
+        Write-Info 'Dry run complete. Nothing was installed, probed, authorized, or written.'
         exit 0
     }
     $obsExecutable = Get-ObsExecutable
@@ -736,26 +1062,39 @@ try {
     }
     Assert-SupportedObsVersion $obsExecutable
 
-    $obsRoot = Join-Path $env:APPDATA 'obs-studio'
-    $profileDirectory = Join-Path $obsRoot "basic\profiles\$ProfileDirectoryName"
-    $collectionPath = Join-Path $obsRoot "basic\scenes\$CollectionFileName"
-    $logsDirectory = Join-Path $obsRoot 'logs'
-
-    Write-Step 'Verifying hardware AV1 support'
-    $encoderId = Get-HardwareAv1Encoder $obsExecutable $logsDirectory
-    if (-not $encoderId) {
-        throw 'OBS did not report NVIDIA, AMD, or Intel hardware AV1 support. Update the GPU driver or use an AV1-capable GPU.'
+    Write-Step 'Verifying hardware encoder support'
+    $capabilities = Get-HardwareEncoderCapabilities $obsExecutable $logsDirectory $requestedCodecs
+    Show-EncoderCapabilities $capabilities $requestedCodecs $true
+    $selection = Resolve-ManagedSelection $requestedCodecs $requestedResolutions `
+        $capabilities $true $codecsExplicit
+    if ($selection.Skipped.Count -gt 0 -and
+        -not (Read-Confirmation 'Continue without the skipped codecs?' $true)) {
+        throw 'Setup cancelled before writing OBS configuration.'
     }
-    Write-Info "Using OBS encoder $encoderId"
+    $managedProfiles = $selection.Profiles
+    $profileDirectories = @($managedProfiles | ForEach-Object {
+        Join-Path $obsRoot "basic\profiles\$($_.DirectoryName)"
+    })
 
-    $profileExists = Test-Path -LiteralPath $profileDirectory
+    $existingProfileDirectories = @()
+    foreach ($definition in $ManagedProfiles) {
+        $directory = Join-Path $obsRoot "basic\profiles\$($definition.DirectoryName)"
+        if (Test-Path -LiteralPath $directory) { $existingProfileDirectories += $directory }
+    }
     $collectionExists = Test-Path -LiteralPath $collectionPath
     $needsCaptureTargetMigration = $collectionExists -and
         (Test-LegacyExecutableOnlyCaptureTargets $collectionPath)
     if ($needsCaptureTargetMigration) {
         Write-Warning 'The managed scenes contain unreliable executable-only capture targets. Setup will back them up and rebuild the collection.'
     }
-    $needsProfileWrite = -not $profileExists -or $RepairManagedConfig -or $ResetManagedConfig
+    $needsProfileWrite = $false
+    foreach ($directory in $profileDirectories) {
+        if ((-not (Test-Path -LiteralPath $directory)) -or
+            $RepairManagedConfig -or $ResetManagedConfig) {
+            $needsProfileWrite = $true
+            break
+        }
+    }
     $needsCollectionWrite = -not $collectionExists -or $ResetManagedConfig -or
         $needsCaptureTargetMigration
     $changesExistingConfiguration = $RepairManagedConfig -or $ResetManagedConfig -or
@@ -767,7 +1106,7 @@ try {
         throw 'Setup cancelled.'
     }
     if ($changesExistingConfiguration) {
-        Backup-ManagedConfiguration $profileDirectory $collectionPath
+        Backup-ManagedConfiguration $profileDirectories $collectionPath
     }
 
     $enableMicrophone = $true
@@ -777,17 +1116,52 @@ try {
         $enableHotkeys = Read-Confirmation 'Add Ctrl+Alt scene hotkeys?' $false
     }
 
-    if (($needsProfileWrite -or $needsCollectionWrite) -and
-        -not (Read-Confirmation "Create the managed 1440p60 AV1 profile and game scenes?" $true)) {
-        throw 'Setup cancelled before writing OBS configuration.'
+    # A profile is created (or rebuilt) only when its directory is missing or
+    # repair/reset was requested. Existing directories are preserved so a
+    # partial matrix never overwrites profiles the user already has.
+    $forceProfileRewrite = $RepairManagedConfig -or $ResetManagedConfig
+    $profileActions = @{}
+    foreach ($profile in $managedProfiles) {
+        $directory = Join-Path $obsRoot "basic\profiles\$($profile.DirectoryName)"
+        $profileActions[$profile.DirectoryName] =
+            (-not (Test-Path -LiteralPath $directory)) -or $forceProfileRewrite
+    }
+    $profilesToCreate = @($managedProfiles |
+        Where-Object { $profileActions[$_.DirectoryName] })
+
+    if ($needsProfileWrite -or $needsCollectionWrite) {
+        Write-Step 'Resolved managed profile matrix'
+        foreach ($profile in $managedProfiles) {
+            $action = if ($profileActions[$profile.DirectoryName]) {
+                'create'
+            } else {
+                'preserved'
+            }
+            Write-Info "  ${action} : $($profile.Name) - $($profile.Width)x$($profile.Height) 60 FPS, $($profile.Codec) CBR $($profile.BitrateKbps) Kbps via $($profile.Encoder.EncoderId) ($($profile.Compatibility))"
+        }
+        if ($needsCollectionWrite) {
+            $confirmation = "Create the $($profilesToCreate.Count) managed profile(s) and the $CollectionName scene collection?"
+        } else {
+            $confirmation = "Create the $($profilesToCreate.Count) managed profile(s)?"
+        }
+        if (-not (Read-Confirmation $confirmation $true)) {
+            throw 'Setup cancelled before writing OBS configuration.'
+        }
     }
 
     Write-Step 'Creating managed OBS configuration'
     if ($needsProfileWrite) {
-        Write-ManagedProfile $profileDirectory $encoderId $BitrateKbps
-        Write-Info "Created profile $ProfileName"
+        foreach ($profile in $profilesToCreate) {
+            $directory = Join-Path $obsRoot "basic\profiles\$($profile.DirectoryName)"
+            Write-ManagedProfile $directory $profile
+            Write-Info "Created profile $($profile.Name)"
+        }
+        $preservedCount = $managedProfiles.Count - $profilesToCreate.Count
+        if ($preservedCount -gt 0) {
+            Write-Info "Preserved $preservedCount existing managed profile(s)."
+        }
     } else {
-        Write-Info 'Existing managed profile preserved.'
+        Write-Info 'Existing managed profiles preserved.'
     }
     if ($needsCollectionWrite) {
         Write-ManagedSceneCollection $collectionPath $enableMicrophone $enableHotkeys
@@ -802,23 +1176,35 @@ try {
         throw 'Local OBS configuration was created, but channel authorization was cancelled.'
     }
     $authorization = Start-DeviceAuthorization
-    Write-WhipService $profileDirectory $authorization.serverUrl $authorization.bearerToken
+    $credentialTargetDirectories = @()
+    foreach ($definition in $ManagedProfiles) {
+        $directory = Join-Path $obsRoot "basic\profiles\$($definition.DirectoryName)"
+        if (Test-Path -LiteralPath $directory) { $credentialTargetDirectories += $directory }
+    }
+    Write-WhipService $credentialTargetDirectories $authorization.serverUrl $authorization.bearerToken
     $authorization.bearerToken = $null
-    Write-Info 'WHIP publishing settings saved without printing the credential.'
+    Write-Info "WHIP publishing settings saved to $($credentialTargetDirectories.Count) managed profile(s) without printing the credential."
     $warningProperty = $authorization.PSObject.Properties['warning']
     if ($warningProperty -and $warningProperty.Value) {
         Write-Warning $warningProperty.Value
     }
 
+    $preferredProfile = $managedProfiles |
+        Sort-Object LaunchPriority, @{ Expression = {
+            [array]::IndexOf($ManagedProfiles, $_)
+        } } |
+        Select-Object -First 1
+
     if (Read-Confirmation 'Create a FrankerzSpam OBS desktop shortcut?' $true) {
-        New-DesktopShortcut $obsExecutable
+        New-DesktopShortcut $obsExecutable $preferredProfile.Name
         Write-Info 'Desktop shortcut created.'
     }
 
     Write-Step 'Setup complete'
-    Write-Info 'OBS will open with the managed AV1 profile and manual game scenes.'
+    Write-Info "OBS will open with the $($preferredProfile.Name) profile and the shared game scenes."
+    Write-Info "Switch profiles any time from the Profile menu in OBS. HEVC profiles have limited browser compatibility; 1080p60 H.264 is the safest viewer option."
     Start-Process -FilePath $obsExecutable -WorkingDirectory (Split-Path -Parent $obsExecutable) `
-        -ArgumentList '--profile', "`"$ProfileName`"", '--collection', "`"$CollectionName`""
+        -ArgumentList '--profile', "`"$($preferredProfile.Name)`"", '--collection', "`"$CollectionName`""
     Write-Host "`nRun a short test stream before inviting viewers." -ForegroundColor Green
 } catch {
     Write-Host "`nSetup failed: $($_.Exception.Message)" -ForegroundColor Red

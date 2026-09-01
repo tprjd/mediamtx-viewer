@@ -62,7 +62,7 @@ describe('Windows OBS setup authorization', () => {
       getObsSetupApproval,
       redeemObsSetupSession,
     } = await import('@/lib/obs-setup')
-    const created = createObsSetupSession('lifecycle-address', '1.0.3')
+    const created = createObsSetupSession('lifecycle-address', '1.1.0')
 
     expect(getObsSetupApproval(created.userCode)).toMatchObject({ status: 'pending' })
     expect(() => redeemObsSetupSession(created.deviceSecret)).toThrowError(
@@ -90,7 +90,7 @@ describe('Windows OBS setup authorization', () => {
       OBS_SETUP_EXPIRES_MS,
       redeemObsSetupSession,
     } = await import('@/lib/obs-setup')
-    const expired = createObsSetupSession('expired-address', '1.0.3', 10_000)
+    const expired = createObsSetupSession('expired-address', '1.1.0', 10_000)
     expect(
       getObsSetupApproval(expired.userCode, 10_000 + OBS_SETUP_EXPIRES_MS),
     ).toMatchObject({ status: 'expired' })
@@ -101,7 +101,7 @@ describe('Windows OBS setup authorization', () => {
       ),
     ).toThrowError(expect.objectContaining({ code: 'expired' }))
 
-    const denied = createObsSetupSession('denied-address', '1.0.3')
+    const denied = createObsSetupSession('denied-address', '1.1.0')
     denyObsSetupSession(denied.userCode, 'friend-id')
     expect(() => redeemObsSetupSession(denied.deviceSecret)).toThrowError(
       expect.objectContaining({ code: 'denied' }),
@@ -117,15 +117,15 @@ describe('Windows OBS setup authorization', () => {
       expect.objectContaining({ code: 'unsupported_version' }),
     )
 
-    const inactive = createObsSetupSession('inactive-address', '1.0.3')
+    const inactive = createObsSetupSession('inactive-address', '1.1.0')
     expect(() => approveObsSetupSession(inactive.userCode, 'disabled-id')).toThrowError(
       expect.objectContaining({ code: 'unavailable' }),
     )
 
     for (let count = 0; count < 5; count += 1) {
-      createObsSetupSession('limited-address', '1.0.3')
+      createObsSetupSession('limited-address', '1.1.0')
     }
-    expect(() => createObsSetupSession('limited-address', '1.0.3')).toThrowError(
+    expect(() => createObsSetupSession('limited-address', '1.1.0')).toThrowError(
       expect.objectContaining({ code: 'rate_limited' }),
     )
   })
@@ -139,7 +139,7 @@ describe('Windows OBS setup authorization', () => {
           'content-type': 'application/json',
           'x-forwarded-for': '203.0.113.44',
         },
-        body: JSON.stringify({ scriptVersion: '1.0.3' }),
+        body: JSON.stringify({ scriptVersion: '1.1.0' }),
       }),
     )
     expect(startResponse.status).toBe(200)
@@ -203,7 +203,7 @@ describe('Windows OBS setup authorization', () => {
     const payloadSha256 = createHash('sha256').update(source).digest('hex')
     const launcherSha256 = createHash('sha256').update(launcher, 'ascii').digest('hex')
 
-    expect(metadata).toMatchObject({ version: '1.0.3' })
+    expect(metadata).toMatchObject({ version: '1.1.0' })
     expect(metadata.sha256).toBe(launcherSha256)
     expect(metadata.size).toBe(Buffer.byteLength(launcher, 'ascii'))
     expect(launcher.startsWith('@echo off\r\n')).toBe(true)
@@ -212,13 +212,67 @@ describe('Windows OBS setup authorization', () => {
     expect(launcher).not.toContain('Set-ExecutionPolicy')
     expect(launcher).toContain(`if($actual -ne '${payloadSha256}')`)
     expect(Buffer.from(encodedPayload, 'base64')).toEqual(Buffer.from(source))
-    expect(source).toContain("$ScriptVersion = '1.0.3'")
+    expect(source).toContain("$ScriptVersion = '1.1.0'")
     expect(source).not.toContain("capture_mode = 'window'")
     expect(source).not.toContain('window = "::$executable"')
     expect(source.match(/capture_mode = 'any_fullscreen'/g)).toHaveLength(2)
-    expect(source).toContain('obs_nvenc_av1_tex')
-    expect(source).toContain('av1_texture_amf')
-    expect(source).toContain('obs_qsv11_av1')
+
+    const managedProfiles = [
+      ['FrankerzSpam 1440p60 AV1', 'FrankerzSpam_1440p60_AV1'],
+      ['FrankerzSpam 1440p60 HEVC', 'FrankerzSpam_1440p60_HEVC'],
+      ['FrankerzSpam 1440p60 H264', 'FrankerzSpam_1440p60_H264'],
+      ['FrankerzSpam 1080p60 AV1', 'FrankerzSpam_1080p60_AV1'],
+      ['FrankerzSpam 1080p60 HEVC', 'FrankerzSpam_1080p60_HEVC'],
+      ['FrankerzSpam 1080p60 H264', 'FrankerzSpam_1080p60_H264'],
+    ]
+    expect(managedProfiles).toHaveLength(6)
+    for (const [name, directoryName] of managedProfiles) {
+      expect(source).toContain(`Name = '${name}'`)
+      expect(source).toContain(`DirectoryName = '${directoryName}'`)
+    }
+    expect(source).toContain("[string]$Codecs = 'AV1,HEVC,H264'")
+    expect(source).toContain("[string]$Resolutions = '1440p,1080p'")
+    expect(source).toContain('[int]$BitrateKbps = 12000')
+    expect(source).toContain("rate_control = 'CBR'")
+    expect(source).toContain('keyint_sec = 2')
+    expect(source).toContain('bf = 0')
+    expect(source).toContain('AudioEncoder=ffmpeg_opus')
+    for (const encoderId of [
+      'obs_nvenc_av1_tex',
+      'obs_nvenc_hevc_tex',
+      'obs_nvenc_h264_tex',
+      'av1_texture_amf',
+      'h265_texture_amf',
+      'h264_texture_amf',
+      'obs_qsv11_av1',
+      'obs_qsv11_hevc',
+      'obs_qsv11_v2',
+      'obs_qsv11',
+    ]) {
+      expect(source).toContain(encoderId)
+    }
+    // Legacy NVENC and guessed QSV identifiers must not reappear in the
+    // OBS 31/32 allowlists.
+    for (const deadEncoderId of [
+      'h264_nvenc',
+      'h265_nvenc',
+      'jim_nvenc',
+      'jim_av1_nvenc',
+      'jim_h265_nvenc',
+      'h264_qsv',
+      'h265_qsv',
+    ]) {
+      expect(source).not.toContain(deadEncoderId)
+    }
+    expect(source).toContain('$SceneCanvasWidth = 2560')
+    expect(source).toContain('$SceneCanvasHeight = 1440')
+    expect(source).toContain('BaseCX=$SceneCanvasWidth')
+    expect(source).toContain('BaseCY=$SceneCanvasHeight')
+    expect(source).toContain('OutputCX=$($Profile.Width)')
+    expect(source).toContain('OutputCY=$($Profile.Height)')
+    expect(source).toContain("$settings.preset = 'quality'")
+    expect(source).not.toContain("$settings.quality = 'quality'")
+    expect(source).toContain("Intel = @('obs_qsv11_v2', 'obs_qsv11')")
     expect(source).not.toMatch(/mtx_sk_[A-Za-z0-9_-]{20,}/)
     expect(launcher).not.toMatch(/mtx_sk_[A-Za-z0-9_-]{20,}/)
   })
@@ -229,7 +283,7 @@ describe('Windows OBS setup authorization', () => {
       new Request('http://localhost:3000/api/obs-setup/device/start', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scriptVersion: '1.0.3', padding: 'x'.repeat(1024) }),
+        body: JSON.stringify({ scriptVersion: '1.1.0', padding: 'x'.repeat(1024) }),
       }),
     )
 
