@@ -23,8 +23,9 @@ The default run installs or updates the exact `OBSProject.OBSStudio` WinGet
 package, probes the hardware encoders that OBS actually reports, and creates a
 managed profile for every requested codec and resolution it can encode. The
 defaults request AV1, HEVC (H.265), and H.264 at 1440p and 1080p, producing up
-to six 60 fps CBR profiles with two-second keyframes, zero B-frames, and Opus
-audio:
+to six 60 fps CBR profiles with two-second keyframes and Opus audio. NVIDIA AV1
+profiles use two B-frames for better quality per bit; other codec/vendor
+combinations retain zero B-frames:
 
 - `FrankerzSpam 1440p60 AV1` — 2560×1440, 12 Mbps, the default/shortcut profile;
 - `FrankerzSpam 1440p60 HEVC` — 2560×1440, 14 Mbps, limited browser support;
@@ -33,8 +34,10 @@ audio:
 - `FrankerzSpam 1080p60 HEVC` — 1920×1080, 9 Mbps;
 - `FrankerzSpam 1080p60 H264` — 1920×1080, 10 Mbps.
 
-All profiles use the shared scene collection's 2560×1440 base canvas. The
-1080p profiles downscale that canvas to 1920×1080 with Lanczos, so scene-item
+All profiles use the shared scene collection's 2560×1440 base canvas. Scene
+items use Area scaling, which gently prefilters a 4K game capture before it
+reaches the 1440p canvas and is a no-op for a native 1440p source. The 1080p
+profiles then downscale that canvas to 1920×1080 with Lanczos, so scene-item
 positions and bounds remain correct when switching profiles.
 
 Requested codecs whose hardware encoder OBS does not report are skipped after
@@ -58,12 +61,18 @@ as `(null)` and that stop working when a game changes its executable. Each scene
 also includes a disabled Window Capture fallback. If Game Capture does not work,
 start the game, select the fallback's window in OBS, then enable that source.
 
-Setup version 1.1.0 recognizes collections created with the old executable-only
+Setup version 1.2.0 recognizes collections created with the old executable-only
 targets and upgrades the single AV1 profile from earlier versions: the existing
 `FrankerzSpam 1440p60 AV1` profile is preserved when it is unchanged and
 rebuilt (from a backup) when repair or reset is requested. A normal rerun offers
 to back up and rebuild the managed collection; unrelated OBS profiles and
 collections remain untouched.
+
+Existing managed configurations are intentionally preserved on an ordinary
+rerun. Use `-RepairManagedConfig` to apply the new NVIDIA AV1 encoder defaults
+to existing profiles. Use `-ResetManagedConfig` to also recreate the managed
+scene collection with Area scaling; setup backs up the managed files and asks
+for confirmation first.
 
 Existing unrelated profiles and collections are untouched. A normal rerun
 preserves the managed scenes and profile. The supported maintenance modes are:

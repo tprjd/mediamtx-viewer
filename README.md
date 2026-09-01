@@ -110,7 +110,7 @@ AV1, HEVC (H.265), and H.264 at 1440p and 1080p, all 60 fps CBR with Opus
 audio — plus a shared scene collection, without modifying unrelated OBS
 profiles. Named game scenes capture the active fullscreen game; each also has a
 disabled Window Capture fallback that can be selected while the game is
-running. Setup 1.1.0 backs up and replaces the earlier unreliable
+running. Setup 1.2.0 backs up and replaces the earlier unreliable
 executable-only `(null)` capture targets on rerun and preserves the existing
 1440p60 AV1 profile created by earlier setup versions.
 

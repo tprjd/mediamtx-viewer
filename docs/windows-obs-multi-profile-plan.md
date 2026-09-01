@@ -28,9 +28,10 @@ WHIP to MediaMTX.
   selected hardware encoder exposes it and validate the emitted stream.
 - Every profile uses Opus audio because OBS WHIP and the existing playback path
   already use it.
-- All profiles retain a two-second keyframe interval and zero B-frames. Do not
-  silently substitute another codec when a requested hardware encoder is
-  unavailable.
+- All profiles retain a two-second keyframe interval. NVIDIA AV1 uses two
+  B-frames for better quality per bit; H.264 and all other vendor/codec
+  combinations retain zero B-frames. Do not silently substitute another codec
+  when a requested hardware encoder is unavailable.
 
 Primary references:
 
@@ -60,8 +61,10 @@ them permanent.
 
 All six profiles otherwise share the existing settings:
 
-- 60 FPS, NV12, Rec. 709, limited range, Lanczos scaling;
-- CBR, two-second keyframes, zero B-frames;
+- 60 FPS, NV12, Rec. 709, limited range, Area scene-item scaling and Lanczos
+  profile-output scaling;
+- CBR and two-second keyframes; NVIDIA AV1 uses two B-frames and other
+  combinations use zero;
 - no stream rescale beyond the profile's declared output resolution;
 - one WHIP simulcast layer and multitrack video disabled;
 - Opus at 48 kHz stereo and 160 Kbps;
@@ -171,8 +174,8 @@ The capability resolver must distinguish:
 ### 3. Generate codec-specific encoder settings
 
 Change `Get-EncoderSettings` to accept the profile definition and dispatch on
-both codec and encoder vendor. Common settings are CBR, bitrate, two-second
-keyframes, and zero B-frames.
+both codec and encoder vendor. Common settings are CBR, bitrate, and two-second
+keyframes. Start with zero B-frames, then set two for NVIDIA AV1 only.
 
 - NVIDIA: retain P5, high-quality tuning, quarter-resolution multipass,
   look-ahead off, and adaptive quantization on (OBS 31+ NVENC property names:
@@ -253,8 +256,9 @@ PowerShell tests for the data-driven functions. Verify that:
 - the script version in TypeScript and PowerShell is bumped together;
 - six unique profile names and directory names exist;
 - the two exact resolutions and all three codecs resolve correctly;
-- every profile has CBR, a two-second keyframe interval, zero B-frames, Opus,
-  and the expected default bitrate;
+- every profile has CBR, a two-second keyframe interval, Opus, and the expected
+  default bitrate; NVIDIA AV1 has two B-frames and all other combinations have
+  zero;
 - H.264 and HEVC encoder allowlists contain only reviewed OBS identifiers;
 - explicit unavailable codec selection fails before profile writes;
 - default selection skips unsupported codecs only after confirmation;

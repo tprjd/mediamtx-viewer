@@ -19,7 +19,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$ScriptVersion = '1.1.0'
+$ScriptVersion = '1.2.0'
 $CollectionName = 'FrankerzSpam Games'
 $CollectionFileName = 'FrankerzSpam_Games.json'
 $ObsPackageId = 'OBSProject.OBSStudio'
@@ -28,7 +28,9 @@ $SceneCanvasHeight = 1440
 
 # Managed profile matrix. Every profile uses the shared scene collection's
 # 2560x1440 canvas; Width and Height are the stream output dimensions. The
-# 1080p profiles therefore downscale the common canvas with Lanczos.
+# 1080p profiles therefore downscale the common canvas with Lanczos. Scene
+# items use Area scaling so a 4K capture is gently prefiltered before the
+# shared 1440p canvas is encoded; native 1440p captures remain unscaled.
 # LaunchPriority picks the shortcut/default profile: 1440p60 AV1 first, then
 # 1080p60 H.264, then the first matrix entry managed by this run.
 $ManagedProfiles = @(
@@ -563,6 +565,12 @@ function Get-EncoderSettings {
         $settings.multipass = 'qres'
         $settings.lookahead = $false
         $settings.adaptive_quantization = $true
+        if ($codec -eq 'AV1') {
+            # OBS's normal NVENC baseline uses two B-frames. They improve
+            # quality per bit with little encoder cost; the two-second GOP
+            # remains suitable for both buffered HLS and optional WebRTC.
+            $settings.bf = 2
+        }
         if ($codec -eq 'H264') {
             # Baseline keeps the H.264 stream WebRTC-friendly.
             $settings.profile = 'baseline'
@@ -721,7 +729,10 @@ function New-SceneItem {
         crop_bottom = 0
         id = $Id
         group_item_backup = $false
-        scale_filter = 'lanczos'
+        # Area reduces subpixel shimmer and high-frequency foliage before a
+        # 4K source reaches the 1440p canvas. At native canvas size it is a
+        # no-op, so the same collection works for 1440p and 4K games.
+        scale_filter = 'area'
         blend_method = 'default'
         blend_type = 'normal'
         show_transition = [ordered]@{ duration = 0 }

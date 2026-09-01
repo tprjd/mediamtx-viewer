@@ -1,6 +1,6 @@
 # Windows OBS Setup Design and Implementation Record
 
-Status: setup version 1.1.0 is implemented. It supersedes the single AV1
+Status: setup version 1.2.0 is implemented. It supersedes the single AV1
 profile described below with a managed AV1/HEVC/H.264 profile matrix at 1440p
 and 1080p; see `windows-obs-multi-profile-plan.md` for that design.
 Application, authorization, artifact checksum, and capture-default validation
@@ -219,7 +219,11 @@ Configured defaults:
 | Initial bitrate | 12 Mbps, configurable during setup |
 | Allowed bitrate range | 8-20 Mbps |
 | Keyframe interval | 2 seconds |
-| B-frames | 0, required by OBS WHIP for WebRTC compatibility |
+| B-frames | 2 on NVIDIA AV1; validate WHEP and HLS, with 0 as rollback |
+| NVENC preset | P5, High Quality tuning |
+| NVENC multipass | Quarter-resolution two-pass |
+| Lookahead / adaptive quantization | Off / on |
+| 4K source-to-canvas scaling | Area; no scaling for native 1440p |
 | Color format | NV12 |
 | Color space | Rec. 709 |
 | Color range | Limited |
