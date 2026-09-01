@@ -56,6 +56,7 @@ rsync -az --inplace \
 ssh "$deploy_target" "cd '$remote_dir' && sh deploy/oracle/validate-mediamtx.sh deploy/oracle/secrets/mediamtx.yml.next && if [ -f deploy/oracle/secrets/mediamtx.yml ]; then cp deploy/oracle/secrets/mediamtx.yml.next deploy/oracle/secrets/mediamtx.yml; rm deploy/oracle/secrets/mediamtx.yml.next; else mv deploy/oracle/secrets/mediamtx.yml.next deploy/oracle/secrets/mediamtx.yml; fi && chmod 600 deploy/oracle/secrets/mediamtx.yml"
 
 ssh "$deploy_target" "sudo ufw allow 443/udp && sudo ufw allow 8189/tcp"
+ssh "$deploy_target" "cd '$remote_dir' && sudo install -m 644 deploy/oracle/90-mediamtx.conf /etc/sysctl.d/90-mediamtx.conf && sudo sysctl --system >/dev/null"
 
 ssh "$deploy_target" "cd '$remote_dir' && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml config --quiet && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml up -d --build --wait && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile"
 

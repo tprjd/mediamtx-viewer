@@ -15,8 +15,8 @@ write_files:
   - path: /etc/sysctl.d/90-mediamtx.conf
     permissions: "0644"
     content: |
-      net.core.rmem_max=2500000
-      net.core.wmem_max=2500000
+      net.core.rmem_max=7500000
+      net.core.wmem_max=7500000
 
 runcmd:
   - [systemctl, enable, --now, docker]

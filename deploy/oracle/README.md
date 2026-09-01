@@ -43,6 +43,11 @@ its image or service definition changes; valid config-only changes are
 hot-reloaded where supported. It does not delete unrelated remote files, the
 auth volume, or DNS.
 
+The deploy also installs `90-mediamtx.conf`, setting the Linux UDP send and
+receive ceilings to 7.5 MB for QUIC and WebRTC. This follows quic-go's current
+Linux recommendation and prevents the HTTP/3 socket from starting with a
+constrained receive buffer.
+
 ## DNS and OBS
 
 After the stack is healthy, point `frankerzspam.duckdns.org` to the reserved
