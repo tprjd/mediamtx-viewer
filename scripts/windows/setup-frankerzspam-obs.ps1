@@ -19,7 +19,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$ScriptVersion = '1.2.0'
+$ScriptVersion = '1.3.0'
 $CollectionName = 'FrankerzSpam Games'
 $CollectionFileName = 'FrankerzSpam_Games.json'
 $ObsPackageId = 'OBSProject.OBSStudio'
@@ -552,7 +552,7 @@ function Get-EncoderSettings {
     $settings = [ordered]@{
         rate_control = 'CBR'
         bitrate = $Profile.BitrateKbps
-        keyint_sec = 2
+        keyint_sec = 1
         bf = 0
     }
     $vendor = $Profile.Encoder.Vendor
@@ -567,8 +567,8 @@ function Get-EncoderSettings {
         $settings.adaptive_quantization = $true
         if ($codec -eq 'AV1') {
             # OBS's normal NVENC baseline uses two B-frames. They improve
-            # quality per bit with little encoder cost; the two-second GOP
-            # remains suitable for both buffered HLS and optional WebRTC.
+            # quality per bit with little encoder cost; the one-second GOP
+            # keeps LL-HLS segment cadence inside the two-second mode budget.
             $settings.bf = 2
         }
         if ($codec -eq 'H264') {

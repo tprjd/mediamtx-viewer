@@ -23,7 +23,7 @@ The default run installs or updates the exact `OBSProject.OBSStudio` WinGet
 package, probes the hardware encoders that OBS actually reports, and creates a
 managed profile for every requested codec and resolution it can encode. The
 defaults request AV1, HEVC (H.265), and H.264 at 1440p and 1080p, producing up
-to six 60 fps CBR profiles with two-second keyframes and Opus audio. NVIDIA AV1
+to six 60 fps CBR profiles with one-second keyframes and Opus audio. NVIDIA AV1
 profiles use two B-frames for better quality per bit; other codec/vendor
 combinations retain zero B-frames:
 
@@ -61,7 +61,7 @@ as `(null)` and that stop working when a game changes its executable. Each scene
 also includes a disabled Window Capture fallback. If Game Capture does not work,
 start the game, select the fallback's window in OBS, then enable that source.
 
-Setup version 1.2.0 recognizes collections created with the old executable-only
+Setup version 1.3.0 recognizes collections created with the old executable-only
 targets and upgrades the single AV1 profile from earlier versions: the existing
 `FrankerzSpam 1440p60 AV1` profile is preserved when it is unchanged and
 rebuilt (from a backup) when repair or reset is requested. A normal rerun offers

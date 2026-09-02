@@ -1,8 +1,10 @@
 # Windows OBS Setup Design and Implementation Record
 
-Status: setup version 1.2.0 is implemented. It supersedes the single AV1
+Status: setup version 1.3.0 is implemented. It supersedes the single AV1
 profile described below with a managed AV1/HEVC/H.264 profile matrix at 1440p
-and 1080p; see `windows-obs-multi-profile-plan.md` for that design.
+and 1080p and uses one-second keyframes for LL-HLS; see
+`windows-obs-multi-profile-plan.md` and `two-second-ll-hls-plan.md` for those
+designs.
 Application, authorization, artifact checksum, and capture-default validation
 are automated. PowerShell parsing and final acceptance still require Windows
 PowerShell and a Windows 10/11 computer with supported hardware encoders, and

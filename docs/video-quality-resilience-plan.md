@@ -1,7 +1,8 @@
 # Video quality and playback resilience plan
 
 Status: the repository implementation is complete for the no-transcode design:
-Setup 1.2.0's OBS baseline, three viewer modes, warm LL-HLS, bounded HLS
+Setup 1.3.0's one-second-GOP OBS baseline, four viewer modes, warm LL-HLS,
+an experimental HLS ≤2s profile, bounded HLS
 live-edge recovery, progress-aware HLS recovery, bounded make-before-break
 WebRTC repair and Smooth fallback, browser diagnostics, TCP ICE, HTTP/3, private
 MediaMTX metrics/health checks, and safe deployment are implemented. Production
@@ -17,7 +18,7 @@ Deliver the highest source-faithful video quality the current OBS profiles can
 produce while making playback recover automatically from packet loss, network
 changes, browser stalls, publisher interruptions, and service restarts.
 
-Treat setup version 1.2.0's OBS profiles as the quality-preserving baseline, not
+Treat setup version 1.3.0's OBS profiles as the quality-preserving baseline, not
 an absolute constraint. The selected 1440p60 NVIDIA AV1 baseline is 12 Mbps CBR,
 P5 High Quality, quarter-resolution multipass, adaptive quantization on,
 lookahead off, two B-frames, and Area scene-item scaling. Change another OBS
@@ -72,7 +73,7 @@ path.
 ## Evidence gate for OBS changes
 
 The generated profiles use sensible real-time transport values: 60 fps, CBR, a
-two-second keyframe interval, Opus, hardware encoding, one WHIP layer, and
+one-second keyframe interval, Opus, hardware encoding, one WHIP layer, and
 automatic reconnect. NVIDIA AV1 uses two B-frames for compression efficiency;
 the other generated vendor/codec combinations retain zero. Preserve these
 unless the following evidence identifies a source-side blocker:
@@ -81,7 +82,7 @@ unless the following evidence identifies a source-side blocker:
 | --- | --- | --- |
 | Publish-side loss rises for all viewers and the encoded bitrate approaches/exceeds sustained available upload after server socket drops are ruled out | Reduce bitrate in one controlled step; if encoder/load or link margin still fails, test the existing lower-resolution profile | Lower nominal bitrate/resolution, but potentially higher perceived quality than corrupted or frequently frozen frames; retain the highest setting that passes the long impairment run |
 | OBS reports encoder overload, skipped frames, or render lag before packets reach MediaMTX | Test a less expensive encoder preset, lower resolution, or lower frame rate in that order based on the OBS log bottleneck | Can reduce compression efficiency, detail, or motion smoothness; do not blame the network until OBS output health is clean |
-| Warm LL-HLS still cannot meet startup/recovery targets because usable fragments wait on the two-second GOP | A/B-test a one-second keyframe interval | Faster join/recovery at some compression-efficiency cost; keep two seconds if the measured recovery gain is not material |
+| The one-second GOP causes unacceptable quality or encoder load | A/B-test the former two-second keyframe interval and disable HLS ≤2s | Better compression efficiency, but completed HLS segments can no longer reliably fit the two-second playback budget |
 | Intended browsers cannot decode the published AV1/HEVC stream | Publish the existing H.264 profile, or design a simultaneous compatible rendition | H.264 needs more bitrate for similar quality; protocol fallback alone cannot solve a decoder mismatch |
 | OBS exhausts its configured reconnect attempts during a realistic publisher/WAN or MediaMTX outage | Increase the maximum reconnect window and validate its exponential retry timing | Improves unattended recovery without changing image quality; avoid a tight reconnect storm against an unhealthy backend |
 | A representative viewer population cannot sustain the source bitrate and a single rendition is proven to be the blocker | Prototype OBS simulcast only together with an end-to-end MediaMTX layer-extraction/selection design | Extra upload and GPU encoder load; do not enable multiple layers until WebRTC and HLS can deliberately select them and the top layer remains unchanged |
@@ -171,14 +172,14 @@ add delay without giving the viewer player extra recovery information.
 
 ### Selected OBS quality/load baseline
 
-Setup version 1.2.0 generates this NVIDIA AV1 baseline for one 1440p60 stream
+Setup version 1.3.0 generates this NVIDIA AV1 baseline for one 1440p60 stream
 on an RTX 5060 Ti or faster GPU:
 
 | Setting | Selected value | Reason |
 | --- | --- | --- |
 | Canvas/output | 2560x1440 at 60 fps | Required source presentation; no output rescale for the 1440p profile |
 | Rate control/bitrate | CBR at 12,000 Kbps | Predictable WHIP and single-rendition viewer bandwidth |
-| GOP | Two-second keyframes | Existing join/recovery compromise |
+| GOP | One-second keyframes | Keeps completed LL-HLS segments within the experimental two-second mode budget |
 | NVENC | AV1 Main, P5, High Quality | Good quality without the load of P6/P7 or UHQ |
 | Multipass | Quarter-resolution two-pass | Better allocation than single-pass with less load than full-resolution multipass |
 | Adaptive quantization | On | Preserves perceptually important detail |
@@ -201,8 +202,11 @@ NVIDIA AV1 encoder settings. Run `-ResetManagedConfig` to also recreate the
 managed scene collection with Area scaling; both flows back up managed files
 and require confirmation. A fresh install receives both defaults directly.
 
-The three viewer modes deliberately share this one source bitstream:
+The four viewer modes deliberately share this one source bitstream:
 
+- **HLS ≤2s (experimental):** hls.js targets 1.2 seconds, corrects beyond two
+  seconds, and limits forward loading to 1.8 seconds. It returns to Balanced
+  after repeated stalls or recoveries and is unavailable without hls.js/MSE.
 - **Balanced (default):** LL-HLS candidate A targets three seconds behind the
   live edge, catches up at no more than 1.03x, and corrects drift beyond six
   seconds. Its 3-5 second glass-to-glass goal still needs production acceptance
@@ -235,10 +239,11 @@ Browser -- HTTPS/WHEP signaling --> Caddy --> MediaMTX
 
 The repository already has several good foundations:
 
-- Balanced LL-HLS is the viewer default; Smooth LL-HLS and WebRTC remain
-  explicit alternatives.
+- Balanced LL-HLS is the viewer default; experimental HLS ≤2s, Smooth LL-HLS,
+  and WebRTC remain explicit alternatives.
 - HLS.js uses explicit seconds-based target, maximum, stall-growth, and gentle
-  catch-up values for both HLS profiles.
+  catch-up values for all HLS profiles, plus explicit forward-buffer limits for
+  HLS ≤2s.
 - The WebRTC player detects five samples without decoded/presented frame
   progress, rebuilds once, then falls back to HLS on another stall.
 - MediaMTX's bundled WHEP reader independently retries failed/closed peer
@@ -725,7 +730,7 @@ These are starting targets to validate and revise with baseline data:
 | Priority | Work | Expected impact | Risk/cost |
 | --- | --- | --- | --- |
 | P0 | Enable metrics and build the impairment baseline | Prevents blind tuning and separates publisher, server, viewer, and decoder faults | Low |
-| P0 | Validate setup 1.2.0 OBS quality baseline | Confirms Area scaling and NVIDIA AV1 B-frames improve compression without overloading a 5060 Ti or breaking WHEP | Requires Windows/NVIDIA and browser matrix; B-frames have an immediate zero-frame rollback |
+| P0 | Validate setup 1.3.0 OBS quality baseline | Confirms one-second GOP, Area scaling, and NVIDIA AV1 B-frames do not overload a 5060 Ti or break WHEP | Requires Windows/NVIDIA and browser matrix; B-frames have an immediate zero-frame rollback |
 | P0 | Make robust LL-HLS the default smooth mode | Uses the accepted latency budget to absorb spotty viewer Wi-Fi without changing encoded quality | Moderate behavior/migration change |
 | P0 | Warm LL-HLS with `hlsAlwaysRemux` | Removes avoidable fallback startup delay | Low to moderate resource use |
 | P0 | Replace finite HLS retries with progress-aware recovery | Prevents indefinite frozen/error states | Moderate client complexity |
@@ -765,7 +770,7 @@ These are starting targets to validate and revise with baseline data:
 - `deploy/oracle/deploy.sh` and deployment docs: configuration validation,
   restart policy, diagnostics, and rollback.
 - `scripts/windows/setup-frankerzspam-obs.ps1`, its generated launcher, and OBS
-  documentation/tests for the selected setup 1.2.0 baseline and any later OBS
+  documentation/tests for the selected setup 1.3.0 baseline and any later OBS
   decision-gate change.
 - component, integration, and Playwright tests, plus a documented external
   impairment harness.

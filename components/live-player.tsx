@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import {
   HlsPlayer,
+  isHlsJsSupported,
   type HlsLatencyProfile,
 } from '@/components/hls-player'
 import { Button } from '@/components/ui/button'
@@ -29,14 +30,36 @@ export function LivePlayer({ channel }: LivePlayerProps) {
     startedAt: string | null
   } | null>(null)
   const [balancedUnavailable, setBalancedUnavailable] = useState(false)
+  const [ultraLowSupported, setUltraLowSupported] = useState(false)
+  const [ultraLowUnavailableReason, setUltraLowUnavailableReason] =
+    useState<string>()
+  const [modeExitReason, setModeExitReason] = useState<string>()
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
+      const supportsUltraLow = isHlsJsSupported()
+      setUltraLowSupported(supportsUltraLow)
+      setUltraLowUnavailableReason(
+        supportsUltraLow
+          ? undefined
+          : 'HLS ≤2s requires hls.js and Media Source Extensions.',
+      )
       const saved = window.sessionStorage.getItem(MODE_STORAGE_KEY)
       if (saved === 'hls') {
         window.sessionStorage.setItem(MODE_STORAGE_KEY, 'balanced')
         setMode('balanced')
+      }
+      if (saved === 'ultra-low') {
+        if (supportsUltraLow) {
+          setMode('ultra-low')
+        } else {
+          window.sessionStorage.setItem(MODE_STORAGE_KEY, 'balanced')
+          setMode('balanced')
+          setModeExitReason(
+            'HLS ≤2s requires hls.js and is unavailable in this browser.',
+          )
+        }
       }
       if (saved === 'balanced' || saved === 'smooth' || saved === 'webrtc') {
         setMode(saved)
@@ -55,6 +78,7 @@ export function LivePlayer({ channel }: LivePlayerProps) {
   }, [now, retryAfter])
 
   const selectMode = useCallback((next: PlaybackMode) => {
+    setModeExitReason(undefined)
     setMode(next)
     window.sessionStorage.setItem(MODE_STORAGE_KEY, next)
   }, [])
@@ -71,6 +95,21 @@ export function LivePlayer({ channel }: LivePlayerProps) {
     selectMode('smooth')
   }, [selectMode])
 
+  const handleUltraLowUnavailable = useCallback((reason?: string) => {
+    const unavailableReason = reason ??
+      'HLS ≤2s requires hls.js and is unavailable in this browser.'
+    setUltraLowSupported(false)
+    setUltraLowUnavailableReason(unavailableReason)
+    if (mode !== 'ultra-low') return
+    selectMode('balanced')
+    setModeExitReason(unavailableReason)
+  }, [mode, selectMode])
+
+  const handleUltraLowFailure = useCallback((reason: string) => {
+    selectMode('balanced')
+    setModeExitReason(reason)
+  }, [selectMode])
+
   const retrySeconds = Math.max(0, Math.ceil((retryAfter - now) / 1_000))
   const lowLatencyDisabled = !channel.status.live || retrySeconds > 0
 
@@ -79,13 +118,33 @@ export function LivePlayer({ channel }: LivePlayerProps) {
       <div className="playback-mode-switch" aria-label="Playback mode">
         <div>
           <strong>Playback mode</strong>
-          <span>
-            {mode === 'balanced' && 'Testing lower delay · target about 3–5s.'}
-            {mode === 'smooth' && 'Extra recovery margin · about 5–8s behind live.'}
-            {mode === 'webrtc' && 'Lowest delay with less recovery margin.'}
+          <span role={modeExitReason ? 'status' : undefined}>
+            {modeExitReason ?? (
+              <>
+                {mode === 'ultra-low' && 'Experimental HLS · maximum 2s viewer latency and buffer.'}
+                {mode === 'balanced' && 'Testing lower delay · target about 3–5s.'}
+                {mode === 'smooth' && 'Extra recovery margin · about 5–8s behind live.'}
+                {mode === 'webrtc' && 'Lowest delay with less recovery margin.'}
+              </>
+            )}
           </span>
         </div>
         <div className="playback-mode-actions">
+          <Button
+            aria-pressed={mode === 'ultra-low'}
+            disabled={!ultraLowSupported}
+            onClick={() => selectMode('ultra-low')}
+            size="sm"
+            title={
+              ultraLowSupported
+                ? 'Experimental HLS mode with minimal recovery margin'
+                : ultraLowUnavailableReason ?? 'Checking hls.js support'
+            }
+            variant={mode === 'ultra-low' ? 'default' : 'secondary'}
+          >
+            <Gauge className="size-3.5" aria-hidden="true" />
+            {ultraLowSupported ? 'HLS ≤2s' : 'HLS ≤2s unavailable'}
+          </Button>
           <Button
             aria-pressed={mode === 'balanced'}
             disabled={balancedUnavailable}
@@ -140,6 +199,9 @@ export function LivePlayer({ channel }: LivePlayerProps) {
           channel={channel}
           latencyProfile={mode}
           onBalancedUnavailable={handleBalancedUnavailable}
+          onUltraLowFailure={handleUltraLowFailure}
+          onUltraLowUnavailable={handleUltraLowUnavailable}
+          profileExitReason={modeExitReason}
         />
       )}
     </div>

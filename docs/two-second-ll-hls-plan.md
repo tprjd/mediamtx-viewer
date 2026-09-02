@@ -1,8 +1,9 @@
 # Two-second LL-HLS playback plan
 
-Status: proposed. This plan adds an experimental hls.js-only playback mode. It
-does not replace the existing Balanced, Smooth, or WebRTC modes until production
-testing proves that the tighter limit is usable.
+Status: implemented in the viewer, MediaMTX example configuration, and managed
+OBS setup 1.3.0. Automated verification is included. Production glass-to-glass,
+quality, load, and impairment acceptance testing is still required, so the mode
+remains experimental and does not replace Balanced, Smooth, or WebRTC.
 
 ## Objective and definition of success
 
@@ -30,7 +31,7 @@ rather than silently grow beyond the two-second budget. Balanced and Smooth
 remain available for viewers whose network cannot sustain the source bitrate
 with this small reserve.
 
-## Current baseline and blockers
+## Baseline before implementation and blockers
 
 The repository already has the required LL-HLS foundation:
 
@@ -303,7 +304,7 @@ npm run typecheck
 npm run lint
 npm run build
 npm run test:e2e
-deploy/oracle/validate-mediamtx.sh deploy/oracle/mediamtx.yml.example
+sh deploy/oracle/validate-mediamtx.sh deploy/oracle/mediamtx.yml.example
 ```
 
 Production acceptance requires all of these conditions:

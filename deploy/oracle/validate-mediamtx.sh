@@ -9,6 +9,20 @@ if [ ! -f "$config_path" ]; then
   exit 1
 fi
 
+require_hls_setting() {
+  setting=$1
+  value=$2
+  if ! grep -Eq "^[[:space:]]*${setting}:[[:space:]]*${value}[[:space:]]*$" "$config_path"; then
+    echo "MediaMTX configuration must set ${setting}: ${value}" >&2
+    exit 1
+  fi
+}
+
+require_hls_setting hlsVariant lowLatency
+require_hls_setting hlsAlwaysRemux true
+require_hls_setting hlsSegmentDuration 1s
+require_hls_setting hlsPartDuration 200ms
+
 validation_log=$(mktemp)
 trap 'rm -f "$validation_log"' EXIT HUP INT TERM
 

@@ -16,14 +16,25 @@ interface PlaybackStatsProps {
 
 export interface HlsPlaybackDiagnostics {
   bufferAheadSeconds?: number
+  configuredMaxForwardBufferSeconds?: number
+  correctiveSeekCount?: number
   engine?: 'hls.js' | 'native HLS'
+  forwardBufferBreachCount?: number
+  forwardBufferLoadLimitSeconds?: number
   lastCorrection?: string
+  lastBreachAt?: string
+  lastBreachMetric?: 'forwardBuffer' | 'liveLatency'
+  lastBreachValueSeconds?: number
+  latencyBreachCount?: number
   liveLatencySeconds?: number
   maxLatencySeconds: number
+  maxObservedForwardBufferSeconds?: number
+  maxObservedLatencySeconds?: number
   partHoldBackSeconds?: number
   partTargetSeconds?: number
   playbackRate: number
   playingDateLatencySeconds?: number
+  profileExitReason?: string
   targetDurationSeconds?: number
   targetLatencySeconds: number
 }
@@ -245,6 +256,10 @@ function formatFrameTimes(averageMs?: number, p95Ms?: number): string {
 function formatSeconds(value?: number, digits = 1): string {
   if (value === undefined || !Number.isFinite(value)) return '—'
   return `${value.toFixed(digits)}s`
+}
+
+function formatConfiguredSeconds(value?: number): string {
+  return formatSeconds(value, Number.isInteger(value) ? 0 : 1)
 }
 
 function FramePacingChart({ summary }: { summary?: FramePacingSummary }) {
@@ -845,8 +860,8 @@ export function PlaybackStats({
           <div className="playback-stat" title="Selected target and hard recovery boundary">
             <span>Target / max</span>
             <strong>
-              {formatSeconds(hlsDiagnostics.targetLatencySeconds, 0)} /{' '}
-              {formatSeconds(hlsDiagnostics.maxLatencySeconds, 0)}
+              {formatConfiguredSeconds(hlsDiagnostics.targetLatencySeconds)} /{' '}
+              {formatConfiguredSeconds(hlsDiagnostics.maxLatencySeconds)}
             </strong>
           </div>
           <div className="playback-stat" title="Decoded media available ahead of the playhead">
@@ -875,6 +890,61 @@ export function PlaybackStats({
             <span>Last correction</span>
             <strong>{hlsDiagnostics.lastCorrection ?? '—'}</strong>
           </div>
+          {hlsDiagnostics.configuredMaxForwardBufferSeconds !== undefined && (
+            <>
+              <div
+                className="playback-stat"
+                title="hls.js forward-buffer loading limit and viewer SLO maximum"
+              >
+                <span>Buffer load / max</span>
+                <strong>
+                  {formatConfiguredSeconds(
+                    hlsDiagnostics.forwardBufferLoadLimitSeconds,
+                  )}{' '}
+                  /{' '}
+                  {formatConfiguredSeconds(
+                    hlsDiagnostics.configuredMaxForwardBufferSeconds,
+                  )}
+                </strong>
+              </div>
+              <div className="playback-stat" title="Highest sampled latency and forward buffer">
+                <span>Observed peaks</span>
+                <strong>
+                  {formatSeconds(hlsDiagnostics.maxObservedLatencySeconds)} /{' '}
+                  {formatSeconds(
+                    hlsDiagnostics.maxObservedForwardBufferSeconds,
+                  )}
+                </strong>
+              </div>
+              <div className="playback-stat" title="Live-latency / forward-buffer breach episodes">
+                <span>SLO breaches</span>
+                <strong>
+                  {hlsDiagnostics.latencyBreachCount ?? 0} /{' '}
+                  {hlsDiagnostics.forwardBufferBreachCount ?? 0}
+                </strong>
+              </div>
+              <div className="playback-stat" title="Automatic seeks made to restore the latency limit">
+                <span>Corrective seeks</span>
+                <strong>{hlsDiagnostics.correctiveSeekCount ?? 0}</strong>
+              </div>
+              <div className="playback-stat" title={hlsDiagnostics.lastBreachAt}>
+                <span>Last breach</span>
+                <strong>
+                  {hlsDiagnostics.lastBreachMetric === undefined
+                    ? '—'
+                    : `${hlsDiagnostics.lastBreachMetric} ${formatSeconds(
+                        hlsDiagnostics.lastBreachValueSeconds,
+                      )}`}
+                </strong>
+              </div>
+            </>
+          )}
+          {hlsDiagnostics.profileExitReason && (
+            <div className="playback-stat" title="Reason the previous playback profile ended">
+              <span>Mode exit</span>
+              <strong>{hlsDiagnostics.profileExitReason}</strong>
+            </div>
+          )}
         </>
       )}
       <div className="playback-stat" title="Selected WebRTC candidate transport">

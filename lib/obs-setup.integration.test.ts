@@ -62,7 +62,7 @@ describe('Windows OBS setup authorization', () => {
       getObsSetupApproval,
       redeemObsSetupSession,
     } = await import('@/lib/obs-setup')
-    const created = createObsSetupSession('lifecycle-address', '1.2.0')
+    const created = createObsSetupSession('lifecycle-address', '1.3.0')
 
     expect(getObsSetupApproval(created.userCode)).toMatchObject({ status: 'pending' })
     expect(() => redeemObsSetupSession(created.deviceSecret)).toThrowError(
@@ -90,7 +90,7 @@ describe('Windows OBS setup authorization', () => {
       OBS_SETUP_EXPIRES_MS,
       redeemObsSetupSession,
     } = await import('@/lib/obs-setup')
-    const expired = createObsSetupSession('expired-address', '1.2.0', 10_000)
+    const expired = createObsSetupSession('expired-address', '1.3.0', 10_000)
     expect(
       getObsSetupApproval(expired.userCode, 10_000 + OBS_SETUP_EXPIRES_MS),
     ).toMatchObject({ status: 'expired' })
@@ -101,7 +101,7 @@ describe('Windows OBS setup authorization', () => {
       ),
     ).toThrowError(expect.objectContaining({ code: 'expired' }))
 
-    const denied = createObsSetupSession('denied-address', '1.2.0')
+    const denied = createObsSetupSession('denied-address', '1.3.0')
     denyObsSetupSession(denied.userCode, 'friend-id')
     expect(() => redeemObsSetupSession(denied.deviceSecret)).toThrowError(
       expect.objectContaining({ code: 'denied' }),
@@ -117,15 +117,15 @@ describe('Windows OBS setup authorization', () => {
       expect.objectContaining({ code: 'unsupported_version' }),
     )
 
-    const inactive = createObsSetupSession('inactive-address', '1.2.0')
+    const inactive = createObsSetupSession('inactive-address', '1.3.0')
     expect(() => approveObsSetupSession(inactive.userCode, 'disabled-id')).toThrowError(
       expect.objectContaining({ code: 'unavailable' }),
     )
 
     for (let count = 0; count < 5; count += 1) {
-      createObsSetupSession('limited-address', '1.2.0')
+      createObsSetupSession('limited-address', '1.3.0')
     }
-    expect(() => createObsSetupSession('limited-address', '1.2.0')).toThrowError(
+    expect(() => createObsSetupSession('limited-address', '1.3.0')).toThrowError(
       expect.objectContaining({ code: 'rate_limited' }),
     )
   })
@@ -139,7 +139,7 @@ describe('Windows OBS setup authorization', () => {
           'content-type': 'application/json',
           'x-forwarded-for': '203.0.113.44',
         },
-        body: JSON.stringify({ scriptVersion: '1.2.0' }),
+        body: JSON.stringify({ scriptVersion: '1.3.0' }),
       }),
     )
     expect(startResponse.status).toBe(200)
@@ -203,7 +203,7 @@ describe('Windows OBS setup authorization', () => {
     const payloadSha256 = createHash('sha256').update(source).digest('hex')
     const launcherSha256 = createHash('sha256').update(launcher, 'ascii').digest('hex')
 
-    expect(metadata).toMatchObject({ version: '1.2.0' })
+    expect(metadata).toMatchObject({ version: '1.3.0' })
     expect(metadata.sha256).toBe(launcherSha256)
     expect(metadata.size).toBe(Buffer.byteLength(launcher, 'ascii'))
     expect(launcher.startsWith('@echo off\r\n')).toBe(true)
@@ -212,7 +212,7 @@ describe('Windows OBS setup authorization', () => {
     expect(launcher).not.toContain('Set-ExecutionPolicy')
     expect(launcher).toContain(`if($actual -ne '${payloadSha256}')`)
     expect(Buffer.from(encodedPayload, 'base64')).toEqual(Buffer.from(source))
-    expect(source).toContain("$ScriptVersion = '1.2.0'")
+    expect(source).toContain("$ScriptVersion = '1.3.0'")
     expect(source).not.toContain("capture_mode = 'window'")
     expect(source).not.toContain('window = "::$executable"')
     expect(source.match(/capture_mode = 'any_fullscreen'/g)).toHaveLength(2)
@@ -234,7 +234,7 @@ describe('Windows OBS setup authorization', () => {
     expect(source).toContain("[string]$Resolutions = '1440p,1080p'")
     expect(source).toContain('[int]$BitrateKbps = 12000')
     expect(source).toContain("rate_control = 'CBR'")
-    expect(source).toContain('keyint_sec = 2')
+    expect(source).toContain('keyint_sec = 1')
     expect(source).toContain('bf = 0')
     expect(source).toContain("if ($codec -eq 'AV1')")
     expect(source).toContain('$settings.bf = 2')
@@ -287,7 +287,7 @@ describe('Windows OBS setup authorization', () => {
       new Request('http://localhost:3000/api/obs-setup/device/start', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scriptVersion: '1.2.0', padding: 'x'.repeat(1024) }),
+        body: JSON.stringify({ scriptVersion: '1.3.0', padding: 'x'.repeat(1024) }),
       }),
     )
 

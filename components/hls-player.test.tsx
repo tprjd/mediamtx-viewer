@@ -21,7 +21,11 @@ const mocks = vi.hoisted(() => {
 
   class FakeHls {
     static isSupported = () => true
-    static Events = { ERROR: 'error', MANIFEST_PARSED: 'manifestParsed' }
+    static Events = {
+      ERROR: 'error',
+      LEVEL_UPDATED: 'levelUpdated',
+      MANIFEST_PARSED: 'manifestParsed',
+    }
     readonly config: Record<string, unknown>
     readonly destroy = vi.fn()
     readonly startLoad = vi.fn()
@@ -52,7 +56,12 @@ const mocks = vi.hoisted(() => {
     }
   }
 
-  return { FakeHls, instances, getSession: vi.fn() }
+  return {
+    FakeHls,
+    instances,
+    getSession: vi.fn(),
+    playbackStats: vi.fn(),
+  }
 })
 
 vi.mock('hls.js', () => ({
@@ -61,7 +70,12 @@ vi.mock('hls.js', () => ({
   ErrorTypes: { MEDIA_ERROR: 'mediaError', NETWORK_ERROR: 'networkError' },
 }))
 
-vi.mock('@/components/playback-stats', () => ({ PlaybackStats: () => null }))
+vi.mock('@/components/playback-stats', () => ({
+  PlaybackStats: (props: unknown) => {
+    mocks.playbackStats(props)
+    return null
+  },
+}))
 vi.mock('@/lib/auth/client', () => ({
   authClient: { getSession: mocks.getSession },
 }))
@@ -88,7 +102,7 @@ const channel: PublicChannel = {
 }
 
 async function renderPlayer(
-  latencyProfile: 'balanced' | 'smooth' = 'balanced',
+  latencyProfile: 'ultra-low' | 'balanced' | 'smooth' = 'balanced',
 ) {
   render(<HlsPlayer channel={channel} latencyProfile={latencyProfile} />)
   await act(async () => Promise.resolve())
@@ -99,6 +113,7 @@ describe('HlsPlayer recovery', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     mocks.instances.length = 0
+    mocks.playbackStats.mockClear()
     mocks.FakeHls.isSupported = () => true
     mocks.getSession.mockResolvedValue({ data: { user: { id: 'user' } } })
     vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('')
@@ -108,6 +123,10 @@ describe('HlsPlayer recovery', () => {
     Object.defineProperty(document, 'visibilityState', {
       configurable: true,
       value: 'visible',
+    })
+    Object.defineProperty(navigator, 'onLine', {
+      configurable: true,
+      value: true,
     })
   })
 
@@ -121,11 +140,27 @@ describe('HlsPlayer recovery', () => {
     await renderPlayer()
     expect(mocks.instances[0].config).toMatchObject({
       lowLatencyMode: true,
+      liveSyncMode: 'edge',
       backBufferLength: 30,
       liveSyncDuration: 3,
       liveMaxLatencyDuration: 6,
       maxLiveSyncPlaybackRate: 1.03,
       liveSyncOnStallIncrease: 0.5,
+    })
+  })
+
+  it('uses hls.js with a two-second latency and forward-buffer budget', async () => {
+    await renderPlayer('ultra-low')
+    expect(mocks.instances[0].config).toMatchObject({
+      lowLatencyMode: true,
+      liveSyncMode: 'edge',
+      backBufferLength: 0,
+      liveSyncDuration: 1.2,
+      liveMaxLatencyDuration: 2,
+      liveSyncOnStallIncrease: 0,
+      maxLiveSyncPlaybackRate: 1.05,
+      maxBufferLength: 1.8,
+      maxMaxBufferLength: 1.8,
     })
   })
 
@@ -139,18 +174,74 @@ describe('HlsPlayer recovery', () => {
     })
   })
 
-  it('uses hls.js for balanced and keeps native HLS for smooth when both work', async () => {
+  it('uses hls.js for every HLS profile when MSE and native HLS both work', async () => {
     vi.mocked(HTMLMediaElement.prototype.canPlayType).mockReturnValue(
       'probably',
     )
-    await renderPlayer('balanced')
-    expect(mocks.instances).toHaveLength(1)
+    for (const profile of ['ultra-low', 'balanced', 'smooth'] as const) {
+      await renderPlayer(profile)
+      expect(mocks.instances).toHaveLength(1)
+      cleanup()
+      mocks.instances.length = 0
+    }
+  })
 
-    cleanup()
-    mocks.instances.length = 0
-    const video = await renderPlayer('smooth')
+  it('rejects native fallback for the hls.js-only two-second mode', async () => {
+    mocks.FakeHls.isSupported = () => false
+    vi.mocked(HTMLMediaElement.prototype.canPlayType).mockReturnValue(
+      'probably',
+    )
+    const onUltraLowUnavailable = vi.fn()
+    render(
+      <HlsPlayer
+        channel={channel}
+        latencyProfile="ultra-low"
+        onUltraLowUnavailable={onUltraLowUnavailable}
+      />,
+    )
+
+    await act(async () => vi.advanceTimersByTimeAsync(0))
+
     expect(mocks.instances).toHaveLength(0)
-    expect(video.src).toContain('/media/hls/live/index.m3u8')
+    expect(onUltraLowUnavailable).toHaveBeenCalledOnce()
+  })
+
+  it('rejects playlists whose segment or part timing cannot meet the SLO', async () => {
+    const onUltraLowUnavailable = vi.fn()
+    await act(async () => {
+      render(
+        <HlsPlayer
+          channel={channel}
+          latencyProfile="ultra-low"
+          onUltraLowUnavailable={onUltraLowUnavailable}
+        />,
+      )
+      await Promise.resolve()
+    })
+
+    act(() => {
+      mocks.instances[0].emit('levelUpdated', {
+        details: {
+          partTarget: 0.2,
+          targetduration: 1,
+        },
+      })
+    })
+    expect(onUltraLowUnavailable).not.toHaveBeenCalled()
+
+    act(() => {
+      mocks.instances[0].emit('levelUpdated', {
+        details: {
+          partTarget: 0.2,
+          targetduration: 2,
+        },
+      })
+    })
+
+    expect(onUltraLowUnavailable).toHaveBeenCalledOnce()
+    expect(onUltraLowUnavailable).toHaveBeenCalledWith(
+      expect.stringContaining('one-second LL-HLS segments'),
+    )
   })
 
   it('recreates the HLS instance when the latency profile changes', async () => {
@@ -225,6 +316,156 @@ describe('HlsPlayer recovery', () => {
     await act(async () => vi.advanceTimersByTimeAsync(20_000))
     expect(mocks.instances[0].startLoad).not.toHaveBeenCalled()
     expect(mocks.instances).toHaveLength(1)
+  })
+
+  it('corrects ultra-low latency on the first active 250ms sample', async () => {
+    const video = await renderPlayer('ultra-low')
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
+    video.currentTime = 10
+    mocks.instances[0].latency = 2.1
+    mocks.instances[0].liveSyncPosition = 20
+    fireEvent(video, new Event('playing'))
+
+    await act(async () => vi.advanceTimersByTimeAsync(250))
+
+    expect(video.currentTime).toBe(20)
+  })
+
+  it('publishes ultra-low latency and forward-buffer SLO breaches', async () => {
+    const video = await renderPlayer('ultra-low')
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
+    Object.defineProperty(video, 'buffered', {
+      configurable: true,
+      value: { length: 1, start: () => 0, end: () => 13 },
+    })
+    video.currentTime = 10
+    mocks.instances[0].latency = 2.1
+    mocks.instances[0].liveSyncPosition = 20
+    fireEvent(video, new Event('playing'))
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+
+    const latest = mocks.playbackStats.mock.calls.at(-1)?.[0] as {
+      hlsDiagnostics: {
+        correctiveSeekCount: number
+        forwardBufferBreachCount: number
+        lastBreachMetric: string
+        latencyBreachCount: number
+        maxObservedForwardBufferSeconds: number
+        maxObservedLatencySeconds: number
+      }
+    }
+    expect(latest.hlsDiagnostics).toMatchObject({
+      correctiveSeekCount: 1,
+      forwardBufferBreachCount: 1,
+      latencyBreachCount: 1,
+      maxObservedForwardBufferSeconds: 3,
+      maxObservedLatencySeconds: 2.1,
+    })
+    expect(['forwardBuffer', 'liveLatency']).toContain(
+      latest.hlsDiagnostics.lastBreachMetric,
+    )
+  })
+
+  it('recreates ultra-low playback when latency stays high after correction', async () => {
+    const video = await renderPlayer('ultra-low')
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
+    video.currentTime = 10
+    mocks.instances[0].latency = 2.1
+    mocks.instances[0].liveSyncPosition = 20
+    fireEvent(video, new Event('playing'))
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_251))
+
+    expect(mocks.instances).toHaveLength(2)
+  })
+
+  it('does not seek when only the ultra-low forward buffer exceeds its SLO', async () => {
+    const video = await renderPlayer('ultra-low')
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
+    Object.defineProperty(video, 'buffered', {
+      configurable: true,
+      value: { length: 1, start: () => 0, end: () => 5 },
+    })
+    video.currentTime = 1
+    mocks.instances[0].latency = 1.2
+    mocks.instances[0].liveSyncPosition = 4
+    fireEvent(video, new Event('playing'))
+
+    await act(async () => vi.advanceTimersByTimeAsync(500))
+
+    expect(video.currentTime).toBe(1)
+    expect(mocks.instances).toHaveLength(1)
+  })
+
+  it('does not enforce the ultra-low SLO while paused, hidden, or seeking', async () => {
+    const video = await renderPlayer('ultra-low')
+    Object.defineProperty(video, 'paused', { configurable: true, value: true })
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
+    video.currentTime = 10
+    mocks.instances[0].latency = 3
+    mocks.instances[0].liveSyncPosition = 20
+
+    await act(async () => vi.advanceTimersByTimeAsync(500))
+    expect(video.currentTime).toBe(10)
+
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'hidden',
+    })
+    fireEvent(video, new Event('playing'))
+    await act(async () => vi.advanceTimersByTimeAsync(500))
+    expect(video.currentTime).toBe(10)
+
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'visible',
+    })
+    Object.defineProperty(video, 'seeking', { configurable: true, value: true })
+    await act(async () => vi.advanceTimersByTimeAsync(500))
+    expect(video.currentTime).toBe(10)
+
+    Object.defineProperty(video, 'seeking', { configurable: true, value: false })
+    Object.defineProperty(navigator, 'onLine', {
+      configurable: true,
+      value: false,
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(500))
+    expect(video.currentTime).toBe(10)
+  })
+
+  it('reports repeated ultra-low stalls within 30 seconds', async () => {
+    const onUltraLowFailure = vi.fn()
+    render(
+      <HlsPlayer
+        channel={channel}
+        latencyProfile="ultra-low"
+        onUltraLowFailure={onUltraLowFailure}
+      />,
+    )
+    await act(async () => Promise.resolve())
+    const video = screen.getByLabelText(
+      'Late-night games live video',
+    ) as HTMLVideoElement
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
+    fireEvent(video, new Event('playing'))
+
+    fireEvent(video, new Event('waiting'))
+    fireEvent(video, new Event('stalled'))
+    expect(onUltraLowFailure).not.toHaveBeenCalled()
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_001))
+    fireEvent(video, new Event('waiting'))
+
+    expect(onUltraLowFailure).toHaveBeenCalledOnce()
+    expect(onUltraLowFailure).toHaveBeenCalledWith(
+      expect.stringContaining('Switched to Balanced'),
+    )
   })
 
   it('bounds native HLS latency after three safe consecutive samples', async () => {

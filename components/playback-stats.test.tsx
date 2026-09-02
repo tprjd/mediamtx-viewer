@@ -95,14 +95,25 @@ describe('PlaybackStats diagnostics', () => {
       <PlaybackStats
         hlsDiagnostics={{
           bufferAheadSeconds: 4.2,
+          configuredMaxForwardBufferSeconds: 2,
+          correctiveSeekCount: 2,
           engine: 'hls.js',
+          forwardBufferBreachCount: 1,
+          forwardBufferLoadLimitSeconds: 1.8,
           lastCorrection: 'hls.js latency exceeded 6s',
+          lastBreachAt: '2026-08-30T12:00:00.000Z',
+          lastBreachMetric: 'liveLatency',
+          lastBreachValueSeconds: 2.1,
+          latencyBreachCount: 3,
           liveLatencySeconds: 3.4,
           maxLatencySeconds: 6,
+          maxObservedForwardBufferSeconds: 2.1,
+          maxObservedLatencySeconds: 3.4,
           partHoldBackSeconds: 0.5,
           partTargetSeconds: 0.2,
           playbackRate: 1.03,
           playingDateLatencySeconds: 3.7,
+          profileExitReason: 'Previous low-latency mode exceeded its SLO.',
           targetDurationSeconds: 2,
           targetLatencySeconds: 3,
         }}
@@ -135,16 +146,43 @@ describe('PlaybackStats diagnostics', () => {
     expect(within(details!).getByText('Engine / rate').nextElementSibling).toHaveTextContent(
       'hls.js · 1.03×',
     )
+    expect(within(details!).getByText('Buffer load / max').nextElementSibling).toHaveTextContent(
+      '1.8s / 2s',
+    )
+    expect(within(details!).getByText('Observed peaks').nextElementSibling).toHaveTextContent(
+      '3.4s / 2.1s',
+    )
+    expect(within(details!).getByText('SLO breaches').nextElementSibling).toHaveTextContent(
+      '3 / 1',
+    )
+    expect(within(details!).getByText('Corrective seeks').nextElementSibling).toHaveTextContent(
+      '2',
+    )
+    expect(within(details!).getByText('Last breach').nextElementSibling).toHaveTextContent(
+      'liveLatency 2.1s',
+    )
+    expect(within(details!).getByText('Mode exit').nextElementSibling).toHaveTextContent(
+      'exceeded its SLO',
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy snapshot' }))
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce())
     const snapshot = JSON.parse(writeText.mock.calls[0][0]) as {
       browser: string
-      playback: { hls: { liveLatencySeconds: number }; protocol: string }
+      playback: {
+        hls: {
+          correctiveSeekCount: number
+          liveLatencySeconds: number
+          profileExitReason: string
+        }
+        protocol: string
+      }
     }
     expect(snapshot.browser).toContain('Mozilla')
     expect(snapshot.playback.protocol).toBe('HLS')
     expect(snapshot.playback.hls.liveLatencySeconds).toBe(3.4)
+    expect(snapshot.playback.hls.correctiveSeekCount).toBe(2)
+    expect(snapshot.playback.hls.profileExitReason).toContain('exceeded its SLO')
     expect(writeText.mock.calls[0][0]).not.toContain('cookie')
     fireEvent.click(
       screen.getByRole('button', { name: 'Hide playback diagnostics' }),

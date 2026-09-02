@@ -3,7 +3,9 @@
 Status: Balanced candidate A is implemented in the viewer together with the
 bounded Smooth profile, native-HLS drift recovery, and HLS live-edge
 diagnostics. Production glass-to-glass and impairment acceptance testing is
-still required. OBS and MediaMTX timing settings remain unchanged.
+still required. The later `two-second-ll-hls-plan.md` adds a separate
+experimental HLS ≤2s profile, changes managed OBS timing to one-second
+keyframes, and makes hls.js preferred for every HLS profile when supported.
 
 ## Decision
 

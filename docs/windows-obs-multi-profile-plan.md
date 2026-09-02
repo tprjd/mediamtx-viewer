@@ -1,5 +1,9 @@
 # Windows OBS Multi-Profile Setup Plan
 
+Status: implemented by setup 1.2.0. Setup 1.3.0 later changed every managed
+profile to one-second keyframes for the experimental two-second LL-HLS mode;
+references to two-second keyframes below describe the earlier baseline.
+
 ## Goal
 
 Extend `scripts/windows/setup-frankerzspam-obs.ps1` so one setup run can create
