@@ -12,7 +12,10 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
 import { Button, buttonVariants } from '@/components/ui/button'
-import { PlaybackStats } from '@/components/playback-stats'
+import {
+  PlaybackStats,
+  type HlsPlaybackDiagnostics,
+} from '@/components/playback-stats'
 import { authClient } from '@/lib/auth/client'
 import type { PublicChannel } from '@/lib/types'
 
@@ -27,20 +30,95 @@ type PlaybackState =
 
 interface HlsPlayerProps {
   channel: PublicChannel
+  latencyProfile: HlsLatencyProfile
 }
+
+export type HlsLatencyProfile = 'balanced' | 'smooth'
+
+interface HlsLatencyProfileConfig {
+  label: string
+  liveMaxLatencyDuration: number
+  liveSyncDuration: number
+  liveSyncOnStallIncrease: number
+  maxLiveSyncPlaybackRate: number
+}
+
+export const HLS_LATENCY_PROFILES = {
+  balanced: {
+    label: 'Balanced',
+    liveMaxLatencyDuration: 6,
+    liveSyncDuration: 3,
+    liveSyncOnStallIncrease: 0.5,
+    maxLiveSyncPlaybackRate: 1.03,
+  },
+  smooth: {
+    label: 'Smooth',
+    liveMaxLatencyDuration: 9,
+    liveSyncDuration: 5,
+    liveSyncOnStallIncrease: 1,
+    maxLiveSyncPlaybackRate: 1.02,
+  },
+} as const satisfies Record<HlsLatencyProfile, HlsLatencyProfileConfig>
 
 function isCodecError(details: ErrorDetails): boolean {
   return details.toLowerCase().includes('codec')
 }
 
-export function HlsPlayer({ channel }: HlsPlayerProps) {
+function readForwardBuffer(video: HTMLVideoElement): number | undefined {
+  try {
+    for (let index = 0; index < video.buffered.length; index += 1) {
+      const start = video.buffered.start(index)
+      const end = video.buffered.end(index)
+      if (video.currentTime >= start - 0.05 && video.currentTime <= end) {
+        return Math.max(0, end - video.currentTime)
+      }
+    }
+  } catch {
+    // TimeRanges can change between reading its length and range boundaries.
+  }
+  return undefined
+}
+
+function readNativeLiveEdge(video: HTMLVideoElement): number | undefined {
+  try {
+    if (video.seekable.length === 0) return undefined
+    return video.seekable.end(video.seekable.length - 1)
+  } catch {
+    return undefined
+  }
+}
+
+function readNativeSeekTarget(
+  video: HTMLVideoElement,
+  liveEdge: number,
+  targetLatency: number,
+): number | undefined {
+  try {
+    if (video.seekable.length === 0) return undefined
+    return Math.max(
+      video.seekable.start(video.seekable.length - 1),
+      liveEdge - targetLatency,
+    )
+  } catch {
+    return undefined
+  }
+}
+
+export function HlsPlayer({ channel, latencyProfile }: HlsPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const recoveryRef = useRef({ attempts: 0 })
+  const lastCorrectionRef = useRef<string>(undefined)
+  const profile = HLS_LATENCY_PROFILES[latencyProfile]
   const [playbackState, setPlaybackState] = useState<Exclude<PlaybackState, 'offline'>>(
     'loading',
   )
   const [reloadKey, setReloadKey] = useState(0)
   const [usingFallback, setUsingFallback] = useState(false)
+  const [hlsDiagnostics, setHlsDiagnostics] = useState<HlsPlaybackDiagnostics>({
+    maxLatencySeconds: profile.liveMaxLatencyDuration,
+    playbackRate: 1,
+    targetLatencySeconds: profile.liveSyncDuration,
+  })
   const status = channel.status
   const sourceUrl =
     usingFallback && channel.playback.fallbackHls
@@ -63,6 +141,16 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
     let lastProgress: number | undefined
     let everPlayed = false
     let needsRecovery = false
+    let nativeHls = false
+    let excessiveNativeLatencySamples = 0
+    let lastMeasuredLatency: number | undefined
+
+    setHlsDiagnostics({
+      maxLatencySeconds: profile.liveMaxLatencyDuration,
+      lastCorrection: lastCorrectionRef.current,
+      playbackRate: video.playbackRate,
+      targetLatencySeconds: profile.liveSyncDuration,
+    })
 
     const resetVideo = () => {
       video.pause()
@@ -81,6 +169,42 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
       document.visibilityState === 'visible' &&
       navigator.onLine !== false &&
       !(everPlayed && video.paused && !video.ended)
+
+    const markCorrection = (reason: string) => {
+      lastCorrectionRef.current = reason
+    }
+
+    const publishDiagnostics = () => {
+      if (!active) return
+      const details = hls?.latestLevelDetails
+      const nativeLiveEdge = nativeHls ? readNativeLiveEdge(video) : undefined
+      const measuredLatency = hls
+        ? hls.latency > 0
+          ? hls.latency
+          : undefined
+        : nativeLiveEdge === undefined
+          ? undefined
+          : Math.max(0, nativeLiveEdge - video.currentTime)
+      const playingDate = hls?.playingDate
+      const playingDateLatency = playingDate
+        ? Math.max(0, (Date.now() - playingDate.getTime()) / 1_000)
+        : undefined
+
+      lastMeasuredLatency = measuredLatency
+      setHlsDiagnostics({
+        bufferAheadSeconds: readForwardBuffer(video),
+        engine: nativeHls ? 'native HLS' : hls ? 'hls.js' : undefined,
+        lastCorrection: lastCorrectionRef.current,
+        liveLatencySeconds: measuredLatency,
+        maxLatencySeconds: profile.liveMaxLatencyDuration,
+        partHoldBackSeconds: details?.partHoldBack || undefined,
+        partTargetSeconds: details?.partTarget || undefined,
+        playbackRate: video.playbackRate,
+        playingDateLatencySeconds: playingDateLatency,
+        targetDurationSeconds: details?.targetduration || undefined,
+        targetLatencySeconds: profile.liveSyncDuration,
+      })
+    }
 
     const scheduleRecreate = (immediate = false) => {
       needsRecovery = true
@@ -109,6 +233,55 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
     }
 
     const pollProgress = () => {
+      publishDiagnostics()
+
+      if (
+        nativeHls &&
+        canRecover() &&
+        !video.paused &&
+        !video.ended &&
+        !video.seeking &&
+        video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA
+      ) {
+        const liveEdge = readNativeLiveEdge(video)
+        const latency = liveEdge === undefined
+          ? undefined
+          : Math.max(0, liveEdge - video.currentTime)
+        const bufferAhead = readForwardBuffer(video)
+        const catchUpDistance = latency === undefined
+          ? Number.POSITIVE_INFINITY
+          : Math.max(1, latency - profile.liveSyncDuration)
+
+        if (
+          latency !== undefined &&
+          latency > profile.liveMaxLatencyDuration &&
+          bufferAhead !== undefined &&
+          bufferAhead >= catchUpDistance
+        ) {
+          excessiveNativeLatencySamples += 1
+        } else {
+          excessiveNativeLatencySamples = 0
+        }
+
+        if (excessiveNativeLatencySamples > 2 && liveEdge !== undefined) {
+          const seekTarget = readNativeSeekTarget(
+            video,
+            liveEdge,
+            profile.liveSyncDuration,
+          )
+          if (seekTarget !== undefined) {
+            video.currentTime = seekTarget
+            markCorrection(
+              `Native latency exceeded ${profile.liveMaxLatencyDuration}s`,
+            )
+          }
+          excessiveNativeLatencySamples = 0
+          publishDiagnostics()
+        }
+      } else {
+        excessiveNativeLatencySamples = 0
+      }
+
       if (!canRecover() || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
         stagnantSamples = 0
         lastProgress = undefined
@@ -132,6 +305,8 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
         const liveEdge = hls.liveSyncPosition
         if (liveEdge !== null && liveEdge !== undefined) {
           video.currentTime = liveEdge
+          markCorrection('Frozen playback recovery')
+          publishDiagnostics()
         }
         hls.startLoad()
         return
@@ -167,6 +342,18 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
       stagnantSamples = 0
       lastProgress = undefined
     }
+    const handleSeeking = () => {
+      if (
+        hls &&
+        lastMeasuredLatency !== undefined &&
+        lastMeasuredLatency > profile.liveMaxLatencyDuration
+      ) {
+        markCorrection(
+          `hls.js latency exceeded ${profile.liveMaxLatencyDuration}s`,
+        )
+        publishDiagnostics()
+      }
+    }
     const handleVideoError = () => {
       void authClient.getSession().then(({ data }) => {
         if (!active) return
@@ -190,13 +377,13 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
       }
     }
     const handlePlay = () => {
-      const liveEdge = hls?.liveSyncPosition
-      if (
-        liveEdge !== null &&
-        liveEdge !== undefined &&
-        liveEdge - video.currentTime > 2
-      ) {
-        video.currentTime = liveEdge
+      if (hls && hls.latency > profile.liveMaxLatencyDuration) {
+        const syncPosition = hls.liveSyncPosition
+        if (syncPosition !== null) {
+          video.currentTime = syncPosition
+          markCorrection('Resume beyond hls.js latency limit')
+          publishDiagnostics()
+        }
       }
     }
 
@@ -207,6 +394,7 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
     video.addEventListener('pause', handlePause)
     video.addEventListener('error', handleVideoError)
     video.addEventListener('play', handlePlay)
+    video.addEventListener('seeking', handleSeeking)
 
     const resumeRecovery = () => {
       stagnantSamples = 0
@@ -224,13 +412,19 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
     }
 
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      nativeHls = true
       video.src = sourceUrl
       video.load()
+      publishDiagnostics()
       beginPlayback()
     } else if (Hls.isSupported()) {
       hls = new Hls({
         lowLatencyMode: true,
         backBufferLength: 30,
+        liveSyncDuration: profile.liveSyncDuration,
+        liveMaxLatencyDuration: profile.liveMaxLatencyDuration,
+        maxLiveSyncPlaybackRate: profile.maxLiveSyncPlaybackRate,
+        liveSyncOnStallIncrease: profile.liveSyncOnStallIncrease,
       })
 
       hls.on(Hls.Events.MANIFEST_PARSED, beginPlayback)
@@ -272,6 +466,7 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
 
       hls.loadSource(sourceUrl)
       hls.attachMedia(video)
+      publishDiagnostics()
     } else {
       unsupportedTimer = setTimeout(() => setPlaybackState('unsupported'), 0)
     }
@@ -285,6 +480,7 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
       video.removeEventListener('pause', handlePause)
       video.removeEventListener('error', handleVideoError)
       video.removeEventListener('play', handlePlay)
+      video.removeEventListener('seeking', handleSeeking)
       window.removeEventListener('online', resumeRecovery)
       document.removeEventListener('visibilitychange', resumeRecovery)
       hls?.destroy()
@@ -295,7 +491,7 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
       clearInterval(progressTimer)
       resetVideo()
     }
-  }, [reloadKey, sourceUrl, status.live])
+  }, [profile, reloadKey, sourceUrl, status.live])
 
   const retry = () => setReloadKey((key) => key + 1)
   const visibleState: PlaybackState = status.live ? playbackState : 'offline'
@@ -320,7 +516,7 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
         {visibleState === 'playing' && (
           <span className="protocol-badge">
             <ShieldCheck className="size-3" aria-hidden="true" />
-            HLS · Smooth
+            HLS · {profile.label}
           </span>
         )}
 
@@ -349,7 +545,7 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
               </h2>
               <p>
                 {visibleState === 'loading'
-                  ? 'Preparing smooth playback…'
+                  ? `Preparing ${profile.label.toLowerCase()} playback…`
                   : 'The connection was interrupted. Retrying automatically…'}
               </p>
             </div>
@@ -412,6 +608,7 @@ export function HlsPlayer({ channel }: HlsPlayerProps) {
       </div>
 
       <PlaybackStats
+        hlsDiagnostics={hlsDiagnostics}
         playing={visibleState === 'playing'}
         protocol="HLS"
         tracks={status.tracks}

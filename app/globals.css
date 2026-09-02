@@ -1925,11 +1925,15 @@ a {
 
 .playback-stats {
   display: grid;
-  grid-template-columns: repeat(19, minmax(6.5rem, 1fr));
+  grid-template-columns: repeat(20, minmax(6.5rem, 1fr));
   overflow-x: auto;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, #0c0c0e, #080809);
   scrollbar-width: thin;
+}
+
+.playback-stats-hls {
+  grid-template-columns: repeat(27, minmax(6.5rem, 1fr));
 }
 
 .playback-stat {
@@ -1979,6 +1983,18 @@ a {
 .playback-stat-state i[data-playing="true"] {
   background: #34d399;
   box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.12);
+}
+
+.playback-support-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #d4d4d8;
+  cursor: pointer;
+}
+
+.playback-support-copy:hover {
+  color: #fff;
 }
 
 .playback-stat-pacing-chart {
@@ -2098,7 +2114,7 @@ a {
 
   .playback-mode-actions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .user-menu a {

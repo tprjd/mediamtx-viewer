@@ -5,7 +5,9 @@ import { LivePlayer } from '@/components/live-player'
 import type { PublicChannel } from '@/lib/types'
 
 vi.mock('@/components/hls-player', () => ({
-  HlsPlayer: () => <div>Smooth player</div>,
+  HlsPlayer: ({ latencyProfile }: { latencyProfile: string }) => (
+    <div>{latencyProfile === 'balanced' ? 'Balanced player' : 'Smooth player'}</div>
+  ),
 }))
 
 vi.mock('@/components/webrtc-player', () => ({
@@ -50,9 +52,11 @@ describe('LivePlayer playback mode', () => {
     vi.useRealTimers()
   })
 
-  it('defaults to smooth playback and remembers an explicit low-latency choice', () => {
+  it('defaults to balanced playback and offers all three modes', () => {
     render(<LivePlayer channel={channel} />)
-    expect(screen.getByText('Smooth player')).toBeInTheDocument()
+    expect(screen.getByText('Balanced player')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Balanced' })).toBePressed()
+    expect(screen.getByRole('button', { name: 'Smooth' })).toBeEnabled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Low latency' }))
 
@@ -68,6 +72,9 @@ describe('LivePlayer playback mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Simulate fallback' }))
 
     expect(screen.getByText('Smooth player')).toBeInTheDocument()
+    expect(window.sessionStorage.getItem('mediamtx-viewer:playback-mode')).toBe(
+      'smooth',
+    )
     expect(
       screen.getByRole('button', { name: 'Try low latency in 60s' }),
     ).toBeDisabled()
@@ -86,5 +93,26 @@ describe('LivePlayer playback mode', () => {
     act(() => vi.advanceTimersByTime(0))
 
     expect(screen.getByText('Low-latency player')).toBeInTheDocument()
+  })
+
+  it('migrates the legacy HLS session preference to balanced', () => {
+    window.sessionStorage.setItem('mediamtx-viewer:playback-mode', 'hls')
+    render(<LivePlayer channel={channel} />)
+    act(() => vi.advanceTimersByTime(0))
+
+    expect(screen.getByText('Balanced player')).toBeInTheDocument()
+    expect(window.sessionStorage.getItem('mediamtx-viewer:playback-mode')).toBe(
+      'balanced',
+    )
+  })
+
+  it('remembers an explicit smooth preference', () => {
+    render(<LivePlayer channel={channel} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Smooth' }))
+
+    expect(screen.getByText('Smooth player')).toBeInTheDocument()
+    expect(window.sessionStorage.getItem('mediamtx-viewer:playback-mode')).toBe(
+      'smooth',
+    )
   })
 })

@@ -75,6 +75,58 @@ describe('sumInboundPacketsLost', () => {
 })
 
 describe('PlaybackStats diagnostics', () => {
+  it('renders HLS edge diagnostics and copies a privacy-safe support snapshot', async () => {
+    const video = document.createElement('video')
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+
+    render(
+      <PlaybackStats
+        hlsDiagnostics={{
+          bufferAheadSeconds: 4.2,
+          engine: 'hls.js',
+          lastCorrection: 'hls.js latency exceeded 6s',
+          liveLatencySeconds: 3.4,
+          maxLatencySeconds: 6,
+          partHoldBackSeconds: 0.5,
+          partTargetSeconds: 0.2,
+          playbackRate: 1.03,
+          playingDateLatencySeconds: 3.7,
+          targetDurationSeconds: 2,
+          targetLatencySeconds: 3,
+        }}
+        playing
+        protocol="HLS"
+        tracks={['AV1', 'Opus']}
+        videoRef={{ current: video }}
+      />,
+    )
+
+    expect(screen.getByText('Live latency').nextElementSibling).toHaveTextContent(
+      '3.4s',
+    )
+    expect(screen.getByText('Target / max').nextElementSibling).toHaveTextContent(
+      '3s / 6s',
+    )
+    expect(screen.getByText('Engine / rate').nextElementSibling).toHaveTextContent(
+      'hls.js · 1.03×',
+    )
+
+    screen.getByRole('button', { name: 'Copy snapshot' }).click()
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce())
+    const snapshot = JSON.parse(writeText.mock.calls[0][0]) as {
+      browser: string
+      playback: { hls: { liveLatencySeconds: number }; protocol: string }
+    }
+    expect(snapshot.browser).toContain('Mozilla')
+    expect(snapshot.playback.protocol).toBe('HLS')
+    expect(snapshot.playback.hls.liveLatencySeconds).toBe(3.4)
+    expect(writeText.mock.calls[0][0]).not.toContain('cookie')
+  })
+
   it('renders cumulative receiver-side packet loss', async () => {
     const video = document.createElement('video')
     const peerConnection = {

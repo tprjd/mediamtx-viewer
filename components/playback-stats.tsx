@@ -1,15 +1,31 @@
 'use client'
 
+import { Check, Copy } from 'lucide-react'
 import { useEffect, useMemo, useState, type RefObject } from 'react'
 
 type PlaybackProtocol = 'WebRTC' | 'HLS'
 
 interface PlaybackStatsProps {
+  hlsDiagnostics?: HlsPlaybackDiagnostics
   peerConnection?: RTCPeerConnection | null
   playing: boolean
   protocol: PlaybackProtocol
   tracks: string[]
   videoRef: RefObject<HTMLVideoElement | null>
+}
+
+export interface HlsPlaybackDiagnostics {
+  bufferAheadSeconds?: number
+  engine?: 'hls.js' | 'native HLS'
+  lastCorrection?: string
+  liveLatencySeconds?: number
+  maxLatencySeconds: number
+  partHoldBackSeconds?: number
+  partTargetSeconds?: number
+  playbackRate: number
+  playingDateLatencySeconds?: number
+  targetDurationSeconds?: number
+  targetLatencySeconds: number
 }
 
 interface PlaybackMetrics {
@@ -224,6 +240,11 @@ function formatMilliseconds(value?: number, digits = 1): string {
 function formatFrameTimes(averageMs?: number, p95Ms?: number): string {
   if (averageMs === undefined || p95Ms === undefined) return '—'
   return `${averageMs.toFixed(1)} / ${p95Ms.toFixed(1)} ms`
+}
+
+function formatSeconds(value?: number, digits = 1): string {
+  if (value === undefined || !Number.isFinite(value)) return '—'
+  return `${value.toFixed(digits)}s`
 }
 
 function FramePacingChart({ summary }: { summary?: FramePacingSummary }) {
@@ -472,6 +493,7 @@ async function readMetrics(
 }
 
 export function PlaybackStats({
+  hlsDiagnostics,
   peerConnection,
   playing,
   protocol,
@@ -480,6 +502,7 @@ export function PlaybackStats({
 }: PlaybackStatsProps) {
   const fallbackCodecs = useMemo(() => trackCodecs(tracks), [tracks])
   const [metrics, setMetrics] = useState<PlaybackMetrics>(fallbackCodecs)
+  const [snapshotCopied, setSnapshotCopied] = useState(false)
 
   useEffect(() => {
     const video = videoRef.current
@@ -597,11 +620,50 @@ export function PlaybackStats({
 
   const codecs = [metrics.videoCodec, metrics.audioCodec].filter(Boolean).join(' · ')
   const connection = playing ? 'Playing' : 'Waiting'
+  const copySupportSnapshot = async () => {
+    const snapshot = {
+      browser: navigator.userAgent,
+      playback: {
+        audioCodec: metrics.audioCodec,
+        bitrateBitsPerSecond: metrics.bitrate,
+        decodeTimeMs: metrics.decodeTimeMs,
+        droppedFrames: metrics.droppedFrames,
+        framePacing: metrics.framePacing
+          ? {
+              lateFrames: metrics.framePacing.lateFrames,
+              mediaAverageMs: metrics.framePacing.mediaAverageMs,
+              mediaP95Ms: metrics.framePacing.mediaP95Ms,
+              presentationAverageMs: metrics.framePacing.presentationAverageMs,
+              presentationP95Ms: metrics.framePacing.presentationP95Ms,
+              sampleCount: metrics.framePacing.sampleCount,
+            }
+          : undefined,
+        framesPerSecond: metrics.framesPerSecond,
+        height: metrics.height,
+        hls: hlsDiagnostics,
+        packetLossPercent: metrics.packetLossPercent,
+        packetsLost: metrics.packetsLost,
+        protocol,
+        status: connection,
+        transport: metrics.transport ?? (protocol === 'HLS' ? 'HTTPS' : undefined),
+        videoCodec: metrics.videoCodec,
+        width: metrics.width,
+      },
+    }
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(snapshot, null, 2))
+      setSnapshotCopied(true)
+      window.setTimeout(() => setSnapshotCopied(false), 2_000)
+    } catch {
+      setSnapshotCopied(false)
+    }
+  }
 
   return (
     <div
       aria-label="Playback diagnostics"
-      className="playback-stats"
+      className={`playback-stats${hlsDiagnostics ? ' playback-stats-hls' : ''}`}
       title="Viewer-side playback measurements"
     >
       <div className="playback-stat">
@@ -703,6 +765,47 @@ export function PlaybackStats({
             : `${metrics.packetLossPercent.toFixed(2)}%`}
         </strong>
       </div>
+      {hlsDiagnostics && (
+        <>
+          <div className="playback-stat" title="Estimated distance from the HLS live edge">
+            <span>Live latency</span>
+            <strong>{formatSeconds(hlsDiagnostics.liveLatencySeconds)}</strong>
+          </div>
+          <div className="playback-stat" title="Selected target and hard recovery boundary">
+            <span>Target / max</span>
+            <strong>
+              {formatSeconds(hlsDiagnostics.targetLatencySeconds, 0)} /{' '}
+              {formatSeconds(hlsDiagnostics.maxLatencySeconds, 0)}
+            </strong>
+          </div>
+          <div className="playback-stat" title="Decoded media available ahead of the playhead">
+            <span>Forward buffer</span>
+            <strong>{formatSeconds(hlsDiagnostics.bufferAheadSeconds)}</strong>
+          </div>
+          <div className="playback-stat" title="HLS playback engine and current catch-up rate">
+            <span>Engine / rate</span>
+            <strong>
+              {hlsDiagnostics.engine ?? '—'} · {hlsDiagnostics.playbackRate.toFixed(2)}×
+            </strong>
+          </div>
+          <div className="playback-stat" title="Target duration / part target / part hold-back">
+            <span>Playlist timing</span>
+            <strong>
+              {formatSeconds(hlsDiagnostics.targetDurationSeconds)} /{' '}
+              {formatSeconds(hlsDiagnostics.partTargetSeconds)} /{' '}
+              {formatSeconds(hlsDiagnostics.partHoldBackSeconds)}
+            </strong>
+          </div>
+          <div className="playback-stat" title="Delay estimated from HLS program date-time">
+            <span>Timeline delay</span>
+            <strong>{formatSeconds(hlsDiagnostics.playingDateLatencySeconds)}</strong>
+          </div>
+          <div className="playback-stat" title="Most recent automatic jump toward the live edge">
+            <span>Last correction</span>
+            <strong>{hlsDiagnostics.lastCorrection ?? '—'}</strong>
+          </div>
+        </>
+      )}
       <div className="playback-stat" title="Selected WebRTC candidate transport">
         <span>Transport</span>
         <strong>{metrics.transport ?? (protocol === 'HLS' ? 'HTTPS' : '—')}</strong>
@@ -720,6 +823,23 @@ export function PlaybackStats({
         <strong>
           <i data-playing={playing} aria-hidden="true" />
           {connection}
+        </strong>
+      </div>
+      <div className="playback-stat">
+        <span>Support data</span>
+        <strong>
+          <button
+            className="playback-support-copy"
+            onClick={() => void copySupportSnapshot()}
+            type="button"
+          >
+            {snapshotCopied ? (
+              <Check className="size-3" aria-hidden="true" />
+            ) : (
+              <Copy className="size-3" aria-hidden="true" />
+            )}
+            {snapshotCopied ? 'Copied' : 'Copy snapshot'}
+          </button>
         </strong>
       </div>
     </div>

@@ -12,6 +12,7 @@ interface FakeHlsInstance {
   loadSource: ReturnType<typeof vi.fn>
   attachMedia: ReturnType<typeof vi.fn>
   liveSyncPosition: number | null
+  latency: number
   emit(event: string, data?: unknown): void
 }
 
@@ -28,6 +29,13 @@ const mocks = vi.hoisted(() => {
     readonly loadSource = vi.fn()
     readonly attachMedia = vi.fn()
     liveSyncPosition: number | null = 20
+    latency = 3
+    playingDate: Date | null = null
+    latestLevelDetails = {
+      partHoldBack: 0.5,
+      partTarget: 0.2,
+      targetduration: 2,
+    }
     private listeners = new Map<string, (...args: unknown[]) => void>()
 
     constructor(config: Record<string, unknown>) {
@@ -79,8 +87,10 @@ const channel: PublicChannel = {
   },
 }
 
-async function renderPlayer() {
-  render(<HlsPlayer channel={channel} />)
+async function renderPlayer(
+  latencyProfile: 'balanced' | 'smooth' = 'balanced',
+) {
+  render(<HlsPlayer channel={channel} latencyProfile={latencyProfile} />)
   await act(async () => Promise.resolve())
   return screen.getByLabelText('Late-night games live video') as HTMLVideoElement
 }
@@ -106,15 +116,40 @@ describe('HlsPlayer recovery', () => {
     vi.restoreAllMocks()
   })
 
-  it('uses manifest-driven latency instead of the old one-second override', async () => {
+  it('uses the bounded balanced latency profile', async () => {
     await renderPlayer()
     expect(mocks.instances[0].config).toMatchObject({
       lowLatencyMode: true,
       backBufferLength: 30,
+      liveSyncDuration: 3,
+      liveMaxLatencyDuration: 6,
+      maxLiveSyncPlaybackRate: 1.03,
+      liveSyncOnStallIncrease: 0.5,
     })
-    expect(mocks.instances[0].config).not.toHaveProperty('liveSyncDuration')
-    expect(mocks.instances[0].config).not.toHaveProperty('liveMaxLatencyDuration')
-    expect(mocks.instances[0].config).not.toHaveProperty('maxLiveSyncPlaybackRate')
+  })
+
+  it('uses a larger recovery margin and gentler catch-up in smooth mode', async () => {
+    await renderPlayer('smooth')
+    expect(mocks.instances[0].config).toMatchObject({
+      liveSyncDuration: 5,
+      liveMaxLatencyDuration: 9,
+      maxLiveSyncPlaybackRate: 1.02,
+      liveSyncOnStallIncrease: 1,
+    })
+  })
+
+  it('recreates the HLS instance when the latency profile changes', async () => {
+    const view = render(
+      <HlsPlayer channel={channel} latencyProfile="balanced" />,
+    )
+    await act(async () => Promise.resolve())
+
+    view.rerender(<HlsPlayer channel={channel} latencyProfile="smooth" />)
+    await act(async () => Promise.resolve())
+
+    expect(mocks.instances).toHaveLength(2)
+    expect(mocks.instances[0].destroy).toHaveBeenCalledOnce()
+    expect(mocks.instances[1].config).toMatchObject({ liveSyncDuration: 5 })
   })
 
   it('recreates HLS with bounded backoff after fatal network errors', async () => {
@@ -175,5 +210,66 @@ describe('HlsPlayer recovery', () => {
     await act(async () => vi.advanceTimersByTimeAsync(20_000))
     expect(mocks.instances[0].startLoad).not.toHaveBeenCalled()
     expect(mocks.instances).toHaveLength(1)
+  })
+
+  it('bounds native HLS latency after three safe consecutive samples', async () => {
+    vi.mocked(HTMLMediaElement.prototype.canPlayType).mockReturnValue(
+      'probably',
+    )
+    const video = await renderPlayer()
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
+    Object.defineProperty(video, 'seekable', {
+      configurable: true,
+      value: {
+        length: 1,
+        start: () => 0,
+        end: () => 20,
+      },
+    })
+    Object.defineProperty(video, 'buffered', {
+      configurable: true,
+      value: {
+        length: 1,
+        start: () => 0,
+        end: () => 20,
+      },
+    })
+    video.currentTime = 10
+    fireEvent(video, new Event('playing'))
+
+    await act(async () => vi.advanceTimersByTimeAsync(3_000))
+
+    expect(mocks.instances).toHaveLength(0)
+    expect(video.currentTime).toBe(17)
+  })
+
+  it('does not correct native HLS latency while paused or hidden', async () => {
+    vi.mocked(HTMLMediaElement.prototype.canPlayType).mockReturnValue(
+      'probably',
+    )
+    const video = await renderPlayer()
+    Object.defineProperty(video, 'paused', { configurable: true, value: true })
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
+    Object.defineProperty(video, 'seekable', {
+      configurable: true,
+      value: { length: 1, start: () => 0, end: () => 20 },
+    })
+    Object.defineProperty(video, 'buffered', {
+      configurable: true,
+      value: { length: 1, start: () => 0, end: () => 20 },
+    })
+    video.currentTime = 10
+
+    await act(async () => vi.advanceTimersByTimeAsync(4_000))
+    expect(video.currentTime).toBe(10)
+
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'hidden',
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(4_000))
+    expect(video.currentTime).toBe(10)
   })
 })

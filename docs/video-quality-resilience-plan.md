@@ -1,9 +1,9 @@
 # Video quality and playback resilience plan
 
 Status: the repository implementation is complete for the no-transcode design:
-Setup 1.2.0's OBS baseline, smooth-mode default and migration, warm LL-HLS,
-manifest-driven buffering, progress-aware HLS recovery, bounded make-before-break
-WebRTC repair and HLS fallback, browser diagnostics, TCP ICE, HTTP/3, private
+Setup 1.2.0's OBS baseline, three viewer modes, warm LL-HLS, bounded HLS
+live-edge recovery, progress-aware HLS recovery, bounded make-before-break
+WebRTC repair and Smooth fallback, browser diagnostics, TCP ICE, HTTP/3, private
 MediaMTX metrics/health checks, and safe deployment are implemented. Production
 rollout and the hardware/network impairment matrix below still require the real
 OBS machines, browsers, Oracle security-list apply, and measured stream load.
@@ -30,8 +30,9 @@ socket, proxy, capacity, or player-recovery defect.
 The desired viewer experience is:
 
 - preserve the exact encoded source whenever the device can decode it;
-- default to LL-HLS smooth mode at approximately 3-5 seconds end-to-end
+- default to LL-HLS Balanced mode at approximately 3-5 seconds end-to-end
   latency, preserving the same encoded source quality;
+- retain a Smooth LL-HLS mode with a 5-8 second recovery-oriented target;
 - offer WebRTC as an optional low-latency mode and fall back to LL-HLS when it
   cannot stay healthy;
 - recover brief WebRTC failures before showing a disruptive error;
@@ -200,12 +201,16 @@ NVIDIA AV1 encoder settings. Run `-ResetManagedConfig` to also recreate the
 managed scene collection with Area scaling; both flows back up managed files
 and require confirmation. A fresh install receives both defaults directly.
 
-The two viewer modes deliberately share this one source bitstream:
+The three viewer modes deliberately share this one source bitstream:
 
-- **Smooth (default):** LL-HLS, tuned to a measured 3-5 seconds glass-to-glass
-  latency with a useful playback reserve.
+- **Balanced (default):** LL-HLS candidate A targets three seconds behind the
+  live edge, catches up at no more than 1.03x, and corrects drift beyond six
+  seconds. Its 3-5 second glass-to-glass goal still needs production acceptance
+  measurement.
+- **Smooth:** LL-HLS targets five seconds with a nine-second maximum and gentler
+  1.02x catch-up for weaker viewer connections.
 - **Low latency:** WebRTC/WHEP, kept as an explicit viewer choice for faster
-  interaction, with bounded repair and automatic fallback to warm LL-HLS.
+  interaction, with bounded repair and automatic fallback to warm Smooth HLS.
 
 Do not automatically return a viewer from healthy HLS to WebRTC. Offer
 **Try low latency again** after the circuit-breaker interval so a viewer with a
@@ -225,8 +230,10 @@ Browser -- HTTPS/WHEP signaling --> Caddy --> MediaMTX
 
 The repository already has several good foundations:
 
-- WebRTC is the default, preserving the source at low latency.
-- HLS.js is configured for LL-HLS and is available as a compatibility fallback.
+- Balanced LL-HLS is the viewer default; Smooth LL-HLS and WebRTC remain
+  explicit alternatives.
+- HLS.js uses explicit seconds-based target, maximum, stall-growth, and gentle
+  catch-up values for both HLS profiles.
 - The WebRTC player detects five samples without decoded/presented frame
   progress, rebuilds once, then falls back to HLS on another stall.
 - MediaMTX's bundled WHEP reader independently retries failed/closed peer
@@ -460,13 +467,15 @@ dashboard.
 
 The rolling frame-pacing slice is implemented for both HLS and WebRTC with
 `requestVideoFrameCallback`; WebRTC also reads decoder, jitter-buffer, and
-freeze counters from `getStats()`. Continue improving browser diagnostics to
-calculate the remaining rolling deltas and rates:
+freeze counters from `getStats()`. HLS buffer ahead, live-edge distance,
+target/maximum, playback rate, engine, playlist timing, program-date timeline
+estimate, last correction, and a privacy-safe support snapshot are also
+implemented. Continue improving browser diagnostics to calculate the remaining
+rolling deltas, rates, and event timings:
 
 - received packets and loss percentage by audio/video track;
 - jitter, average jitter-buffer delay, and discarded-late packets;
 - NACK, PLI, retransmitted packets, freeze count/duration, and concealed audio;
-- buffer ahead and live-edge distance for HLS;
 - selected transport/candidate type, recovery attempt, last progress time, and
   active protocol;
 - session startup, first-frame, stall, recovery, and protocol-switch durations.
