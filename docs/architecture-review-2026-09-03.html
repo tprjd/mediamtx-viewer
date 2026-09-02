@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture review for mediamtx-viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { border-style: dashed; }
+      .leak { color: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .arrow { color: #64748b; font-size: 1.25rem; line-height: 1; }
+      .module { border: 1px solid #cbd5e1; border-radius: .5rem; background: white; padding: .7rem; }
+      .internal { border: 1px solid #475569; border-radius: .375rem; padding: .45rem; color: #cbd5e1; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-6xl mx-auto px-6 py-12 space-y-12">
+      <header class="border-b border-slate-300 pb-8">
+        <p class="text-xs uppercase tracking-[.2em] text-indigo-700">Architecture review · 2026-09-03</p>
+        <h1 class="mt-2 text-4xl font-semibold tracking-tight">mediamtx-viewer</h1>
+        <div class="mt-5 flex flex-wrap gap-4 text-xs text-slate-600">
+          <span><i class="inline-block h-3 w-5 rounded border border-slate-400 bg-white align-middle"></i> module</span>
+          <span><i class="inline-block h-3 w-5 rounded border border-dashed border-slate-500 bg-white align-middle"></i> seam</span>
+          <span><i class="inline-block h-1 w-5 bg-red-600 align-middle"></i> leakage</span>
+          <span><i class="inline-block h-3 w-5 rounded bg-slate-900 align-middle"></i> deep module</span>
+        </div>
+        <div class="mt-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          No <code>CONTEXT.md</code> or ADRs exist. Define: playback profile, viewer identity, OBS setup session, managed OBS profile, streaming topology.
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-12">
+        <article id="stream-contract" class="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <h2 class="text-2xl font-semibold">1. Deepen the streaming contract</h2>
+            <div class="flex gap-2 text-xs font-semibold">
+              <span class="rounded-full bg-emerald-100 px-3 py-1 text-emerald-800">Strong</span>
+              <span class="rounded-full bg-indigo-100 px-3 py-1 text-indigo-800">ports &amp; adapters</span>
+            </div>
+          </div>
+          <p class="mt-4 font-mono text-xs leading-6 text-slate-600">components/hls-player.tsx · scripts/windows/setup-frankerzspam-obs.ps1 · deploy/oracle/mediamtx.yml.example · deploy/oracle/validate-mediamtx.sh · deploy/oracle/deploy.sh · README.md · docs/*hls-plan.md</p>
+
+          <div class="mt-7 grid gap-5 lg:grid-cols-2">
+            <figure class="rounded-xl border border-red-200 bg-red-50/40 p-5">
+              <figcaption class="text-xs font-bold uppercase tracking-wider text-red-700">Before · one fact, seven owners</figcaption>
+              <div class="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center text-xs">
+                <div class="space-y-2">
+                  <div class="module">HLS profile constants</div>
+                  <div class="module">OBS keyframe literal</div>
+                  <div class="module">MediaMTX YAML</div>
+                </div>
+                <div class="space-y-8 leak font-bold"><div>↔</div><div>↔</div><div>↔</div></div>
+                <div class="space-y-2">
+                  <div class="module">shell assertions</div>
+                  <div class="module">restart decisions</div>
+                  <div class="module">tests + plan prose</div>
+                </div>
+              </div>
+              <p class="mt-5 text-center text-xs font-semibold text-red-700">Manual agreement is the interface.</p>
+            </figure>
+            <figure class="rounded-xl border border-slate-700 bg-slate-950 p-5 text-white">
+              <figcaption class="text-xs font-bold uppercase tracking-wider text-emerald-300">After · one contract, verified projections</figcaption>
+              <div class="deep mt-5 rounded-xl border-2 border-slate-500 p-4">
+                <div class="text-center text-sm font-semibold">Streaming contract module</div>
+                <div class="mt-3 grid grid-cols-3 gap-2 text-center text-[11px]">
+                  <div class="internal">segment + part</div>
+                  <div class="internal">latency + buffer</div>
+                  <div class="internal">keyframe policy</div>
+                </div>
+              </div>
+              <div class="my-3 text-center text-slate-400">↓ verified adapters ↓</div>
+              <div class="grid grid-cols-3 gap-2 text-center text-[11px] text-slate-800">
+                <div class="rounded bg-white p-2">browser</div>
+                <div class="rounded bg-white p-2">MediaMTX</div>
+                <div class="rounded bg-white p-2">OBS</div>
+              </div>
+            </figure>
+          </div>
+          <dl class="mt-6 grid gap-4 md:grid-cols-2">
+            <div><dt class="text-xs font-bold uppercase tracking-wider text-slate-500">Problem</dt><dd class="mt-1 text-sm">Latency, packaging, keyframes, and restart behavior leak across seven seams; stale plan literals already contradict production policy.</dd></div>
+            <div><dt class="text-xs font-bold uppercase tracking-wider text-slate-500">Solution</dt><dd class="mt-1 text-sm">Make one versioned streaming contract authoritative, then derive or verify every runtime projection and retire obsolete policy prose.</dd></div>
+          </dl>
+          <ul class="mt-5 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <li>• locality: tune one module</li><li>• leverage: three runtime adapters</li><li>• tests verify one contract</li><li>• agents read current policy</li>
+          </ul>
+        </article>
+
+        <article id="playback-run" class="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <h2 class="text-2xl font-semibold">2. Collapse playback lifecycle</h2>
+            <div class="flex gap-2 text-xs font-semibold">
+              <span class="rounded-full bg-emerald-100 px-3 py-1 text-emerald-800">Strong</span>
+              <span class="rounded-full bg-indigo-100 px-3 py-1 text-indigo-800">ports &amp; adapters</span>
+            </div>
+          </div>
+          <p class="mt-4 font-mono text-xs leading-6 text-slate-600">components/live-player.tsx · components/hls-player.tsx · components/webrtc-player.tsx · components/vidstack-player.tsx · components/*player.test.tsx</p>
+          <div class="mt-7 grid gap-5 lg:grid-cols-2">
+            <figure class="rounded-xl border border-slate-200 bg-stone-50 p-4">
+              <figcaption class="text-xs font-bold uppercase tracking-wider text-red-700">Before · duplicated lifecycle machines</figcaption>
+              <pre class="mermaid mt-3">
+flowchart TD
+  L[LivePlayer mode + cooldown] --> H[HlsPlayer 964 lines]
+  L --> W[WebRtcPlayer 688 lines]
+  H --> V[Vidstack callbacks]
+  W --> V
+  H --> HA[auth + timers + visibility + recovery + UI]
+  W --> WA[auth + timers + visibility + recovery + UI]
+  classDef leak fill:#fef2f2,stroke:#dc2626,color:#7f1d1d;
+  class HA,WA leak;
+              </pre>
+            </figure>
+            <figure class="rounded-xl border border-slate-700 bg-slate-950 p-4 text-white">
+              <figcaption class="text-xs font-bold uppercase tracking-wider text-emerald-300">After · lifecycle owns the state machine</figcaption>
+              <pre class="mermaid mt-3">
+flowchart TD
+  UI[React display adapter] --> R[Playback run module]
+  R --> H[HLS adapter]
+  R --> W[WebRTC adapter]
+  R --> V[Vidstack adapter]
+  R --> I[states + pause + retries + recovery]
+  classDef deep fill:#0f172a,stroke:#94a3b8,color:#fff,stroke-width:3px;
+  class R deep;
+              </pre>
+            </figure>
+          </div>
+          <dl class="mt-6 grid gap-4 md:grid-cols-2">
+            <div><dt class="text-xs font-bold uppercase tracking-wider text-slate-500">Problem</dt><dd class="mt-1 text-sm">Joining, pause, progress, visibility, retry, fallback, and rendered state require reading three React modules and two parallel effect machines.</dd></div>
+            <div><dt class="text-xs font-bold uppercase tracking-wider text-slate-500">Solution</dt><dd class="mt-1 text-sm">Put shared lifecycle and recovery policy inside one deep playback-run module; retain HLS, WebRTC, and Vidstack as adapters.</dd></div>
+          </dl>
+          <ul class="mt-5 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <li>• one lifecycle test surface</li><li>• locality: timers live together</li><li>• leverage across both protocols</li><li>• React renders, not orchestrates</li>
+          </ul>
+        </article>
+
+        <article id="obs-workflow" class="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <h2 class="text-2xl font-semibold">3. Deepen OBS provisioning</h2>
+            <div class="flex gap-2 text-xs font-semibold">
+              <span class="rounded-full bg-amber-100 px-3 py-1 text-amber-800">Worth exploring</span>
+              <span class="rounded-full bg-indigo-100 px-3 py-1 text-indigo-800">ports &amp; adapters</span>
+            </div>
+          </div>
+          <p class="mt-4 font-mono text-xs leading-6 text-slate-600">lib/obs-setup.ts · lib/obs-setup-script.ts · lib/channels.ts · app/api/obs-setup/device/{start,poll}/route.ts · app/account/channel/obs-setup/actions.ts · scripts/windows/setup-frankerzspam-obs.ps1</p>
+          <div class="mt-7 grid gap-5 lg:grid-cols-2">
+            <figure class="rounded-xl border border-slate-200 bg-stone-50 p-4">
+              <figcaption class="text-xs font-bold uppercase tracking-wider text-red-700">Before · outcome split across runtimes</figcaption>
+              <pre class="mermaid mt-3">
+sequenceDiagram
+  participant PS as PowerShell
+  participant S as Start route
+  participant B as Browser action
+  participant P as Poll route
+  participant C as Channel key
+  PS->>PS: write profiles
+  PS->>S: duplicated version literal
+  B->>P: approve session
+  P->>C: rotate key
+  P->>P: disconnect publisher
+  P-->>PS: credential or opaque error
+              </pre>
+            </figure>
+            <figure class="rounded-xl border border-slate-700 bg-slate-950 p-5 text-white">
+              <figcaption class="text-xs font-bold uppercase tracking-wider text-emerald-300">After · provisioning owns the outcome</figcaption>
+              <div class="deep mt-5 rounded-xl border-2 border-slate-500 p-5 text-center">
+                <div class="text-sm font-semibold">OBS provisioning module</div>
+                <div class="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                  <div class="internal">session transitions</div><div class="internal">release compatibility</div>
+                  <div class="internal">key outcome</div><div class="internal">publisher outcome</div>
+                </div>
+              </div>
+              <div class="mt-4 grid grid-cols-3 gap-2 text-center text-[11px] text-slate-800">
+                <div class="rounded bg-white p-2">HTTP</div><div class="rounded bg-white p-2">PowerShell</div><div class="rounded bg-white p-2">channel key</div>
+              </div>
+            </figure>
+          </div>
+          <dl class="mt-6 grid gap-4 md:grid-cols-2">
+            <div><dt class="text-xs font-bold uppercase tracking-wider text-slate-500">Problem</dt><dd class="mt-1 text-sm">Session state, launcher compatibility, credential rotation, publisher eviction, and user-safe errors cross six modules and two runtimes.</dd></div>
+            <div><dt class="text-xs font-bold uppercase tracking-wider text-slate-500">Solution</dt><dd class="mt-1 text-sm">Let one provisioning module own the full setup outcome while HTTP, PowerShell, and channel-key code remain adapters.</dd></div>
+          </dl>
+          <ul class="mt-5 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <li>• one release fact</li><li>• one lifecycle test table</li><li>• locality: failures keep context</li><li>• transport mapping stays thin</li>
+          </ul>
+        </article>
+
+        <article id="viewer-identity" class="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <h2 class="text-2xl font-semibold">4. Name viewer identity</h2>
+            <div class="flex gap-2 text-xs font-semibold">
+              <span class="rounded-full bg-amber-100 px-3 py-1 text-amber-800">Worth exploring</span>
+              <span class="rounded-full bg-slate-200 px-3 py-1 text-slate-700">in-process</span>
+            </div>
+          </div>
+          <p class="mt-4 font-mono text-xs leading-6 text-slate-600">components/channel-viewer.tsx · components/live-player.tsx · lib/mediamtx.ts · lib/channel-status-monitor.ts · lib/mediamtx.test.ts</p>
+          <div class="mt-7 grid gap-5 lg:grid-cols-2">
+            <figure class="rounded-xl border border-red-200 bg-red-50/40 p-5">
+              <figcaption class="text-xs font-bold uppercase tracking-wider text-red-700">Before · identity is an implicit protocol</figcaption>
+              <div class="mt-5 space-y-3 text-xs">
+                <div class="module">tab creates UUID</div>
+                <div class="text-center leak font-bold">↓ hidden query convention</div>
+                <div class="grid grid-cols-3 gap-2 text-center"><div class="module">HLS URL</div><div class="module">WebRTC URL</div><div class="module">fallback URL</div></div>
+                <div class="text-center leak font-bold">↓ server rediscovers meaning</div>
+                <div class="module text-center">MediaMTX readers + thumbnail exclusion + deduplication</div>
+              </div>
+            </figure>
+            <figure class="rounded-xl border border-slate-700 bg-slate-950 p-5 text-white">
+              <figcaption class="text-xs font-bold uppercase tracking-wider text-emerald-300">After · one identity policy</figcaption>
+              <div class="deep mt-5 rounded-xl border-2 border-slate-500 p-5 text-center">
+                <div class="text-sm font-semibold">Viewer identity module</div>
+                <div class="mt-3 grid grid-cols-2 gap-2 text-[11px]"><div class="internal">tag + extract</div><div class="internal">validate + identity key</div><div class="internal">thumbnail policy</div><div class="internal">anonymous policy</div></div>
+              </div>
+              <div class="my-3 text-center text-slate-400">↓ shared by ↓</div>
+              <div class="grid grid-cols-2 gap-2 text-center text-[11px] text-slate-800"><div class="rounded bg-white p-2">playback URLs</div><div class="rounded bg-white p-2">reader mapping</div></div>
+            </figure>
+          </div>
+          <dl class="mt-6 grid gap-4 md:grid-cols-2">
+            <div><dt class="text-xs font-bold uppercase tracking-wider text-slate-500">Problem</dt><dd class="mt-1 text-sm">Query naming, UUID validation, URL tagging, thumbnail exclusion, and cross-protocol deduplication leak between browser and server modules.</dd></div>
+            <div><dt class="text-xs font-bold uppercase tracking-wider text-slate-500">Solution</dt><dd class="mt-1 text-sm">Concentrate viewer identity policy in one runtime-safe module; leave MediaMTX fetching in its existing adapter.</dd></div>
+          </dl>
+          <ul class="mt-5 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <li>• one identity vocabulary</li><li>• one policy test table</li><li>• locality: counting rules together</li><li>• playback URLs stay safe</li>
+          </ul>
+        </article>
+      </section>
+
+      <section id="top-recommendation" class="rounded-2xl bg-indigo-950 p-8 text-white shadow-xl">
+        <p class="text-xs font-bold uppercase tracking-[.2em] text-indigo-300">Top recommendation</p>
+        <a class="mt-2 block text-3xl font-semibold underline decoration-indigo-400 underline-offset-4" href="#stream-contract">Deepen the streaming contract</a>
+        <p class="mt-3 text-indigo-100">It has the newest churn, already caused a production mismatch, and removes the most cross-runtime knowledge from every future latency change.</p>
+      </section>
+    </main>
+  </body>
+</html>
