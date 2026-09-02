@@ -1,7 +1,9 @@
 # Two-keyframe low-latency HLS
 
-Status: implemented in source on 2026-09-02. Production deployment and live
-playlist verification are pending.
+Status: implemented and deployed on 2026-09-02. The live playlist uses 2.000 s
+segments and 0.200 s parts. The active publisher still uses a two-second GOP,
+so its segments currently contain one keyframe. Apply the managed one-second
+OBS GOP to complete the publisher rollout.
 
 This change replaces the experimental `HLS ≤2s` budget from
 `docs/two-second-ll-hls-plan.md`. The new profile favors continuity over the
@@ -55,6 +57,7 @@ substitute for the larger buffer.
 - `deploy/oracle/mediamtx.yml.example` defines two-second segments.
 - `deploy/oracle/validate-mediamtx.sh` rejects deployment configs that do not
   use two-second segments and 200 ms parts.
+- `deploy/oracle/deploy.sh` restarts MediaMTX when its configuration changes.
 - `deploy/oracle/secrets/mediamtx.yml` contains the matching production value.
 - The root and Oracle deployment READMEs describe the new contract.
 - Component and browser tests use the new label, limits, and playlist timing.
@@ -71,10 +74,14 @@ Automated verification covers these requirements:
 - The playback mode remains selectable and preserves the saved `ultra-low`
   preference.
 
-After deployment, verify the live media playlist while OBS publishes. Confirm
-that `#EXT-X-TARGETDURATION` is `2`, completed segments are near 2 s, and parts
-remain near 200 ms. Then watch `HLS ≤3s`, Balanced, and Smooth long enough to
-compare latency, corrective seeks, mode exits, and cold-join time.
+Production verification confirmed `#EXT-X-TARGETDURATION:2`, 2.000 s completed
+segments, and 0.200 s parts. An eight-second `ffprobe` sample found keyframes at
+two-second intervals in the active 1080p60 H.264 stream. Use a managed profile
+after `-RepairManagedConfig`, or set the active OBS profile's keyframe interval
+to one second, before evaluating the intended two-keyframe segments.
+
+Watch `HLS ≤3s`, Balanced, and Smooth long enough to compare latency,
+corrective seeks, mode exits, and cold-join time.
 
 ## Rollback
 

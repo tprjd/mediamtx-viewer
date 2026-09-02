@@ -568,7 +568,7 @@ function Get-EncoderSettings {
         if ($codec -eq 'AV1') {
             # OBS's normal NVENC baseline uses two B-frames. They improve
             # quality per bit with little encoder cost; the one-second GOP
-            # keeps LL-HLS segment cadence inside the two-second mode budget.
+            # keeps LL-HLS segment cadence inside the three-second mode budget.
             $settings.bf = 2
         }
         if ($codec -eq 'H264') {

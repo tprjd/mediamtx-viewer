@@ -38,10 +38,10 @@ The script copies the source and ignored runtime secrets, validates the staged
 MediaMTX configuration in an isolated container and the Compose model, builds
 the viewer and FFmpeg thumbnail worker on the ARM VM, applies versioned SQLite
 migrations, creates the first administrator when needed, updates the UDP 443
-and TCP 8189 UFW rules, and reloads Caddy. Compose recreates MediaMTX only when
-its image or service definition changes; valid config-only changes are
-hot-reloaded where supported. It does not delete unrelated remote files, the
-auth volume, or DNS.
+and TCP 8189 UFW rules, and reloads Caddy. The script restarts MediaMTX only
+when the staged MediaMTX configuration differs from the active file. It waits
+for all health checks after the restart. The script does not delete unrelated
+remote files, the auth volume, or DNS.
 
 The deploy also installs `90-mediamtx.conf`, setting the Linux UDP send and
 receive ceilings to 7.5 MB for QUIC and WebRTC. This follows quic-go's current

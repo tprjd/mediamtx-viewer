@@ -69,10 +69,10 @@ to back up and rebuild the managed collection; unrelated OBS profiles and
 collections remain untouched.
 
 Existing managed configurations are intentionally preserved on an ordinary
-rerun. Use `-RepairManagedConfig` to apply the new NVIDIA AV1 encoder defaults
-to existing profiles. Use `-ResetManagedConfig` to also recreate the managed
-scene collection with Area scaling; setup backs up the managed files and asks
-for confirmation first.
+rerun. Use `-RepairManagedConfig` to apply the one-second GOP and current
+encoder defaults to existing profiles. Use `-ResetManagedConfig` to also
+recreate the managed scene collection with Area scaling. Setup backs up the
+managed files and asks for confirmation first.
 
 Existing unrelated profiles and collections are untouched. A normal rerun
 preserves the managed scenes and profile. The supported maintenance modes are:
