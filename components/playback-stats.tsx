@@ -1,7 +1,7 @@
 'use client'
 
-import { Check, Copy } from 'lucide-react'
-import { useEffect, useMemo, useState, type RefObject } from 'react'
+import { Check, ChevronDown, Copy } from 'lucide-react'
+import { useEffect, useId, useMemo, useState, type RefObject } from 'react'
 
 type PlaybackProtocol = 'WebRTC' | 'HLS'
 
@@ -502,7 +502,9 @@ export function PlaybackStats({
 }: PlaybackStatsProps) {
   const fallbackCodecs = useMemo(() => trackCodecs(tracks), [tracks])
   const [metrics, setMetrics] = useState<PlaybackMetrics>(fallbackCodecs)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const [snapshotCopied, setSnapshotCopied] = useState(false)
+  const diagnosticsId = useId()
 
   useEffect(() => {
     const video = videoRef.current
@@ -620,6 +622,20 @@ export function PlaybackStats({
 
   const codecs = [metrics.videoCodec, metrics.audioCodec].filter(Boolean).join(' · ')
   const connection = playing ? 'Playing' : 'Waiting'
+  const qualitySummary = [
+    formatResolution(metrics.width, metrics.height),
+    formatFrameRate(metrics.framesPerSecond),
+  ].join(' · ')
+  const summaryLatency = hlsDiagnostics
+    ? formatSeconds(hlsDiagnostics.liveLatencySeconds)
+    : metrics.roundTripTime === undefined
+      ? '—'
+      : `${Math.round(metrics.roundTripTime * 1_000)} ms`
+  const summaryReserve = hlsDiagnostics
+    ? formatSeconds(hlsDiagnostics.bufferAheadSeconds)
+    : metrics.packetLossPercent === undefined
+      ? '—'
+      : `${metrics.packetLossPercent.toFixed(2)}%`
   const copySupportSnapshot = async () => {
     const snapshot = {
       browser: navigator.userAgent,
@@ -663,9 +679,64 @@ export function PlaybackStats({
   return (
     <div
       aria-label="Playback diagnostics"
-      className={`playback-stats${hlsDiagnostics ? ' playback-stats-hls' : ''}`}
+      className="playback-diagnostics"
       title="Viewer-side playback measurements"
     >
+      <button
+        aria-controls={diagnosticsId}
+        aria-expanded={detailsOpen}
+        aria-label={
+          detailsOpen
+            ? 'Hide playback diagnostics'
+            : 'Show playback diagnostics'
+        }
+        className="playback-diagnostics-toggle"
+        onClick={() => setDetailsOpen((open) => !open)}
+        type="button"
+      >
+        <span className="playback-summary-stat playback-summary-state">
+          <small>Status</small>
+          <strong>
+            <i data-playing={playing} aria-hidden="true" />
+            {connection}
+          </strong>
+        </span>
+        <span className="playback-summary-stat">
+          <small>Mode</small>
+          <strong>
+            {hlsDiagnostics?.engine
+              ? `${protocol} · ${hlsDiagnostics.engine}`
+              : protocol}
+          </strong>
+        </span>
+        <span className="playback-summary-stat">
+          <small>Quality</small>
+          <strong>{qualitySummary}</strong>
+        </span>
+        <span className="playback-summary-stat">
+          <small>{hlsDiagnostics ? 'Live latency' : 'Network RTT'}</small>
+          <strong>{summaryLatency}</strong>
+        </span>
+        <span className="playback-summary-stat">
+          <small>{hlsDiagnostics ? 'Forward buffer' : 'Loss rate'}</small>
+          <strong>{summaryReserve}</strong>
+        </span>
+        <span className="playback-summary-stat playback-summary-more">
+          <small>Diagnostics</small>
+          <strong>
+            {detailsOpen ? 'Hide' : 'More'}
+            <ChevronDown
+              className="playback-diagnostics-chevron"
+              aria-hidden="true"
+            />
+          </strong>
+        </span>
+      </button>
+      <div
+        className="playback-stats"
+        hidden={!detailsOpen}
+        id={diagnosticsId}
+      >
       <div className="playback-stat">
         <span>Mode</span>
         <strong>{protocol}</strong>
@@ -841,6 +912,7 @@ export function PlaybackStats({
             {snapshotCopied ? 'Copied' : 'Copy snapshot'}
           </button>
         </strong>
+      </div>
       </div>
     </div>
   )

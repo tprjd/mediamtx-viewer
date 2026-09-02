@@ -1,4 +1,12 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -105,17 +113,30 @@ describe('PlaybackStats diagnostics', () => {
       />,
     )
 
-    expect(screen.getByText('Live latency').nextElementSibling).toHaveTextContent(
+    const toggle = screen.getByRole('button', {
+      name: 'Show playback diagnostics',
+    })
+    const details = document.getElementById(
+      toggle.getAttribute('aria-controls') ?? '',
+    )
+    expect(details).not.toBeVisible()
+    const summaryLatency = screen
+      .getAllByText('Live latency')
+      .find((element) => element.closest('.playback-summary-stat'))
+    expect(summaryLatency).toBeVisible()
+    fireEvent.click(toggle)
+    expect(within(details!).getByText('Live latency').nextElementSibling).toHaveTextContent(
       '3.4s',
     )
-    expect(screen.getByText('Target / max').nextElementSibling).toHaveTextContent(
+    expect(details).toBeVisible()
+    expect(within(details!).getByText('Target / max').nextElementSibling).toHaveTextContent(
       '3s / 6s',
     )
-    expect(screen.getByText('Engine / rate').nextElementSibling).toHaveTextContent(
+    expect(within(details!).getByText('Engine / rate').nextElementSibling).toHaveTextContent(
       'hls.js · 1.03×',
     )
 
-    screen.getByRole('button', { name: 'Copy snapshot' }).click()
+    fireEvent.click(screen.getByRole('button', { name: 'Copy snapshot' }))
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce())
     const snapshot = JSON.parse(writeText.mock.calls[0][0]) as {
       browser: string
@@ -125,6 +146,10 @@ describe('PlaybackStats diagnostics', () => {
     expect(snapshot.playback.protocol).toBe('HLS')
     expect(snapshot.playback.hls.liveLatencySeconds).toBe(3.4)
     expect(writeText.mock.calls[0][0]).not.toContain('cookie')
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Hide playback diagnostics' }),
+    )
+    expect(details).not.toBeVisible()
   })
 
   it('renders cumulative receiver-side packet loss', async () => {
