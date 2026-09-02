@@ -99,6 +99,7 @@ describe('HlsPlayer recovery', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     mocks.instances.length = 0
+    mocks.FakeHls.isSupported = () => true
     mocks.getSession.mockResolvedValue({ data: { user: { id: 'user' } } })
     vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('')
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
@@ -136,6 +137,20 @@ describe('HlsPlayer recovery', () => {
       maxLiveSyncPlaybackRate: 1.02,
       liveSyncOnStallIncrease: 1,
     })
+  })
+
+  it('uses hls.js for balanced and keeps native HLS for smooth when both work', async () => {
+    vi.mocked(HTMLMediaElement.prototype.canPlayType).mockReturnValue(
+      'probably',
+    )
+    await renderPlayer('balanced')
+    expect(mocks.instances).toHaveLength(1)
+
+    cleanup()
+    mocks.instances.length = 0
+    const video = await renderPlayer('smooth')
+    expect(mocks.instances).toHaveLength(0)
+    expect(video.src).toContain('/media/hls/live/index.m3u8')
   })
 
   it('recreates the HLS instance when the latency profile changes', async () => {
@@ -213,6 +228,7 @@ describe('HlsPlayer recovery', () => {
   })
 
   it('bounds native HLS latency after three safe consecutive samples', async () => {
+    mocks.FakeHls.isSupported = () => false
     vi.mocked(HTMLMediaElement.prototype.canPlayType).mockReturnValue(
       'probably',
     )
@@ -245,6 +261,7 @@ describe('HlsPlayer recovery', () => {
   })
 
   it('does not correct native HLS latency while paused or hidden', async () => {
+    mocks.FakeHls.isSupported = () => false
     vi.mocked(HTMLMediaElement.prototype.canPlayType).mockReturnValue(
       'probably',
     )
@@ -274,6 +291,7 @@ describe('HlsPlayer recovery', () => {
   })
 
   it('reports balanced unavailable when active native HLS has no live edge', async () => {
+    mocks.FakeHls.isSupported = () => false
     vi.mocked(HTMLMediaElement.prototype.canPlayType).mockReturnValue(
       'probably',
     )

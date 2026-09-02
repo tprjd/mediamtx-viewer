@@ -432,13 +432,21 @@ export function HlsPlayer({
       })
     }
 
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    const nativeHlsSupported = Boolean(
+      video.canPlayType('application/vnd.apple.mpegurl'),
+    )
+    const hlsJsSupported = Hls.isSupported()
+    const useNativeHls =
+      nativeHlsSupported &&
+      (latencyProfile === 'smooth' || !hlsJsSupported)
+
+    if (useNativeHls) {
       nativeHls = true
       video.src = sourceUrl
       video.load()
       publishDiagnostics()
       beginPlayback()
-    } else if (Hls.isSupported()) {
+    } else if (hlsJsSupported) {
       hls = new Hls({
         lowLatencyMode: true,
         backBufferLength: 30,
@@ -488,6 +496,12 @@ export function HlsPlayer({
       hls.loadSource(sourceUrl)
       hls.attachMedia(video)
       publishDiagnostics()
+    } else if (nativeHlsSupported) {
+      nativeHls = true
+      video.src = sourceUrl
+      video.load()
+      publishDiagnostics()
+      beginPlayback()
     } else {
       unsupportedTimer = setTimeout(() => setPlaybackState('unsupported'), 0)
     }

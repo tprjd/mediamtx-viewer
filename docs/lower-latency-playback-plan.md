@@ -94,6 +94,13 @@ Expected behavior:
 - add only 0.5 seconds to the target after a detected stall, capped by hls.js at
   one target duration.
 
+Production measurement found that a browser selecting native HLS held both
+Balanced and Smooth near eight seconds because native playback ignored the two
+hls.js profiles. Balanced therefore prefers hls.js whenever MSE is supported,
+while Smooth retains native HLS as the recovery-oriented browser-managed path.
+Balanced falls back to native only when hls.js is unavailable, where the
+seekable-edge guard below still applies.
+
 Candidate A is the recommended first implementation. Three seconds represents
 15 advertised LL-HLS parts, so it retains substantially more reserve than the
 current 0.5-second manifest hold-back even though it is below three complete

@@ -206,7 +206,8 @@ The three viewer modes deliberately share this one source bitstream:
 - **Balanced (default):** LL-HLS candidate A targets three seconds behind the
   live edge, catches up at no more than 1.03x, and corrects drift beyond six
   seconds. Its 3-5 second glass-to-glass goal still needs production acceptance
-  measurement.
+  measurement. It prefers hls.js when MSE is supported so native browser
+  buffering cannot silently make it identical to Smooth.
 - **Smooth:** LL-HLS targets five seconds with a nine-second maximum and gentler
   1.02x catch-up for weaker viewer connections.
 - **Low latency:** WebRTC/WHEP, kept as an explicit viewer choice for faster
