@@ -1,6 +1,6 @@
 # Viewer issues
 
-Status: fixed in source on 2026-09-02; deployment pending.
+Status: fixed and deployed on 2026-09-02.
 
 These issues were reported on Chrome and Edge desktop. The fixes apply to all
 supported browsers and to both HLS and WebRTC playback.
