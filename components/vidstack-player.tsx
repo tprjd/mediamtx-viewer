@@ -55,6 +55,14 @@ const LIVE_KEY_SHORTCUTS = {
   speedUp: null,
 }
 
+function PlayerPoster({ poster }: { poster?: string | null }) {
+  const started = useMediaState('started')
+
+  if (!poster || started) return null
+
+  return <Poster alt="" className="media-poster" />
+}
+
 function PlayerControls({ seekableLive }: { seekableLive: boolean }) {
   const fullscreen = useMediaState('fullscreen')
   const muted = useMediaState('muted')
@@ -198,7 +206,7 @@ export function VidstackPlayer({
       viewType="video"
     >
       <MediaProvider />
-      {poster && <Poster alt="" className="media-poster" />}
+      <PlayerPoster poster={poster} />
       {children}
       <PlayerControls seekableLive={seekableLive} />
       <MediaAnnouncer />

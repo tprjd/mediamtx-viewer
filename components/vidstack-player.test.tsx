@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
   return {
     LocalHls,
     hlsInstance: { name: 'hls instance' },
+    playbackStarted: false,
     provider: {
       config: undefined as unknown,
       kind: 'hls',
@@ -59,8 +60,9 @@ vi.mock('@vidstack/react', async () => {
     MuteButton: button,
     PIPButton: button,
     PlayButton: button,
-    Poster: () => null,
-    useMediaState: (state: string) => state !== 'fullscreen',
+    Poster: () => <span data-testid="media-poster" />,
+    useMediaState: (state: string) =>
+      state === 'started' ? mocks.playbackStarted : state !== 'fullscreen',
     VolumeSlider: {
       Root: ({ children, ...props }: React.ComponentProps<'div'>) => (
         <div {...props}>{children}</div>
@@ -76,6 +78,7 @@ vi.mock('@vidstack/react', async () => {
 
 describe('VidstackPlayer', () => {
   beforeEach(() => {
+    mocks.playbackStarted = false
     mocks.provider.config = undefined
     mocks.provider.kind = 'hls'
     mocks.provider.library = undefined
@@ -137,5 +140,26 @@ describe('VidstackPlayer', () => {
     expect(onProviderKindChange).toHaveBeenCalledWith('native')
     expect(onVideoElementChange).toHaveBeenCalledWith(mocks.provider.video)
     expect(screen.getByText('Live')).toBeInTheDocument()
+  })
+
+  it('removes the poster after playback starts', () => {
+    const { rerender } = render(
+      <VidstackPlayer
+        ariaLabel="Live channel video"
+        poster="/api/channels/channel-id/poster"
+      />,
+    )
+
+    expect(screen.getByTestId('media-poster')).toBeInTheDocument()
+
+    mocks.playbackStarted = true
+    rerender(
+      <VidstackPlayer
+        ariaLabel="Live channel video"
+        poster="/api/channels/channel-id/poster"
+      />,
+    )
+
+    expect(screen.queryByTestId('media-poster')).not.toBeInTheDocument()
   })
 })
