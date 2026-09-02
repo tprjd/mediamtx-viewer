@@ -30,7 +30,16 @@ test('opens a stable watch URL', async ({ page }) => {
   await page.goto('/watch/live')
 
   await expect(page.getByRole('heading', { name: 'Live stream' })).toBeVisible()
-  await expect(page.getByLabel('Live stream live video')).toBeVisible()
+  const player = page.getByLabel('Live stream live video')
+  await expect(player).toBeVisible()
+  await expect(
+    player.getByRole('button', { name: 'Play video' }),
+  ).toBeAttached()
+  await expect(
+    player.getByRole('button', { name: 'Unmute video' }),
+  ).toBeAttached()
+  await expect(player.getByRole('button', { name: 'Live' })).toBeAttached()
+  await expect(player.locator('video[controls]')).toHaveCount(0)
   await expect(page.getByRole('button', { name: /HLS ≤2s/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Balanced' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Smooth' })).toBeVisible()

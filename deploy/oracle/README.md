@@ -81,6 +81,9 @@ offering another WebRTC attempt. HLS retries transient failures with bounded
 exponential backoff while the stream remains live; hidden tabs and intentional
 pauses do not create reconnect storms. MediaMTX uses explicit one-second
 segments and 200 ms parts, paired with setup 1.3.0's one-second OBS keyframes.
+The watch page uses locally bundled Vidstack controls for HLS and WebRTC.
+Vidstack owns the media element and control UI. hls.js and the application
+watchdogs still enforce HLS latency, buffering, and recovery behavior.
 Before deploying this version over an existing installation, add
 `hlsSegmentDuration: 1s` and `hlsPartDuration: 200ms` to
 `secrets/mediamtx.yml`; deployment validation now requires the full LL-HLS

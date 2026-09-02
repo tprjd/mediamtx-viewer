@@ -12,6 +12,46 @@ vi.mock('@/components/playback-stats', () => ({
   PlaybackStats: () => null,
 }))
 
+vi.mock('@/components/vidstack-player', async () => {
+  const React = await import('react')
+
+  return {
+    VidstackPlayer: ({
+      ariaLabel,
+      children,
+      onVideoElementChange,
+      poster,
+      src,
+    }: {
+      ariaLabel: string
+      children?: React.ReactNode
+      onVideoElementChange?: (video: HTMLVideoElement | null) => void
+      poster?: string
+      src?: { src: MediaStream }
+    }) => {
+      const videoRef = React.useRef<HTMLVideoElement>(null)
+
+      React.useEffect(() => {
+        const video = videoRef.current
+        if (!video) return
+        onVideoElementChange?.(video)
+        return () => onVideoElementChange?.(null)
+      }, [onVideoElementChange])
+
+      React.useEffect(() => {
+        if (videoRef.current) videoRef.current.srcObject = src?.src ?? null
+      }, [src])
+
+      return (
+        <div>
+          <video aria-label={ariaLabel} poster={poster} ref={videoRef} />
+          {children}
+        </div>
+      )
+    },
+  }
+})
+
 vi.mock('@/lib/auth/client', () => ({
   authClient: { getSession: mocks.getSession },
 }))
@@ -66,7 +106,7 @@ function peerWithFrames(getFrames: () => number): RTCPeerConnection {
   } as unknown as RTCPeerConnection
 }
 
-function connect(reader: FakeReader, peer: RTCPeerConnection) {
+async function connect(reader: FakeReader, peer: RTCPeerConnection) {
   const video = screen.getByLabelText('Late-night games live video')
   Object.defineProperty(video, 'play', {
     configurable: true,
@@ -76,11 +116,14 @@ function connect(reader: FakeReader, peer: RTCPeerConnection) {
     getAudioTracks: () => [{ kind: 'audio' }],
     getVideoTracks: () => [{ kind: 'video' }],
   } as unknown as MediaStream
-  reader.options.onTrack?.({
-    currentTarget: peer,
-    streams: [stream],
-    track: { kind: 'video' },
-  } as unknown as RTCTrackEvent)
+  await act(async () => {
+    reader.options.onTrack?.({
+      currentTarget: peer,
+      streams: [stream],
+      track: { kind: 'video' },
+    } as unknown as RTCTrackEvent)
+    await Promise.resolve()
+  })
 
   Object.defineProperty(video, 'paused', { configurable: true, value: false })
   Object.defineProperty(video, 'ended', { configurable: true, value: false })
@@ -115,7 +158,7 @@ describe('WebRtcPlayer watchdog', () => {
     const fallback = vi.fn()
     await renderPlayer(fallback)
     const peer = peerWithFrames(() => frames)
-    connect(FakeReader.instances[0], peer)
+    await connect(FakeReader.instances[0], peer)
 
     for (let sample = 0; sample < 6; sample += 1) {
       frames += 10
@@ -130,13 +173,13 @@ describe('WebRtcPlayer watchdog', () => {
     const fallback = vi.fn()
     const peer = peerWithFrames(() => 10)
     await renderPlayer(fallback)
-    connect(FakeReader.instances[0], peer)
+    await connect(FakeReader.instances[0], peer)
     await vi.advanceTimersByTimeAsync(5_000)
 
     expect(FakeReader.instances).toHaveLength(2)
     expect(FakeReader.instances[0].close).not.toHaveBeenCalled()
 
-    connect(FakeReader.instances[1], peer)
+    await connect(FakeReader.instances[1], peer)
     expect(FakeReader.instances[0].close).toHaveBeenCalledOnce()
     await vi.advanceTimersByTimeAsync(5_000)
 
@@ -151,11 +194,11 @@ describe('WebRtcPlayer watchdog', () => {
     render(<WebRtcPlayer channel={channel} onFallback={fallback} />)
     await Promise.resolve()
     await Promise.resolve()
-    connect(FakeReader.instances[0], peer)
+    await connect(FakeReader.instances[0], peer)
     await vi.advanceTimersByTimeAsync(5_000)
     expect(FakeReader.instances).toHaveLength(2)
 
-    connect(FakeReader.instances[1], peer)
+    await connect(FakeReader.instances[1], peer)
     for (let sample = 0; sample < 62; sample += 1) {
       frames += 10
       await vi.advanceTimersByTimeAsync(1_000)
@@ -165,7 +208,7 @@ describe('WebRtcPlayer watchdog', () => {
 
     expect(FakeReader.instances).toHaveLength(3)
     expect(FakeReader.instances[1].close).not.toHaveBeenCalled()
-    connect(FakeReader.instances[2], peer)
+    await connect(FakeReader.instances[2], peer)
     expect(FakeReader.instances[1].close).toHaveBeenCalledOnce()
     expect(fallback).not.toHaveBeenCalled()
   })
@@ -174,7 +217,7 @@ describe('WebRtcPlayer watchdog', () => {
     const fallback = vi.fn()
     const peer = peerWithFrames(() => 10)
     await renderPlayer(fallback)
-    connect(FakeReader.instances[0], peer)
+    await connect(FakeReader.instances[0], peer)
     Object.defineProperty(document, 'visibilityState', {
       configurable: true,
       value: 'hidden',
@@ -202,7 +245,7 @@ describe('WebRtcPlayer watchdog', () => {
       ),
     } as unknown as RTCPeerConnection
     await renderPlayer(fallback)
-    const video = connect(FakeReader.instances[0], peer)
+    const video = await connect(FakeReader.instances[0], peer)
     Object.defineProperty(video, 'getVideoPlaybackQuality', {
       configurable: true,
       value: () => ({ totalVideoFrames: 10 }),
@@ -224,7 +267,7 @@ describe('WebRtcPlayer watchdog', () => {
     render(<WebRtcPlayer channel={channel} onFallback={fallback} />)
     await Promise.resolve()
     await Promise.resolve()
-    const video = connect(FakeReader.instances[0], peer)
+    const video = await connect(FakeReader.instances[0], peer)
     Object.defineProperty(video, 'getVideoPlaybackQuality', {
       configurable: true,
       value: () => ({ totalVideoFrames }),
@@ -281,7 +324,7 @@ describe('WebRtcPlayer watchdog', () => {
     await Promise.resolve()
     await Promise.resolve()
     const peer = peerWithFrames(() => 10)
-    connect(FakeReader.instances[0], peer)
+    await connect(FakeReader.instances[0], peer)
     rendered.unmount()
     await vi.advanceTimersByTimeAsync(10_000)
 

@@ -2,10 +2,11 @@
 
 import { AlertTriangle, LoaderCircle, Radio, Waves } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button, buttonVariants } from '@/components/ui/button'
 import { PlaybackStats } from '@/components/playback-stats'
+import { VidstackPlayer } from '@/components/vidstack-player'
 import { authClient } from '@/lib/auth/client'
 import type { PublicChannel } from '@/lib/types'
 
@@ -100,6 +101,8 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
   const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(
     null,
   )
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null)
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null)
   const status = channel.status
   const sourceHasAudio = status.tracks.some((track) =>
     /audio|aac|opus|g7/i.test(track),
@@ -107,6 +110,35 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
   const sourceHasVideo = status.tracks.some(
     (track) => !/audio|aac|opus|g7|vorbis|pcma|pcmu/i.test(track),
   )
+  const playerSource = useMemo(
+    () =>
+      mediaStream
+        ? { src: mediaStream, type: 'video/object' as const }
+        : undefined,
+    [mediaStream],
+  )
+  const handleVideoElementChange = useCallback(
+    (video: HTMLVideoElement | null) => {
+      videoRef.current = video
+      setVideoElement(video)
+    },
+    [],
+  )
+
+  useEffect(() => {
+    let active = true
+    queueMicrotask(() => {
+      if (!active) return
+      if (!status.live) {
+        setMediaStream(null)
+      } else if (typeof MediaStream !== 'undefined') {
+        setMediaStream((current) => current ?? new MediaStream())
+      }
+    })
+    return () => {
+      active = false
+    }
+  }, [status.live])
 
   useEffect(() => {
     fallbackRef.current = onFallback
@@ -115,7 +147,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
   }, [onFallback, sourceHasAudio, sourceHasVideo])
 
   useEffect(() => {
-    const video = videoRef.current
+    const video = videoElement
     if (!video) return
 
     let active = true
@@ -141,11 +173,12 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
     let recoveryInProgress = false
     let fallbackTriggered = false
 
-    setPeerConnection(null)
+    queueMicrotask(() => {
+      if (active) setPeerConnection(null)
+    })
 
     const clearMedia = () => {
       video.pause()
-      video.srcObject = null
     }
 
     const resetProgress = () => {
@@ -435,30 +468,37 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
             videoTracks.length > 0 ||
             sourceHasVideoRef.current
 
-          if (video.srcObject !== stream) {
-            video.srcObject = stream
-          }
+          setMediaStream(stream)
 
           if (readerToRetire) {
             const retireAfterFirstFrame = () => {
-              if (
-                active &&
-                generation === readerGeneration &&
-                video.srcObject === stream
-              ) {
+              if (!active || generation !== readerGeneration) return
+              if (video.srcObject === stream) {
                 readerToRetire?.close()
                 readerToRetire = undefined
+                return
+              }
+
+              const frameVideo = video as VideoFrameCallbackElement
+              if (frameVideo.requestVideoFrameCallback) {
+                frameVideo.requestVideoFrameCallback(retireAfterFirstFrame)
+              } else {
+                video.addEventListener('playing', retireAfterFirstFrame, {
+                  once: true,
+                })
               }
             }
             const frameVideo = video as VideoFrameCallbackElement
             if (frameVideo.requestVideoFrameCallback) {
               frameVideo.requestVideoFrameCallback(retireAfterFirstFrame)
             } else {
-              video.addEventListener('playing', retireAfterFirstFrame, { once: true })
+              video.addEventListener('playing', retireAfterFirstFrame, {
+                once: true,
+              })
             }
           }
           void video.play().catch(() => {
-            // The native controls remain available if autoplay is blocked.
+            // The Play control remains available when autoplay is blocked.
           })
 
           clearTimeout(audioTimer)
@@ -499,7 +539,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
       readerToRetire?.close()
       clearMedia()
     }
-  }, [channel.playback.webrtc, status.live])
+  }, [channel.playback.webrtc, status.live, videoElement])
 
   const offline = !status.live
   const playing = !offline && playbackState === 'playing'
@@ -510,26 +550,22 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
         className="player-shell"
         style={{ '--accent': channel.accentColor } as React.CSSProperties}
       >
-        <video
-          ref={videoRef}
-          aria-label={`${channel.title} live video`}
-          autoPlay
-          className="size-full bg-black object-contain"
-          controls
-          muted
-          playsInline
+        <VidstackPlayer
+          ariaLabel={`${channel.title} live video`}
+          onVideoElementChange={handleVideoElementChange}
           poster={channel.poster}
-        />
+          src={playerSource}
+          streamType="live"
+        >
+          {playing && (
+            <span className="protocol-badge">
+              <Waves className="size-3" aria-hidden="true" />
+              WebRTC · Low latency
+            </span>
+          )}
 
-        {playing && (
-          <span className="protocol-badge">
-            <Waves className="size-3" aria-hidden="true" />
-            WebRTC · Low latency
-          </span>
-        )}
-
-        {!playing && (
-          <div className="player-overlay" aria-live="polite">
+          {!playing && (
+            <div className="player-overlay" aria-live="polite">
             {offline ? (
               <div className="player-message">
                 <span className="player-icon">
@@ -585,8 +621,9 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
                 </Button>
               </div>
             )}
-          </div>
-        )}
+            </div>
+          )}
+        </VidstackPlayer>
       </div>
 
       <PlaybackStats

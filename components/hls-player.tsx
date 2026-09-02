@@ -1,6 +1,11 @@
 'use client'
 
-import Hls, { ErrorDetails, ErrorTypes } from 'hls.js'
+import Hls, {
+  ErrorDetails,
+  ErrorTypes,
+  type ErrorData,
+  type LevelUpdatedData,
+} from 'hls.js'
 import {
   AlertTriangle,
   LoaderCircle,
@@ -9,13 +14,17 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button, buttonVariants } from '@/components/ui/button'
 import {
   PlaybackStats,
   type HlsPlaybackDiagnostics,
 } from '@/components/playback-stats'
+import {
+  VidstackPlayer,
+  type VidstackProviderKind,
+} from '@/components/vidstack-player'
 import { authClient } from '@/lib/auth/client'
 import type { PublicChannel } from '@/lib/types'
 
@@ -179,6 +188,9 @@ export function HlsPlayer({
   )
   const [reloadKey, setReloadKey] = useState(0)
   const [usingFallback, setUsingFallback] = useState(false)
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null)
+  const [hlsInstance, setHlsInstance] = useState<Hls | null>(null)
+  const [providerKind, setProviderKind] = useState<VidstackProviderKind>(null)
   const [hlsDiagnostics, setHlsDiagnostics] = useState<HlsPlaybackDiagnostics>({
     maxLatencySeconds: profile.liveMaxLatencyDuration,
     playbackRate: 1,
@@ -190,6 +202,38 @@ export function HlsPlayer({
     usingFallback && channel.playback.fallbackHls
       ? channel.playback.fallbackHls
       : channel.playback.hls
+  const hlsConfig = useMemo(
+    () => ({
+      lowLatencyMode: true,
+      liveSyncMode: 'edge' as const,
+      backBufferLength: profile.backBufferLength,
+      liveSyncDuration: profile.liveSyncDuration,
+      liveMaxLatencyDuration: profile.liveMaxLatencyDuration,
+      ...(profile.maxBufferLength === undefined
+        ? {}
+        : { maxBufferLength: profile.maxBufferLength }),
+      ...(profile.maxMaxBufferLength === undefined
+        ? {}
+        : { maxMaxBufferLength: profile.maxMaxBufferLength }),
+      maxLiveSyncPlaybackRate: profile.maxLiveSyncPlaybackRate,
+      liveSyncOnStallIncrease: profile.liveSyncOnStallIncrease,
+    }),
+    [profile],
+  )
+  const playerSource = useMemo(
+    () =>
+      status.live
+        ? { src: sourceUrl, type: 'application/vnd.apple.mpegurl' as const }
+        : undefined,
+    [sourceUrl, status.live],
+  )
+  const handleVideoElementChange = useCallback(
+    (video: HTMLVideoElement | null) => {
+      videoRef.current = video
+      setVideoElement(video)
+    },
+    [],
+  )
 
   useEffect(() => {
     if (latencyProfile !== 'ultra-low') return
@@ -199,12 +243,33 @@ export function HlsPlayer({
   }, [latencyProfile])
 
   useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
+    if (!status.live || Hls.isSupported()) return
+    const nativeHlsSupported = Boolean(
+      document.createElement('video').canPlayType('application/vnd.apple.mpegurl'),
+    )
+    const unsupportedTimer = setTimeout(() => {
+      if (latencyProfile === 'ultra-low') {
+        setPlaybackState('unsupported')
+        onUltraLowUnavailable?.()
+      } else if (!nativeHlsSupported) {
+        setPlaybackState('unsupported')
+      }
+    }, 0)
+    return () => clearTimeout(unsupportedTimer)
+  }, [latencyProfile, onUltraLowUnavailable, status.live])
+
+  useEffect(() => {
+    const video = videoElement
+    if (
+      !video ||
+      !providerKind ||
+      (providerKind === 'hls' && !hlsInstance)
+    ) {
+      return
+    }
 
     let active = true
-    let hls: Hls | undefined
-    let unsupportedTimer: ReturnType<typeof setTimeout> | undefined
+    const hls = hlsInstance ?? undefined
     let codecErrorTimer: ReturnType<typeof setTimeout> | undefined
     let retryTimer: ReturnType<typeof setTimeout> | undefined
     let stableTimer: ReturnType<typeof setTimeout> | undefined
@@ -214,7 +279,7 @@ export function HlsPlayer({
     let lastProgress: number | undefined
     let everPlayed = false
     let needsRecovery = false
-    let nativeHls = false
+    const nativeHls = providerKind === 'native'
     let excessiveNativeLatencySamples = 0
     let missingNativeLiveEdgeSamples = 0
     let reportedBalancedUnavailable = false
@@ -245,14 +310,8 @@ export function HlsPlayer({
       targetLatencySeconds: profile.liveSyncDuration,
     })
 
-    const resetVideo = () => {
-      video.pause()
-      video.removeAttribute('src')
-      video.load()
-    }
-
     if (!status.live) {
-      resetVideo()
+      video.pause()
       return
     }
 
@@ -663,110 +722,70 @@ export function HlsPlayer({
 
     const beginPlayback = () => {
       void video.play().catch(() => {
-        // Native controls remain available when autoplay policy blocks playback.
+        // The Play control remains available when autoplay is blocked.
       })
     }
 
-    const nativeHlsSupported = Boolean(
-      video.canPlayType('application/vnd.apple.mpegurl'),
-    )
-    const hlsJsSupported = Hls.isSupported()
-    const useNativeHls =
-      nativeHlsSupported &&
-      !hlsJsSupported &&
-      latencyProfile !== 'ultra-low'
+    const handleLevelUpdated = (_event: string, data: LevelUpdatedData) => {
+      if (
+        latencyProfile !== 'ultra-low' ||
+        reportedUltraLowPackagingUnsupported
+      ) {
+        return
+      }
+      const { partTarget, targetduration } = data.details
+      if (targetduration <= 1 && partTarget > 0 && partTarget <= 0.25) return
 
-    if (latencyProfile === 'ultra-low' && !hlsJsSupported) {
-      unsupportedTimer = setTimeout(() => {
+      reportedUltraLowPackagingUnsupported = true
+      onUltraLowUnavailable?.(
+        'HLS ≤2s requires one-second LL-HLS segments and parts no longer than 250ms.',
+      )
+    }
+    const handleHlsError = (_event: string, data: ErrorData) => {
+      if (!data.fatal) return
+
+      if (data.response?.code === 401 || data.response?.code === 403) {
+        setPlaybackState('unauthorized')
+        hls?.stopLoad()
+        return
+      }
+
+      if (isCodecError(data.details)) {
         setPlaybackState('unsupported')
-        onUltraLowUnavailable?.()
-      }, 0)
-    } else if (useNativeHls) {
-      nativeHls = true
-      video.src = sourceUrl
-      video.load()
-      publishDiagnostics()
-      beginPlayback()
-    } else if (hlsJsSupported) {
-      hls = new Hls({
-        lowLatencyMode: true,
-        liveSyncMode: 'edge',
-        backBufferLength: profile.backBufferLength,
-        liveSyncDuration: profile.liveSyncDuration,
-        liveMaxLatencyDuration: profile.liveMaxLatencyDuration,
-        ...(profile.maxBufferLength === undefined
-          ? {}
-          : { maxBufferLength: profile.maxBufferLength }),
-        ...(profile.maxMaxBufferLength === undefined
-          ? {}
-          : { maxMaxBufferLength: profile.maxMaxBufferLength }),
-        maxLiveSyncPlaybackRate: profile.maxLiveSyncPlaybackRate,
-        liveSyncOnStallIncrease: profile.liveSyncOnStallIncrease,
-      })
+        hls?.stopLoad()
+        return
+      }
 
-      hls.on(Hls.Events.MANIFEST_PARSED, beginPlayback)
-      hls.on(Hls.Events.LEVEL_UPDATED, (_event, data) => {
-        if (
-          latencyProfile !== 'ultra-low' ||
-          reportedUltraLowPackagingUnsupported
-        ) {
-          return
-        }
-        const { partTarget, targetduration } = data.details
-        if (targetduration <= 1 && partTarget > 0 && partTarget <= 0.25) return
-
-        reportedUltraLowPackagingUnsupported = true
-        onUltraLowUnavailable?.(
-          'HLS ≤2s requires one-second LL-HLS segments and parts no longer than 250ms.',
-        )
-      })
-      hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (!data.fatal) return
-
-        if (data.response?.code === 401 || data.response?.code === 403) {
-          setPlaybackState('unauthorized')
-          hls?.destroy()
-          return
-        }
-
-        if (isCodecError(data.details)) {
-          setPlaybackState('unsupported')
-          hls?.destroy()
-          return
-        }
-
-        if (data.type === ErrorTypes.NETWORK_ERROR) {
-          scheduleRecreate()
-          return
-        }
-
-        if (data.type === ErrorTypes.MEDIA_ERROR && !mediaRecoveryAttempted) {
-          mediaRecoveryAttempted = true
-          setPlaybackState('reconnecting')
-          hls?.recoverMediaError()
-          return
-        }
-
-        if (data.details === ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR) {
-          setPlaybackState('unsupported')
-          hls?.destroy()
-          return
-        }
-
+      if (data.type === ErrorTypes.NETWORK_ERROR) {
         scheduleRecreate()
-      })
+        return
+      }
 
-      hls.loadSource(sourceUrl)
-      hls.attachMedia(video)
-      publishDiagnostics()
-    } else if (nativeHlsSupported) {
-      nativeHls = true
-      video.src = sourceUrl
-      video.load()
+      if (data.type === ErrorTypes.MEDIA_ERROR && !mediaRecoveryAttempted) {
+        mediaRecoveryAttempted = true
+        setPlaybackState('reconnecting')
+        hls?.recoverMediaError()
+        return
+      }
+
+      if (data.details === ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR) {
+        setPlaybackState('unsupported')
+        hls?.stopLoad()
+        return
+      }
+
+      scheduleRecreate()
+    }
+
+    if (hls) {
+      hls.on(Hls.Events.MANIFEST_PARSED, beginPlayback)
+      hls.on(Hls.Events.LEVEL_UPDATED, handleLevelUpdated)
+      hls.on(Hls.Events.ERROR, handleHlsError)
       publishDiagnostics()
       beginPlayback()
-    } else {
-      unsupportedTimer = setTimeout(() => setPlaybackState('unsupported'), 0)
+    } else if (nativeHls) {
+      publishDiagnostics()
+      beginPlayback()
     }
 
     return () => {
@@ -781,25 +800,27 @@ export function HlsPlayer({
       video.removeEventListener('seeking', handleSeeking)
       window.removeEventListener('online', resumeRecovery)
       document.removeEventListener('visibilitychange', resumeRecovery)
-      hls?.destroy()
-      clearTimeout(unsupportedTimer)
+      hls?.off(Hls.Events.MANIFEST_PARSED, beginPlayback)
+      hls?.off(Hls.Events.LEVEL_UPDATED, handleLevelUpdated)
+      hls?.off(Hls.Events.ERROR, handleHlsError)
       clearTimeout(codecErrorTimer)
       clearTimeout(retryTimer)
       clearTimeout(stableTimer)
       clearInterval(progressTimer)
       if (sloTimer !== undefined) clearInterval(sloTimer)
-      resetVideo()
     }
   }, [
+    hlsInstance,
     latencyProfile,
     onBalancedUnavailable,
     onUltraLowFailure,
     onUltraLowUnavailable,
     profile,
     profileExitReason,
+    providerKind,
     reloadKey,
-    sourceUrl,
     status.live,
+    videoElement,
   ])
 
   const retry = () => setReloadKey((key) => key + 1)
@@ -811,26 +832,28 @@ export function HlsPlayer({
         className="player-shell"
         style={{ '--accent': channel.accentColor } as React.CSSProperties}
       >
-        <video
-          ref={videoRef}
-          aria-label={`${channel.title} live video`}
-          autoPlay
-          className="size-full bg-black object-contain"
-          controls
-          muted
-          playsInline
+        <VidstackPlayer
+          ariaLabel={`${channel.title} live video`}
+          hlsConfig={hlsConfig}
+          key={`${latencyProfile}-${usingFallback}-${reloadKey}`}
+          liveEdgeTolerance={profile.liveSyncDuration}
+          onHlsInstanceChange={setHlsInstance}
+          onProviderKindChange={setProviderKind}
+          onVideoElementChange={handleVideoElementChange}
           poster={channel.poster}
-        />
+          seekableLive
+          src={playerSource}
+          streamType="ll-live"
+        >
+          {visibleState === 'playing' && (
+            <span className="protocol-badge">
+              <ShieldCheck className="size-3" aria-hidden="true" />
+              HLS · {profile.label}
+            </span>
+          )}
 
-        {visibleState === 'playing' && (
-          <span className="protocol-badge">
-            <ShieldCheck className="size-3" aria-hidden="true" />
-            HLS · {profile.label}
-          </span>
-        )}
-
-        {visibleState !== 'playing' && (
-          <div className="player-overlay" aria-live="polite">
+          {visibleState !== 'playing' && (
+            <div className="player-overlay" aria-live="polite">
           {visibleState === 'offline' && (
             <div className="player-message">
               <span className="player-icon">
@@ -912,8 +935,9 @@ export function HlsPlayer({
               </Link>
             </div>
           )}
-          </div>
-        )}
+            </div>
+          )}
+        </VidstackPlayer>
       </div>
 
       <PlaybackStats

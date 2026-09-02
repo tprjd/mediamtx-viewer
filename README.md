@@ -21,7 +21,7 @@ low-margin modes return to a buffered HLS profile.
 - Multiple simultaneous publishers on isolated MediaMTX paths
 - Four playback modes with bounded HLS latency, forward-buffer diagnostics, and
   automatic recovery fallback
-- Native accessible video controls and playback diagnostics
+- Shared Vidstack video controls and playback diagnostics
 - Loading, reconnecting, offline, codec, and authorization states
 - Authenticated server-sent status events with automatic degraded-mode recovery
 - Low-frequency 640×360 thumbnails captured at stream start and every three

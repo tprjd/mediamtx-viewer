@@ -7,6 +7,7 @@ import type { PublicChannel } from '@/lib/types'
 interface FakeHlsInstance {
   config: Record<string, unknown>
   destroy: ReturnType<typeof vi.fn>
+  stopLoad: ReturnType<typeof vi.fn>
   startLoad: ReturnType<typeof vi.fn>
   recoverMediaError: ReturnType<typeof vi.fn>
   loadSource: ReturnType<typeof vi.fn>
@@ -28,6 +29,7 @@ const mocks = vi.hoisted(() => {
     }
     readonly config: Record<string, unknown>
     readonly destroy = vi.fn()
+    readonly stopLoad = vi.fn()
     readonly startLoad = vi.fn()
     readonly recoverMediaError = vi.fn()
     readonly loadSource = vi.fn()
@@ -49,6 +51,10 @@ const mocks = vi.hoisted(() => {
 
     on(event: string, listener: (...args: unknown[]) => void) {
       this.listeners.set(event, listener)
+    }
+
+    off(event: string, listener: (...args: unknown[]) => void) {
+      if (this.listeners.get(event) === listener) this.listeners.delete(event)
     }
 
     emit(event: string, data?: unknown) {
@@ -76,6 +82,67 @@ vi.mock('@/components/playback-stats', () => ({
     return null
   },
 }))
+vi.mock('@/components/vidstack-player', async () => {
+  const React = await import('react')
+
+  return {
+    VidstackPlayer: ({
+      ariaLabel,
+      children,
+      hlsConfig,
+      onHlsInstanceChange,
+      onProviderKindChange,
+      onVideoElementChange,
+      poster,
+    }: {
+      ariaLabel: string
+      children?: React.ReactNode
+      hlsConfig?: Record<string, unknown>
+      onHlsInstanceChange?: (instance: FakeHlsInstance | null) => void
+      onProviderKindChange?: (kind: 'hls' | 'native' | null) => void
+      onVideoElementChange?: (video: HTMLVideoElement | null) => void
+      poster?: string
+    }) => {
+      const videoRef = React.useRef<HTMLVideoElement>(null)
+
+      React.useEffect(() => {
+        const video = videoRef.current
+        if (!video) return
+
+        onVideoElementChange?.(video)
+        if (mocks.FakeHls.isSupported()) {
+          const instance = new mocks.FakeHls(hlsConfig ?? {})
+          onProviderKindChange?.('hls')
+          onHlsInstanceChange?.(instance)
+          return () => {
+            instance.destroy()
+            onHlsInstanceChange?.(null)
+            onProviderKindChange?.(null)
+            onVideoElementChange?.(null)
+          }
+        }
+
+        onProviderKindChange?.('native')
+        return () => {
+          onProviderKindChange?.(null)
+          onVideoElementChange?.(null)
+        }
+      }, [
+        hlsConfig,
+        onHlsInstanceChange,
+        onProviderKindChange,
+        onVideoElementChange,
+      ])
+
+      return (
+        <div>
+          <video aria-label={ariaLabel} poster={poster} ref={videoRef} />
+          {children}
+        </div>
+      )
+    },
+  }
+})
 vi.mock('@/lib/auth/client', () => ({
   authClient: { getSession: mocks.getSession },
 }))
@@ -204,6 +271,18 @@ describe('HlsPlayer recovery', () => {
 
     expect(mocks.instances).toHaveLength(0)
     expect(onUltraLowUnavailable).toHaveBeenCalledOnce()
+  })
+
+  it('reports unsupported playback when hls.js and native HLS are unavailable', async () => {
+    mocks.FakeHls.isSupported = () => false
+    vi.mocked(HTMLMediaElement.prototype.canPlayType).mockReturnValue('')
+
+    render(<HlsPlayer channel={channel} latencyProfile="balanced" />)
+    await act(async () => vi.advanceTimersByTimeAsync(0))
+
+    expect(
+      screen.getByRole('heading', { name: 'Video format not supported' }),
+    ).toBeInTheDocument()
   })
 
   it('rejects playlists whose segment or part timing cannot meet the SLO', async () => {
