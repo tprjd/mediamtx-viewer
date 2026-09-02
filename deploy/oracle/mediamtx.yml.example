@@ -35,7 +35,7 @@ hlsEncryption: false
 hlsAllowOrigins: ["https://frankerzspam.duckdns.org"]
 hlsAlwaysRemux: true
 hlsVariant: lowLatency
-hlsSegmentDuration: 1s
+hlsSegmentDuration: 2s
 hlsPartDuration: 200ms
 
 webrtc: true

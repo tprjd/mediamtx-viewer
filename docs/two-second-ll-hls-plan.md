@@ -5,6 +5,10 @@ OBS setup 1.3.0. Automated verification is included. Production glass-to-glass,
 quality, load, and impairment acceptance testing is still required, so the mode
 remains experimental and does not replace Balanced, Smooth, or WebRTC.
 
+Superseded on 2026-09-02 by
+`docs/two-keyframe-low-latency-hls-plan.md`, which replaces the two-second
+budget with a more resilient three-second budget and two-second segments.
+
 ## Objective and definition of success
 
 Add an **HLS ≤2s** mode that keeps both of these viewer-side measurements at or

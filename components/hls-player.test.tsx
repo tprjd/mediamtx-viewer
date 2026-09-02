@@ -245,18 +245,18 @@ describe('HlsPlayer recovery', () => {
     expect(screen.getByText('HLS · Balanced')).toBeInTheDocument()
   })
 
-  it('uses hls.js with a two-second latency and forward-buffer budget', async () => {
+  it('uses hls.js with a three-second latency and forward-buffer budget', async () => {
     await renderPlayer('ultra-low')
     expect(mocks.instances[0].config).toMatchObject({
       lowLatencyMode: true,
       liveSyncMode: 'edge',
       backBufferLength: 0,
-      liveSyncDuration: 1.2,
-      liveMaxLatencyDuration: 2,
+      liveSyncDuration: 1.8,
+      liveMaxLatencyDuration: 3,
       liveSyncOnStallIncrease: 0,
       maxLiveSyncPlaybackRate: 1.05,
-      maxBufferLength: 1.8,
-      maxMaxBufferLength: 1.8,
+      maxBufferLength: 3,
+      maxMaxBufferLength: 3,
     })
   })
 
@@ -282,7 +282,7 @@ describe('HlsPlayer recovery', () => {
     }
   })
 
-  it('rejects native fallback for the hls.js-only two-second mode', async () => {
+  it('rejects native fallback for the hls.js-only three-second mode', async () => {
     mocks.FakeHls.isSupported = () => false
     vi.mocked(HTMLMediaElement.prototype.canPlayType).mockReturnValue(
       'probably',
@@ -331,7 +331,7 @@ describe('HlsPlayer recovery', () => {
       mocks.instances[0].emit('levelUpdated', {
         details: {
           partTarget: 0.2,
-          targetduration: 1,
+          targetduration: 2,
         },
       })
     })
@@ -341,14 +341,14 @@ describe('HlsPlayer recovery', () => {
       mocks.instances[0].emit('levelUpdated', {
         details: {
           partTarget: 0.2,
-          targetduration: 2,
+          targetduration: 3,
         },
       })
     })
 
     expect(onUltraLowUnavailable).toHaveBeenCalledOnce()
     expect(onUltraLowUnavailable).toHaveBeenCalledWith(
-      expect.stringContaining('one-second LL-HLS segments'),
+      expect.stringContaining('two-second LL-HLS segments'),
     )
   })
 
@@ -470,7 +470,7 @@ describe('HlsPlayer recovery', () => {
     Object.defineProperty(video, 'paused', { configurable: true, value: false })
     Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
     video.currentTime = 10
-    mocks.instances[0].latency = 2.1
+    mocks.instances[0].latency = 3.1
     mocks.instances[0].liveSyncPosition = 20
     fireEvent(video, new Event('playing'))
 
@@ -485,10 +485,10 @@ describe('HlsPlayer recovery', () => {
     Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
     Object.defineProperty(video, 'buffered', {
       configurable: true,
-      value: { length: 1, start: () => 0, end: () => 13 },
+      value: { length: 1, start: () => 0, end: () => 13.5 },
     })
     video.currentTime = 10
-    mocks.instances[0].latency = 2.1
+    mocks.instances[0].latency = 3.1
     mocks.instances[0].liveSyncPosition = 20
     fireEvent(video, new Event('playing'))
 
@@ -508,8 +508,8 @@ describe('HlsPlayer recovery', () => {
       correctiveSeekCount: 1,
       forwardBufferBreachCount: 1,
       latencyBreachCount: 1,
-      maxObservedForwardBufferSeconds: 3,
-      maxObservedLatencySeconds: 2.1,
+      maxObservedForwardBufferSeconds: 3.5,
+      maxObservedLatencySeconds: 3.1,
     })
     expect(['forwardBuffer', 'liveLatency']).toContain(
       latest.hlsDiagnostics.lastBreachMetric,
@@ -521,7 +521,7 @@ describe('HlsPlayer recovery', () => {
     Object.defineProperty(video, 'paused', { configurable: true, value: false })
     Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
     video.currentTime = 10
-    mocks.instances[0].latency = 2.1
+    mocks.instances[0].latency = 3.1
     mocks.instances[0].liveSyncPosition = 20
     fireEvent(video, new Event('playing'))
 
@@ -539,7 +539,7 @@ describe('HlsPlayer recovery', () => {
       value: { length: 1, start: () => 0, end: () => 5 },
     })
     video.currentTime = 1
-    mocks.instances[0].latency = 1.2
+    mocks.instances[0].latency = 1.8
     mocks.instances[0].liveSyncPosition = 4
     fireEvent(video, new Event('playing'))
 
@@ -554,7 +554,7 @@ describe('HlsPlayer recovery', () => {
     Object.defineProperty(video, 'paused', { configurable: true, value: true })
     Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
     video.currentTime = 10
-    mocks.instances[0].latency = 3
+    mocks.instances[0].latency = 4
     mocks.instances[0].liveSyncPosition = 20
 
     await act(async () => vi.advanceTimersByTimeAsync(500))

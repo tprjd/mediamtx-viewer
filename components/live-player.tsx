@@ -67,7 +67,7 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
       setUltraLowUnavailableReason(
         supportsUltraLow
           ? undefined
-          : 'HLS ≤2s requires hls.js and Media Source Extensions.',
+          : 'HLS ≤3s requires hls.js and Media Source Extensions.',
       )
       const saved = window.sessionStorage.getItem(MODE_STORAGE_KEY)
       if (saved === 'hls') {
@@ -81,7 +81,7 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
           window.sessionStorage.setItem(MODE_STORAGE_KEY, 'balanced')
           setMode('balanced')
           setModeExitReason(
-            'HLS ≤2s requires hls.js and is unavailable in this browser.',
+            'HLS ≤3s requires hls.js and is unavailable in this browser.',
           )
         }
       }
@@ -121,7 +121,7 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
 
   const handleUltraLowUnavailable = useCallback((reason?: string) => {
     const unavailableReason = reason ??
-      'HLS ≤2s requires hls.js and is unavailable in this browser.'
+      'HLS ≤3s requires hls.js and is unavailable in this browser.'
     setUltraLowSupported(false)
     setUltraLowUnavailableReason(unavailableReason)
     if (mode !== 'ultra-low') return
@@ -145,7 +145,7 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
           <span role={modeExitReason ? 'status' : undefined}>
             {modeExitReason ?? (
               <>
-                {mode === 'ultra-low' && 'Experimental HLS · maximum 2s viewer latency and buffer.'}
+                {mode === 'ultra-low' && 'Experimental HLS · maximum 3s viewer latency and buffer.'}
                 {mode === 'balanced' && 'Testing lower delay · target about 3–5s.'}
                 {mode === 'smooth' && 'Extra recovery margin · about 5–8s behind live.'}
                 {mode === 'webrtc' && 'Lowest delay with less recovery margin.'}
@@ -167,7 +167,7 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
             variant={mode === 'ultra-low' ? 'default' : 'secondary'}
           >
             <Gauge className="size-3.5" aria-hidden="true" />
-            {ultraLowSupported ? 'HLS ≤2s' : 'HLS ≤2s unavailable'}
+            {ultraLowSupported ? 'HLS ≤3s' : 'HLS ≤3s unavailable'}
           </Button>
           <Button
             aria-pressed={mode === 'balanced'}

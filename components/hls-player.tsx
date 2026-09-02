@@ -63,14 +63,14 @@ interface HlsLatencyProfileConfig {
 export const HLS_LATENCY_PROFILES = {
   'ultra-low': {
     backBufferLength: 0,
-    forwardBufferLimit: 2,
-    label: 'HLS ≤2s',
-    liveMaxLatencyDuration: 2,
-    liveSyncDuration: 1.2,
+    forwardBufferLimit: 3,
+    label: 'HLS ≤3s',
+    liveMaxLatencyDuration: 3,
+    liveSyncDuration: 1.8,
     liveSyncOnStallIncrease: 0,
-    maxBufferLength: 1.8,
+    maxBufferLength: 3,
     maxLiveSyncPlaybackRate: 1.05,
-    maxMaxBufferLength: 1.8,
+    maxMaxBufferLength: 3,
   },
   balanced: {
     backBufferLength: 30,
@@ -396,7 +396,7 @@ export function HlsPlayer({
 
       ultraLowInstabilityRef.current = []
       onUltraLowFailure(
-        `HLS ≤2s could not be maintained after repeated ${reason}. Switched to Balanced.`,
+        `HLS ≤3s could not be maintained after repeated ${reason}. Switched to Balanced.`,
       )
       return true
     }
@@ -614,7 +614,7 @@ export function HlsPlayer({
         if (syncPosition !== null && syncPosition > video.currentTime) {
           video.currentTime = syncPosition
           markCorrection(
-            `HLS ≤2s latency exceeded ${profile.liveMaxLatencyDuration}s`,
+            `HLS ≤3s latency exceeded ${profile.liveMaxLatencyDuration}s`,
             true,
           )
         }
@@ -745,11 +745,11 @@ export function HlsPlayer({
         return
       }
       const { partTarget, targetduration } = data.details
-      if (targetduration <= 1 && partTarget > 0 && partTarget <= 0.25) return
+      if (targetduration <= 2 && partTarget > 0 && partTarget <= 0.25) return
 
       reportedUltraLowPackagingUnsupported = true
       onUltraLowUnavailable?.(
-        'HLS ≤2s requires one-second LL-HLS segments and parts no longer than 250ms.',
+        'HLS ≤3s requires two-second LL-HLS segments and parts no longer than 250ms.',
       )
     }
     const handleHlsError = (_event: string, data: ErrorData) => {

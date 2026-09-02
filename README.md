@@ -6,7 +6,7 @@ administrators approve accounts and grant individual streaming channels.
 
 The production stack runs on an Oracle Cloud VM at
 `https://frankerzspam.duckdns.org/`. Balanced LL-HLS is the default. Viewers can
-select experimental HLS ≤2s, recovery-oriented Smooth HLS, or WebRTC; failed
+select experimental HLS ≤3s, recovery-oriented Smooth HLS, or WebRTC; failed
 low-margin modes return to a buffered HLS profile.
 
 ## Features

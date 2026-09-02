@@ -20,7 +20,7 @@ require_hls_setting() {
 
 require_hls_setting hlsVariant lowLatency
 require_hls_setting hlsAlwaysRemux true
-require_hls_setting hlsSegmentDuration 1s
+require_hls_setting hlsSegmentDuration 2s
 require_hls_setting hlsPartDuration 200ms
 
 validation_log=$(mktemp)

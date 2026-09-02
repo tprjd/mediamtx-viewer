@@ -40,7 +40,7 @@ test('opens a stable watch URL', async ({ page }) => {
   ).toBeAttached()
   await expect(player.getByRole('button', { name: 'Live' })).toBeAttached()
   await expect(player.locator('video[controls]')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: /HLS ≤2s/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /HLS ≤3s/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Balanced' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Smooth' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Low latency' })).toBeVisible()
@@ -82,7 +82,7 @@ test('keeps all playback modes usable at 320px', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 760 })
   await page.goto('/watch/live')
 
-  await expect(page.getByRole('button', { name: /HLS ≤2s/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /HLS ≤3s/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Balanced' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Smooth' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Low latency' })).toBeVisible()

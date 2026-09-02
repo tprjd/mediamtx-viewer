@@ -23,7 +23,7 @@ vi.mock('@/components/hls-player', () => ({
     onUltraLowUnavailable: (reason?: string) => void
   }) => (
     <div data-hls-source={channel.playback.hls} data-testid="hls-player">
-      {latencyProfile === 'ultra-low' && 'HLS ≤2s player'}
+      {latencyProfile === 'ultra-low' && 'HLS ≤3s player'}
       {latencyProfile === 'balanced' && 'Balanced player'}
       {latencyProfile === 'smooth' && 'Smooth player'}
       {latencyProfile === 'balanced' && (
@@ -36,7 +36,7 @@ vi.mock('@/components/hls-player', () => ({
           </button>
           <button
             onClick={() => onUltraLowFailure(
-              'HLS ≤2s could not be maintained. Switched to Balanced.',
+              'HLS ≤3s could not be maintained. Switched to Balanced.',
             )}
           >
             Simulate ultra failure
@@ -101,7 +101,7 @@ describe('LivePlayer playback mode', () => {
     render(<LivePlayer channel={channel} />)
     act(() => vi.advanceTimersByTime(0))
     expect(screen.getByText('Balanced player')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'HLS ≤2s' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'HLS ≤3s' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Balanced' })).toBePressed()
     expect(screen.getByRole('button', { name: 'Smooth' })).toBeEnabled()
 
@@ -164,8 +164,8 @@ describe('LivePlayer playback mode', () => {
     render(<LivePlayer channel={channel} />)
     act(() => vi.advanceTimersByTime(0))
 
-    expect(screen.getByText('HLS ≤2s player')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'HLS ≤2s' })).toBePressed()
+    expect(screen.getByText('HLS ≤3s player')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'HLS ≤3s' })).toBePressed()
   })
 
   it('disables ultra-low HLS and normalizes its saved mode without hls.js', () => {
@@ -176,7 +176,7 @@ describe('LivePlayer playback mode', () => {
 
     expect(screen.getByText('Balanced player')).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'HLS ≤2s unavailable' }),
+      screen.getByRole('button', { name: 'HLS ≤3s unavailable' }),
     ).toBeDisabled()
     expect(window.sessionStorage.getItem('mediamtx-viewer:playback-mode')).toBe(
       'balanced',
@@ -208,7 +208,7 @@ describe('LivePlayer playback mode', () => {
   it('falls back to balanced when the ultra-low SLO cannot be maintained', () => {
     render(<LivePlayer channel={channel} />)
     act(() => vi.advanceTimersByTime(0))
-    fireEvent.click(screen.getByRole('button', { name: 'HLS ≤2s' }))
+    fireEvent.click(screen.getByRole('button', { name: 'HLS ≤3s' }))
     fireEvent.click(screen.getByRole('button', { name: 'Simulate ultra failure' }))
 
     expect(screen.getByText('Balanced player')).toBeInTheDocument()
@@ -223,14 +223,14 @@ describe('LivePlayer playback mode', () => {
   it('falls back to balanced when ultra-low capability disappears', () => {
     render(<LivePlayer channel={channel} />)
     act(() => vi.advanceTimersByTime(0))
-    fireEvent.click(screen.getByRole('button', { name: 'HLS ≤2s' }))
+    fireEvent.click(screen.getByRole('button', { name: 'HLS ≤3s' }))
     fireEvent.click(
       screen.getByRole('button', { name: 'Simulate ultra unavailable' }),
     )
 
     expect(screen.getByText('Balanced player')).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'HLS ≤2s unavailable' }),
+      screen.getByRole('button', { name: 'HLS ≤3s unavailable' }),
     ).toBeDisabled()
   })
 
