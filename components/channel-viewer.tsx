@@ -11,9 +11,10 @@ import type { PublicChannel } from '@/lib/types'
 
 interface ChannelViewerProps {
   channel: PublicChannel
+  viewerId?: string
 }
 
-export function ChannelViewer({ channel }: ChannelViewerProps) {
+export function ChannelViewer({ channel, viewerId }: ChannelViewerProps) {
   const { channels } = useChannelEvents([channel])
   const currentChannel = channels[0] ?? channel
   const status = currentChannel.status
@@ -21,7 +22,7 @@ export function ChannelViewer({ channel }: ChannelViewerProps) {
   return (
     <main className="watch-layout">
       <div className="watch-player-wrap">
-        <LivePlayer channel={currentChannel} />
+        <LivePlayer channel={currentChannel} viewerId={viewerId} />
       </div>
 
       <section className="watch-details">

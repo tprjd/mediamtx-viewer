@@ -148,11 +148,14 @@ open pages therefore still produce one status check rather than five. A
 enabled, and the existing JSON directory becomes a 30-second fallback only
 while SSE is unhealthy.
 
-Viewer counts represent active MediaMTX reader sessions rather than unique
-accounts, so two tabs count twice. Counts are shown only while live. The
-thumbnail worker marks its private HLS session and the status monitor excludes
-that session from the public number. If MediaMTX cannot safely classify HLS
-sessions, the count is hidden instead of reporting a misleading value.
+Viewer counts represent active player tabs rather than unique accounts. Each
+watch page tags its HLS and WebRTC sessions with one random request-scoped ID,
+so preset changes, reconnects, and transport fallback do not count the same
+player more than once. Two separately opened tabs count twice. Counts are shown
+only while live. The thumbnail worker marks its private HLS session and the
+status monitor excludes that session from the public number. If MediaMTX cannot
+safely classify HLS sessions, the count is hidden instead of reporting a
+misleading value.
 
 The thumbnail worker polls the private MediaMTX Control API and decodes one frame
 through its private HLS listener. It captures approximately five seconds after a

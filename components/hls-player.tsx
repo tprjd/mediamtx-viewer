@@ -708,6 +708,13 @@ export function HlsPlayer({
     video.addEventListener('play', handlePlay)
     video.addEventListener('seeking', handleSeeking)
 
+    if (
+      !video.paused &&
+      video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+    ) {
+      handlePlaying()
+    }
+
     const resumeRecovery = () => {
       stagnantSamples = 0
       lastProgress = undefined

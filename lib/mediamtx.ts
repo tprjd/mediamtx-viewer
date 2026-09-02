@@ -32,6 +32,8 @@ const mediaMtxPathListSchema = z
 const apiOrigin = process.env.MEDIAMTX_API_URL ?? 'http://127.0.0.1:9997'
 const thumbnailQueryParameter = 'frankerzspam_internal'
 const thumbnailQueryValue = 'thumbnail'
+const viewerQueryParameter = 'frankerzspam_viewer'
+const viewerIdPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 
 const hlsSessionListSchema = z
   .object({
@@ -59,6 +61,12 @@ function hasHlsReaders(
   return (path.readers ?? []).some((reader) => reader.type === 'hlsSession')
 }
 
+function hasWebRtcReaders(
+  path: z.infer<typeof mediaMtxPathSchema>,
+): boolean {
+  return (path.readers ?? []).some((reader) => reader.type === 'webRTCSession')
+}
+
 function isThumbnailSession(
   query: string | undefined,
   userAgent: string | undefined,
@@ -71,9 +79,27 @@ function isThumbnailSession(
   )
 }
 
-async function getThumbnailReaderIds(
+function readViewerId(query: string | undefined): string | undefined {
+  if (!query) return undefined
+  const viewerId = new URLSearchParams(query).get(viewerQueryParameter)
+  return viewerId && viewerIdPattern.test(viewerId) ? viewerId : undefined
+}
+
+interface HlsReaderMetadata {
+  thumbnailReaderIds: Set<string>
+  viewerIds: Map<string, string>
+}
+
+function emptyHlsReaderMetadata(): HlsReaderMetadata {
+  return {
+    thumbnailReaderIds: new Set(),
+    viewerIds: new Map(),
+  }
+}
+
+async function getHlsReaderMetadata(
   fetcher: typeof fetch,
-): Promise<Set<string> | null> {
+): Promise<HlsReaderMetadata | null> {
   try {
     const response = await fetcher(`${apiOrigin}/v3/hlssessions/list`, {
       cache: 'no-store',
@@ -81,23 +107,54 @@ async function getThumbnailReaderIds(
     })
     if (!response.ok) return null
     const data = hlsSessionListSchema.parse(await response.json())
-    return new Set(
-      (data.items ?? [])
-        .filter(
-          (session) =>
-            session.id &&
-            isThumbnailSession(session.query, session.userAgent),
-        )
-        .map((session) => session.id!),
-    )
+    const thumbnailReaderIds = new Set<string>()
+    const viewerIds = new Map<string, string>()
+    for (const session of data.items ?? []) {
+      if (!session.id) continue
+      if (isThumbnailSession(session.query, session.userAgent)) {
+        thumbnailReaderIds.add(session.id)
+        continue
+      }
+      const viewerId = readViewerId(session.query)
+      if (viewerId) viewerIds.set(session.id, viewerId)
+    }
+    return { thumbnailReaderIds, viewerIds }
   } catch {
     return null
   }
 }
 
+async function getWebRtcViewerIds(
+  fetcher: typeof fetch,
+): Promise<Map<string, string>> {
+  try {
+    const response = await fetcher(`${apiOrigin}/v3/webrtcsessions/list`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(2500),
+    })
+    if (!response.ok) return new Map()
+    const data = hlsSessionListSchema.parse(await response.json())
+    return new Map(
+      (data.items ?? []).flatMap((session) => {
+        const viewerId = readViewerId(session.query)
+        return session.id && viewerId ? [[session.id, viewerId]] : []
+      }),
+    )
+  } catch {
+    return new Map()
+  }
+}
+
+function mergeViewerIds(
+  ...maps: ReadonlyMap<string, string>[]
+): Map<string, string> {
+  return new Map(maps.flatMap((map) => [...map]))
+}
+
 export function normalizeMediaMtxPath(
   data: unknown,
   thumbnailReaderIds: ReadonlySet<string> | null = new Set(),
+  readerViewerIds: ReadonlyMap<string, string> = new Map(),
 ): ChannelStatus {
   const path = mediaMtxPathSchema.parse(data)
   const live = path.ready ?? path.available ?? path.online ?? false
@@ -105,10 +162,19 @@ export function normalizeMediaMtxPath(
     ? 0
     : !path.readers || (hasHlsReaders(path) && thumbnailReaderIds === null)
       ? null
-      : path.readers.filter(
-          (reader) =>
-            reader.type !== 'hidden' && !thumbnailReaderIds?.has(reader.id),
-        ).length
+      : new Set(
+          path.readers
+            .filter(
+              (reader) =>
+                reader.type !== 'hidden' &&
+                !thumbnailReaderIds?.has(reader.id),
+            )
+            .map((reader) =>
+              readerViewerIds.has(reader.id)
+                ? `viewer:${readerViewerIds.get(reader.id)}`
+                : `reader:${reader.id}`,
+            ),
+        ).size
 
   return {
     state: live ? 'live' : 'offline',
@@ -152,10 +218,17 @@ export async function getChannelStatus(
     }
 
     const path = mediaMtxPathSchema.parse(await response.json())
-    const thumbnailReaderIds = hasHlsReaders(path)
-      ? await getThumbnailReaderIds(fetcher)
-      : new Set<string>()
-    return normalizeMediaMtxPath(path, thumbnailReaderIds)
+    const hlsMetadata = hasHlsReaders(path)
+      ? await getHlsReaderMetadata(fetcher)
+      : emptyHlsReaderMetadata()
+    const webRtcViewerIds = hasWebRtcReaders(path)
+      ? await getWebRtcViewerIds(fetcher)
+      : new Map<string, string>()
+    return normalizeMediaMtxPath(
+      path,
+      hlsMetadata?.thumbnailReaderIds ?? null,
+      mergeViewerIds(hlsMetadata?.viewerIds ?? new Map(), webRtcViewerIds),
+    )
   } catch {
     return {
       state: 'unavailable',
@@ -203,15 +276,26 @@ export async function getChannelStatuses(
     if (!response.ok) throw new Error(`MediaMTX returned HTTP ${response.status}`)
     const data = mediaMtxPathListSchema.parse(await response.json())
     const paths = data.items ?? []
-    const thumbnailReaderIds = paths.some(hasHlsReaders)
-      ? await getThumbnailReaderIds(fetcher)
-      : new Set<string>()
+    const hlsMetadata = paths.some(hasHlsReaders)
+      ? await getHlsReaderMetadata(fetcher)
+      : emptyHlsReaderMetadata()
+    const webRtcViewerIds = paths.some(hasWebRtcReaders)
+      ? await getWebRtcViewerIds(fetcher)
+      : new Map<string, string>()
+    const readerViewerIds = mergeViewerIds(
+      hlsMetadata?.viewerIds ?? new Map(),
+      webRtcViewerIds,
+    )
     const active = new Map(
       paths
         .filter((item): item is typeof item & { name: string } => Boolean(item.name))
         .map((item) => [
           item.name,
-          normalizeMediaMtxPath(item, thumbnailReaderIds),
+          normalizeMediaMtxPath(
+            item,
+            hlsMetadata?.thumbnailReaderIds ?? null,
+            readerViewerIds,
+          ),
         ]),
     )
     return new Map(mediaPaths.map((path) => [path, active.get(path) ?? offlineStatus()]))

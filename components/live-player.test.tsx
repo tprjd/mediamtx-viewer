@@ -10,17 +10,19 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/components/hls-player', () => ({
   HlsPlayer: ({
+    channel,
     latencyProfile,
     onBalancedUnavailable,
     onUltraLowFailure,
     onUltraLowUnavailable,
   }: {
+    channel: PublicChannel
     latencyProfile: string
     onBalancedUnavailable: () => void
     onUltraLowFailure: (reason: string) => void
     onUltraLowUnavailable: (reason?: string) => void
   }) => (
-    <div>
+    <div data-hls-source={channel.playback.hls} data-testid="hls-player">
       {latencyProfile === 'ultra-low' && 'HLS ≤2s player'}
       {latencyProfile === 'balanced' && 'Balanced player'}
       {latencyProfile === 'smooth' && 'Smooth player'}
@@ -47,8 +49,14 @@ vi.mock('@/components/hls-player', () => ({
 }))
 
 vi.mock('@/components/webrtc-player', () => ({
-  WebRtcPlayer: ({ onFallback }: { onFallback: () => void }) => (
-    <div>
+  WebRtcPlayer: ({
+    channel,
+    onFallback,
+  }: {
+    channel: PublicChannel
+    onFallback: () => void
+  }) => (
+    <div data-testid="webrtc-player" data-webrtc-source={channel.playback.webrtc}>
       Low-latency player
       <button onClick={onFallback}>Simulate fallback</button>
     </div>
@@ -102,6 +110,23 @@ describe('LivePlayer playback mode', () => {
     expect(screen.getByText('Low-latency player')).toBeInTheDocument()
     expect(window.sessionStorage.getItem('mediamtx-viewer:playback-mode')).toBe(
       'webrtc',
+    )
+  })
+
+  it('tags every transport with one viewer identity across mode changes', () => {
+    const viewerId = '018f47a7-1902-7a5b-8d31-bbb8788eb001'
+    render(<LivePlayer channel={channel} viewerId={viewerId} />)
+
+    expect(screen.getByTestId('hls-player')).toHaveAttribute(
+      'data-hls-source',
+      `/media/hls/live/index.m3u8?frankerzspam_viewer=${viewerId}`,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Low latency' }))
+
+    expect(screen.getByTestId('webrtc-player')).toHaveAttribute(
+      'data-webrtc-source',
+      `/media/whep/live/whep?frankerzspam_viewer=${viewerId}`,
     )
   })
 

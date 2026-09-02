@@ -67,6 +67,7 @@ const mocks = vi.hoisted(() => {
     instances,
     getSession: vi.fn(),
     playbackStats: vi.fn(),
+    videoAlreadyPlaying: false,
   }
 })
 
@@ -109,6 +110,16 @@ vi.mock('@/components/vidstack-player', async () => {
         const video = videoRef.current
         if (!video) return
 
+        if (mocks.videoAlreadyPlaying) {
+          Object.defineProperty(video, 'paused', {
+            configurable: true,
+            value: false,
+          })
+          Object.defineProperty(video, 'readyState', {
+            configurable: true,
+            value: HTMLMediaElement.HAVE_ENOUGH_DATA,
+          })
+        }
         onVideoElementChange?.(video)
         if (mocks.FakeHls.isSupported()) {
           const instance = new mocks.FakeHls(hlsConfig ?? {})
@@ -181,6 +192,7 @@ describe('HlsPlayer recovery', () => {
     vi.useFakeTimers()
     mocks.instances.length = 0
     mocks.playbackStats.mockClear()
+    mocks.videoAlreadyPlaying = false
     mocks.FakeHls.isSupported = () => true
     mocks.getSession.mockResolvedValue({ data: { user: { id: 'user' } } })
     vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('')
@@ -214,6 +226,17 @@ describe('HlsPlayer recovery', () => {
       maxLiveSyncPlaybackRate: 1.03,
       liveSyncOnStallIncrease: 0.5,
     })
+  })
+
+  it('recognizes playback that started before recovery listeners attach', async () => {
+    mocks.videoAlreadyPlaying = true
+
+    await renderPlayer()
+
+    expect(
+      screen.queryByRole('heading', { name: 'Joining stream' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('HLS · Balanced')).toBeInTheDocument()
   })
 
   it('uses hls.js with a two-second latency and forward-buffer budget', async () => {

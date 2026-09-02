@@ -1,7 +1,7 @@
 'use client'
 
 import { Gauge, Scale, ShieldCheck } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
   HlsPlayer,
@@ -14,14 +14,25 @@ import type { PublicChannel } from '@/lib/types'
 
 interface LivePlayerProps {
   channel: PublicChannel
+  viewerId?: string
 }
 
 type PlaybackMode = HlsLatencyProfile | 'webrtc'
 
 const MODE_STORAGE_KEY = 'mediamtx-viewer:playback-mode'
 const WEBRTC_RETRY_COOLDOWN_MS = 60_000
+const VIEWER_QUERY_PARAMETER = 'frankerzspam_viewer'
 
-export function LivePlayer({ channel }: LivePlayerProps) {
+function tagPlaybackUrl(url: string, viewerId: string | undefined): string {
+  if (!viewerId) return url
+
+  const [withoutHash, hash] = url.split('#', 2)
+  const separator = withoutHash.includes('?') ? '&' : '?'
+  const query = `${VIEWER_QUERY_PARAMETER}=${encodeURIComponent(viewerId)}`
+  return `${withoutHash}${separator}${query}${hash === undefined ? '' : `#${hash}`}`
+}
+
+export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
   const [mode, setMode] = useState<PlaybackMode>(
     channel.preferredPlayback === 'webrtc' ? 'webrtc' : 'balanced',
   )
@@ -35,6 +46,19 @@ export function LivePlayer({ channel }: LivePlayerProps) {
     useState<string>()
   const [modeExitReason, setModeExitReason] = useState<string>()
   const [now, setNow] = useState(() => Date.now())
+  const taggedChannel = useMemo<PublicChannel>(
+    () => ({
+      ...channel,
+      playback: {
+        hls: tagPlaybackUrl(channel.playback.hls, viewerId),
+        webrtc: tagPlaybackUrl(channel.playback.webrtc, viewerId),
+        fallbackHls: channel.playback.fallbackHls
+          ? tagPlaybackUrl(channel.playback.fallbackHls, viewerId)
+          : undefined,
+      },
+    }),
+    [channel, viewerId],
+  )
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -191,12 +215,12 @@ export function LivePlayer({ channel }: LivePlayerProps) {
 
       {mode === 'webrtc' ? (
         <WebRtcPlayer
-          channel={channel}
+          channel={taggedChannel}
           onFallback={handleFallback}
         />
       ) : (
         <HlsPlayer
-          channel={channel}
+          channel={taggedChannel}
           latencyProfile={mode}
           onBalancedUnavailable={handleBalancedUnavailable}
           onUltraLowFailure={handleUltraLowFailure}

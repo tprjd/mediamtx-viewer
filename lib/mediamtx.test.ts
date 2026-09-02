@@ -155,7 +155,92 @@ describe('getChannelStatuses', () => {
       live: true,
       viewerCount: 2,
     })
-    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(fetcher).toHaveBeenCalledTimes(3)
+  })
+
+  it('counts reconnecting HLS sessions from one player only once', async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input)
+      if (url.endsWith('/v3/paths/list')) {
+        return Response.json({
+          items: [
+            {
+              name: 'channels/alice',
+              ready: true,
+              readers: [
+                { id: 'hls-before-reconnect', type: 'hlsSession' },
+                { id: 'hls-after-reconnect', type: 'hlsSession' },
+              ],
+            },
+          ],
+        })
+      }
+      if (url.endsWith('/v3/hlssessions/list')) {
+        return Response.json({
+          items: [
+            {
+              id: 'hls-before-reconnect',
+              query: 'frankerzspam_viewer=018f47a7-1902-7a5b-8d31-bbb8788eb001',
+            },
+            {
+              id: 'hls-after-reconnect',
+              query: 'frankerzspam_viewer=018f47a7-1902-7a5b-8d31-bbb8788eb001',
+            },
+          ],
+        })
+      }
+      return new Response(null, { status: 404 })
+    })
+
+    const statuses = await getChannelStatuses(['channels/alice'], fetcher)
+
+    expect(statuses.get('channels/alice')?.viewerCount).toBe(1)
+  })
+
+  it('counts one player only once while it changes transports', async () => {
+    const viewerId = '018f47a7-1902-7a5b-8d31-bbb8788eb001'
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input)
+      if (url.endsWith('/v3/paths/list')) {
+        return Response.json({
+          items: [
+            {
+              name: 'channels/alice',
+              ready: true,
+              readers: [
+                { id: 'hls-reader', type: 'hlsSession' },
+                { id: 'webrtc-reader', type: 'webRTCSession' },
+              ],
+            },
+          ],
+        })
+      }
+      if (url.endsWith('/v3/hlssessions/list')) {
+        return Response.json({
+          items: [
+            {
+              id: 'hls-reader',
+              query: `frankerzspam_viewer=${viewerId}`,
+            },
+          ],
+        })
+      }
+      if (url.endsWith('/v3/webrtcsessions/list')) {
+        return Response.json({
+          items: [
+            {
+              id: 'webrtc-reader',
+              query: `frankerzspam_viewer=${viewerId}`,
+            },
+          ],
+        })
+      }
+      return new Response(null, { status: 404 })
+    })
+
+    const statuses = await getChannelStatuses(['channels/alice'], fetcher)
+
+    expect(statuses.get('channels/alice')?.viewerCount).toBe(1)
   })
 
   it('uses an unknown count when HLS sessions cannot be classified', async () => {

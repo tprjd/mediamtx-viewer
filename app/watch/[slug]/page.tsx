@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
@@ -46,6 +48,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
         status,
         channelPosterUrl(channel, status.live),
       )}
+      viewerId={randomUUID()}
     />
   )
 }
