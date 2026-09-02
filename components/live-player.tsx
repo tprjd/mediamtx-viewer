@@ -28,6 +28,7 @@ export function LivePlayer({ channel }: LivePlayerProps) {
     retryAfter: number
     startedAt: string | null
   } | null>(null)
+  const [balancedUnavailable, setBalancedUnavailable] = useState(false)
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -65,6 +66,11 @@ export function LivePlayer({ channel }: LivePlayerProps) {
     selectMode('smooth')
   }, [channel.status.startedAt, selectMode])
 
+  const handleBalancedUnavailable = useCallback(() => {
+    setBalancedUnavailable(true)
+    selectMode('smooth')
+  }, [selectMode])
+
   const retrySeconds = Math.max(0, Math.ceil((retryAfter - now) / 1_000))
   const lowLatencyDisabled = !channel.status.live || retrySeconds > 0
 
@@ -82,12 +88,18 @@ export function LivePlayer({ channel }: LivePlayerProps) {
         <div className="playback-mode-actions">
           <Button
             aria-pressed={mode === 'balanced'}
+            disabled={balancedUnavailable}
             onClick={() => selectMode('balanced')}
             size="sm"
+            title={
+              balancedUnavailable
+                ? 'This browser does not expose a reliable native HLS live edge'
+                : undefined
+            }
             variant={mode === 'balanced' ? 'default' : 'secondary'}
           >
             <Scale className="size-3.5" aria-hidden="true" />
-            Balanced
+            {balancedUnavailable ? 'Balanced unavailable' : 'Balanced'}
           </Button>
           <Button
             aria-pressed={mode === 'smooth'}
@@ -124,7 +136,11 @@ export function LivePlayer({ channel }: LivePlayerProps) {
           onFallback={handleFallback}
         />
       ) : (
-        <HlsPlayer channel={channel} latencyProfile={mode} />
+        <HlsPlayer
+          channel={channel}
+          latencyProfile={mode}
+          onBalancedUnavailable={handleBalancedUnavailable}
+        />
       )}
     </div>
   )

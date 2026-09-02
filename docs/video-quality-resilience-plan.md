@@ -212,6 +212,10 @@ The three viewer modes deliberately share this one source bitstream:
 - **Low latency:** WebRTC/WHEP, kept as an explicit viewer choice for faster
   interaction, with bounded repair and automatic fallback to warm Smooth HLS.
 
+If an actively playing native-HLS browser repeatedly exposes no seekable live
+edge, Balanced is disabled for that browser session and playback moves to
+Smooth instead of claiming an unenforceable latency bound.
+
 Do not automatically return a viewer from healthy HLS to WebRTC. Offer
 **Try low latency again** after the circuit-breaker interval so a viewer with a
 spotty network can choose the latency/stability tradeoff without protocol

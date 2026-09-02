@@ -31,6 +31,7 @@ type PlaybackState =
 interface HlsPlayerProps {
   channel: PublicChannel
   latencyProfile: HlsLatencyProfile
+  onBalancedUnavailable?: () => void
 }
 
 export type HlsLatencyProfile = 'balanced' | 'smooth'
@@ -104,7 +105,11 @@ function readNativeSeekTarget(
   }
 }
 
-export function HlsPlayer({ channel, latencyProfile }: HlsPlayerProps) {
+export function HlsPlayer({
+  channel,
+  latencyProfile,
+  onBalancedUnavailable,
+}: HlsPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const recoveryRef = useRef({ attempts: 0 })
   const lastCorrectionRef = useRef<string>(undefined)
@@ -143,6 +148,8 @@ export function HlsPlayer({ channel, latencyProfile }: HlsPlayerProps) {
     let needsRecovery = false
     let nativeHls = false
     let excessiveNativeLatencySamples = 0
+    let missingNativeLiveEdgeSamples = 0
+    let reportedBalancedUnavailable = false
     let lastMeasuredLatency: number | undefined
 
     setHlsDiagnostics({
@@ -252,6 +259,19 @@ export function HlsPlayer({ channel, latencyProfile }: HlsPlayerProps) {
           ? Number.POSITIVE_INFINITY
           : Math.max(1, latency - profile.liveSyncDuration)
 
+        if (latencyProfile === 'balanced' && liveEdge === undefined) {
+          missingNativeLiveEdgeSamples += 1
+          if (
+            missingNativeLiveEdgeSamples >= 5 &&
+            !reportedBalancedUnavailable
+          ) {
+            reportedBalancedUnavailable = true
+            onBalancedUnavailable?.()
+          }
+        } else {
+          missingNativeLiveEdgeSamples = 0
+        }
+
         if (
           latency !== undefined &&
           latency > profile.liveMaxLatencyDuration &&
@@ -280,6 +300,7 @@ export function HlsPlayer({ channel, latencyProfile }: HlsPlayerProps) {
         }
       } else {
         excessiveNativeLatencySamples = 0
+        missingNativeLiveEdgeSamples = 0
       }
 
       if (!canRecover() || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
@@ -491,7 +512,7 @@ export function HlsPlayer({ channel, latencyProfile }: HlsPlayerProps) {
       clearInterval(progressTimer)
       resetVideo()
     }
-  }, [profile, reloadKey, sourceUrl, status.live])
+  }, [latencyProfile, onBalancedUnavailable, profile, reloadKey, sourceUrl, status.live])
 
   const retry = () => setReloadKey((key) => key + 1)
   const visibleState: PlaybackState = status.live ? playbackState : 'offline'

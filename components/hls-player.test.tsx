@@ -272,4 +272,29 @@ describe('HlsPlayer recovery', () => {
     await act(async () => vi.advanceTimersByTimeAsync(4_000))
     expect(video.currentTime).toBe(10)
   })
+
+  it('reports balanced unavailable when active native HLS has no live edge', async () => {
+    vi.mocked(HTMLMediaElement.prototype.canPlayType).mockReturnValue(
+      'probably',
+    )
+    const onBalancedUnavailable = vi.fn()
+    render(
+      <HlsPlayer
+        channel={channel}
+        latencyProfile="balanced"
+        onBalancedUnavailable={onBalancedUnavailable}
+      />,
+    )
+    await act(async () => Promise.resolve())
+    const video = screen.getByLabelText(
+      'Late-night games live video',
+    ) as HTMLVideoElement
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
+    fireEvent(video, new Event('playing'))
+
+    await act(async () => vi.advanceTimersByTimeAsync(5_000))
+
+    expect(onBalancedUnavailable).toHaveBeenCalledOnce()
+  })
 })

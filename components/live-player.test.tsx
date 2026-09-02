@@ -5,8 +5,19 @@ import { LivePlayer } from '@/components/live-player'
 import type { PublicChannel } from '@/lib/types'
 
 vi.mock('@/components/hls-player', () => ({
-  HlsPlayer: ({ latencyProfile }: { latencyProfile: string }) => (
-    <div>{latencyProfile === 'balanced' ? 'Balanced player' : 'Smooth player'}</div>
+  HlsPlayer: ({
+    latencyProfile,
+    onBalancedUnavailable,
+  }: {
+    latencyProfile: string
+    onBalancedUnavailable: () => void
+  }) => (
+    <div>
+      {latencyProfile === 'balanced' ? 'Balanced player' : 'Smooth player'}
+      {latencyProfile === 'balanced' && (
+        <button onClick={onBalancedUnavailable}>Simulate unavailable</button>
+      )}
+    </div>
   ),
 }))
 
@@ -111,6 +122,19 @@ describe('LivePlayer playback mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Smooth' }))
 
     expect(screen.getByText('Smooth player')).toBeInTheDocument()
+    expect(window.sessionStorage.getItem('mediamtx-viewer:playback-mode')).toBe(
+      'smooth',
+    )
+  })
+
+  it('falls back to smooth when native HLS cannot expose a live edge', () => {
+    render(<LivePlayer channel={channel} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Simulate unavailable' }))
+
+    expect(screen.getByText('Smooth player')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Balanced unavailable' }),
+    ).toBeDisabled()
     expect(window.sessionStorage.getItem('mediamtx-viewer:playback-mode')).toBe(
       'smooth',
     )
