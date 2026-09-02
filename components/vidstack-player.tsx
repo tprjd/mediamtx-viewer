@@ -41,6 +41,7 @@ interface VidstackPlayerProps {
   liveEdgeTolerance?: number
   onHlsInstanceChange?: (instance: Hls | null) => void
   onProviderKindChange?: (kind: VidstackProviderKind) => void
+  onUserPauseChange?: (paused: boolean) => void
   onVideoElementChange?: (video: HTMLVideoElement | null) => void
   poster?: string | null
   seekableLive?: boolean
@@ -143,6 +144,7 @@ export function VidstackPlayer({
   liveEdgeTolerance = 2,
   onHlsInstanceChange,
   onProviderKindChange,
+  onUserPauseChange,
   onVideoElementChange,
   poster,
   seekableLive = false,
@@ -198,6 +200,8 @@ export function VidstackPlayer({
       liveEdgeTolerance={liveEdgeTolerance}
       load="eager"
       muted
+      onMediaPauseRequest={() => onUserPauseChange?.(true)}
+      onMediaPlayRequest={() => onUserPauseChange?.(false)}
       onProviderChange={handleProviderChange}
       playsInline
       poster={poster ?? ''}

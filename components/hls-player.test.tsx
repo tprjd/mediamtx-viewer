@@ -67,6 +67,7 @@ const mocks = vi.hoisted(() => {
     instances,
     getSession: vi.fn(),
     playbackStats: vi.fn(),
+    userPauseChange: undefined as ((paused: boolean) => void) | undefined,
     videoAlreadyPlaying: false,
   }
 })
@@ -93,6 +94,7 @@ vi.mock('@/components/vidstack-player', async () => {
       hlsConfig,
       onHlsInstanceChange,
       onProviderKindChange,
+      onUserPauseChange,
       onVideoElementChange,
       poster,
     }: {
@@ -101,10 +103,13 @@ vi.mock('@/components/vidstack-player', async () => {
       hlsConfig?: Record<string, unknown>
       onHlsInstanceChange?: (instance: FakeHlsInstance | null) => void
       onProviderKindChange?: (kind: 'hls' | 'native' | null) => void
+      onUserPauseChange?: (paused: boolean) => void
       onVideoElementChange?: (video: HTMLVideoElement | null) => void
       poster?: string
     }) => {
       const videoRef = React.useRef<HTMLVideoElement>(null)
+
+      mocks.userPauseChange = onUserPauseChange
 
       React.useEffect(() => {
         const video = videoRef.current
@@ -192,6 +197,7 @@ describe('HlsPlayer recovery', () => {
     vi.useFakeTimers()
     mocks.instances.length = 0
     mocks.playbackStats.mockClear()
+    mocks.userPauseChange = undefined
     mocks.videoAlreadyPlaying = false
     mocks.FakeHls.isSupported = () => true
     mocks.getSession.mockResolvedValue({ data: { user: { id: 'user' } } })
@@ -385,6 +391,45 @@ describe('HlsPlayer recovery', () => {
       await vi.advanceTimersByTimeAsync(2_000)
     })
     expect(mocks.instances).toHaveLength(3)
+  })
+
+  it('recovers when an interruption pauses media without a user request', async () => {
+    const video = await renderPlayer()
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
+    fireEvent(video, new Event('playing'))
+    Object.defineProperty(video, 'paused', { configurable: true, value: true })
+
+    await act(async () => {
+      mocks.instances[0].emit('error', {
+        fatal: true,
+        type: 'networkError',
+        details: 'fragLoadError',
+      })
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(mocks.instances).toHaveLength(2)
+  })
+
+  it('does not override an explicit user pause during recovery', async () => {
+    const video = await renderPlayer()
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
+    fireEvent(video, new Event('playing'))
+    mocks.userPauseChange?.(true)
+    Object.defineProperty(video, 'paused', { configurable: true, value: true })
+
+    await act(async () => {
+      mocks.instances[0].emit('error', {
+        fatal: true,
+        type: 'networkError',
+        details: 'fragLoadError',
+      })
+      await vi.advanceTimersByTimeAsync(30_000)
+    })
+
+    expect(mocks.instances).toHaveLength(1)
   })
 
   it('soft-recovers a frozen live edge before recreating the HLS instance', async () => {

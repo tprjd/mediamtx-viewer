@@ -97,6 +97,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
   const fallbackRef = useRef(onFallback)
   const sourceHasAudioRef = useRef(false)
   const sourceHasVideoRef = useRef(false)
+  const userPausedRef = useRef(false)
   const [playbackState, setPlaybackState] = useState<PlaybackState>('loading')
   const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(
     null,
@@ -124,6 +125,9 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
     },
     [],
   )
+  const handleUserPauseChange = useCallback((paused: boolean) => {
+    userPausedRef.current = paused
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -145,6 +149,55 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
     sourceHasAudioRef.current = sourceHasAudio
     sourceHasVideoRef.current = sourceHasVideo
   }, [onFallback, sourceHasAudio, sourceHasVideo])
+
+  useEffect(() => {
+    const video = videoElement
+    const stream = mediaStream
+    if (!video || !stream || !status.live) return
+
+    let active = true
+    let playPending = false
+    let playRequested = false
+    const resumeAttachedStream = () => {
+      if (
+        !active ||
+        playPending ||
+        playRequested ||
+        userPausedRef.current ||
+        video.srcObject !== stream
+      ) {
+        return
+      }
+
+      playPending = true
+      void video.play().then(
+        () => {
+          playPending = false
+          playRequested = true
+        },
+        () => {
+          playPending = false
+        },
+      )
+    }
+    const resumeTransportPause = () => {
+      if (userPausedRef.current) return
+      playRequested = false
+      resumeAttachedStream()
+    }
+
+    video.addEventListener('loadedmetadata', resumeAttachedStream)
+    video.addEventListener('canplay', resumeAttachedStream)
+    video.addEventListener('pause', resumeTransportPause)
+    queueMicrotask(resumeAttachedStream)
+
+    return () => {
+      active = false
+      video.removeEventListener('loadedmetadata', resumeAttachedStream)
+      video.removeEventListener('canplay', resumeAttachedStream)
+      video.removeEventListener('pause', resumeTransportPause)
+    }
+  }, [mediaStream, status.live, videoElement])
 
   useEffect(() => {
     const video = videoElement
@@ -497,10 +550,6 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
               })
             }
           }
-          void video.play().catch(() => {
-            // The Play control remains available when autoplay is blocked.
-          })
-
           clearTimeout(audioTimer)
           if (sourceHasAudioRef.current) {
             audioTimer = setTimeout(() => {
@@ -552,6 +601,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
       >
         <VidstackPlayer
           ariaLabel={`${channel.title} live video`}
+          onUserPauseChange={handleUserPauseChange}
           onVideoElementChange={handleVideoElementChange}
           poster={channel.poster}
           src={playerSource}

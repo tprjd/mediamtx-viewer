@@ -1937,10 +1937,14 @@ a {
   transition: opacity 160ms ease;
 }
 
-.media-player:focus-within .media-controls,
+.media-player:not([data-fullscreen]):focus-within .media-controls,
 .media-controls[data-visible] {
   opacity: 1;
   pointer-events: auto;
+}
+
+.media-player[data-fullscreen]:not(:has(.media-controls[data-visible])) {
+  cursor: none;
 }
 
 .media-controls-group {
@@ -2094,7 +2098,14 @@ a {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   backdrop-filter: blur(12px);
+  opacity: 0;
   pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.media-player:not([data-fullscreen]):focus-within .protocol-badge,
+.media-player:has(.media-controls[data-visible]) .protocol-badge {
+  opacity: 1;
 }
 
 .playback-diagnostics {

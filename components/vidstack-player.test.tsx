@@ -45,16 +45,26 @@ vi.mock('@vidstack/react', async () => {
     MediaAnnouncer: () => null,
     MediaPlayer: ({
       children,
+      onMediaPauseRequest,
+      onMediaPlayRequest,
       onProviderChange,
     }: {
       children: React.ReactNode
+      onMediaPauseRequest?: () => void
+      onMediaPlayRequest?: () => void
       onProviderChange?: (provider: typeof mocks.provider) => void
     }) => {
       React.useEffect(() => {
         onProviderChange?.(mocks.provider)
         return () => onProviderChange?.(null as never)
       }, [onProviderChange])
-      return <div>{children}</div>
+      return (
+        <div>
+          <button onClick={onMediaPauseRequest}>Request pause</button>
+          <button onClick={onMediaPlayRequest}>Request play</button>
+          {children}
+        </div>
+      )
     },
     MediaProvider: (props: React.ComponentProps<'div'>) => <div {...props} />,
     MuteButton: button,
@@ -161,5 +171,21 @@ describe('VidstackPlayer', () => {
     )
 
     expect(screen.queryByTestId('media-poster')).not.toBeInTheDocument()
+  })
+
+  it('reports explicit pause and play requests', () => {
+    const onUserPauseChange = vi.fn()
+
+    render(
+      <VidstackPlayer
+        ariaLabel="Live channel video"
+        onUserPauseChange={onUserPauseChange}
+      />,
+    )
+
+    screen.getByRole('button', { name: 'Request pause' }).click()
+    screen.getByRole('button', { name: 'Request play' }).click()
+
+    expect(onUserPauseChange.mock.calls).toEqual([[true], [false]])
   })
 })

@@ -46,6 +46,38 @@ test('opens a stable watch URL', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Low latency' })).toBeVisible()
 })
 
+test('hides fullscreen controls, protocol badge, and cursor when idle', async ({
+  page,
+}) => {
+  await page.goto('/watch/live')
+
+  const player = page.locator('.media-player')
+  const controls = player.locator('.media-controls')
+  await player.evaluate((element) => {
+    element.setAttribute('data-fullscreen', '')
+    const button = element.querySelector<HTMLButtonElement>(
+      '[aria-label="Enter fullscreen"]',
+    )
+    button?.focus()
+    element.querySelector('.media-controls')?.removeAttribute('data-visible')
+
+    const badge = document.createElement('span')
+    badge.className = 'protocol-badge'
+    badge.textContent = 'HLS · Balanced'
+    element.append(badge)
+  })
+
+  await expect(controls).toHaveCSS('opacity', '0')
+  await expect(player.locator('.protocol-badge')).toHaveCSS('opacity', '0')
+  await expect(player).toHaveCSS('cursor', 'none')
+
+  await controls.evaluate((element) => element.setAttribute('data-visible', ''))
+
+  await expect(controls).toHaveCSS('opacity', '1')
+  await expect(player.locator('.protocol-badge')).toHaveCSS('opacity', '1')
+  await expect(player).not.toHaveCSS('cursor', 'none')
+})
+
 test('keeps all playback modes usable at 320px', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 760 })
   await page.goto('/watch/live')

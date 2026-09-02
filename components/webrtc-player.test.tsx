@@ -6,6 +6,7 @@ import type { PublicChannel } from '@/lib/types'
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
+  userPauseChange: undefined as ((paused: boolean) => void) | undefined,
 }))
 
 vi.mock('@/components/playback-stats', () => ({
@@ -19,17 +20,21 @@ vi.mock('@/components/vidstack-player', async () => {
     VidstackPlayer: ({
       ariaLabel,
       children,
+      onUserPauseChange,
       onVideoElementChange,
       poster,
       src,
     }: {
       ariaLabel: string
       children?: React.ReactNode
+      onUserPauseChange?: (paused: boolean) => void
       onVideoElementChange?: (video: HTMLVideoElement | null) => void
       poster?: string
       src?: { src: MediaStream }
     }) => {
       const videoRef = React.useRef<HTMLVideoElement>(null)
+
+      mocks.userPauseChange = onUserPauseChange
 
       React.useEffect(() => {
         const video = videoRef.current
@@ -107,7 +112,9 @@ function peerWithFrames(getFrames: () => number): RTCPeerConnection {
 }
 
 async function connect(reader: FakeReader, peer: RTCPeerConnection) {
-  const video = screen.getByLabelText('Late-night games live video')
+  const video = screen.getByLabelText(
+    'Late-night games live video',
+  ) as HTMLVideoElement
   Object.defineProperty(video, 'play', {
     configurable: true,
     value: vi.fn().mockResolvedValue(undefined),
@@ -142,6 +149,7 @@ describe('WebRtcPlayer watchdog', () => {
     vi.useFakeTimers()
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
     mocks.getSession.mockResolvedValue({ data: { user: { id: 'user' } } })
+    mocks.userPauseChange = undefined
     FakeReader.instances = []
     window.MediaMTXWebRTCReader = FakeReader as never
   })
@@ -314,6 +322,84 @@ describe('WebRtcPlayer watchdog', () => {
       await vi.advanceTimersByTimeAsync(5_000)
     })
     expect(fallback).toHaveBeenCalledOnce()
+  })
+
+  it('resumes playback after the replacement stream is attached', async () => {
+    const fallback = vi.fn()
+    await renderPlayer(fallback)
+    const video = screen.getByLabelText(
+      'Late-night games live video',
+    ) as HTMLVideoElement
+    const stream = {
+      getAudioTracks: () => [{ kind: 'audio' }],
+      getVideoTracks: () => [{ kind: 'video' }],
+    } as unknown as MediaStream
+    let successfulPlays = 0
+    Object.defineProperty(video, 'play', {
+      configurable: true,
+      value: vi.fn(() => {
+        if (video.srcObject !== stream) {
+          return Promise.reject(new Error('stream is not attached'))
+        }
+        successfulPlays += 1
+        return Promise.resolve()
+      }),
+    })
+
+    await act(async () => {
+      FakeReader.instances[0].options.onTrack?.({
+        currentTarget: peerWithFrames(() => 1),
+        streams: [stream],
+        track: { kind: 'video' },
+      } as unknown as RTCTrackEvent)
+      await Promise.resolve()
+    })
+
+    expect(video.srcObject).toBe(stream)
+    expect(successfulPlays).toBe(1)
+  })
+
+  it('does not resume a replacement stream after an explicit user pause', async () => {
+    const fallback = vi.fn()
+    await renderPlayer(fallback)
+    const video = screen.getByLabelText(
+      'Late-night games live video',
+    ) as HTMLVideoElement
+    const play = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(video, 'play', { configurable: true, value: play })
+    mocks.userPauseChange?.(true)
+    const stream = {
+      getAudioTracks: () => [{ kind: 'audio' }],
+      getVideoTracks: () => [{ kind: 'video' }],
+    } as unknown as MediaStream
+
+    await act(async () => {
+      FakeReader.instances[0].options.onTrack?.({
+        currentTarget: peerWithFrames(() => 1),
+        streams: [stream],
+        track: { kind: 'video' },
+      } as unknown as RTCTrackEvent)
+      await Promise.resolve()
+    })
+
+    expect(play).not.toHaveBeenCalled()
+  })
+
+  it('resumes when the transport pauses an attached stream', async () => {
+    const fallback = vi.fn()
+    await renderPlayer(fallback)
+    const video = await connect(
+      FakeReader.instances[0],
+      peerWithFrames(() => 1),
+    )
+    const play = vi.mocked(video.play)
+    play.mockClear()
+    Object.defineProperty(video, 'paused', { configurable: true, value: true })
+
+    fireEvent(video, new Event('pause'))
+    await Promise.resolve()
+
+    expect(play).toHaveBeenCalledOnce()
   })
 
   it('cleans up the reader and watchdog timers on unmount', async () => {

@@ -178,6 +178,7 @@ export function HlsPlayer({
 }: HlsPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const recoveryRef = useRef({ attempts: 0 })
+  const userPausedRef = useRef(false)
   const lastCorrectionRef = useRef<string>(undefined)
   const sloRef = useRef<HlsSloState>(createHlsSloState())
   const ultraLowInstabilityRef = useRef<number[]>([])
@@ -234,6 +235,9 @@ export function HlsPlayer({
     },
     [],
   )
+  const handleUserPauseChange = useCallback((paused: boolean) => {
+    userPausedRef.current = paused
+  }, [])
 
   useEffect(() => {
     if (latencyProfile !== 'ultra-low') return
@@ -320,7 +324,7 @@ export function HlsPlayer({
       status.live &&
       document.visibilityState === 'visible' &&
       navigator.onLine !== false &&
-      !(everPlayed && video.paused && !video.ended)
+      !userPausedRef.current
 
     const markCorrection = (reason: string, correctiveSeek = false) => {
       lastCorrectionRef.current = reason
@@ -846,6 +850,7 @@ export function HlsPlayer({
           liveEdgeTolerance={profile.liveSyncDuration}
           onHlsInstanceChange={setHlsInstance}
           onProviderKindChange={setProviderKind}
+          onUserPauseChange={handleUserPauseChange}
           onVideoElementChange={handleVideoElementChange}
           poster={channel.poster}
           seekableLive
