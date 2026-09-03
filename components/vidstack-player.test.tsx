@@ -43,9 +43,23 @@ vi.mock('@vidstack/react', async () => {
     isVideoProvider: (provider: { kind?: string }) =>
       provider.kind === 'hls' || provider.kind === 'native',
     LiveButton: button,
+    MEDIA_KEY_SHORTCUTS: {
+      seekBackward: 'j J ArrowLeft',
+      seekForward: 'l L ArrowRight',
+      slowDown: '<',
+      speedUp: '>',
+      toggleCaptions: 'c',
+      toggleFullscreen: 'f',
+      toggleMuted: 'm',
+      togglePaused: 'k Space',
+      togglePictureInPicture: 'i',
+      volumeDown: 'ArrowDown',
+      volumeUp: 'ArrowUp',
+    },
     MediaAnnouncer: () => null,
     MediaPlayer: (props: {
       children: React.ReactNode
+      keyShortcuts?: Record<string, string | null>
       keyTarget?: string
       onMediaPauseRequest?: () => void
       onMediaPlayRequest?: () => void
@@ -193,6 +207,19 @@ describe('VidstackPlayer', () => {
   it('targets document-wide keyboard shortcuts', () => {
     render(<VidstackPlayer ariaLabel="Live channel video" />)
 
-    expect(mocks.lastMediaPlayerProps).toMatchObject({ keyTarget: 'document' })
+    expect(mocks.lastMediaPlayerProps).toMatchObject({
+      keyShortcuts: {
+        seekBackward: null,
+        seekForward: null,
+        slowDown: null,
+        speedUp: null,
+        toggleFullscreen: 'f',
+        toggleMuted: 'm',
+        togglePaused: 'k Space',
+        volumeDown: 'ArrowDown',
+        volumeUp: 'ArrowUp',
+      },
+      keyTarget: 'document',
+    })
   })
 })

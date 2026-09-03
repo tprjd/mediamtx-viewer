@@ -1,5 +1,10 @@
 # Plan: F hotkey toggles fullscreen (full default hotkey set, anywhere on watch page)
 
+> Correction: the first implementation assumed Vidstack merges `keyShortcuts` over its
+> defaults. It does not. `LIVE_KEY_SHORTCUTS` must start from `MEDIA_KEY_SHORTCUTS` and
+> then null the live-inappropriate entries. See `player-keyboard-shortcuts-fix-plan.md`
+> for the fix plan.
+
 ## Goal
 On a channel's watch page, make the player's keyboard shortcuts work across the whole
 page without first clicking/focusing the video. The user asked for the `f` key to toggle
@@ -39,9 +44,10 @@ fullscreen; after confirmation we make Vidstack's full default hotkey set active
    `keyTarget="document"` (alongside the existing `keyShortcuts={LIVE_KEY_SHORTCUTS}`,
    `liveEdgeTolerance`, etc.). This is the only source-code edit.
 
-   Note: `LIVE_KEY_SHORTCUTS` already disables the live-inappropriate shortcuts
-   (`seekBackward`, `seekForward`, `slowDown`, `speedUp`). Leave that object unchanged;
-   `toggleFullscreen` is intentionally left to the default `"f"`.
+   Note: `LIVE_KEY_SHORTCUTS` must spread `MEDIA_KEY_SHORTCUTS` and then disable
+   `seekBackward`, `seekForward`, `slowDown`, and `speedUp`. Vidstack replaces its default
+   shortcut map when a `keyShortcuts` object is passed, so omitting the spread also
+   removes `f`, `m`, `k`/`Space`, and the volume arrows.
 
 ## Tests
 1. `components/vidstack-player.test.tsx` — the mocked `MediaPlayer` currently only reads a
@@ -63,8 +69,8 @@ involved). There is no docs index or markdown linter to update.
    - Hotkeys table: `F` fullscreen, `M` mute, `K`/`Space` play-pause, `ArrowUp`/`ArrowDown`
      volume; note that live-inappropriate shortcuts (seek, playback speed) stay disabled.
    - Decision: `VidstackPlayer` sets `keyTarget="document"` on the shared player so keys are
-     handled document-wide; Vidstack's default shortcuts are used as-is (no custom
-     bindings), and `F` was already bound to fullscreen by Vidstack.
+     handled document-wide; `LIVE_KEY_SHORTCUTS` starts from `MEDIA_KEY_SHORTCUTS` and only
+     the live-inappropriate seek and speed shortcuts are disabled.
    - Why it is safe: the watch page hosts exactly one player; the player ignores keys while
      an input/textarea/select/contenteditable has focus and treats Space/Enter on a focused
      button as a button activation; no app-level global key handlers exist.

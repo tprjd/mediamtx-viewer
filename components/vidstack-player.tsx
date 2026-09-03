@@ -6,6 +6,7 @@ import {
   isHLSProvider,
   isVideoProvider,
   LiveButton,
+  MEDIA_KEY_SHORTCUTS,
   MediaAnnouncer,
   MediaPlayer,
   MediaProvider,
@@ -50,6 +51,7 @@ interface VidstackPlayerProps {
 }
 
 const LIVE_KEY_SHORTCUTS = {
+  ...MEDIA_KEY_SHORTCUTS,
   seekBackward: null,
   seekForward: null,
   slowDown: null,
