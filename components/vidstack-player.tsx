@@ -197,6 +197,7 @@ export function VidstackPlayer({
       autoPlay
       className="media-player"
       keyShortcuts={LIVE_KEY_SHORTCUTS}
+      keyTarget="document"
       liveEdgeTolerance={liveEdgeTolerance}
       load="eager"
       muted

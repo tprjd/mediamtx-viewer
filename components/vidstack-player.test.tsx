@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
   return {
     LocalHls,
     hlsInstance: { name: 'hls instance' },
+    lastMediaPlayerProps: undefined as unknown,
     playbackStarted: false,
     provider: {
       config: undefined as unknown,
@@ -43,17 +44,16 @@ vi.mock('@vidstack/react', async () => {
       provider.kind === 'hls' || provider.kind === 'native',
     LiveButton: button,
     MediaAnnouncer: () => null,
-    MediaPlayer: ({
-      children,
-      onMediaPauseRequest,
-      onMediaPlayRequest,
-      onProviderChange,
-    }: {
+    MediaPlayer: (props: {
       children: React.ReactNode
+      keyTarget?: string
       onMediaPauseRequest?: () => void
       onMediaPlayRequest?: () => void
       onProviderChange?: (provider: typeof mocks.provider) => void
     }) => {
+      mocks.lastMediaPlayerProps = props
+      const { children, onMediaPauseRequest, onMediaPlayRequest, onProviderChange } = props
+
       React.useEffect(() => {
         onProviderChange?.(mocks.provider)
         return () => onProviderChange?.(null as never)
@@ -89,6 +89,7 @@ vi.mock('@vidstack/react', async () => {
 describe('VidstackPlayer', () => {
   beforeEach(() => {
     mocks.playbackStarted = false
+    mocks.lastMediaPlayerProps = undefined
     mocks.provider.config = undefined
     mocks.provider.kind = 'hls'
     mocks.provider.library = undefined
@@ -187,5 +188,11 @@ describe('VidstackPlayer', () => {
     screen.getByRole('button', { name: 'Request play' }).click()
 
     expect(onUserPauseChange.mock.calls).toEqual([[true], [false]])
+  })
+
+  it('targets document-wide keyboard shortcuts', () => {
+    render(<VidstackPlayer ariaLabel="Live channel video" />)
+
+    expect(mocks.lastMediaPlayerProps).toMatchObject({ keyTarget: 'document' })
   })
 })
