@@ -12,6 +12,7 @@
     "auth:bootstrap": "node scripts/bootstrap-admin.mjs",
     "auth:backup": "node scripts/backup-auth.mjs",
     "auth:restore": "node scripts/restore-auth.mjs",
+    "validate:streaming-contract": "node scripts/validate-streaming-contract.mjs deploy/oracle/mediamtx.yml.example",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

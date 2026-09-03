@@ -1,5 +1,9 @@
 # Vidstack player refactor plan
 
+> Historical design record; non-authoritative.
+> [`config/streaming-contract.v1.json`](../config/streaming-contract.v1.json)
+> defines current timing and resilience policy.
+
 Status: implemented on 2026-09-02. Automated verification is complete. The
 long-running live-source matrix remains an operational check because it needs
 an active OBS stream and real devices.

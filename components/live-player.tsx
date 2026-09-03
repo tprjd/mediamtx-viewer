@@ -6,10 +6,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   HlsPlayer,
   isHlsJsSupported,
-  type HlsLatencyProfile,
 } from '@/components/hls-player'
 import { Button } from '@/components/ui/button'
 import { WebRtcPlayer } from '@/components/webrtc-player'
+import {
+  hlsPlaybackContract,
+  type PlaybackMode,
+  ultraLowFallback,
+  webRtcTransportFallback,
+} from '@/lib/streaming-contract'
 import type { PublicChannel } from '@/lib/types'
 
 interface LivePlayerProps {
@@ -17,11 +22,10 @@ interface LivePlayerProps {
   viewerId?: string
 }
 
-type PlaybackMode = HlsLatencyProfile | 'webrtc'
-
 const MODE_STORAGE_KEY = 'mediamtx-viewer:playback-mode'
-const WEBRTC_RETRY_COOLDOWN_MS = 60_000
 const VIEWER_QUERY_PARAMETER = 'frankerzspam_viewer'
+const ultraLowContract = hlsPlaybackContract('ultra-low')
+const webRtcFallback = webRtcTransportFallback()
 
 function tagPlaybackUrl(url: string, viewerId: string | undefined): string {
   if (!viewerId) return url
@@ -67,7 +71,7 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
       setUltraLowUnavailableReason(
         supportsUltraLow
           ? undefined
-          : 'HLS ≤3s requires hls.js and Media Source Extensions.',
+          : `${ultraLowContract.label} requires hls.js and Media Source Extensions.`,
       )
       const saved = window.sessionStorage.getItem(MODE_STORAGE_KEY)
       if (saved === 'hls') {
@@ -81,7 +85,7 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
           window.sessionStorage.setItem(MODE_STORAGE_KEY, 'balanced')
           setMode('balanced')
           setModeExitReason(
-            'HLS ≤3s requires hls.js and is unavailable in this browser.',
+            `${ultraLowContract.label} requires hls.js and is unavailable in this browser.`,
           )
         }
       }
@@ -108,10 +112,10 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
   }, [])
 
   const handleFallback = useCallback(() => {
-    const cooldown = Date.now() + WEBRTC_RETRY_COOLDOWN_MS
+    const cooldown = Date.now() + (webRtcFallback.retryCooldownMs ?? 0)
     setFallback({ retryAfter: cooldown, startedAt: channel.status.startedAt })
     setNow(Date.now())
-    selectMode('smooth')
+    selectMode(webRtcFallback.mode)
   }, [channel.status.startedAt, selectMode])
 
   const handleBalancedUnavailable = useCallback(() => {
@@ -121,17 +125,20 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
 
   const handleUltraLowUnavailable = useCallback((reason?: string) => {
     const unavailableReason = reason ??
-      'HLS ≤3s requires hls.js and is unavailable in this browser.'
+      `${ultraLowContract.label} requires hls.js and is unavailable in this browser.`
     setUltraLowSupported(false)
     setUltraLowUnavailableReason(unavailableReason)
     if (mode !== 'ultra-low') return
-    selectMode('balanced')
+    selectMode(ultraLowFallback('unavailable'))
     setModeExitReason(unavailableReason)
   }, [mode, selectMode])
 
   const handleUltraLowFailure = useCallback((reason: string) => {
-    selectMode('balanced')
-    setModeExitReason(reason)
+    const fallbackMode = ultraLowFallback('unstable')
+    selectMode(fallbackMode)
+    setModeExitReason(
+      `${reason} Switched to ${hlsPlaybackContract(fallbackMode).label}.`,
+    )
   }, [selectMode])
 
   const retrySeconds = Math.max(0, Math.ceil((retryAfter - now) / 1_000))
@@ -145,9 +152,12 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
           <span role={modeExitReason ? 'status' : undefined}>
             {modeExitReason ?? (
               <>
-                {mode === 'ultra-low' && 'Experimental HLS · maximum 3s viewer latency and buffer.'}
-                {mode === 'balanced' && 'Testing lower delay · target about 3–5s.'}
-                {mode === 'smooth' && 'Extra recovery margin · about 5–8s behind live.'}
+                {mode === 'ultra-low' &&
+                  'Experimental HLS · shortest buffer and strict live-edge correction.'}
+                {mode === 'balanced' &&
+                  'Lower delay with moderate recovery margin.'}
+                {mode === 'smooth' &&
+                  'Extra recovery margin for unstable connections.'}
                 {mode === 'webrtc' && 'Lowest delay with less recovery margin.'}
               </>
             )}
@@ -167,7 +177,9 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
             variant={mode === 'ultra-low' ? 'default' : 'secondary'}
           >
             <Gauge className="size-3.5" aria-hidden="true" />
-            {ultraLowSupported ? 'HLS ≤3s' : 'HLS ≤3s unavailable'}
+            {ultraLowSupported
+              ? ultraLowContract.label
+              : `${ultraLowContract.label} unavailable`}
           </Button>
           <Button
             aria-pressed={mode === 'balanced'}

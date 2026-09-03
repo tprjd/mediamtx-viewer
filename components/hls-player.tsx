@@ -26,7 +26,14 @@ import {
   type VidstackProviderKind,
 } from '@/components/vidstack-player'
 import { authClient } from '@/lib/auth/client'
+import {
+  hlsPackagingContract,
+  hlsPlaybackContract,
+  type HlsLatencyProfile,
+} from '@/lib/streaming-contract'
 import type { PublicChannel } from '@/lib/types'
+
+export type { HlsLatencyProfile } from '@/lib/streaming-contract'
 
 type PlaybackState =
   | 'offline'
@@ -46,8 +53,6 @@ interface HlsPlayerProps {
   profileExitReason?: string
 }
 
-export type HlsLatencyProfile = 'ultra-low' | 'balanced' | 'smooth'
-
 interface HlsLatencyProfileConfig {
   backBufferLength: number
   forwardBufferLimit?: number
@@ -60,31 +65,36 @@ interface HlsLatencyProfileConfig {
   maxMaxBufferLength?: number
 }
 
+const ultraLowContract = hlsPlaybackContract('ultra-low')
+const balancedContract = hlsPlaybackContract('balanced')
+const smoothContract = hlsPlaybackContract('smooth')
+const packagingContract = hlsPackagingContract()
+
 export const HLS_LATENCY_PROFILES = {
   'ultra-low': {
     backBufferLength: 0,
-    forwardBufferLimit: 3,
-    label: 'HLS ≤3s',
-    liveMaxLatencyDuration: 3,
-    liveSyncDuration: 1.8,
+    forwardBufferLimit: ultraLowContract.forwardBufferCeilingSeconds,
+    label: ultraLowContract.label,
+    liveMaxLatencyDuration: ultraLowContract.correctiveLatencyCeilingSeconds,
+    liveSyncDuration: ultraLowContract.targetLatencySeconds,
     liveSyncOnStallIncrease: 0,
-    maxBufferLength: 3,
+    maxBufferLength: ultraLowContract.forwardBufferCeilingSeconds,
     maxLiveSyncPlaybackRate: 1.05,
-    maxMaxBufferLength: 3,
+    maxMaxBufferLength: ultraLowContract.forwardBufferCeilingSeconds,
   },
   balanced: {
     backBufferLength: 30,
-    label: 'Balanced',
-    liveMaxLatencyDuration: 6,
-    liveSyncDuration: 3,
+    label: balancedContract.label,
+    liveMaxLatencyDuration: balancedContract.correctiveLatencyCeilingSeconds,
+    liveSyncDuration: balancedContract.targetLatencySeconds,
     liveSyncOnStallIncrease: 0.5,
     maxLiveSyncPlaybackRate: 1.03,
   },
   smooth: {
     backBufferLength: 30,
-    label: 'Smooth',
-    liveMaxLatencyDuration: 9,
-    liveSyncDuration: 5,
+    label: smoothContract.label,
+    liveMaxLatencyDuration: smoothContract.correctiveLatencyCeilingSeconds,
+    liveSyncDuration: smoothContract.targetLatencySeconds,
     liveSyncOnStallIncrease: 1,
     maxLiveSyncPlaybackRate: 1.02,
   },
@@ -396,7 +406,7 @@ export function HlsPlayer({
 
       ultraLowInstabilityRef.current = []
       onUltraLowFailure(
-        `HLS ≤3s could not be maintained after repeated ${reason}. Switched to Balanced.`,
+        `${profile.label} could not be maintained after repeated ${reason}.`,
       )
       return true
     }
@@ -614,7 +624,7 @@ export function HlsPlayer({
         if (syncPosition !== null && syncPosition > video.currentTime) {
           video.currentTime = syncPosition
           markCorrection(
-            `HLS ≤3s latency exceeded ${profile.liveMaxLatencyDuration}s`,
+            `${profile.label} latency exceeded ${profile.liveMaxLatencyDuration}s`,
             true,
           )
         }
@@ -745,11 +755,17 @@ export function HlsPlayer({
         return
       }
       const { partTarget, targetduration } = data.details
-      if (targetduration <= 2 && partTarget > 0 && partTarget <= 0.25) return
+      if (
+        targetduration <= packagingContract.segmentDurationSeconds &&
+        partTarget > 0 &&
+        partTarget <= packagingContract.partDurationSeconds + 0.05
+      ) {
+        return
+      }
 
       reportedUltraLowPackagingUnsupported = true
       onUltraLowUnavailable?.(
-        'HLS ≤3s requires two-second LL-HLS segments and parts no longer than 250ms.',
+        `${profile.label} requires ${packagingContract.segmentDurationSeconds}-second LL-HLS segments and parts no longer than ${(packagingContract.partDurationSeconds + 0.05) * 1_000}ms.`,
       )
     }
     const handleHlsError = (_event: string, data: ErrorData) => {

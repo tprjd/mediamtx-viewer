@@ -1,5 +1,9 @@
 # Two-keyframe low-latency HLS
 
+> Historical design record; non-authoritative.
+> [`config/streaming-contract.v1.json`](../config/streaming-contract.v1.json)
+> defines current timing and resilience policy.
+
 Status: implemented and deployed on 2026-09-02. The live playlist uses 2.000 s
 segments and 0.200 s parts. The active publisher still uses a two-second GOP,
 so its segments currently contain one keyframe. Apply the managed one-second

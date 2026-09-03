@@ -348,7 +348,7 @@ describe('HlsPlayer recovery', () => {
 
     expect(onUltraLowUnavailable).toHaveBeenCalledOnce()
     expect(onUltraLowUnavailable).toHaveBeenCalledWith(
-      expect.stringContaining('two-second LL-HLS segments'),
+      expect.stringContaining('2-second LL-HLS segments'),
     )
   })
 
@@ -611,7 +611,7 @@ describe('HlsPlayer recovery', () => {
 
     expect(onUltraLowFailure).toHaveBeenCalledOnce()
     expect(onUltraLowFailure).toHaveBeenCalledWith(
-      expect.stringContaining('Switched to Balanced'),
+      expect.stringContaining('could not be maintained'),
     )
   })
 

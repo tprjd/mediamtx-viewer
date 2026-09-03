@@ -80,17 +80,20 @@ to the already-warm Smooth HLS muxer, and the player waits 60 seconds before
 offering another WebRTC attempt. HLS retries transient failures with bounded
 exponential backoff while the stream remains live; hidden tabs and intentional
 pauses do not create reconnect storms. MediaMTX uses explicit two-second
-segments and 200 ms parts, paired with setup 1.3.0's one-second OBS keyframes.
+segments and 200 ms parts, paired with setup 1.4.0's two-second OBS keyframes.
 The watch page uses locally bundled Vidstack controls for HLS and WebRTC.
 Vidstack owns the media element and control UI. hls.js and the application
-watchdogs still enforce HLS latency, buffering, and recovery behavior.
+watchdogs still enforce HLS latency, buffering, and recovery behavior. The
+canonical [`streaming-contract.v1.json`](../../config/streaming-contract.v1.json)
+defines these timing and fallback values.
+
 Before deploying this version over an existing installation, add
 `hlsSegmentDuration: 2s` and `hlsPartDuration: 200ms` to
 `secrets/mediamtx.yml`; deployment validation now requires the full LL-HLS
-timing contract. Existing streamers must download setup 1.3.0 and run
-`-RepairManagedConfig` to apply the one-second GOP to managed profiles. Each
-completed segment contains about two keyframes when the publisher follows that
-GOP contract.
+timing contract. Existing streamers must download setup 1.4.0 and run
+`-RepairManagedConfig` to apply the two-second GOP to every managed profile.
+Release acceptance still requires an observed glass-to-glass latency check; the
+repository validators cannot measure it.
 
 MediaMTX metrics and its Control API remain private on the Compose network. The
 health sidecar checks them and the RTSP, HLS, WHEP, and TCP ICE listeners without

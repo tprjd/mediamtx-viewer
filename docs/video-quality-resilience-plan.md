@@ -1,5 +1,9 @@
 # Video quality and playback resilience plan
 
+> Historical design record; non-authoritative.
+> [`config/streaming-contract.v1.json`](../config/streaming-contract.v1.json)
+> defines current timing and resilience policy.
+
 Status: the repository implementation is complete for the no-transcode design:
 Setup 1.3.0's one-second-GOP OBS baseline, four viewer modes, warm LL-HLS,
 an experimental HLS ≤2s profile, bounded HLS

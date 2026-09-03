@@ -8,6 +8,12 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+# Streaming contract
+
+- Read `config/streaming-contract.v1.json` before changing HLS timing, buffering,
+  managed OBS keyframes, or playback fallback policy. It is authoritative;
+  timing values in `docs/*plan.md` are historical.
+
 # Delivery workflow
 
 - After completing an implementation task, run the relevant checks, commit only the task-related changes with a concise commit message, and push the current branch to its configured upstream unless the user explicitly asks not to.

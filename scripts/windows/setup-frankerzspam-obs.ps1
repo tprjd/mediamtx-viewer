@@ -19,7 +19,21 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$ScriptVersion = '1.3.0'
+$ScriptVersion = '1.4.0'
+$StreamingContractPayload = '__FRANKERZSPAM_OBS_TIMING_BASE64__'
+try {
+    $StreamingContractJson = [Text.Encoding]::UTF8.GetString(
+        [Convert]::FromBase64String($StreamingContractPayload)
+    )
+    $StreamingContract = $StreamingContractJson | ConvertFrom-Json
+    $StreamingContractVersion = [string]$StreamingContract.contractVersion
+    $ManagedKeyframeIntervalSeconds = [int]$StreamingContract.keyframeIntervalSeconds
+} catch {
+    throw "The embedded streaming contract is invalid: $($_.Exception.Message)"
+}
+if (-not $StreamingContractVersion -or $ManagedKeyframeIntervalSeconds -lt 1) {
+    throw 'The embedded streaming contract is incomplete.'
+}
 $CollectionName = 'FrankerzSpam Games'
 $CollectionFileName = 'FrankerzSpam_Games.json'
 $ObsPackageId = 'OBSProject.OBSStudio'
@@ -552,7 +566,7 @@ function Get-EncoderSettings {
     $settings = [ordered]@{
         rate_control = 'CBR'
         bitrate = $Profile.BitrateKbps
-        keyint_sec = 1
+        keyint_sec = $ManagedKeyframeIntervalSeconds
         bf = 0
     }
     $vendor = $Profile.Encoder.Vendor
@@ -567,8 +581,8 @@ function Get-EncoderSettings {
         $settings.adaptive_quantization = $true
         if ($codec -eq 'AV1') {
             # OBS's normal NVENC baseline uses two B-frames. They improve
-            # quality per bit with little encoder cost; the one-second GOP
-            # keeps LL-HLS segment cadence inside the three-second mode budget.
+            # quality per bit with little encoder cost. The streaming contract
+            # supplies one GOP interval for every managed profile.
             $settings.bf = 2
         }
         if ($codec -eq 'H264') {
@@ -1022,7 +1036,7 @@ try {
     $requestedCodecs = Get-CodecSelection $Codecs
     $requestedResolutions = Get-ResolutionSelection $Resolutions
     $codecsExplicit = $MyInvocation.BoundParameters.ContainsKey('Codecs')
-    Write-Host "FrankerzSpam OBS setup v$ScriptVersion" -ForegroundColor Magenta
+    Write-Host "FrankerzSpam OBS setup v$ScriptVersion (streaming contract $StreamingContractVersion)" -ForegroundColor Magenta
     Write-Info 'Managed streaming profiles: AV1, HEVC, and H.264 at 1440p60 and 1080p60.'
     Write-Info 'Profiles are alternatives, not simultaneous adaptive renditions.'
 

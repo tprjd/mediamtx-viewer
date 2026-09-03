@@ -1,5 +1,9 @@
 # Balanced playback latency plan
 
+> Historical design record; non-authoritative.
+> [`config/streaming-contract.v1.json`](../config/streaming-contract.v1.json)
+> defines current timing and resilience policy.
+
 Status: Balanced candidate A is implemented in the viewer together with the
 bounded Smooth profile, native-HLS drift recovery, and HLS live-edge
 diagnostics. Production glass-to-glass and impairment acceptance testing is

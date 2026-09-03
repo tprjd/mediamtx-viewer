@@ -27,6 +27,9 @@ if ! grep -q '^MEDIAMTX_AUTH_SECRET=.' "$script_dir/secrets/caddy.env"; then
   exit 1
 fi
 
+node "$project_dir/scripts/validate-streaming-contract.mjs" \
+  "$script_dir/secrets/mediamtx.yml"
+
 ssh "$deploy_target" "mkdir -p '$remote_dir/deploy/oracle/secrets'"
 
 rsync -az --inplace \
@@ -53,7 +56,7 @@ rsync -az --inplace \
   "$script_dir/secrets/mediamtx.yml" \
   "$deploy_target:$remote_dir/deploy/oracle/secrets/mediamtx.yml.next"
 
-ssh "$deploy_target" "cd '$remote_dir' && sh deploy/oracle/validate-mediamtx.sh deploy/oracle/secrets/mediamtx.yml.next"
+ssh "$deploy_target" "cd '$remote_dir' && sh deploy/oracle/validate-mediamtx.sh deploy/oracle/secrets/mediamtx.yml.next --syntax-only"
 mediamtx_config_changed=$(
   ssh "$deploy_target" "cd '$remote_dir' && sh -s" <<'REMOTE_SCRIPT'
 current_config=deploy/oracle/secrets/mediamtx.yml

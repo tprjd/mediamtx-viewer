@@ -1,5 +1,9 @@
 # Two-second LL-HLS playback plan
 
+> Historical design record; non-authoritative.
+> [`config/streaming-contract.v1.json`](../config/streaming-contract.v1.json)
+> defines current timing and resilience policy.
+
 Status: implemented in the viewer, MediaMTX example configuration, and managed
 OBS setup 1.3.0. Automated verification is included. Production glass-to-glass,
 quality, load, and impairment acceptance testing is still required, so the mode

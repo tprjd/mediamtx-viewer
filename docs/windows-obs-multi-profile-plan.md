@@ -1,5 +1,9 @@
 # Windows OBS Multi-Profile Setup Plan
 
+> Historical design record; non-authoritative.
+> [`config/streaming-contract.v1.json`](../config/streaming-contract.v1.json)
+> defines current timing and resilience policy.
+
 Status: implemented by setup 1.2.0. Setup 1.3.0 later changed every managed
 profile to one-second keyframes for the experimental two-second LL-HLS mode;
 references to two-second keyframes below describe the earlier baseline.

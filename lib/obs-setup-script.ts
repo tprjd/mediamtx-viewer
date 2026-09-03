@@ -5,9 +5,11 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { OBS_SETUP_SCRIPT_VERSION } from '@/lib/obs-setup'
+import { obsTimingProjection } from '@/lib/streaming-contract'
 
 export const OBS_SETUP_SCRIPT_FILENAME = 'Setup-FrankerzSpam-OBS.cmd'
 export const OBS_SETUP_PAYLOAD_MARKER = ':__FRANKERZSPAM_POWERSHELL_PAYLOAD__'
+const OBS_TIMING_PAYLOAD_MARKER = '__FRANKERZSPAM_OBS_TIMING_BASE64__'
 
 function scriptPath(): string {
   return join(
@@ -18,7 +20,15 @@ function scriptPath(): string {
   )
 }
 export function readObsSetupPowerShellSource(): Buffer {
-  return readFileSync(scriptPath())
+  const source = readFileSync(scriptPath(), 'utf8')
+  if (source.split(OBS_TIMING_PAYLOAD_MARKER).length !== 2) {
+    throw new Error('OBS setup timing marker is missing or duplicated.')
+  }
+  const timing = Buffer.from(
+    JSON.stringify(obsTimingProjection()),
+    'utf8',
+  ).toString('base64')
+  return Buffer.from(source.replace(OBS_TIMING_PAYLOAD_MARKER, timing), 'utf8')
 }
 
 export function buildObsSetupLauncher(): Buffer {
@@ -86,12 +96,15 @@ export function buildObsSetupLauncher(): Buffer {
 
 export function getObsSetupScriptMetadata(): {
   version: string
+  contractVersion: string
   sha256: string
   size: number
 } {
   const script = buildObsSetupLauncher()
+  const timing = obsTimingProjection()
   return {
     version: OBS_SETUP_SCRIPT_VERSION,
+    contractVersion: timing.contractVersion,
     sha256: createHash('sha256').update(script).digest('hex'),
     size: script.byteLength,
   }

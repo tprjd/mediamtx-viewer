@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": "1.0.0",
+  "hls": {
+    "packaging": {
+      "variant": "lowLatency",
+      "alwaysRemux": true,
+      "segmentDurationMs": 2000,
+      "partDurationMs": 200
+    },
+    "modes": {
+      "ultra-low": {
+        "targetLatencyMs": 1800,
+        "correctiveLatencyCeilingMs": 3000,
+        "forwardBufferCeilingMs": 3000
+      },
+      "balanced": {
+        "targetLatencyMs": 3000,
+        "correctiveLatencyCeilingMs": 6000
+      },
+      "smooth": {
+        "targetLatencyMs": 5000,
+        "correctiveLatencyCeilingMs": 9000
+      }
+    }
+  },
+  "managedObs": {
+    "keyframeIntervalMs": 2000
+  },
+  "fallbacks": {
+    "ultra-low": {
+      "unavailable": "balanced",
+      "unstable": "balanced"
+    },
+    "webrtc": {
+      "transportFailure": "smooth",
+      "retryCooldownMs": 60000
+    }
+  },
+  "releaseValidation": {
+    "glassToGlassRequired": true
+  }
+}

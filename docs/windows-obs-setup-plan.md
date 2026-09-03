@@ -1,5 +1,9 @@
 # Windows OBS Setup Design and Implementation Record
 
+> Historical design record; non-authoritative.
+> [`config/streaming-contract.v1.json`](../config/streaming-contract.v1.json)
+> defines current timing and resilience policy.
+
 Status: setup version 1.3.0 is implemented. It supersedes the single AV1
 profile described below with a managed AV1/HEVC/H.264 profile matrix at 1440p
 and 1080p and uses one-second keyframes for LL-HLS; see
