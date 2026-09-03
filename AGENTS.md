@@ -8,6 +8,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+# Domain language
+
+- Read `CONTEXT.md` before changing account access, channels, OBS setup,
+  playback, or viewer identity. Use its canonical terms in code and docs.
+
 # Streaming contract
 
 - Read `config/streaming-contract.v1.json` before changing HLS timing, buffering,
