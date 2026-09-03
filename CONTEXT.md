@@ -12,6 +12,10 @@ _Avoid_: Latency configuration, streaming settings
 A viewer-selectable policy that balances live delay against recovery margin while honoring the streaming contract.
 _Avoid_: Playback profile, preset
 
+**Playback run**:
+One active attempt to render a channel through the selected playback mode, from joining through recovery or exit.
+_Avoid_: Player lifecycle, playback session
+
 **Managed OBS profile**:
 An OBS publishing configuration created and maintained by FrankerzSpam setup.
 _Avoid_: OBS preset, generated profile

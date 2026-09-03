@@ -442,7 +442,10 @@ describe('HlsPlayer recovery', () => {
     })
     fireEvent(video, new Event('playing'))
 
-    await act(async () => vi.advanceTimersByTimeAsync(5_000))
+    await act(async () => vi.advanceTimersByTimeAsync(4_000))
+    expect(mocks.instances[0].startLoad).not.toHaveBeenCalled()
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
     expect(mocks.instances[0].startLoad).toHaveBeenCalledOnce()
     expect(video.currentTime).toBe(20)
 

@@ -13,6 +13,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Read `config/streaming-contract.v1.json` before changing HLS timing, buffering,
   managed OBS keyframes, or playback fallback policy. It is authoritative;
   timing values in `docs/*plan.md` are historical.
+- Read `lib/playback-run.ts` and `components/use-playback-run.ts` before changing
+  player state, pause handling, progress detection, or recovery eligibility.
+  Keep transport actions in the HLS and WebRTC adapters. Keep cross-protocol
+  selection in `components/use-playback-mode.ts`.
 
 # Delivery workflow
 

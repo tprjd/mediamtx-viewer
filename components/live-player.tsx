@@ -1,20 +1,16 @@
 'use client'
 
 import { Gauge, Scale, ShieldCheck } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 import {
   HlsPlayer,
   isHlsJsSupported,
 } from '@/components/hls-player'
 import { Button } from '@/components/ui/button'
+import { usePlaybackMode } from '@/components/use-playback-mode'
 import { WebRtcPlayer } from '@/components/webrtc-player'
-import {
-  hlsPlaybackContract,
-  type PlaybackMode,
-  ultraLowFallback,
-  webRtcTransportFallback,
-} from '@/lib/streaming-contract'
+import { hlsPlaybackContract } from '@/lib/streaming-contract'
 import type { PublicChannel } from '@/lib/types'
 
 interface LivePlayerProps {
@@ -22,10 +18,8 @@ interface LivePlayerProps {
   viewerId?: string
 }
 
-const MODE_STORAGE_KEY = 'mediamtx-viewer:playback-mode'
 const VIEWER_QUERY_PARAMETER = 'frankerzspam_viewer'
 const ultraLowContract = hlsPlaybackContract('ultra-low')
-const webRtcFallback = webRtcTransportFallback()
 
 function tagPlaybackUrl(url: string, viewerId: string | undefined): string {
   if (!viewerId) return url
@@ -37,19 +31,26 @@ function tagPlaybackUrl(url: string, viewerId: string | undefined): string {
 }
 
 export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
-  const [mode, setMode] = useState<PlaybackMode>(
-    channel.preferredPlayback === 'webrtc' ? 'webrtc' : 'balanced',
-  )
-  const [fallback, setFallback] = useState<{
-    retryAfter: number
-    startedAt: string | null
-  } | null>(null)
-  const [balancedUnavailable, setBalancedUnavailable] = useState(false)
-  const [ultraLowSupported, setUltraLowSupported] = useState(false)
-  const [ultraLowUnavailableReason, setUltraLowUnavailableReason] =
-    useState<string>()
-  const [modeExitReason, setModeExitReason] = useState<string>()
-  const [now, setNow] = useState(() => Date.now())
+  const playback = usePlaybackMode({
+    live: channel.status.live,
+    preferredPlayback: channel.preferredPlayback,
+    streamStartedAt: channel.status.startedAt,
+    supportsUltraLow: isHlsJsSupported,
+  })
+  const {
+    balancedUnavailable,
+    lowLatencyDisabled,
+    mode,
+    modeExitReason,
+    onBalancedUnavailable: handleBalancedUnavailable,
+    onUltraLowFailure: handleUltraLowFailure,
+    onUltraLowUnavailable: handleUltraLowUnavailable,
+    onWebRtcFallback: handleFallback,
+    retrySeconds,
+    selectMode,
+    ultraLowSupported,
+    ultraLowUnavailableReason,
+  } = playback
   const taggedChannel = useMemo<PublicChannel>(
     () => ({
       ...channel,
@@ -63,86 +64,6 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
     }),
     [channel, viewerId],
   )
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const supportsUltraLow = isHlsJsSupported()
-      setUltraLowSupported(supportsUltraLow)
-      setUltraLowUnavailableReason(
-        supportsUltraLow
-          ? undefined
-          : `${ultraLowContract.label} requires hls.js and Media Source Extensions.`,
-      )
-      const saved = window.sessionStorage.getItem(MODE_STORAGE_KEY)
-      if (saved === 'hls') {
-        window.sessionStorage.setItem(MODE_STORAGE_KEY, 'balanced')
-        setMode('balanced')
-      }
-      if (saved === 'ultra-low') {
-        if (supportsUltraLow) {
-          setMode('ultra-low')
-        } else {
-          window.sessionStorage.setItem(MODE_STORAGE_KEY, 'balanced')
-          setMode('balanced')
-          setModeExitReason(
-            `${ultraLowContract.label} requires hls.js and is unavailable in this browser.`,
-          )
-        }
-      }
-      if (saved === 'balanced' || saved === 'smooth' || saved === 'webrtc') {
-        setMode(saved)
-      }
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [])
-
-  const retryAfter =
-    fallback?.startedAt === channel.status.startedAt ? fallback.retryAfter : 0
-
-  useEffect(() => {
-    if (retryAfter <= now) return
-    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
-    return () => window.clearInterval(timer)
-  }, [now, retryAfter])
-
-  const selectMode = useCallback((next: PlaybackMode) => {
-    setModeExitReason(undefined)
-    setMode(next)
-    window.sessionStorage.setItem(MODE_STORAGE_KEY, next)
-  }, [])
-
-  const handleFallback = useCallback(() => {
-    const cooldown = Date.now() + (webRtcFallback.retryCooldownMs ?? 0)
-    setFallback({ retryAfter: cooldown, startedAt: channel.status.startedAt })
-    setNow(Date.now())
-    selectMode(webRtcFallback.mode)
-  }, [channel.status.startedAt, selectMode])
-
-  const handleBalancedUnavailable = useCallback(() => {
-    setBalancedUnavailable(true)
-    selectMode('smooth')
-  }, [selectMode])
-
-  const handleUltraLowUnavailable = useCallback((reason?: string) => {
-    const unavailableReason = reason ??
-      `${ultraLowContract.label} requires hls.js and is unavailable in this browser.`
-    setUltraLowSupported(false)
-    setUltraLowUnavailableReason(unavailableReason)
-    if (mode !== 'ultra-low') return
-    selectMode(ultraLowFallback('unavailable'))
-    setModeExitReason(unavailableReason)
-  }, [mode, selectMode])
-
-  const handleUltraLowFailure = useCallback((reason: string) => {
-    const fallbackMode = ultraLowFallback('unstable')
-    selectMode(fallbackMode)
-    setModeExitReason(
-      `${reason} Switched to ${hlsPlaybackContract(fallbackMode).label}.`,
-    )
-  }, [selectMode])
-
-  const retrySeconds = Math.max(0, Math.ceil((retryAfter - now) / 1_000))
-  const lowLatencyDisabled = !channel.status.live || retrySeconds > 0
 
   return (
     <div className="live-player">

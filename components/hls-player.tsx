@@ -8,15 +8,13 @@ import Hls, {
 } from 'hls.js'
 import {
   AlertTriangle,
-  LoaderCircle,
-  Radio,
   RotateCcw,
   ShieldCheck,
 } from 'lucide-react'
-import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { Button, buttonVariants } from '@/components/ui/button'
+import { PlaybackRunOverlay } from '@/components/playback-run-overlay'
+import { Button } from '@/components/ui/button'
 import {
   PlaybackStats,
   type HlsPlaybackDiagnostics,
@@ -25,6 +23,7 @@ import {
   VidstackPlayer,
   type VidstackProviderKind,
 } from '@/components/vidstack-player'
+import { usePlaybackRun } from '@/components/use-playback-run'
 import { authClient } from '@/lib/auth/client'
 import {
   hlsPackagingContract,
@@ -34,15 +33,6 @@ import {
 import type { PublicChannel } from '@/lib/types'
 
 export type { HlsLatencyProfile } from '@/lib/streaming-contract'
-
-type PlaybackState =
-  | 'offline'
-  | 'loading'
-  | 'playing'
-  | 'reconnecting'
-  | 'unauthorized'
-  | 'unsupported'
-  | 'error'
 
 interface HlsPlayerProps {
   channel: PublicChannel
@@ -186,29 +176,33 @@ export function HlsPlayer({
   onUltraLowUnavailable,
   profileExitReason,
 }: HlsPlayerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null)
   const recoveryRef = useRef({ attempts: 0 })
-  const userPausedRef = useRef(false)
   const lastCorrectionRef = useRef<string>(undefined)
   const sloRef = useRef<HlsSloState>(createHlsSloState())
   const ultraLowInstabilityRef = useRef<number[]>([])
   const ultraLowLastInstabilityRef = useRef<number>(undefined)
   const profile: HlsLatencyProfileConfig = HLS_LATENCY_PROFILES[latencyProfile]
-  const [playbackState, setPlaybackState] = useState<Exclude<PlaybackState, 'offline'>>(
-    'loading',
-  )
   const [reloadKey, setReloadKey] = useState(0)
   const [usingFallback, setUsingFallback] = useState(false)
-  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null)
   const [hlsInstance, setHlsInstance] = useState<Hls | null>(null)
   const [providerKind, setProviderKind] = useState<VidstackProviderKind>(null)
+  const status = channel.status
+  const {
+    canRecover: playbackCanRecover,
+    onUserPauseChange,
+    onVideoElementChange,
+    progress,
+    setPhase: setPlaybackPhase,
+    state: visibleState,
+    videoElement,
+    videoRef,
+  } = usePlaybackRun(status.live)
   const [hlsDiagnostics, setHlsDiagnostics] = useState<HlsPlaybackDiagnostics>({
     maxLatencySeconds: profile.liveMaxLatencyDuration,
     playbackRate: 1,
     profileExitReason,
     targetLatencySeconds: profile.liveSyncDuration,
   })
-  const status = channel.status
   const sourceUrl =
     usingFallback && channel.playback.fallbackHls
       ? channel.playback.fallbackHls
@@ -238,17 +232,6 @@ export function HlsPlayer({
         : undefined,
     [sourceUrl, status.live],
   )
-  const handleVideoElementChange = useCallback(
-    (video: HTMLVideoElement | null) => {
-      videoRef.current = video
-      setVideoElement(video)
-    },
-    [],
-  )
-  const handleUserPauseChange = useCallback((paused: boolean) => {
-    userPausedRef.current = paused
-  }, [])
-
   useEffect(() => {
     if (latencyProfile !== 'ultra-low') return
     sloRef.current = createHlsSloState()
@@ -263,14 +246,14 @@ export function HlsPlayer({
     )
     const unsupportedTimer = setTimeout(() => {
       if (latencyProfile === 'ultra-low') {
-        setPlaybackState('unsupported')
+        setPlaybackPhase('unsupported')
         onUltraLowUnavailable?.()
       } else if (!nativeHlsSupported) {
-        setPlaybackState('unsupported')
+        setPlaybackPhase('unsupported')
       }
     }, 0)
     return () => clearTimeout(unsupportedTimer)
-  }, [latencyProfile, onUltraLowUnavailable, status.live])
+  }, [latencyProfile, onUltraLowUnavailable, setPlaybackPhase, status.live])
 
   useEffect(() => {
     const video = videoElement
@@ -289,8 +272,6 @@ export function HlsPlayer({
     let stableTimer: ReturnType<typeof setTimeout> | undefined
     let mediaRecoveryAttempted = false
     let softRecoveryAttempted = false
-    let stagnantSamples = 0
-    let lastProgress: number | undefined
     let everPlayed = false
     let needsRecovery = false
     const nativeHls = providerKind === 'native'
@@ -301,6 +282,7 @@ export function HlsPlayer({
     let lastMeasuredLatency: number | undefined
     const slo = sloRef.current
 
+    progress.reset()
     slo.forwardBufferBreaching = false
     slo.latencyBreaching = false
     slo.latencyCorrectionAt = undefined
@@ -329,12 +311,7 @@ export function HlsPlayer({
       return
     }
 
-    const canRecover = () =>
-      active &&
-      status.live &&
-      document.visibilityState === 'visible' &&
-      navigator.onLine !== false &&
-      !userPausedRef.current
+    const canRecover = () => active && playbackCanRecover()
 
     const markCorrection = (reason: string, correctiveSeek = false) => {
       lastCorrectionRef.current = reason
@@ -416,7 +393,7 @@ export function HlsPlayer({
       instabilityReason = 'playback recoveries',
     ) => {
       needsRecovery = true
-      setPlaybackState('reconnecting')
+      setPlaybackPhase('reconnecting')
       clearTimeout(retryTimer)
       if (!canRecover()) return
       if (reportUltraLowInstability(instabilityReason)) return
@@ -507,22 +484,13 @@ export function HlsPlayer({
       }
 
       if (!canRecover() || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-        stagnantSamples = 0
-        lastProgress = undefined
+        progress.reset()
         return
       }
 
-      const progress = readProgress()
-      if (lastProgress === undefined || progress > lastProgress) {
-        lastProgress = progress
-        stagnantSamples = 0
-        return
-      }
-
-      stagnantSamples += 1
-      if (stagnantSamples < 5) return
-      stagnantSamples = 0
-      setPlaybackState('reconnecting')
+      const progressValue = readProgress()
+      if (!progress.observe(progressValue).stalled) return
+      setPlaybackPhase('reconnecting')
 
       if (hls && !softRecoveryAttempted) {
         softRecoveryAttempted = true
@@ -641,16 +609,15 @@ export function HlsPlayer({
     }
 
     const handleLoadStart = () => {
-      if (!everPlayed) setPlaybackState('loading')
+      if (!everPlayed) setPlaybackPhase('loading')
     }
     const handlePlaying = () => {
       clearTimeout(codecErrorTimer)
       clearTimeout(stableTimer)
       everPlayed = true
       needsRecovery = false
-      stagnantSamples = 0
-      lastProgress = readProgress()
-      setPlaybackState('playing')
+      progress.reset()
+      setPlaybackPhase('playing')
       stableTimer = setTimeout(() => {
         recoveryRef.current.attempts = 0
         mediaRecoveryAttempted = false
@@ -661,12 +628,11 @@ export function HlsPlayer({
       if (!video.paused) {
         if (everPlayed && reportUltraLowInstability('playback stalls')) return
         needsRecovery = true
-        setPlaybackState('reconnecting')
+        setPlaybackPhase('reconnecting')
       }
     }
     const handlePause = () => {
-      stagnantSamples = 0
-      lastProgress = undefined
+      progress.reset()
     }
     const handleSeeking = () => {
       if (
@@ -685,7 +651,7 @@ export function HlsPlayer({
         if (!active) return
         if (!data) {
           clearTimeout(retryTimer)
-          setPlaybackState('unauthorized')
+          setPlaybackPhase('unauthorized')
         } else if (video.error?.code !== MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
           scheduleRecreate(false, 'media recoveries')
         }
@@ -697,7 +663,7 @@ export function HlsPlayer({
             active &&
             (video.paused || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA)
           ) {
-            setPlaybackState('unsupported')
+            setPlaybackPhase('unsupported')
           }
         }, 2_500)
       }
@@ -730,8 +696,7 @@ export function HlsPlayer({
     }
 
     const resumeRecovery = () => {
-      stagnantSamples = 0
-      lastProgress = undefined
+      progress.reset()
       if (needsRecovery && canRecover()) scheduleRecreate(true)
     }
     window.addEventListener('online', resumeRecovery)
@@ -772,13 +737,13 @@ export function HlsPlayer({
       if (!data.fatal) return
 
       if (data.response?.code === 401 || data.response?.code === 403) {
-        setPlaybackState('unauthorized')
+        setPlaybackPhase('unauthorized')
         hls?.stopLoad()
         return
       }
 
       if (isCodecError(data.details)) {
-        setPlaybackState('unsupported')
+        setPlaybackPhase('unsupported')
         hls?.stopLoad()
         return
       }
@@ -790,13 +755,13 @@ export function HlsPlayer({
 
       if (data.type === ErrorTypes.MEDIA_ERROR && !mediaRecoveryAttempted) {
         mediaRecoveryAttempted = true
-        setPlaybackState('reconnecting')
+        setPlaybackPhase('reconnecting')
         hls?.recoverMediaError()
         return
       }
 
       if (data.details === ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR) {
-        setPlaybackState('unsupported')
+        setPlaybackPhase('unsupported')
         hls?.stopLoad()
         return
       }
@@ -835,6 +800,7 @@ export function HlsPlayer({
       clearTimeout(stableTimer)
       clearInterval(progressTimer)
       if (sloTimer !== undefined) clearInterval(sloTimer)
+      progress.reset()
     }
   }, [
     hlsInstance,
@@ -846,12 +812,14 @@ export function HlsPlayer({
     profileExitReason,
     providerKind,
     reloadKey,
+    playbackCanRecover,
+    progress,
+    setPlaybackPhase,
     status.live,
     videoElement,
   ])
 
   const retry = () => setReloadKey((key) => key + 1)
-  const visibleState: PlaybackState = status.live ? playbackState : 'offline'
 
   return (
     <div className="player-frame">
@@ -866,8 +834,8 @@ export function HlsPlayer({
           liveEdgeTolerance={profile.liveSyncDuration}
           onHlsInstanceChange={setHlsInstance}
           onProviderKindChange={setProviderKind}
-          onUserPauseChange={handleUserPauseChange}
-          onVideoElementChange={handleVideoElementChange}
+          onUserPauseChange={onUserPauseChange}
+          onVideoElementChange={onVideoElementChange}
           poster={channel.poster}
           seekableLive
           src={playerSource}
@@ -880,91 +848,50 @@ export function HlsPlayer({
             </span>
           )}
 
-          {visibleState !== 'playing' && (
-            <div className="player-overlay" aria-live="polite">
-          {visibleState === 'offline' && (
-            <div className="player-message">
-              <span className="player-icon">
-                <Radio className="size-6" aria-hidden="true" />
-              </span>
-              <h2>Stream offline</h2>
-              <p>This page will start checking again automatically.</p>
-            </div>
-          )}
+          <PlaybackRunOverlay
+            channelSlug={channel.slug}
+            loadingDescription={`Preparing ${profile.label.toLowerCase()} playback…`}
+            loadingTitle="Joining stream"
+            reconnectingDescription="The connection was interrupted. Retrying automatically…"
+            state={visibleState}
+          >
+            {visibleState === 'unsupported' && (
+              <div className="player-message">
+                <span className="player-icon player-icon-warning">
+                  <AlertTriangle className="size-6" aria-hidden="true" />
+                </span>
+                <h2>Video format not supported</h2>
+                <p>
+                  {usingFallback
+                    ? 'The compatibility stream is also unavailable on this browser or device.'
+                    : 'This stream may use AV1, which is not available on every browser or device.'}
+                </p>
+                {channel.hasCompatibilityFallback && !usingFallback && (
+                  <Button
+                    onClick={() => setUsingFallback(true)}
+                    size="sm"
+                    variant="secondary"
+                  >
+                    Try compatibility stream
+                  </Button>
+                )}
+              </div>
+            )}
 
-          {(visibleState === 'loading' || visibleState === 'reconnecting') && (
-            <div className="player-message">
-              <span className="player-icon">
-                <LoaderCircle
-                  className="size-6 animate-spin motion-reduce:animate-none"
-                  aria-hidden="true"
-                />
-              </span>
-              <h2>
-                {visibleState === 'loading' ? 'Joining stream' : 'Reconnecting'}
-              </h2>
-              <p>
-                {visibleState === 'loading'
-                  ? `Preparing ${profile.label.toLowerCase()} playback…`
-                  : 'The connection was interrupted. Retrying automatically…'}
-              </p>
-            </div>
-          )}
-
-          {visibleState === 'unsupported' && (
-            <div className="player-message">
-              <span className="player-icon player-icon-warning">
-                <AlertTriangle className="size-6" aria-hidden="true" />
-              </span>
-              <h2>Video format not supported</h2>
-              <p>
-                {usingFallback
-                  ? 'The compatibility stream is also unavailable on this browser or device.'
-                  : 'This stream may use AV1, which is not available on every browser or device.'}
-              </p>
-              {channel.hasCompatibilityFallback && !usingFallback && (
-                <Button
-                  onClick={() => setUsingFallback(true)}
-                  size="sm"
-                  variant="secondary"
-                >
-                  Try compatibility stream
+            {visibleState === 'error' && (
+              <div className="player-message">
+                <span className="player-icon player-icon-warning">
+                  <AlertTriangle className="size-6" aria-hidden="true" />
+                </span>
+                <h2>Playback interrupted</h2>
+                <p>The stream is live, but the player could not continue.</p>
+                <Button onClick={retry} size="sm" variant="secondary">
+                  <RotateCcw className="size-3.5" aria-hidden="true" />
+                  Try again
                 </Button>
-              )}
-            </div>
-          )}
-
-          {visibleState === 'error' && (
-            <div className="player-message">
-              <span className="player-icon player-icon-warning">
-                <AlertTriangle className="size-6" aria-hidden="true" />
-              </span>
-              <h2>Playback interrupted</h2>
-              <p>The stream is live, but the player could not continue.</p>
-              <Button onClick={retry} size="sm" variant="secondary">
-                <RotateCcw className="size-3.5" aria-hidden="true" />
-                Try again
-              </Button>
-            </div>
-          )}
-
-          {visibleState === 'unauthorized' && (
-            <div className="player-message">
-              <span className="player-icon player-icon-warning">
-                <AlertTriangle className="size-6" aria-hidden="true" />
-              </span>
-              <h2>Session expired</h2>
-              <p>Sign in again to continue watching.</p>
-              <Link
-                className={buttonVariants({ size: 'sm', variant: 'secondary' })}
-                href={`/login?returnTo=${encodeURIComponent(`/watch/${channel.slug}`)}`}
-              >
-                Sign in
-              </Link>
-            </div>
-          )}
-            </div>
-          )}
+              </div>
+            )}
+          </PlaybackRunOverlay>
         </VidstackPlayer>
       </div>
 

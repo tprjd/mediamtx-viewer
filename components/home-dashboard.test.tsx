@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { HomeDashboard } from '@/components/home-dashboard'
@@ -29,6 +29,7 @@ function channel(state: StreamState): PublicChannel {
 }
 
 afterEach(() => {
+  cleanup()
   vi.restoreAllMocks()
 })
 

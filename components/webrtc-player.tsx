@@ -1,16 +1,15 @@
 'use client'
 
-import { AlertTriangle, LoaderCircle, Radio, Waves } from 'lucide-react'
-import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, Waves } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { Button, buttonVariants } from '@/components/ui/button'
+import { PlaybackRunOverlay } from '@/components/playback-run-overlay'
+import { Button } from '@/components/ui/button'
 import { PlaybackStats } from '@/components/playback-stats'
+import { usePlaybackRun } from '@/components/use-playback-run'
 import { VidstackPlayer } from '@/components/vidstack-player'
 import { authClient } from '@/lib/auth/client'
 import type { PublicChannel } from '@/lib/types'
-
-type PlaybackState = 'loading' | 'playing' | 'reconnecting' | 'unauthorized' | 'error'
 
 interface ReaderOptions {
   url: string
@@ -93,18 +92,26 @@ interface WebRtcPlayerProps {
 }
 
 export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null)
   const fallbackRef = useRef(onFallback)
   const sourceHasAudioRef = useRef(false)
   const sourceHasVideoRef = useRef(false)
-  const userPausedRef = useRef(false)
-  const [playbackState, setPlaybackState] = useState<PlaybackState>('loading')
   const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(
     null,
   )
-  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null)
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null)
   const status = channel.status
+  const {
+    allowsAutomaticPlay,
+    canRecover,
+    onUserPauseChange,
+    onVideoElementChange,
+    playing,
+    progress,
+    setPhase: setPlaybackPhase,
+    state: playbackState,
+    videoElement,
+    videoRef,
+  } = usePlaybackRun(status.live)
   const sourceHasAudio = status.tracks.some((track) =>
     /audio|aac|opus|g7/i.test(track),
   )
@@ -118,17 +125,6 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
         : undefined,
     [mediaStream],
   )
-  const handleVideoElementChange = useCallback(
-    (video: HTMLVideoElement | null) => {
-      videoRef.current = video
-      setVideoElement(video)
-    },
-    [],
-  )
-  const handleUserPauseChange = useCallback((paused: boolean) => {
-    userPausedRef.current = paused
-  }, [])
-
   useEffect(() => {
     let active = true
     queueMicrotask(() => {
@@ -163,7 +159,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
         !active ||
         playPending ||
         playRequested ||
-        userPausedRef.current ||
+        !allowsAutomaticPlay() ||
         video.srcObject !== stream
       ) {
         return
@@ -181,7 +177,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
       )
     }
     const resumeTransportPause = () => {
-      if (userPausedRef.current) return
+      if (!allowsAutomaticPlay()) return
       playRequested = false
       resumeAttachedStream()
     }
@@ -197,7 +193,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
       video.removeEventListener('canplay', resumeAttachedStream)
       video.removeEventListener('pause', resumeTransportPause)
     }
-  }, [mediaStream, status.live, videoElement])
+  }, [allowsAutomaticPlay, mediaStream, status.live, videoElement])
 
   useEffect(() => {
     const video = videoElement
@@ -215,13 +211,9 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
     let expectedVideoTrack = false
     let watchdogPlaying = false
     let watchdogPollInFlight = false
-    let stagnantSamples = 0
-    let lastFrameCount: number | undefined
-    let lastPresentedFrameCount: number | undefined
     let presentedFrameCount = 0
     let presentationCallbackHandle: number | undefined
     let presentationCallbackGeneration = 0
-    let continuousProgressSince: number | undefined
     let recoveryCount = 0
     let recoveryInProgress = false
     let fallbackTriggered = false
@@ -235,11 +227,8 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
     }
 
     const resetProgress = () => {
-      stagnantSamples = 0
-      lastFrameCount = undefined
-      lastPresentedFrameCount = undefined
       presentedFrameCount = 0
-      continuousProgressSince = undefined
+      progress.reset()
     }
 
     const stopPresentationFrames = () => {
@@ -318,12 +307,12 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
         !active ||
         !watchdogPlaying ||
         watchdogPollInFlight ||
-        document.visibilityState !== 'visible' ||
+        !canRecover() ||
         video.paused ||
         video.ended ||
         !expectedVideoTrack
       ) {
-        if (document.visibilityState !== 'visible' || video.paused || video.ended) {
+        if (!canRecover() || video.paused || video.ended) {
           resetProgress()
         }
         return
@@ -331,12 +320,11 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
 
       watchdogPollInFlight = true
       const generation = readerGeneration
-      const previousPresentedFrameCount = lastPresentedFrameCount
       try {
         let frameCount = await readInboundVideoFrames(peerConnectionForWatchdog)
         if (!active || generation !== readerGeneration) return
         if (
-          document.visibilityState !== 'visible' ||
+          !canRecover() ||
           video.paused ||
           video.ended ||
           !expectedVideoTrack
@@ -356,48 +344,20 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
           }
         }
 
-        if (frameCount !== undefined) {
-          const previousFrameCount = lastFrameCount
-          const progressed =
-            previousFrameCount !== undefined && frameCount > previousFrameCount
-          lastFrameCount = frameCount
-          lastPresentedFrameCount = undefined
-
-          if (progressed) {
-            stagnantSamples = 0
-            continuousProgressSince ??= Date.now()
-          } else {
-            stagnantSamples += 1
-            continuousProgressSince = undefined
-          }
-        } else if (presentedFrameCount !== previousPresentedFrameCount) {
-          lastPresentedFrameCount = presentedFrameCount
-          lastFrameCount = undefined
-          stagnantSamples = 0
-          continuousProgressSince ??= Date.now()
-        } else {
+        if (frameCount === undefined) {
           const frameVideo = video as VideoFrameCallbackElement
           if (typeof frameVideo.requestVideoFrameCallback !== 'function') {
             resetProgress()
             return
           }
-          lastPresentedFrameCount = presentedFrameCount
-          stagnantSamples += 1
-          continuousProgressSince = undefined
+          frameCount = presentedFrameCount
         }
 
-        if (
-          continuousProgressSince !== undefined &&
-          Date.now() - continuousProgressSince >= 60_000
-        ) {
-          recoveryCount = 0
-          continuousProgressSince = Date.now()
-        }
+        const observation = progress.observe(frameCount)
+        if (observation.stable) recoveryCount = 0
 
-        if (stagnantSamples < 5 || recoveryInProgress || fallbackTriggered) return
+        if (!observation.stalled || recoveryInProgress || fallbackTriggered) return
 
-        stagnantSamples = 0
-        continuousProgressSince = undefined
         recoveryInProgress = true
 
         if (recoveryCount === 0) {
@@ -410,7 +370,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
           expectedVideoTrack = false
           stopWatchdog()
           setPeerConnection(null)
-          setPlaybackState('reconnecting')
+          setPlaybackPhase('reconnecting')
           if (ReaderConstructor) createReader(ReaderConstructor)
         } else {
           recoveryCount = 2
@@ -454,7 +414,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
 
     const handlePlaying = () => {
       clearTimeout(fallbackTimer)
-      setPlaybackState('playing')
+      setPlaybackPhase('playing')
       startWatchdog()
     }
 
@@ -471,7 +431,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
         url: new URL(channel.playback.webrtc, window.location.href).href,
         onError: () => {
           if (!active || generation !== readerGeneration) return
-          setPlaybackState('reconnecting')
+          setPlaybackPhase('reconnecting')
           void authClient.getSession().then(({ data }) => {
             if (!active || generation !== readerGeneration) return
             if (!data) {
@@ -479,7 +439,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
               readerToRetire?.close()
               readerToRetire = undefined
               clearTimeout(fallbackTimer)
-              setPlaybackState('unauthorized')
+              setPlaybackPhase('unauthorized')
               return
             }
             if (recoveryCount === 0 && ReaderConstructor) {
@@ -571,7 +531,7 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
       })
       .catch(() => {
         if (!active) return
-        setPlaybackState('error')
+        setPlaybackPhase('error')
         scheduleFallback(2_000)
       })
 
@@ -588,10 +548,14 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
       readerToRetire?.close()
       clearMedia()
     }
-  }, [channel.playback.webrtc, status.live, videoElement])
-
-  const offline = !status.live
-  const playing = !offline && playbackState === 'playing'
+  }, [
+    channel.playback.webrtc,
+    canRecover,
+    progress,
+    setPlaybackPhase,
+    status.live,
+    videoElement,
+  ])
 
   return (
     <div className="player-frame">
@@ -601,8 +565,8 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
       >
         <VidstackPlayer
           ariaLabel={`${channel.title} live video`}
-          onUserPauseChange={handleUserPauseChange}
-          onVideoElementChange={handleVideoElementChange}
+          onUserPauseChange={onUserPauseChange}
+          onVideoElementChange={onVideoElementChange}
           poster={channel.poster}
           src={playerSource}
           streamType="live"
@@ -614,31 +578,19 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
             </span>
           )}
 
-          {!playing && (
-            <div className="player-overlay" aria-live="polite">
-            {offline ? (
-              <div className="player-message">
-                <span className="player-icon">
-                  <Radio className="size-6" aria-hidden="true" />
-                </span>
-                <h2>Stream offline</h2>
-                <p>This page will start checking again automatically.</p>
-              </div>
-            ) : playbackState === 'unauthorized' ? (
-              <div className="player-message">
-                <span className="player-icon player-icon-warning">
-                  <AlertTriangle className="size-6" aria-hidden="true" />
-                </span>
-                <h2>Session expired</h2>
-                <p>Sign in again to continue watching.</p>
-                <Link
-                  className={buttonVariants({ size: 'sm', variant: 'secondary' })}
-                  href={`/login?returnTo=${encodeURIComponent(`/watch/${channel.slug}`)}`}
-                >
-                  Sign in
-                </Link>
-              </div>
-            ) : playbackState === 'error' ? (
+          <PlaybackRunOverlay
+            channelSlug={channel.slug}
+            loadingDescription="WebRTC is connecting. HLS will take over automatically if it cannot connect."
+            loadingTitle="Starting low-latency stream"
+            progressAction={(
+              <Button onClick={onFallback} size="sm" variant="ghost">
+                Use compatibility mode
+              </Button>
+            )}
+            reconnectingDescription="WebRTC is reconnecting. HLS will take over automatically if it cannot recover."
+            state={playbackState}
+          >
+            {playbackState === 'error' && (
               <div className="player-message">
                 <span className="player-icon player-icon-warning">
                   <AlertTriangle className="size-6" aria-hidden="true" />
@@ -649,30 +601,8 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
                   Use HLS now
                 </Button>
               </div>
-            ) : (
-              <div className="player-message">
-                <span className="player-icon">
-                  <LoaderCircle
-                    className="size-6 animate-spin motion-reduce:animate-none"
-                    aria-hidden="true"
-                  />
-                </span>
-                <h2>
-                  {playbackState === 'loading'
-                    ? 'Starting low-latency stream'
-                    : 'Reconnecting'}
-                </h2>
-                <p>
-                  WebRTC is connecting. HLS will take over automatically if it
-                  cannot connect.
-                </p>
-                <Button onClick={onFallback} size="sm" variant="ghost">
-                  Use compatibility mode
-                </Button>
-              </div>
             )}
-            </div>
-          )}
+          </PlaybackRunOverlay>
         </VidstackPlayer>
       </div>
 
