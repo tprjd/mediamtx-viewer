@@ -38,6 +38,12 @@ a {
   position: relative;
   z-index: 1;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell > main {
+  flex: 1 0 auto;
 }
 
 .ambient {
@@ -75,22 +81,32 @@ a {
 }
 
 .site-footer {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 1rem;
   width: min(100% - 2rem, 90rem);
   margin: 4rem auto 0;
   padding-block: 1.25rem 1.75rem;
-  border-top: 1px solid var(--line);
   color: #71717a;
   font-size: 0.72rem;
 }
 
-.site-footer p {
-  margin: 0;
-  color: #d4d4d8;
-  font-weight: 650;
+.site-footer::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 1px;
+  content: "";
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    var(--line) 45%,
+    var(--line) 55%,
+    transparent 100%
+  );
 }
 
 .user-menu {
