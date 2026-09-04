@@ -4,6 +4,7 @@ import { Download, RadioTower } from 'lucide-react'
 
 import {
   disconnectBroadcastAction,
+  updateDiscordNotificationsAction,
   updateChannelAction,
 } from '@/app/account/channel/actions'
 import { StreamKeyManager } from '@/components/auth/stream-key-manager'
@@ -120,6 +121,22 @@ export default async function ChannelAccountPage({
         ) : (
           <p className="error-banner">An administrator has disabled this channel.</p>
         )}
+      </section>
+
+      <section className="account-panel">
+        <h2>Discord notifications</h2>
+        <p>Choose whether live notifications may be sent for this channel.</p>
+        <form action={updateDiscordNotificationsAction} className="channel-metadata-form">
+          <label className="discord-notification-toggle">
+            <input
+              defaultChecked={channel.discordNotificationsEnabled}
+              name="discordNotificationsEnabled"
+              type="checkbox"
+            />
+            Send a notification when this channel goes live
+          </label>
+          <Button type="submit">Save notification setting</Button>
+        </form>
       </section>
 
       <section className="account-panel">

@@ -31,6 +31,9 @@ const channel: PublicChannel = {
 
 const liveUpdate: ChannelLiveUpdate = {
   slug: 'alice',
+  ownerName: 'Alice',
+  title: 'Alice stream',
+  discordNotificationsEnabled: true,
   poster: '/new.jpg',
   status: {
     state: 'live',

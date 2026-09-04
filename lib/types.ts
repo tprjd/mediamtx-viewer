@@ -11,6 +11,9 @@ export interface ChannelStatus {
 
 export interface ChannelLiveUpdate {
   slug: string
+  ownerName: string
+  title: string
+  discordNotificationsEnabled: boolean
   status: ChannelStatus
   poster: string | null
 }

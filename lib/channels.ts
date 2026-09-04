@@ -22,6 +22,7 @@ interface ChannelRow {
   description: string | null
   accentColor: string
   preferredPlayback: 'hls' | 'webrtc'
+  discordNotificationsEnabled: number
   enabled: number
   createdAt: number
   updatedAt: number
@@ -61,6 +62,7 @@ function toChannel(row: ChannelRow): Channel {
     description: row.description ?? undefined,
     accentColor: row.accentColor,
     preferredPlayback: row.preferredPlayback,
+    discordNotificationsEnabled: row.discordNotificationsEnabled === 1,
   })
 }
 
@@ -70,6 +72,7 @@ function toOwnedChannel(row: ChannelRow): OwnedChannel {
     id: row.id,
     ownerUserId: row.ownerUserId,
     enabled: row.enabled === 1,
+    discordNotificationsEnabled: row.discordNotificationsEnabled === 1,
     hasStreamKey: Boolean(row.tokenHint),
     streamKeyHint: row.tokenHint ?? null,
     createdAt: new Date(row.createdAt),
@@ -81,7 +84,9 @@ const publicColumns = `
   channel.id, channel.owner_user_id AS ownerUserId, channel.slug,
   channel.media_path AS mediaPath, user.name AS ownerName, channel.title,
   channel.description, channel.accent_color AS accentColor,
-  channel.preferred_playback AS preferredPlayback, channel.enabled,
+  channel.preferred_playback AS preferredPlayback,
+  channel.discord_notifications_enabled AS discordNotificationsEnabled,
+  channel.enabled,
   channel.created_at AS createdAt, channel.updated_at AS updatedAt,
   channel_stream_key.token_hint AS tokenHint`
 
@@ -261,6 +266,32 @@ export function updateOwnedChannelMetadata(
       .run(metadata.title, metadata.description || null, Date.now(), row.id)
     recordAudit(ownerUserId, ownerUserId, 'channel_metadata_updated', {
       channelId: row.id,
+    })
+  })()
+}
+
+export function updateOwnedChannelDiscordNotifications(
+  ownerUserId: string,
+  enabled: boolean,
+): void {
+  const database = getDatabase()
+  database.transaction(() => {
+    const row = database
+      .prepare(
+        `SELECT channel.id FROM channel
+         JOIN user ON user.id = channel.owner_user_id
+         WHERE channel.owner_user_id = ? AND user.activationStatus = 'active'`,
+      )
+      .get(ownerUserId) as { id: string } | undefined
+    if (!row) throw new Error('You do not have a channel')
+    database
+      .prepare(
+        'UPDATE channel SET discord_notifications_enabled = ?, updated_at = ? WHERE id = ?',
+      )
+      .run(enabled ? 1 : 0, Date.now(), row.id)
+    recordAudit(ownerUserId, ownerUserId, 'discord_notifications_updated', {
+      channelId: row.id,
+      enabled,
     })
   })()
 }

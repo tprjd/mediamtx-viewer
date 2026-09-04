@@ -99,6 +99,31 @@ services:
         max-size: 10m
         max-file: "3"
 
+  discord-notifier:
+    image: node:24-alpine
+    restart: unless-stopped
+    env_file:
+      - ./secrets/caddy.env
+      - ./secrets/discord.env
+    environment:
+      VIEWER_URL: http://viewer:3000
+      STATE_FILE: /state/discord-notifier-state.json
+      STABLE_MS: "30000"
+      COOLDOWN_MS: "900000"
+    volumes:
+      - ./scripts/discord-notifier.mjs:/app/discord-notifier.mjs:ro
+      - discord_notifier_state:/state
+    depends_on:
+      viewer:
+        condition: service_healthy
+    networks:
+      - viewer_net
+    command: ["node", "/app/discord-notifier.mjs"]
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
   viewer:
     build:
       context: ../..
@@ -151,3 +176,4 @@ volumes:
   caddy_config:
   auth_data:
   thumbnail_data:
+  discord_notifier_state:

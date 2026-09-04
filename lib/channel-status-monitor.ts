@@ -82,6 +82,9 @@ export async function loadChannelLiveUpdates(): Promise<ChannelLiveUpdate[]> {
     const status = statuses.get(channel.mediaPath)!
     return {
       slug: channel.slug,
+      ownerName: channel.ownerName,
+      title: channel.title,
+      discordNotificationsEnabled: channel.discordNotificationsEnabled,
       status,
       poster: channelPosterUrl(channel, status.live) ?? null,
     }

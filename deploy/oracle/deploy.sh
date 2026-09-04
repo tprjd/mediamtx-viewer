@@ -15,8 +15,9 @@ remote_dir=/home/ubuntu/mediamtx-viewer
 if [ ! -f "$script_dir/secrets/caddy.env" ] || \
   [ ! -f "$script_dir/secrets/mediamtx.yml" ] || \
   [ ! -f "$script_dir/secrets/oci-usage.env" ] || \
-  [ ! -f "$script_dir/secrets/oci-usage-api-key.pem" ]; then
-  echo "Missing an Oracle deployment secret (caddy.env, mediamtx.yml, oci-usage.env, or oci-usage-api-key.pem)" >&2
+  [ ! -f "$script_dir/secrets/oci-usage-api-key.pem" ] || \
+  [ ! -f "$script_dir/secrets/discord.env" ]; then
+  echo "Missing an Oracle deployment secret (caddy.env, mediamtx.yml, oci-usage.env, oci-usage-api-key.pem, or discord.env)" >&2
   echo "Apply deploy/oracle/terraform before deploying the statistics-enabled stack." >&2
   exit 1
 fi

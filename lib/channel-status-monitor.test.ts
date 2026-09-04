@@ -16,6 +16,9 @@ function update(
 ): ChannelLiveUpdate {
   return {
     slug: 'alice',
+    ownerName: 'Alice',
+    title: 'Alice stream',
+    discordNotificationsEnabled: true,
     poster:
       state === 'live' ? '/api/channels/alice/thumbnail?v=123' : null,
     status: {

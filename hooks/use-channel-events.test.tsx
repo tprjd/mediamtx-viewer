@@ -53,6 +53,9 @@ const snapshot: ChannelStatusSnapshot = {
   channels: [
     {
       slug: 'alice',
+      ownerName: 'Alice',
+      title: 'Alice stream',
+      discordNotificationsEnabled: true,
       poster: '/api/channels/alice/thumbnail?v=456',
       status: {
         state: 'live',

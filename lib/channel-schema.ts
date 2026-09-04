@@ -41,6 +41,7 @@ export const channelSchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/, 'Accent colors must be six-digit hex colors')
     .default('#db2777'),
   preferredPlayback: z.enum(['hls', 'webrtc']).default('hls'),
+  discordNotificationsEnabled: z.boolean().default(true),
   fallbackMediaPath: mediaPathSchema.optional(),
 })
 

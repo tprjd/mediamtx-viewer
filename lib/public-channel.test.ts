@@ -11,6 +11,7 @@ const channel: Channel = {
   title: 'Friend stream',
   accentColor: '#22c55e',
   preferredPlayback: 'hls',
+  discordNotificationsEnabled: true,
 }
 
 const status: ChannelStatus = {

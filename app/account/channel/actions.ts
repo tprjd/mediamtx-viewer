@@ -7,6 +7,7 @@ import { requireActiveSession } from '@/lib/auth/session'
 import {
   createOrRotateStreamKey,
   getOwnedChannel,
+  updateOwnedChannelDiscordNotifications,
   updateOwnedChannelMetadata,
 } from '@/lib/channels'
 import {
@@ -65,6 +66,25 @@ export async function updateChannelAction(formData: FormData) {
   revalidatePath('/')
   revalidatePath('/account/channel')
   redirect(destination('notice', 'Channel details updated.'))
+}
+
+export async function updateDiscordNotificationsAction(formData: FormData) {
+  const session = await requireActiveSession()
+  try {
+    updateOwnedChannelDiscordNotifications(
+      session.user.id,
+      formData.get('discordNotificationsEnabled') === 'on',
+    )
+  } catch (error) {
+    redirect(
+      destination(
+        'error',
+        error instanceof Error ? error.message : 'The setting could not be updated.',
+      ),
+    )
+  }
+  revalidatePath('/account/channel')
+  redirect(destination('notice', 'Discord notifications updated.'))
 }
 
 export async function disconnectBroadcastAction() {

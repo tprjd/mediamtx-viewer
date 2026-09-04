@@ -10,6 +10,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function isChannelLiveUpdate(value: unknown): value is ChannelLiveUpdate {
   if (!isRecord(value) || typeof value.slug !== 'string') return false
+  if (typeof value.ownerName !== 'string') return false
+  if (typeof value.title !== 'string') return false
+  if (typeof value.discordNotificationsEnabled !== 'boolean') return false
   if (value.poster !== null && typeof value.poster !== 'string') return false
   if (!isRecord(value.status)) return false
   const status = value.status
