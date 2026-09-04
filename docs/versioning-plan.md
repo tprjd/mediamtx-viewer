@@ -55,6 +55,12 @@ would have been patch versions if tags had existed.
 
 For a small private site, minor releases are likely to be the common case.
 
+## Commit style
+
+Write commit messages in Conventional Commits style. Use a type and a short
+description, for example `feat`, `fix`, `docs`, `refactor`, `test`, or `chore`.
+The changelog groups changes by the type in the commit message.
+
 ## Release steps
 
 1. Update `package.json` and `package-lock.json`.
