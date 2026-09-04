@@ -590,10 +590,10 @@ const metricDefinitions = [
   { key: 'cpu', name: 'CpuUtilization', label: 'CPU', unit: '%' as const, statistic: 'mean' },
   { key: 'memory', name: 'MemoryUtilization', label: 'Memory', unit: '%' as const, statistic: 'mean' },
   { key: 'load', name: 'LoadAverage', label: 'Load average', unit: 'load' as const, statistic: 'mean' },
-  { key: 'network-in', name: 'NetworksBytesIn', label: 'Network received', unit: 'bytes' as const, statistic: 'sum' },
-  { key: 'network-out', name: 'NetworksBytesOut', label: 'Network sent', unit: 'bytes' as const, statistic: 'sum' },
-  { key: 'disk-read', name: 'DiskBytesRead', label: 'Disk read', unit: 'bytes' as const, statistic: 'sum' },
-  { key: 'disk-write', name: 'DiskBytesWritten', label: 'Disk written', unit: 'bytes' as const, statistic: 'sum' },
+  { key: 'network-in', name: 'NetworksBytesIn', label: 'Network received', unit: 'bytes' as const, statistic: 'max' },
+  { key: 'network-out', name: 'NetworksBytesOut', label: 'Network sent', unit: 'bytes' as const, statistic: 'max' },
+  { key: 'disk-read', name: 'DiskBytesRead', label: 'Disk read', unit: 'bytes' as const, statistic: 'max' },
+  { key: 'disk-write', name: 'DiskBytesWritten', label: 'Disk written', unit: 'bytes' as const, statistic: 'max' },
 ] as const
 
 function rangeSettings(range: OracleMetricRange): { milliseconds: number; interval: string } {
@@ -646,18 +646,46 @@ async function getMetrics(
             )
             .sort((left, right) => left.timestamp.getTime() - right.timestamp.getTime())
             .map((point) => ({ timestamp: point.timestamp.toISOString(), value: point.value }))
-          const values = points.map((point) => point.value)
+          const isByteMetric = definition.unit === 'bytes'
+          let pointsToUse = points
+          let current: number | null
+          let average: number | null
+          let maximum: number | null
+
+          if (isByteMetric) {
+            const deltas = points.slice(1).map((point, index) => ({
+              timestamp: point.timestamp,
+              value: Math.max(0, point.value - points[index].value),
+            }))
+            pointsToUse = deltas
+            const values = deltas.map((delta) => delta.value)
+            current =
+              values.length > 0
+                ? values.reduce((sum, value) => sum + value, 0)
+                : null
+            average =
+              values.length > 0
+                ? values.reduce((sum, value) => sum + value, 0) / values.length
+                : null
+            maximum = values.length > 0 ? Math.max(...values) : null
+          } else {
+            const values = points.map((point) => point.value)
+            current = values.at(-1) ?? null
+            average =
+              values.length > 0
+                ? values.reduce((sum, value) => sum + value, 0) / values.length
+                : null
+            maximum = values.length > 0 ? Math.max(...values) : null
+          }
+
           return {
             key: definition.key,
             label: definition.label,
             unit: definition.unit,
-            points,
-            current: values.at(-1) ?? null,
-            average:
-              values.length > 0
-                ? values.reduce((sum, value) => sum + value, 0) / values.length
-                : null,
-            maximum: values.length > 0 ? Math.max(...values) : null,
+            points: pointsToUse,
+            current,
+            average,
+            maximum,
           }
         }),
       )
