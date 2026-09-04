@@ -39,7 +39,7 @@ export const channelSchema = z.object({
   accentColor: z
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/, 'Accent colors must be six-digit hex colors')
-    .default('#8b5cf6'),
+    .default('#db2777'),
   preferredPlayback: z.enum(['hls', 'webrtc']).default('hls'),
   fallbackMediaPath: mediaPathSchema.optional(),
 })

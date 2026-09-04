@@ -1,0 +1,23 @@
+@theme {
+  --color-background: #09090b;
+  --color-panel: #111114;
+  --color-muted: #a1a1aa;
+  --color-accent: #db2777;
+  --color-accent-strong: #be185d;
+  --color-accent-soft: #f472b6;
+  --color-ring: #db2777;
+}
+
+:root {
+  --background: var(--color-background);
+  --panel: var(--color-panel);
+  --line: rgba(255, 255, 255, 0.09);
+  --muted: var(--color-muted);
+  --accent: var(--color-accent);
+  --accent-strong: var(--color-accent-strong);
+  --accent-soft: var(--color-accent-soft);
+  --ring: var(--color-ring);
+  --eyebrow: var(--color-accent-soft);
+  --ambient-one: #db2777;
+  --ambient-two: #be185d;
+}

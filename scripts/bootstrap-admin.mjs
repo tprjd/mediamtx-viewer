@@ -37,7 +37,7 @@ if (existing) {
         accent_color, preferred_playback, enabled, created_at, updated_at, created_by
       ) VALUES (?, ?, 'live', 'live', 'Main channel', 'Live stream',
                 'Games and occasional broadcasts, streamed directly from home.',
-                '#8b5cf6', 'webrtc', 1, ?, ?, ?)` ,
+                '#db2777', 'webrtc', 1, ?, ?, ?)` ,
     )
     .run(randomUUID(), existing.id, now, now, existing.id)
   database
@@ -94,7 +94,7 @@ database.transaction(() => {
         accent_color, preferred_playback, enabled, created_at, updated_at, created_by
       ) VALUES (?, ?, 'live', 'live', 'Main channel', 'Live stream',
                 'Games and occasional broadcasts, streamed directly from home.',
-                '#8b5cf6', 'webrtc', 1, ?, ?, ?)` ,
+                '#db2777', 'webrtc', 1, ?, ?, ?)` ,
     )
     .run(randomUUID(), userId, now, now, userId)
 })()
