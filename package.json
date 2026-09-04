@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@better-auth/utils": "0.4.2",
+    "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-tooltip": "^1.2.16",
     "@vidstack/react": "1.15.6",
     "better-auth": "1.7.2",

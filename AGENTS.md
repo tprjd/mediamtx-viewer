@@ -23,6 +23,14 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   Keep transport actions in the HLS and WebRTC adapters. Keep cross-protocol
   selection in `components/use-playback-mode.ts`.
 
+# UI components
+
+- Before building a custom modal, popover, tooltip, dropdown, or similar
+  interactive UI primitive, check whether Radix UI already provides it. Prefer
+  Radix primitives over hand-rolled implementations. If the needed package is
+  not installed, add it with `npm install @radix-ui/<package>` rather than
+  reimplementing the behavior.
+
 # Delivery workflow
 
 - After completing an implementation task, run the relevant checks, commit only the task-related changes with a concise commit message, and push the current branch to its configured upstream unless the user explicitly asks not to.

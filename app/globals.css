@@ -463,6 +463,53 @@ a {
   justify-self: start;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  padding: 1rem;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(6px);
+}
+
+.modal-card {
+  width: min(100%, 26rem);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 101;
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: #111114;
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.45);
+  transform: translate(-50%, -50%);
+}
+
+.modal-title {
+  margin: 0;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.modal-description {
+  margin: 0.65rem 0 0;
+  color: #a1a1aa;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.4rem;
+}
+
 .account-session-list {
   display: grid;
   gap: 0.7rem;
