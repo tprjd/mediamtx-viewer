@@ -31,6 +31,17 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   not installed, add it with `npm install @radix-ui/<package>` rather than
   reimplementing the behavior.
 
+# Versioning
+
+- Read `docs/versioning-plan.md` before changing a release version.
+- Keep `package.json` and `package-lock.json` in sync. Derive `APP_VERSION`
+  from `package.json`; do not keep a duplicate version string.
+- Add a Keep a Changelog entry and an annotated `vX.Y.Z` git tag when cutting
+  a release.
+- Run lint, tests, and build before tagging.
+- Do not bump the version for docs-only or planning changes.
+- Once implemented, show `APP_VERSION` in the footer and in `/api/health`.
+
 # Delivery workflow
 
 - After completing an implementation task, run the relevant checks, commit only the task-related changes with a concise commit message, and push the current branch to its configured upstream unless the user explicitly asks not to.

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
 
 import { SiteHeader } from '@/components/site-header'
+import { SiteFooter } from '@/components/site-footer'
 
 import './globals.css'
 
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <div className="app-shell">
           <SiteHeader />
           {children}
+          <SiteFooter />
         </div>
       </body>
     </html>
