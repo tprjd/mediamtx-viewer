@@ -111,7 +111,7 @@ services:
       STABLE_MS: "30000"
       COOLDOWN_MS: "900000"
     volumes:
-      - ./scripts/discord-notifier.mjs:/app/discord-notifier.mjs:ro
+      - ../../scripts/discord-notifier.mjs:/app/discord-notifier.mjs:ro
       - discord_notifier_state:/state
     depends_on:
       viewer:
