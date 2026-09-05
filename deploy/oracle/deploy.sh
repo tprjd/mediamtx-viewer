@@ -11,25 +11,30 @@ deploy_target=$1
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 project_dir=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 remote_dir=/home/ubuntu/mediamtx-viewer
+plaintext_dir=$(mktemp -d)
+trap 'rm -rf "$plaintext_dir"' EXIT
 
-if [ ! -f "$script_dir/secrets/caddy.env" ] || \
-  [ ! -f "$script_dir/secrets/mediamtx.yml" ] || \
-  [ ! -f "$script_dir/secrets/oci-usage.env" ] || \
-  [ ! -f "$script_dir/secrets/oci-usage-api-key.pem" ] || \
-  [ ! -f "$script_dir/secrets/discord.env" ]; then
+"$script_dir/sops-secrets.sh" decrypt "$plaintext_dir"
+
+if [ ! -f "$plaintext_dir/caddy.env" ] || \
+  [ ! -f "$plaintext_dir/mediamtx.yml" ] || \
+  [ ! -f "$plaintext_dir/oci-usage.env" ] || \
+  [ ! -f "$plaintext_dir/oci-usage-api-key.pem" ] || \
+  [ ! -f "$plaintext_dir/discord.env" ]; then
   echo "Missing an Oracle deployment secret (caddy.env, mediamtx.yml, oci-usage.env, oci-usage-api-key.pem, or discord.env)" >&2
-  echo "Apply deploy/oracle/terraform before deploying the statistics-enabled stack." >&2
+  echo "Encrypt the deployment secrets first with deploy/oracle/sops-secrets.sh." >&2
   exit 1
 fi
 
-if ! grep -q '^MEDIAMTX_AUTH_SECRET=.' "$script_dir/secrets/caddy.env"; then
-  echo "MEDIAMTX_AUTH_SECRET is missing from deploy/oracle/secrets/caddy.env" >&2
+if ! grep -q '^MEDIAMTX_AUTH_SECRET=.' "$plaintext_dir/caddy.env"; then
+  echo "MEDIAMTX_AUTH_SECRET is missing from deploy/oracle/secrets.enc/caddy.env.enc" >&2
   echo "Run: node scripts/ensure-env-secret.mjs deploy/oracle/secrets/caddy.env MEDIAMTX_AUTH_SECRET" >&2
+  echo "then encrypt it again with deploy/oracle/sops-secrets.sh." >&2
   exit 1
 fi
 
 node "$project_dir/scripts/validate-streaming-contract.mjs" \
-  "$script_dir/secrets/mediamtx.yml"
+  "$plaintext_dir/mediamtx.yml"
 
 ssh "$deploy_target" "mkdir -p '$remote_dir/deploy/oracle/secrets'"
 
@@ -42,6 +47,7 @@ rsync -az --inplace \
   --exclude playwright-report \
   --exclude test-results \
   --exclude deploy/oracle/secrets \
+  --exclude deploy/oracle/secrets.enc \
   --exclude deploy/oracle/terraform/.terraform \
   --exclude deploy/oracle/terraform/terraform.tfstate \
   --exclude deploy/oracle/terraform/terraform.tfstate.backup \
@@ -51,10 +57,10 @@ rsync -az --inplace \
 
 rsync -az --inplace \
   --exclude mediamtx.yml \
-  "$script_dir/secrets/" "$deploy_target:$remote_dir/deploy/oracle/secrets/"
+  "$plaintext_dir/" "$deploy_target:$remote_dir/deploy/oracle/secrets/"
 
 rsync -az --inplace \
-  "$script_dir/secrets/mediamtx.yml" \
+  "$plaintext_dir/mediamtx.yml" \
   "$deploy_target:$remote_dir/deploy/oracle/secrets/mediamtx.yml.next"
 
 ssh "$deploy_target" "cd '$remote_dir' && sh deploy/oracle/validate-mediamtx.sh deploy/oracle/secrets/mediamtx.yml.next --syntax-only"

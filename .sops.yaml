@@ -1,0 +1,3 @@
+creation_rules:
+  - path_regex: deploy/oracle/secrets(\.enc)?/.*
+    age: age1wjp80yrk8pv0np4ymr94wvxslex4ffex64uhwumdnt9dvpw54uvszw5e06

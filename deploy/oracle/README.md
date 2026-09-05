@@ -6,9 +6,33 @@ entry point.
 
 ## One-time secret setup
 
-Create `secrets/caddy.env` from `caddy.env.example`, `secrets/admin.env` from
-`admin.env.example`, and `secrets/mediamtx.yml` from `mediamtx.yml.example`.
-These files are ignored by Git and by the Docker build context.
+Create the plaintext files in the git-ignored `secrets/` directory:
+
+- `secrets/caddy.env` from `caddy.env.example`
+- `secrets/admin.env` from `admin.env.example`
+- `secrets/mediamtx.yml` from `mediamtx.yml.example`
+
+These files are never committed. They are encrypted with SOPS and an age key
+into `secrets.enc/`, which is committed to Git and is the only copy the
+deployment reads. `deploy/oracle/sops-secrets.sh` manages the conversion.
+
+Install `sops` and `age` on the deployment workstation. The age private key
+must exist at `~/.config/sops/age/keys.txt` unless `SOPS_AGE_KEY_FILE` points
+elsewhere. Generate one with:
+
+```sh
+age-keygen -o ~/.config/sops/age/keys.txt
+```
+
+Put the resulting public key in `.sops.yaml`, then encrypt the plaintext
+secrets:
+
+```sh
+./deploy/oracle/sops-secrets.sh encrypt
+```
+
+The encrypted files under `deploy/oracle/secrets.enc/` are safe to commit.
+Keep the age private key out of Git and back it up separately.
 
 Generate independent strong secrets:
 
@@ -34,8 +58,9 @@ From the repository root:
 ./deploy/oracle/deploy.sh ubuntu@$(cd deploy/oracle/terraform && tofu output -raw public_ip)
 ```
 
-The script copies the source and ignored runtime secrets, validates the staged
-MediaMTX configuration in an isolated container and the Compose model, builds
+The script copies the source, decrypts the SOPS-encrypted deployment secrets
+into a temporary directory, validates the staged MediaMTX configuration in an
+isolated container and the Compose model, builds
 the viewer and FFmpeg thumbnail worker on the ARM VM, applies versioned SQLite
 migrations, creates the first administrator when needed, updates the UDP 443
 and TCP 8189 UFW rules, and reloads Caddy. The script restarts MediaMTX only

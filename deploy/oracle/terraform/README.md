@@ -95,8 +95,17 @@ It also creates a dedicated OCI user and group with read-only access to usage
 reports, compute/volume inventory, and metrics; disables all of that user's
 credential types except API keys; and generates one RSA key.
 The private key and its non-secret identifiers are written with mode `0600` to
-`deploy/oracle/secrets/oci-usage-api-key.pem` and `oci-usage.env`. Both paths are
-git-ignored and are copied by the deployment script, then mounted read-only.
+the git-ignored `deploy/oracle/secrets/oci-usage-api-key.pem` and
+`oci-usage.env`. After apply, encrypt them into the tracked
+`deploy/oracle/secrets.enc/` directory:
+
+```sh
+./deploy/oracle/sops-secrets.sh encrypt
+```
+
+The deployment script decrypts those files into a temporary directory and
+copies them to the VM, where they are mounted read-only. Keep the plaintext
+Terraform-written files out of Git.
 
 Set `statistics_usage_user_email` in `terraform.tfvars`; OCI Identity Domains
 requires a primary email even though this service identity has no console

@@ -245,8 +245,8 @@ fails closed to `Unknown` when billing cannot be verified. Compute and Monitorin
 use the same dedicated read-only API key as billing in production, with the VM
 instance principal retained as a fallback for inventory and metrics. The OCI
 user can only read usage reports, compute/volume inventory, and metrics. Its key
-is mounted from the git-ignored deployment secrets directory and is never
-included in the image.
+is stored as a SOPS-encrypted deployment secret and is never included in the
+image.
 
 The deployment script validates staged MediaMTX configuration, rebuilds the
 stack, applies database migrations, and leaves an unchanged MediaMTX container
@@ -262,8 +262,9 @@ The Oracle Compose stack stores Caddy state, SQLite, and thumbnails in named
 volumes. SQLite is the data that must be backed up. Thumbnails are derived and
 can be regenerated; account database backups intentionally exclude them.
 
-Local runtime data, deployment secrets, Terraform state, build output, test
-reports, and dependencies are ignored by Git.
+Local runtime data, plaintext deployment secrets, Terraform state, build
+output, test reports, and dependencies are ignored by Git. SOPS-encrypted
+deployment secrets in `deploy/oracle/secrets.enc/` are versioned.
 
 ## Codec compatibility
 
