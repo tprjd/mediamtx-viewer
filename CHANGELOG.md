@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [0.6.2] - 2026-09-05
+
+### Fixed
+
+- Restore responsive dashboard, channel, and player layouts after their base styles moved into CSS modules.
+
+### Changed
+
+- Colocate component and page styles into CSS modules, leaving `globals.css` with only tokens, base styles, and shared primitives.
+- Centralize text and status colors as design tokens.
+- Remove the unused `ChannelCard` component.
+
 ## [0.6.1] - 2026-09-04
 
 ### Changed
