@@ -2,6 +2,7 @@
 
 import { Check, ChevronDown, Copy } from 'lucide-react'
 import { useEffect, useId, useMemo, useState, type RefObject } from 'react'
+import styles from './playback-stats.module.css'
 
 type PlaybackProtocol = 'WebRTC' | 'HLS'
 
@@ -264,7 +265,7 @@ function formatConfiguredSeconds(value?: number): string {
 
 function FramePacingChart({ summary }: { summary?: FramePacingSummary }) {
   const intervals = summary?.presentationIntervalsMs ?? []
-  if (intervals.length < 2) return <span className="playback-pacing-empty">—</span>
+  if (intervals.length < 2) return <span className={`${styles.playbackPacingEmpty}`}>—</span>
 
   const maximumPoints = 120
   const bucketSize = Math.max(1, Math.ceil(intervals.length / maximumPoints))
@@ -291,21 +292,21 @@ function FramePacingChart({ summary }: { summary?: FramePacingSummary }) {
   return (
     <svg
       aria-label={`Presented frame times over ten seconds; average ${formatMilliseconds(summary?.presentationAverageMs)}, 95th percentile ${formatMilliseconds(summary?.presentationP95Ms)}`}
-      className="playback-pacing-chart"
+      className={`${styles.playbackPacingChart}`}
       preserveAspectRatio="none"
       role="img"
       viewBox={`0 0 ${chartWidth} ${chartHeight}`}
     >
       {expectedY !== undefined && (
         <line
-          className="playback-pacing-target"
+          className={`${styles.playbackPacingTarget}`}
           x1="0"
           x2={chartWidth}
           y1={expectedY}
           y2={expectedY}
         />
       )}
-      <path className="playback-pacing-line" d={path} />
+      <path className={`${styles.playbackPacingLine}`} d={path} />
     </svg>
   )
 }
@@ -694,7 +695,7 @@ export function PlaybackStats({
   return (
     <div
       aria-label="Playback diagnostics"
-      className="playback-diagnostics"
+      className={`${styles.playbackDiagnostics}`}
       title="Viewer-side playback measurements"
     >
       <button
@@ -705,18 +706,18 @@ export function PlaybackStats({
             ? 'Hide playback diagnostics'
             : 'Show playback diagnostics'
         }
-        className="playback-diagnostics-toggle"
+        className={`${styles.playbackDiagnosticsToggle}`}
         onClick={() => setDetailsOpen((open) => !open)}
         type="button"
       >
-        <span className="playback-summary-stat playback-summary-state">
+        <span className={`${styles.playbackSummaryStat} playback-summary-state`}>
           <small>Status</small>
           <strong>
             <i data-playing={playing} aria-hidden="true" />
             {connection}
           </strong>
         </span>
-        <span className="playback-summary-stat">
+        <span className={`${styles.playbackSummaryStat}`}>
           <small>Mode</small>
           <strong>
             {hlsDiagnostics?.engine
@@ -724,52 +725,52 @@ export function PlaybackStats({
               : protocol}
           </strong>
         </span>
-        <span className="playback-summary-stat">
+        <span className={`${styles.playbackSummaryStat}`}>
           <small>Quality</small>
           <strong>{qualitySummary}</strong>
         </span>
-        <span className="playback-summary-stat">
+        <span className={`${styles.playbackSummaryStat}`}>
           <small>{hlsDiagnostics ? 'Live latency' : 'Network RTT'}</small>
           <strong>{summaryLatency}</strong>
         </span>
-        <span className="playback-summary-stat">
+        <span className={`${styles.playbackSummaryStat}`}>
           <small>{hlsDiagnostics ? 'Forward buffer' : 'Loss rate'}</small>
           <strong>{summaryReserve}</strong>
         </span>
-        <span className="playback-summary-stat playback-summary-more">
+        <span className={`${styles.playbackSummaryStat} ${styles.playbackSummaryMore}`}>
           <small>Diagnostics</small>
           <strong>
             {detailsOpen ? 'Hide' : 'More'}
             <ChevronDown
-              className="playback-diagnostics-chevron"
+              className={`${styles.playbackDiagnosticsChevron}`}
               aria-hidden="true"
             />
           </strong>
         </span>
       </button>
       <div
-        className="playback-stats"
+        className={`${styles.playbackStats}`}
         hidden={!detailsOpen}
         id={diagnosticsId}
       >
-      <div className="playback-stat">
+      <div className={`${styles.playbackStat}`}>
         <span>Mode</span>
         <strong>{protocol}</strong>
       </div>
-      <div className="playback-stat">
+      <div className={`${styles.playbackStat}`}>
         <span>Codecs</span>
         <strong>{codecs || '—'}</strong>
       </div>
-      <div className="playback-stat">
+      <div className={`${styles.playbackStat}`}>
         <span>Resolution</span>
         <strong>{formatResolution(metrics.width, metrics.height)}</strong>
       </div>
-      <div className="playback-stat">
+      <div className={`${styles.playbackStat}`}>
         <span>Frame rate</span>
         <strong>{formatFrameRate(metrics.framesPerSecond)}</strong>
       </div>
       <div
-        className="playback-stat playback-stat-pacing-chart"
+        className={`${styles.playbackStat} ${styles.playbackStatPacingChart}`}
         title="Rolling browser presentation intervals; spikes indicate uneven pacing"
       >
         <span>Frame pacing · 10s</span>
@@ -778,7 +779,7 @@ export function PlaybackStats({
         </strong>
       </div>
       <div
-        className="playback-stat"
+        className={`${styles.playbackStat}`}
         title="Average / 95th-percentile frame timestamp interval encoded in the stream"
       >
         <span>Source frame</span>
@@ -790,7 +791,7 @@ export function PlaybackStats({
         </strong>
       </div>
       <div
-        className="playback-stat"
+        className={`${styles.playbackStat}`}
         title="Average / 95th-percentile interval between frames submitted for browser composition"
       >
         <span>Presented frame</span>
@@ -802,7 +803,7 @@ export function PlaybackStats({
         </strong>
       </div>
       <div
-        className="playback-stat"
+        className={`${styles.playbackStat}`}
         title="Presented intervals longer than 1.5 times the rolling median source interval"
       >
         <span>Late frames</span>
@@ -812,38 +813,38 @@ export function PlaybackStats({
             : '—'}
         </strong>
       </div>
-      <div className="playback-stat" title="Average decoder and video processing time per frame">
+      <div className={`${styles.playbackStat}`} title="Average decoder and video processing time per frame">
         <span>Decode/process</span>
         <strong>{formatMilliseconds(metrics.decodeTimeMs)}</strong>
       </div>
       <div
-        className="playback-stat"
+        className={`${styles.playbackStat}`}
         title="Average WebRTC jitter-buffer delay per emitted frame"
       >
         <span>Jitter buffer</span>
         <strong>{formatMilliseconds(metrics.jitterBufferDelayMs)}</strong>
       </div>
-      <div className="playback-stat" title="WebRTC receiver-reported video freezes">
+      <div className={`${styles.playbackStat}`} title="WebRTC receiver-reported video freezes">
         <span>Freezes</span>
         <strong>{metrics.freezes === undefined ? '—' : metrics.freezes.toLocaleString()}</strong>
       </div>
-      <div className="playback-stat">
+      <div className={`${styles.playbackStat}`}>
         <span>Received</span>
         <strong>{formatBitrate(metrics.bitrate)}</strong>
       </div>
-      <div className="playback-stat">
+      <div className={`${styles.playbackStat}`}>
         <span>Dropped</span>
         <strong>
           {metrics.droppedFrames === undefined ? '—' : metrics.droppedFrames.toLocaleString()}
         </strong>
       </div>
-      <div className="playback-stat">
+      <div className={`${styles.playbackStat}`}>
         <span>Packets lost</span>
         <strong>
           {metrics.packetsLost === undefined ? '—' : metrics.packetsLost.toLocaleString()}
         </strong>
       </div>
-      <div className="playback-stat" title="Packet loss during the latest one-second sample">
+      <div className={`${styles.playbackStat}`} title="Packet loss during the latest one-second sample">
         <span>Loss rate</span>
         <strong>
           {metrics.packetLossPercent === undefined
@@ -853,28 +854,28 @@ export function PlaybackStats({
       </div>
       {hlsDiagnostics && (
         <>
-          <div className="playback-stat" title="Estimated distance from the HLS live edge">
+          <div className={`${styles.playbackStat}`} title="Estimated distance from the HLS live edge">
             <span>Live latency</span>
             <strong>{formatSeconds(hlsDiagnostics.liveLatencySeconds)}</strong>
           </div>
-          <div className="playback-stat" title="Selected target and hard recovery boundary">
+          <div className={`${styles.playbackStat}`} title="Selected target and hard recovery boundary">
             <span>Target / max</span>
             <strong>
               {formatConfiguredSeconds(hlsDiagnostics.targetLatencySeconds)} /{' '}
               {formatConfiguredSeconds(hlsDiagnostics.maxLatencySeconds)}
             </strong>
           </div>
-          <div className="playback-stat" title="Decoded media available ahead of the playhead">
+          <div className={`${styles.playbackStat}`} title="Decoded media available ahead of the playhead">
             <span>Forward buffer</span>
             <strong>{formatSeconds(hlsDiagnostics.bufferAheadSeconds)}</strong>
           </div>
-          <div className="playback-stat" title="HLS playback engine and current catch-up rate">
+          <div className={`${styles.playbackStat}`} title="HLS playback engine and current catch-up rate">
             <span>Engine / rate</span>
             <strong>
               {hlsDiagnostics.engine ?? '—'} · {hlsDiagnostics.playbackRate.toFixed(2)}×
             </strong>
           </div>
-          <div className="playback-stat" title="Target duration / part target / part hold-back">
+          <div className={`${styles.playbackStat}`} title="Target duration / part target / part hold-back">
             <span>Playlist timing</span>
             <strong>
               {formatSeconds(hlsDiagnostics.targetDurationSeconds)} /{' '}
@@ -882,18 +883,18 @@ export function PlaybackStats({
               {formatSeconds(hlsDiagnostics.partHoldBackSeconds)}
             </strong>
           </div>
-          <div className="playback-stat" title="Delay estimated from HLS program date-time">
+          <div className={`${styles.playbackStat}`} title="Delay estimated from HLS program date-time">
             <span>Timeline delay</span>
             <strong>{formatSeconds(hlsDiagnostics.playingDateLatencySeconds)}</strong>
           </div>
-          <div className="playback-stat" title="Most recent automatic jump toward the live edge">
+          <div className={`${styles.playbackStat}`} title="Most recent automatic jump toward the live edge">
             <span>Last correction</span>
             <strong>{hlsDiagnostics.lastCorrection ?? '—'}</strong>
           </div>
           {hlsDiagnostics.configuredMaxForwardBufferSeconds !== undefined && (
             <>
               <div
-                className="playback-stat"
+                className={`${styles.playbackStat}`}
                 title="hls.js forward-buffer loading limit and viewer SLO maximum"
               >
                 <span>Buffer load / max</span>
@@ -907,7 +908,7 @@ export function PlaybackStats({
                   )}
                 </strong>
               </div>
-              <div className="playback-stat" title="Highest sampled latency and forward buffer">
+              <div className={`${styles.playbackStat}`} title="Highest sampled latency and forward buffer">
                 <span>Observed peaks</span>
                 <strong>
                   {formatSeconds(hlsDiagnostics.maxObservedLatencySeconds)} /{' '}
@@ -916,18 +917,18 @@ export function PlaybackStats({
                   )}
                 </strong>
               </div>
-              <div className="playback-stat" title="Live-latency / forward-buffer breach episodes">
+              <div className={`${styles.playbackStat}`} title="Live-latency / forward-buffer breach episodes">
                 <span>SLO breaches</span>
                 <strong>
                   {hlsDiagnostics.latencyBreachCount ?? 0} /{' '}
                   {hlsDiagnostics.forwardBufferBreachCount ?? 0}
                 </strong>
               </div>
-              <div className="playback-stat" title="Automatic seeks made to restore the latency limit">
+              <div className={`${styles.playbackStat}`} title="Automatic seeks made to restore the latency limit">
                 <span>Corrective seeks</span>
                 <strong>{hlsDiagnostics.correctiveSeekCount ?? 0}</strong>
               </div>
-              <div className="playback-stat" title={hlsDiagnostics.lastBreachAt}>
+              <div className={`${styles.playbackStat}`} title={hlsDiagnostics.lastBreachAt}>
                 <span>Last breach</span>
                 <strong>
                   {hlsDiagnostics.lastBreachMetric === undefined
@@ -940,18 +941,18 @@ export function PlaybackStats({
             </>
           )}
           {hlsDiagnostics.profileExitReason && (
-            <div className="playback-stat" title="Reason the previous playback profile ended">
+            <div className={`${styles.playbackStat}`} title="Reason the previous playback profile ended">
               <span>Mode exit</span>
               <strong>{hlsDiagnostics.profileExitReason}</strong>
             </div>
           )}
         </>
       )}
-      <div className="playback-stat" title="Selected WebRTC candidate transport">
+      <div className={`${styles.playbackStat}`} title="Selected WebRTC candidate transport">
         <span>Transport</span>
         <strong>{metrics.transport ?? (protocol === 'HLS' ? 'HTTPS' : '—')}</strong>
       </div>
-      <div className="playback-stat">
+      <div className={`${styles.playbackStat}`}>
         <span>Network RTT</span>
         <strong>
           {metrics.roundTripTime === undefined
@@ -959,18 +960,18 @@ export function PlaybackStats({
             : `${Math.round(metrics.roundTripTime * 1_000)} ms`}
         </strong>
       </div>
-      <div className="playback-stat playback-stat-state">
+      <div className={`${styles.playbackStat} ${styles.playbackStatState}`}>
         <span>Status</span>
         <strong>
           <i data-playing={playing} aria-hidden="true" />
           {connection}
         </strong>
       </div>
-      <div className="playback-stat">
+      <div className={`${styles.playbackStat}`}>
         <span>Support data</span>
         <strong>
           <button
-            className="playback-support-copy"
+            className={`${styles.playbackSupportCopy}`}
             onClick={() => void copySupportSnapshot()}
             type="button"
           >

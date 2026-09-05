@@ -1,0 +1,42 @@
+.playbackModeSwitch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, #111114, #0b0b0d);
+}
+
+.playbackModeSwitch > div:first-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.playbackModeSwitch strong {
+  color: #e4e4e7;
+  font-size: 0.75rem;
+}
+
+.playbackModeSwitch span {
+  color: #71717a;
+  font-size: 0.68rem;
+}
+
+.playbackModeActions {
+  display: flex;
+  flex: none;
+  gap: 0.45rem;
+}
+
+@media (max-width: 700px) {
+  .playbackModeSwitch {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .playbackModeActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

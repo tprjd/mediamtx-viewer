@@ -1,6 +1,7 @@
 'use client'
 
 import { Clock3, UserRound } from 'lucide-react'
+import styles from './channel-viewer.module.css'
 
 import { LivePlayer } from '@/components/live-player'
 import { ShareButton } from '@/components/share-button'
@@ -20,12 +21,12 @@ export function ChannelViewer({ channel, viewerId }: ChannelViewerProps) {
   const status = currentChannel.status
 
   return (
-    <main className="watch-layout">
-      <div className="watch-player-wrap">
+    <main className={styles.watchLayout}>
+      <div className={styles.watchPlayerWrap}>
         <LivePlayer channel={currentChannel} viewerId={viewerId} />
       </div>
 
-      <section className="watch-details">
+      <section className={styles.watchDetails}>
         <div className="min-w-0 flex-1">
           <div className="mb-4 flex flex-wrap items-center gap-2.5">
             <StatusBadge state={status.state} />

@@ -2,6 +2,7 @@
 
 import { Gauge, Scale, ShieldCheck } from 'lucide-react'
 import { useMemo } from 'react'
+import styles from './live-player.module.css'
 
 import {
   HlsPlayer,
@@ -67,7 +68,7 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
 
   return (
     <div className="live-player">
-      <div className="playback-mode-switch" aria-label="Playback mode">
+      <div className={styles.playbackModeSwitch} aria-label="Playback mode">
         <div>
           <strong>Playback mode</strong>
           <span role={modeExitReason ? 'status' : undefined}>
@@ -84,7 +85,7 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
             )}
           </span>
         </div>
-        <div className="playback-mode-actions">
+        <div className={styles.playbackModeActions}>
           <Button
             aria-pressed={mode === 'ultra-low'}
             disabled={!ultraLowSupported}

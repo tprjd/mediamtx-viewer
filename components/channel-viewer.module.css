@@ -1,0 +1,36 @@
+.watchLayout {
+  width: min(100% - 2rem, 100rem);
+  margin-inline: auto;
+  padding-block: 2rem 5rem;
+}
+
+.watchPlayerWrap {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 1.35rem;
+  background: #000;
+  box-shadow: 0 30px 120px rgba(0, 0, 0, 0.45);
+}
+
+.watchDetails {
+  display: flex;
+  align-items: start;
+  gap: 2rem;
+  padding: 2rem 0.25rem 0;
+}
+
+@media (max-width: 700px) {
+  .watchLayout {
+    width: 100%;
+    padding-top: 0;
+  }
+
+  .watchPlayerWrap {
+    border-inline: 0;
+    border-radius: 0;
+  }
+
+  .watchDetails {
+    padding: 1.5rem 1rem 0;
+  }
+}

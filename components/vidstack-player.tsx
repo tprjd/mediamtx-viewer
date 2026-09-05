@@ -1,5 +1,7 @@
 'use client'
 
+import styles from './vidstack-player.module.css'
+
 import {
   Controls,
   FullscreenButton,
@@ -63,7 +65,7 @@ function PlayerPoster({ poster }: { poster?: string | null }) {
 
   if (!poster || started) return null
 
-  return <Poster alt="" className="media-poster" />
+  return <Poster alt="" className={`${styles.mediaPoster}`} />
 }
 
 function PlayerControls({ seekableLive }: { seekableLive: boolean }) {
@@ -72,11 +74,11 @@ function PlayerControls({ seekableLive }: { seekableLive: boolean }) {
   const paused = useMediaState('paused')
 
   return (
-    <Controls.Root className="media-controls" hideDelay={2_000}>
-      <Controls.Group className="media-controls-group">
+    <Controls.Root className={`${styles.mediaControls}`} hideDelay={2_000}>
+      <Controls.Group className={`${styles.mediaControlsGroup}`}>
         <PlayButton
           aria-label={paused ? 'Play video' : 'Pause video'}
-          className="media-control-button"
+          className={`${styles.mediaControlButton}`}
           title={paused ? 'Play' : 'Pause'}
         >
           {paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
@@ -84,7 +86,7 @@ function PlayerControls({ seekableLive }: { seekableLive: boolean }) {
 
         <MuteButton
           aria-label={muted ? 'Unmute video' : 'Mute video'}
-          className="media-control-button"
+          className={`${styles.mediaControlButton}`}
           title={muted ? 'Unmute' : 'Mute'}
         >
           {muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
@@ -92,24 +94,24 @@ function PlayerControls({ seekableLive }: { seekableLive: boolean }) {
 
         <VolumeSlider.Root
           aria-label="Volume"
-          className="media-volume-slider"
+          className={`${styles.mediaVolumeSlider}`}
           title="Volume"
         >
-          <VolumeSlider.Track className="media-slider-track">
-            <VolumeSlider.TrackFill className="media-slider-fill" />
+          <VolumeSlider.Track className={`${styles.mediaSliderTrack}`}>
+            <VolumeSlider.TrackFill className={`${styles.mediaSliderFill}`} />
           </VolumeSlider.Track>
-          <VolumeSlider.Thumb className="media-slider-thumb" />
+          <VolumeSlider.Thumb className={`${styles.mediaSliderThumb}`} />
         </VolumeSlider.Root>
 
-        <span className="media-controls-spacer" />
+        <span className={`${styles.mediaControlsSpacer}`} />
 
         {seekableLive ? (
-          <LiveButton className="media-live-button" title="Jump to live edge">
+          <LiveButton className={`${styles.mediaLiveButton}`} title="Jump to live edge">
             <Radio aria-hidden="true" />
             Live
           </LiveButton>
         ) : (
-          <span className="media-live-label">
+          <span className={`${styles.mediaLiveLabel}`}>
             <Radio aria-hidden="true" />
             Live
           </span>
@@ -117,7 +119,7 @@ function PlayerControls({ seekableLive }: { seekableLive: boolean }) {
 
         <PIPButton
           aria-label="Toggle picture in picture"
-          className="media-control-button"
+          className={`${styles.mediaControlButton}`}
           title="Picture in picture"
         >
           <PictureInPicture aria-hidden="true" />
@@ -125,7 +127,7 @@ function PlayerControls({ seekableLive }: { seekableLive: boolean }) {
 
         <FullscreenButton
           aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          className="media-control-button"
+          className={`${styles.mediaControlButton}`}
           title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
         >
           {fullscreen ? (
@@ -197,7 +199,7 @@ export function VidstackPlayer({
     <MediaPlayer
       ariaLabel={ariaLabel}
       autoPlay
-      className="media-player"
+      className={`${styles.mediaPlayer}`}
       keyShortcuts={LIVE_KEY_SHORTCUTS}
       keyTarget="document"
       liveEdgeTolerance={liveEdgeTolerance}

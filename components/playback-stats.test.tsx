@@ -131,9 +131,7 @@ describe('PlaybackStats diagnostics', () => {
       toggle.getAttribute('aria-controls') ?? '',
     )
     expect(details).not.toBeVisible()
-    const summaryLatency = screen
-      .getAllByText('Live latency')
-      .find((element) => element.closest('.playback-summary-stat'))
+    const summaryLatency = within(toggle).getByText('Live latency')
     expect(summaryLatency).toBeVisible()
     fireEvent.click(toggle)
     expect(within(details!).getByText('Live latency').nextElementSibling).toHaveTextContent(
