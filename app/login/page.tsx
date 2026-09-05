@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import styles from '../auth.module.css'
 
 import { LoginForm } from '@/components/auth/login-form'
 import { getActiveSession } from '@/lib/auth/session'
@@ -19,17 +20,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   if (await getActiveSession()) redirect(returnTo)
 
   return (
-    <main className="auth-layout">
-      <section className="auth-card">
+    <main className={styles.authLayout}>
+      <section className={styles.authCard}>
         <p className="eyebrow">Private stream</p>
         <h1>Welcome back.</h1>
         <p>Sign in once to watch pages, HLS, and low-latency WebRTC.</p>
         <LoginForm returnTo={returnTo} />
-        <p className="auth-footnote">
+        <p className={styles.authFootnote}>
           Need an account? <Link href="/register">Request access</Link>
         </p>
       </section>
     </main>
   )
 }
-

@@ -1,0 +1,64 @@
+.authLayout {
+  display: grid;
+  width: min(100% - 2rem, 34rem);
+  min-height: calc(100vh - 4.5rem);
+  margin-inline: auto;
+  place-items: center;
+  padding-block: 3rem 6rem;
+}
+
+.authCard {
+  width: 100%;
+  padding: clamp(1.5rem, 5vw, 2.5rem);
+  border: 1px solid var(--line);
+  border-radius: 1.35rem;
+  background: rgba(17, 17, 20, 0.82);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(18px);
+}
+
+.authCard > h1 {
+  margin: 0.65rem 0 0;
+  font-size: clamp(2rem, 8vw, 3.4rem);
+  font-weight: 620;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+
+.authCard > p:not(:global(.eyebrow), .authFootnote) {
+  margin: 1rem 0 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.authCardCentered {
+  text-align: center;
+}
+
+.authIcon {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: 0 auto 1.25rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent-soft) 25%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent-soft);
+}
+
+.authIcon svg {
+  width: 1.4rem;
+}
+
+.authFootnote {
+  margin: 1.35rem 0 0;
+  color: #71717a;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.authFootnote a {
+  color: var(--accent-soft);
+  text-decoration: none;
+}

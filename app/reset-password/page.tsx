@@ -1,4 +1,5 @@
 import { ResetPasswordForm } from '@/components/auth/reset-password-form'
+import styles from '../auth.module.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,8 +10,8 @@ interface ResetPasswordPageProps {
 export default async function ResetPasswordPage({ searchParams }: ResetPasswordPageProps) {
   const { token = '' } = await searchParams
   return (
-    <main className="auth-layout">
-      <section className="auth-card">
+    <main className={styles.authLayout}>
+      <section className={styles.authCard}>
         <p className="eyebrow">Account recovery</p>
         <h1>Choose a new password.</h1>
         <p>This one-time link expires 15 minutes after it was created.</p>
@@ -19,4 +20,3 @@ export default async function ResetPasswordPage({ searchParams }: ResetPasswordP
     </main>
   )
 }
-

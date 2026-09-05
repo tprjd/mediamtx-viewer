@@ -1,11 +1,12 @@
 import { Clock3 } from 'lucide-react'
 import Link from 'next/link'
+import styles from '../auth.module.css'
 
 export default function RegistrationPendingPage() {
   return (
-    <main className="auth-layout">
-      <section className="auth-card auth-card-centered">
-        <span className="auth-icon"><Clock3 aria-hidden="true" /></span>
+    <main className={styles.authLayout}>
+      <section className={`${styles.authCard} ${styles.authCardCentered}`}>
+        <span className={styles.authIcon}><Clock3 aria-hidden="true" /></span>
         <p className="eyebrow">Request received</p>
         <h1>Waiting for approval.</h1>
         <p>The administrator will tell you when your account is active.</p>
@@ -14,4 +15,3 @@ export default function RegistrationPendingPage() {
     </main>
   )
 }
-
