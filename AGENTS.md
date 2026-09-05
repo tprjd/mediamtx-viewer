@@ -50,3 +50,17 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Review the working tree before committing and exclude unrelated or pre-existing changes.
 - Do not commit or push for read-only reviews, explanations, diagnoses, status checks, or planning tasks.
 - Never force-push. If verification fails, no upstream is configured, credentials are unavailable, or the push is rejected, report the problem instead.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues via `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default roles; see `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context. See `docs/agents/domain.md`.
