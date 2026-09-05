@@ -1,4 +1,5 @@
 import { UsersRound } from 'lucide-react'
+import styles from './viewer-count.module.css'
 
 import { cn } from '@/lib/utils'
 
@@ -15,7 +16,7 @@ export function ViewerCount({ count, live, compact = false }: ViewerCountProps) 
   return (
     <span
       aria-label={label}
-      className={cn('viewer-count', compact && 'viewer-count-compact')}
+      className={cn(styles.viewerCount, compact && styles.viewerCountCompact)}
     >
       <UsersRound aria-hidden="true" />
       {compact ? count : label}

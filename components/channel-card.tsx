@@ -1,5 +1,6 @@
 import { ArrowUpRight } from 'lucide-react'
 import Link from 'next/link'
+import styles from './channel-card.module.css'
 
 import { StatusBadge } from '@/components/status-badge'
 import { ViewerCount } from '@/components/viewer-count'
@@ -15,20 +16,20 @@ export function ChannelCard({ channel }: ChannelCardProps) {
   return (
     <Link
       aria-label={`Watch ${channel.title} by ${channel.ownerName}, ${channel.status.state}`}
-      className="channel-card group"
+      className={`${styles.channelCard} group`}
       href={`/watch/${encodeURIComponent(channel.slug)}`}
       style={{ '--accent': channel.accentColor } as React.CSSProperties}
     >
-      <div className="channel-card-preview">
+      <div className={styles.channelCardPreview}>
         {channel.poster ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img alt="" className="size-full object-cover" src={channel.poster} />
         ) : (
-          <div className="channel-card-placeholder">
+          <div className={styles.channelCardPlaceholder}>
             <span aria-hidden="true">{initial}</span>
           </div>
         )}
-        <div className="channel-card-status">
+        <div className={styles.channelCardStatus}>
           <StatusBadge compact state={channel.status.state} />
           <ViewerCount
             compact
@@ -37,16 +38,16 @@ export function ChannelCard({ channel }: ChannelCardProps) {
           />
         </div>
       </div>
-      <div className="channel-card-details">
-        <div className="channel-card-copy">
+      <div className={styles.channelCardDetails}>
+        <div className={styles.channelCardCopy}>
           <h3>{channel.title}</h3>
           {channel.description && (
-            <p className="channel-card-description">{channel.description}</p>
+            <p className={styles.channelCardDescription}>{channel.description}</p>
           )}
         </div>
-        <div className="channel-card-footer">
+        <div className={styles.channelCardFooter}>
           <p className="channel-owner-name">{channel.ownerName}</p>
-          <span className="channel-card-arrow" aria-hidden="true">
+          <span className={styles.channelCardArrow} aria-hidden="true">
             <ArrowUpRight className="size-4" aria-hidden="true" />
           </span>
         </div>

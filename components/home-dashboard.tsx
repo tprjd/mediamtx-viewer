@@ -15,6 +15,7 @@ import {
   useState,
   type CSSProperties,
 } from 'react'
+import styles from './home-dashboard.module.css'
 
 import { StatusBadge } from '@/components/status-badge'
 import { ViewerCount } from '@/components/viewer-count'
@@ -39,18 +40,18 @@ function FeaturedChannel({ channel }: { channel: PublicChannel }) {
   return (
     <Link
       aria-label={`Watch ${channel.title} by ${channel.ownerName}, live`}
-      className="featured-channel"
+      className={styles.featuredChannel}
       href={`/watch/${encodeURIComponent(channel.slug)}`}
       style={{ '--accent': channel.accentColor } as CSSProperties}
     >
-      <div className="featured-artwork">
+      <div className={styles.featuredArtwork}>
         {channel.poster ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img alt="" src={channel.poster} />
         ) : (
           <span aria-hidden="true">{initial}</span>
         )}
-        <div className="featured-status">
+        <div className={styles.featuredStatus}>
           <StatusBadge compact state={channel.status.state} />
           <ViewerCount
             compact
@@ -59,16 +60,16 @@ function FeaturedChannel({ channel }: { channel: PublicChannel }) {
           />
         </div>
       </div>
-      <div className="featured-details">
-        <div className="featured-copy">
+      <div className={styles.featuredDetails}>
+        <div className={styles.featuredCopy}>
           <h2>{channel.title}</h2>
           {channel.description && (
-            <p className="featured-description">{channel.description}</p>
+            <p className={styles.featuredDescription}>{channel.description}</p>
           )}
         </div>
-        <div className="featured-footer">
+        <div className={styles.featuredFooter}>
           <p className="channel-owner-name">{channel.ownerName}</p>
-          <span className="featured-action" aria-hidden="true">
+          <span className={styles.featuredAction} aria-hidden="true">
             Watch live
             <ArrowUpRight className="size-4" />
           </span>
@@ -85,12 +86,12 @@ function ChannelRow({ channel }: { channel: PublicChannel }) {
   return (
     <Link
       aria-label={`Watch ${channel.title} by ${channel.ownerName}, ${channel.status.state}`}
-      className={`channel-row${live ? ' is-live' : ''}`}
+      className={`${styles.channelRow}${live ? ` ${styles.isLive}` : ''}`}
       href={`/watch/${encodeURIComponent(channel.slug)}`}
       style={{ '--accent': channel.accentColor } as CSSProperties}
     >
       {live ? (
-        <span className="channel-row-thumb" aria-hidden="true">
+        <span className={styles.channelRowThumb} aria-hidden="true">
           {channel.poster ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img alt="" src={channel.poster} />
@@ -99,7 +100,7 @@ function ChannelRow({ channel }: { channel: PublicChannel }) {
           )}
         </span>
       ) : (
-        <span className="channel-row-avatar" aria-hidden="true">
+        <span className={styles.channelRowAvatar} aria-hidden="true">
           {channel.poster ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img alt="" src={channel.poster} />
@@ -108,18 +109,18 @@ function ChannelRow({ channel }: { channel: PublicChannel }) {
           )}
         </span>
       )}
-      <span className="channel-row-copy">
-        <span className="channel-row-title">{channel.title}</span>
-        <span className="channel-row-owner">{channel.ownerName}</span>
+      <span className={styles.channelRowCopy}>
+        <span className={styles.channelRowTitle}>{channel.title}</span>
+        <span className={styles.channelRowOwner}>{channel.ownerName}</span>
       </span>
-      <span className="channel-row-meta">
+      <span className={styles.channelRowMeta}>
         <StatusBadge compact state={channel.status.state} />
         <ViewerCount
           compact
           count={channel.status.viewerCount}
           live={channel.status.live}
         />
-        <span className="channel-row-arrow" aria-hidden="true">
+        <span className={styles.channelRowArrow} aria-hidden="true">
           <ArrowUpRight className="size-4" />
         </span>
       </span>
@@ -170,23 +171,23 @@ export function HomeDashboard({
     ) ?? null
 
   return (
-    <main className="home-layout">
+    <main className={styles.homeLayout}>
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {announcement}
       </p>
 
-      <section className="home-intro" aria-labelledby="home-title">
-        <div className="home-intro-copy">
+      <section className={styles.homeIntro} aria-labelledby="home-title">
+        <div className={styles.homeIntroCopy}>
           <p className="eyebrow">Private streams</p>
           <h1 id="home-title">What are we watching?</h1>
         </div>
-        <div className="home-intro-side">
+        <div className={styles.homeIntroSide}>
           <p
-            className={`live-summary ${
+            className={`${styles.liveSummary} ${
               statusDelayed
-                ? 'is-delayed'
+                ? styles.isDelayed
                 : model.liveCount > 0
-                  ? 'is-live'
+                  ? styles.isLive
                   : ''
             }`}
             aria-label={
@@ -201,7 +202,7 @@ export function HomeDashboard({
               : `${model.liveCount} live now`}
           </p>
           {(capabilities.hasOwnedChannel || capabilities.isAdmin) && (
-            <nav className="home-shortcuts" aria-label="Channel shortcuts">
+            <nav className={styles.homeShortcuts} aria-label="Channel shortcuts">
               {capabilities.hasOwnedChannel && (
                 <Link href="/account/channel">
                   <SlidersHorizontal className="size-4" aria-hidden="true" />
@@ -220,8 +221,8 @@ export function HomeDashboard({
       </section>
 
       {featuredChannel ? (
-        <section className="featured-section" aria-labelledby="live-heading">
-          <div className="dashboard-section-heading">
+        <section className={styles.featuredSection} aria-labelledby="live-heading">
+          <div className={styles.dashboardSectionHeading}>
             <div>
               <p className="eyebrow">On air</p>
               <h2 id="live-heading">Live now</h2>
@@ -232,10 +233,10 @@ export function HomeDashboard({
         </section>
       ) : (
         <section
-          className={`quiet-state ${model.statusUnavailable ? 'quiet-state-warning' : ''}`}
+          className={`${styles.quietState} ${model.statusUnavailable ? styles.quietStateWarning : ''}`}
           aria-labelledby="quiet-heading"
         >
-          <span className="quiet-icon">
+          <span className={styles.quietIcon}>
             {model.statusUnavailable ? (
               <SignalZero aria-hidden="true" />
             ) : (
@@ -258,8 +259,8 @@ export function HomeDashboard({
         </section>
       )}
 
-      <section className="channel-section" aria-labelledby="channels-heading">
-        <div className="dashboard-section-heading">
+      <section className={styles.channelSection} aria-labelledby="channels-heading">
+        <div className={styles.dashboardSectionHeading}>
           <div>
             <p className="eyebrow">The group</p>
             <h2 id="channels-heading">All channels</h2>
@@ -269,13 +270,13 @@ export function HomeDashboard({
           </p>
         </div>
         {model.allChannels.length > 0 ? (
-          <div className="channel-list">
+          <div className={styles.channelList}>
             {model.allChannels.map((channel) => (
               <ChannelRow channel={channel} key={channel.slug} />
             ))}
           </div>
         ) : (
-          <div className="no-channels-state">
+          <div className={styles.noChannelsState}>
             <RadioTower aria-hidden="true" />
             <h3>No channels yet.</h3>
             <p>An administrator can grant streaming access to an active account.</p>
