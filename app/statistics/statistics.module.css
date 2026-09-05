@@ -1,0 +1,528 @@
+.oracleStatisticsLayout {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.oracleHeading {
+  margin-bottom: 0.75rem;
+}
+
+.oracleHeadingActions,
+.oracleReferenceLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.oracleOverall {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(17, 17, 20, 0.78);
+}
+
+.oracleOverallIcon {
+  display: grid;
+  width: 2.8rem;
+  height: 2.8rem;
+  place-items: center;
+  border-radius: 0.8rem;
+  background: rgba(113, 113, 122, 0.12);
+  color: #a1a1aa;
+}
+
+.oracleOverallIcon svg {
+  width: 1.25rem;
+}
+
+.oracleOverall h2 {
+  margin: 0.25rem 0 0;
+  font-size: 1.55rem;
+  letter-spacing: -0.035em;
+}
+
+.oracleOverall div > p:last-child,
+.oracleOverall > small {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.oracleStatusSafe {
+  border-color: rgba(52, 211, 153, 0.22);
+  background: rgba(16, 185, 129, 0.055);
+}
+
+.oracleStatusSafe .oracleOverallIcon {
+  background: rgba(52, 211, 153, 0.12);
+  color: #6ee7b7;
+}
+
+.oracleStatusWatch,
+.oracleStatusNearLimit {
+  border-color: rgba(251, 191, 36, 0.22);
+  background: rgba(245, 158, 11, 0.055);
+}
+
+.oracleStatusWatch .oracleOverallIcon,
+.oracleStatusNearLimit .oracleOverallIcon {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fcd34d;
+}
+
+.oracleStatusChargeDetected {
+  border-color: rgba(248, 113, 113, 0.28);
+  background: rgba(239, 68, 68, 0.065);
+}
+
+.oracleStatusChargeDetected .oracleOverallIcon {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+}
+
+.oracleSetupNotice {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(251, 191, 36, 0.18);
+  border-radius: 0.75rem;
+  background: rgba(245, 158, 11, 0.06);
+  color: #fde68a;
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.oracleSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.oracleSummaryCard,
+.oraclePanel {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(17, 17, 20, 0.72);
+}
+
+.oracleSummaryCard {
+  min-width: 0;
+  padding: 1rem;
+}
+
+.oracleCardLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #8b8b94;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.oracleCardLabel svg {
+  width: 0.9rem;
+  color: var(--eyebrow);
+}
+
+.oracleSummaryCard > strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 0.75rem;
+  font-size: 1.35rem;
+  font-weight: 620;
+  letter-spacing: -0.035em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oracleSummaryCard > strong span {
+  color: #71717a;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.oracleSummaryCard > p {
+  margin: 0.55rem 0 0;
+  color: #71717a;
+  font-size: 0.69rem;
+}
+
+.oracleSummaryCard > p span {
+  color: #a1a1aa;
+}
+
+.oracleSummaryCard > small {
+  display: block;
+  margin-top: 0.6rem;
+  color: #52525b;
+  font-size: 0.62rem;
+  line-height: 1.45;
+}
+
+.oracleCostCard {
+  border-color: color-mix(in srgb, var(--accent-soft) 18%, transparent);
+  background: color-mix(in srgb, var(--accent) 5.5%, transparent);
+}
+
+.oracleQuotaTrack {
+  height: 0.28rem;
+  overflow: hidden;
+  margin-top: 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.oracleQuotaTrack span {
+  display: block;
+  width: var(--quota-progress);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.oracleSectionGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.25rem;
+}
+
+.oraclePanel {
+  min-width: 0;
+  padding: 1.25rem;
+}
+
+.oraclePanelHeading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.oraclePanelHeading h2 {
+  margin: 0.3rem 0 0;
+  font-size: 1.15rem;
+  letter-spacing: -0.025em;
+}
+
+.oraclePanelHeading > svg {
+  width: 1.15rem;
+  color: var(--eyebrow);
+}
+
+.oracleInstanceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.15rem 0 0;
+}
+
+.oracleInstanceGrid div {
+  min-width: 0;
+}
+
+.oracleInstanceGrid dt {
+  color: #52525b;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.oracleInstanceGrid dd {
+  overflow: hidden;
+  margin: 0.3rem 0 0;
+  color: #d4d4d8;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oracleSourceList {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.oracleSource {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.65rem;
+}
+
+.oracleSource > svg {
+  width: 1rem;
+  margin-top: 0.05rem;
+  color: #71717a;
+}
+
+.oracleSourceOk > svg {
+  color: #6ee7b7;
+}
+
+.oracleSourceError > svg {
+  color: #fca5a5;
+}
+
+.oracleSource strong {
+  display: block;
+  color: #d4d4d8;
+  font-size: 0.76rem;
+}
+
+.oracleSource p,
+.oracleSource small {
+  display: block;
+  margin: 0.25rem 0 0;
+  color: #71717a;
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.oracleSource small {
+  color: #52525b;
+}
+
+.oracleMetricsHeading {
+  align-items: end;
+}
+
+.oracleMetricsHeading div > p:last-child {
+  margin: 0.4rem 0 0;
+  color: #71717a;
+  font-size: 0.7rem;
+}
+
+.oracleRangeSwitcher {
+  display: flex;
+  padding: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: #09090b;
+}
+
+.oracleRangeSwitcher a {
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.45rem;
+  color: #71717a;
+  font-size: 0.68rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.oracleRangeSwitcher a[aria-current="page"] {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent-soft);
+}
+
+.oracleMetricsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.oracleMetricCard {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0.8rem;
+  background: #0c0c0f;
+}
+
+.oracleMetricHeading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 0.9rem 0;
+}
+
+.oracleMetricHeading p {
+  margin: 0;
+  color: #71717a;
+  font-size: 0.65rem;
+}
+
+.oracleMetricHeading strong {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 1.15rem;
+  letter-spacing: -0.03em;
+}
+
+.oracleMetricHeading small {
+  color: #52525b;
+  font-size: 0.58rem;
+  text-align: right;
+}
+
+.oracleMetricChart {
+  display: block;
+  width: 100%;
+  height: 7rem;
+  margin-top: 0.45rem;
+}
+
+.oracleMetricChart path {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.06);
+  stroke-width: 0.35;
+}
+
+.oracleMetricChart polyline {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.15;
+  vector-effect: non-scaling-stroke;
+}
+
+.oracleMetricEmpty,
+.oraclePanelEmpty {
+  display: grid;
+  min-height: 7rem;
+  margin: 1rem 0 0;
+  place-items: center;
+  color: #52525b;
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.oracleMetricEmpty {
+  margin: 0.45rem 0 0;
+}
+
+.oracleTableScroll {
+  overflow-x: auto;
+  margin-top: 0.35rem;
+}
+
+.oracleCostTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+  text-align: left;
+}
+
+.oracleCostTable th {
+  padding: 0.8rem 0.65rem;
+  color: #52525b;
+  font-size: 0.61rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.oracleCostTable td {
+  padding: 0.8rem 0.65rem;
+  border-top: 1px solid var(--line);
+  color: #a1a1aa;
+  vertical-align: top;
+}
+
+.oracleCostTable td:nth-last-child(-n + 3),
+.oracleCostTable th:nth-last-child(-n + 3) {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.oracleCostTable td small {
+  display: block;
+  margin-top: 0.2rem;
+  color: #52525b;
+}
+
+.oracleReferenceNote {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.15rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.9rem;
+}
+
+.oracleReferenceNote strong {
+  color: #d4d4d8;
+  font-size: 0.76rem;
+}
+
+.oracleReferenceNote p {
+  max-width: 58rem;
+  margin: 0.3rem 0 0;
+  color: #71717a;
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+
+.oracleReferenceLinks {
+  flex: none;
+}
+
+.oracleReferenceLinks a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.6rem;
+  color: var(--eyebrow);
+  font-size: 0.68rem;
+  text-decoration: none;
+}
+
+.oracleReferenceLinks svg {
+  width: 0.75rem;
+}
+
+@media (max-width: 1000px) {
+  .oracleSummaryGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .oracleMetricsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .oracleOverall {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .oracleOverall > small {
+    grid-column: 1 / -1;
+  }
+
+  .oracleHeadingActions,
+  .oracleHeadingActions a {
+    width: 100%;
+  }
+
+  .oracleSummaryGrid,
+  .oracleSectionGrid,
+  .oracleMetricsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .oracleMetricsHeading,
+  .oracleReferenceNote {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .oracleRangeSwitcher {
+    align-self: start;
+  }
+
+  .oracleReferenceLinks {
+    width: 100%;
+  }
+}

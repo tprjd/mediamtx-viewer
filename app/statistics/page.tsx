@@ -13,6 +13,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import Link from 'next/link'
+import styles from './statistics.module.css'
 
 import { buttonVariants } from '@/components/ui/button'
 import { requireActiveSession } from '@/lib/auth/session'
@@ -108,8 +109,8 @@ function chartPoints(series: OracleMetricSeries): string {
 function MetricChart({ series }: { series: OracleMetricSeries }) {
   const points = chartPoints(series)
   return (
-    <article className="oracle-metric-card">
-      <div className="oracle-metric-heading">
+    <article className={`${styles.oracleMetricCard}`}>
+      <div className={`${styles.oracleMetricHeading}`}>
         <div>
           <p>{series.label}</p>
           <strong>{formatMetric(series.current, series.unit)}</strong>
@@ -122,7 +123,7 @@ function MetricChart({ series }: { series: OracleMetricSeries }) {
       {points ? (
         <svg
           aria-label={`${series.label} history`}
-          className="oracle-metric-chart"
+          className={`${styles.oracleMetricChart}`}
           preserveAspectRatio="none"
           role="img"
           viewBox="0 0 100 40"
@@ -131,7 +132,7 @@ function MetricChart({ series }: { series: OracleMetricSeries }) {
           <polyline points={points} />
         </svg>
       ) : (
-        <div className="oracle-metric-empty">No samples in this range</div>
+        <div className={`${styles.oracleMetricEmpty}`}>No samples in this range</div>
       )}
     </article>
   )
@@ -162,14 +163,14 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
   })
 
   return (
-    <main className="admin-layout oracle-statistics-layout">
-      <section className="admin-heading oracle-heading">
+    <main className={`admin-layout ${styles.oracleStatisticsLayout}`}>
+      <section className={`admin-heading ${styles.oracleHeading}`}>
         <div>
           <p className="eyebrow">Infrastructure</p>
           <h1>Oracle usage</h1>
           <p>Tenancy billing guardrails and live health for the streaming VM.</p>
         </div>
-        <div className="oracle-heading-actions">
+        <div className={`${styles.oracleHeadingActions}`}>
           <Link
             className={buttonVariants({ variant: 'secondary' })}
             href={`/statistics?range=${range}&refresh=${encodeURIComponent(statistics.generatedAt)}`}
@@ -180,8 +181,20 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
         </div>
       </section>
 
-      <section className={`oracle-overall oracle-status-${statistics.status}`}>
-        <div className="oracle-overall-icon">
+      <section
+        className={`${styles.oracleOverall} ${
+          statistics.status === 'safe'
+            ? styles.oracleStatusSafe
+            : statistics.status === 'watch'
+              ? styles.oracleStatusWatch
+              : statistics.status === 'near-limit'
+                ? styles.oracleStatusNearLimit
+                : statistics.status === 'charge-detected'
+                  ? styles.oracleStatusChargeDetected
+                  : ''
+        }`}
+      >
+        <div className={`${styles.oracleOverallIcon}`}>
           <OverallIcon status={statistics.status} />
         </div>
         <div>
@@ -193,15 +206,15 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
       </section>
 
       {!statistics.enabled && (
-        <p className="oracle-setup-notice">
+        <p className={`${styles.oracleSetupNotice}`}>
           This local deployment has Oracle statistics disabled. The production Oracle Compose
           stack enables it through instance-principal authentication.
         </p>
       )}
 
-      <section className="oracle-summary-grid" aria-label="Oracle usage summary">
-        <article className="oracle-summary-card oracle-cost-card">
-          <div className="oracle-card-label">
+      <section className={`${styles.oracleSummaryGrid}`} aria-label="Oracle usage summary">
+        <article className={`${styles.oracleSummaryCard} ${styles.oracleCostCard}`}>
+          <div className={`${styles.oracleCardLabel}`}>
             <CircleDollarSign aria-hidden="true" /> Current month cost
           </div>
           <strong>{formatCurrency(statistics.cost.actual, statistics.cost.currency)}</strong>
@@ -216,8 +229,8 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
           const ratio = quotaRatio(quota)
           const percentage = ratio === null ? null : Math.max(0, Math.min(ratio * 100, 100))
           return (
-            <article className="oracle-summary-card" key={quota.key}>
-              <div className="oracle-card-label">
+            <article className={`${styles.oracleSummaryCard}`} key={quota.key}>
+              <div className={`${styles.oracleCardLabel}`}>
                 <Gauge aria-hidden="true" /> {quota.label}
               </div>
               <strong>
@@ -228,7 +241,7 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
               </p>
               <div
                 aria-label={percentage === null ? 'Usage unavailable' : `${percentage.toFixed(1)}% projected`}
-                className="oracle-quota-track"
+                className={`${styles.oracleQuotaTrack}`}
                 role="progressbar"
                 aria-valuemax={100}
                 aria-valuemin={0}
@@ -243,9 +256,9 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
         })}
       </section>
 
-      <section className="oracle-section-grid">
-        <article className="oracle-panel">
-          <div className="oracle-panel-heading">
+      <section className={`${styles.oracleSectionGrid}`}>
+        <article className={`${styles.oraclePanel}`}>
+          <div className={`${styles.oraclePanelHeading}`}>
             <div>
               <p className="eyebrow">Allocation</p>
               <h2>Viewer instance</h2>
@@ -253,7 +266,7 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
             <Server aria-hidden="true" />
           </div>
           {statistics.instance ? (
-            <dl className="oracle-instance-grid">
+            <dl className={`${styles.oracleInstanceGrid}`}>
               <div><dt>Name</dt><dd>{statistics.instance.displayName}</dd></div>
               <div><dt>State</dt><dd>{statistics.instance.state}</dd></div>
               <div><dt>Shape</dt><dd>{statistics.instance.shape}</dd></div>
@@ -264,21 +277,30 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
               <div><dt>Created</dt><dd>{statistics.instance.createdAt ? formatDate(statistics.instance.createdAt) : 'Unavailable'}</dd></div>
             </dl>
           ) : (
-            <p className="oracle-panel-empty">Compute inventory is unavailable.</p>
+            <p className={`${styles.oraclePanelEmpty}`}>Compute inventory is unavailable.</p>
           )}
         </article>
 
-        <article className="oracle-panel">
-          <div className="oracle-panel-heading">
+        <article className={`${styles.oraclePanel}`}>
+          <div className={`${styles.oraclePanelHeading}`}>
             <div>
               <p className="eyebrow">Diagnostics</p>
               <h2>Data sources</h2>
             </div>
             <CloudCog aria-hidden="true" />
           </div>
-          <div className="oracle-source-list">
+          <div className={`${styles.oracleSourceList}`}>
             {statistics.sources.map((source) => (
-              <div className={`oracle-source oracle-source-${source.state}`} key={source.key}>
+              <div
+                className={`${styles.oracleSource} ${
+                  source.state === 'ok'
+                    ? styles.oracleSourceOk
+                    : source.state === 'error'
+                      ? styles.oracleSourceError
+                      : ''
+                }`}
+                key={source.key}
+              >
                 <SourceIcon source={source} />
                 <div>
                   <strong>{source.label}</strong>
@@ -291,14 +313,14 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
         </article>
       </section>
 
-      <section className="oracle-panel oracle-metrics-panel">
-        <div className="oracle-panel-heading oracle-metrics-heading">
+      <section className={`${styles.oraclePanel} oracle-metrics-panel`}>
+        <div className={`${styles.oraclePanelHeading} ${styles.oracleMetricsHeading}`}>
           <div>
             <p className="eyebrow">Operational only</p>
             <h2>VM health</h2>
             <p>Network charts are host telemetry, not the billable outbound-transfer total.</p>
           </div>
-          <nav aria-label="Metric range" className="oracle-range-switcher">
+          <nav aria-label="Metric range" className={`${styles.oracleRangeSwitcher}`}>
             {(['1h', '24h', '7d'] as const).map((option) => (
               <Link
                 aria-current={range === option ? 'page' : undefined}
@@ -311,18 +333,18 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
           </nav>
         </div>
         {statistics.metrics.length > 0 ? (
-          <div className="oracle-metrics-grid">
+          <div className={`${styles.oracleMetricsGrid}`}>
             {statistics.metrics.map((series) => <MetricChart key={series.key} series={series} />)}
           </div>
         ) : (
-          <p className="oracle-panel-empty">
+          <p className={`${styles.oraclePanelEmpty}`}>
             No compute metrics are available. Check the source diagnostics above.
           </p>
         )}
       </section>
 
-      <section className="oracle-panel">
-        <div className="oracle-panel-heading">
+      <section className={`${styles.oraclePanel}`}>
+        <div className={`${styles.oraclePanelHeading}`}>
           <div>
             <p className="eyebrow">Authoritative billing feed</p>
             <h2>Cost and usage lines</h2>
@@ -330,8 +352,8 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
           <Activity aria-hidden="true" />
         </div>
         {statistics.cost.lines.length > 0 ? (
-          <div className="oracle-table-scroll">
-            <table className="oracle-cost-table">
+          <div className={`${styles.oracleTableScroll}`}>
+            <table className={`${styles.oracleCostTable}`}>
               <thead>
                 <tr><th>Service</th><th>SKU</th><th>Usage</th><th>Actual</th><th>Forecast</th></tr>
               </thead>
@@ -349,7 +371,7 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
             </table>
           </div>
         ) : (
-          <p className="oracle-panel-empty">
+          <p className={`${styles.oraclePanelEmpty}`}>
             {statistics.cost.actual === 0
               ? 'OCI returned no cost lines for the current month.'
               : 'Cost lines are unavailable.'}
@@ -357,7 +379,7 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
         )}
       </section>
 
-      <aside className="oracle-reference-note">
+      <aside className={`${styles.oracleReferenceNote}`}>
         <div>
           <strong>Reference limits are not a billing guarantee.</strong>
           <p>
@@ -365,7 +387,7 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
             result is the final authority, and it can arrive after a reporting delay.
           </p>
         </div>
-        <div className="oracle-reference-links">
+        <div className={`${styles.oracleReferenceLinks}`}>
           <a href="https://docs.oracle.com/en-us/iaas/Content/Compute/References/arm.htm" rel="noreferrer" target="_blank">
             A1 limits <ExternalLink aria-hidden="true" />
           </a>

@@ -212,8 +212,8 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     : null
 
   return (
-    <main className={`${styles.adminLayout}`}>
-      <section className={`${styles.adminHeading}`}>
+    <main className="admin-layout">
+      <section className="admin-heading">
         <div>
           <p className="eyebrow">Administration</p>
           <h1>Viewer access</h1>
