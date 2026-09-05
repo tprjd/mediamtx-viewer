@@ -1337,6 +1337,32 @@ a {
   white-space: nowrap;
 }
 
+.viewer-count {
+  display: inline-flex;
+  min-height: 1.75rem;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(9, 9, 11, 0.76);
+  color: #d4d4d8;
+  font-size: 0.7rem;
+  font-weight: 650;
+  line-height: 1;
+  backdrop-filter: blur(12px);
+}
+
+.viewer-count svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.viewer-count-compact {
+  min-width: 2.75rem;
+  justify-content: center;
+}
+
 .watch-layout {
   width: min(100% - 2rem, 100rem);
   margin-inline: auto;
@@ -1852,23 +1878,6 @@ a {
   .oracle-metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .featured-channel {
-    grid-template-columns: 1fr;
-  }
-
-  .featured-artwork {
-    min-height: 0;
-    aspect-ratio: 16 / 8;
-  }
-
-  .featured-details {
-    gap: 2rem;
-  }
-
-  .channel-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 700px) {
@@ -1969,127 +1978,6 @@ a {
 
   .oracle-reference-links {
     width: 100%;
-  }
-
-  .home-layout {
-    width: min(100% - 1.25rem, 90rem);
-    padding-bottom: 5rem;
-  }
-
-  .home-intro {
-    grid-template-columns: 1fr;
-    align-items: start;
-    gap: 1.25rem;
-    padding-block: 1.5rem 1.5rem;
-  }
-
-  .home-intro-side {
-    width: 100%;
-    justify-items: start;
-  }
-
-  .home-shortcuts {
-    justify-content: start;
-  }
-
-  .featured-section,
-  .more-live-section {
-    padding-top: 2.5rem;
-  }
-
-  .channel-section {
-    padding-top: 3rem;
-  }
-
-  .dashboard-section-heading {
-    align-items: start;
-    flex-direction: column;
-    gap: 0.45rem;
-    margin-bottom: 1.1rem;
-  }
-
-  .dashboard-section-heading > p {
-    margin: 0;
-  }
-
-  .featured-channel {
-    border-radius: 1.1rem;
-  }
-
-  .featured-artwork {
-    aspect-ratio: 16 / 9;
-  }
-
-  .featured-details {
-    gap: 1.5rem;
-    padding: 1.35rem;
-  }
-
-  .featured-details h2 {
-    font-size: clamp(1.8rem, 10vw, 2.7rem);
-  }
-
-  .featured-footer {
-    align-items: center;
-    flex-direction: row;
-  }
-
-  .featured-action {
-    width: auto;
-    min-height: 2.75rem;
-    justify-content: center;
-  }
-
-  .quiet-state {
-    grid-template-columns: 1fr;
-    gap: 1.1rem;
-    margin-top: 2.5rem;
-  }
-
-  .quiet-icon {
-    width: 3.5rem;
-    height: 3.5rem;
-  }
-
-  .channel-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .channel-row {
-    gap: 0.7rem;
-    padding: 0.65rem 0.7rem;
-  }
-
-  .channel-row.is-live {
-    gap: 0.8rem;
-    padding: 0.7rem;
-  }
-
-  .channel-row-avatar {
-    width: 2.5rem;
-    height: 2.5rem;
-  }
-
-  .channel-row-thumb {
-    width: 7rem;
-    height: 4rem;
-  }
-
-  .channel-row .viewer-count {
-    display: none;
-  }
-
-  .channel-card {
-    border-radius: 1rem;
-  }
-
-  .channel-card-details {
-    min-height: 0;
-  }
-
-  .home-shortcuts a,
-  .no-channels-state a {
-    min-height: 2.75rem;
   }
 
   .watch-layout {
