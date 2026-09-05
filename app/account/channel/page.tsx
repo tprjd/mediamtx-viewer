@@ -15,6 +15,8 @@ import {
   OBS_SETUP_SCRIPT_FILENAME,
   getObsSetupScriptMetadata,
 } from '@/lib/obs-setup-script'
+import accountStyles from '../account.module.css'
+import channelStyles from './channel.module.css'
 
 export const metadata: Metadata = { title: 'My channel' }
 export const dynamic = 'force-dynamic'
@@ -31,7 +33,7 @@ export default async function ChannelAccountPage({
 
   if (!channel) {
     return (
-      <main className="account-layout">
+      <main className={accountStyles.accountLayout}>
         <section>
           <p className="eyebrow">My channel</p>
           <h1>Viewer account</h1>
@@ -49,12 +51,12 @@ export default async function ChannelAccountPage({
   const setupScript = getObsSetupScriptMetadata()
 
   return (
-    <main className="account-layout channel-account-layout">
-      <section className="channel-account-heading">
-        <div className="channel-account-copy">
+    <main className={`${accountStyles.accountLayout} ${channelStyles.channelAccountLayout}`}>
+      <section className={channelStyles.channelAccountHeading}>
+        <div className={channelStyles.channelAccountCopy}>
           <p className="eyebrow">My channel</p>
           <h1>{channel.title}</h1>
-          <p className="channel-account-meta">
+          <p className={channelStyles.channelAccountMeta}>
             <Link href={`/watch/${channel.slug}`}>/watch/{channel.slug}</Link>
             <span aria-hidden="true">·</span>
             <span>
@@ -68,8 +70,8 @@ export default async function ChannelAccountPage({
       {params.notice && <p className="notice-banner">{params.notice}</p>}
       {params.error && <p className="error-banner" role="alert">{params.error}</p>}
 
-      <section className="account-panel obs-setup-panel">
-        <div className="obs-setup-heading">
+      <section className={`${accountStyles.accountPanel} ${channelStyles.obsSetupPanel}`}>
+        <div className={channelStyles.obsSetupHeading}>
           <div>
             <h2>Windows OBS setup</h2>
             <p>
@@ -89,11 +91,11 @@ export default async function ChannelAccountPage({
             >
               Download Windows setup
             </a>
-            <p className="obs-setup-version">
+            <p className={channelStyles.obsSetupVersion}>
               Version {setupScript.version} · SHA-256{' '}
               <code>{setupScript.sha256}</code>
             </p>
-            <p className="obs-setup-note">
+            <p className={channelStyles.obsSetupNote}>
               Version one is unsigned. Verify the checksum, then double-click
               the downloaded file. It uses a temporary PowerShell process and
               does not change your permanent execution policy. The launcher
@@ -106,7 +108,7 @@ export default async function ChannelAccountPage({
         )}
       </section>
 
-      <section className="account-panel">
+      <section className={accountStyles.accountPanel}>
         <h2>OBS publishing</h2>
         <p>
           Use these values in OBS Settings → Stream. The stream key is separate
@@ -123,11 +125,11 @@ export default async function ChannelAccountPage({
         )}
       </section>
 
-      <section className="account-panel">
+      <section className={accountStyles.accountPanel}>
         <h2>Discord notifications</h2>
         <p>Choose whether live notifications may be sent for this channel.</p>
-        <form action={updateDiscordNotificationsAction} className="channel-metadata-form">
-          <label className="discord-notification-toggle">
+        <form action={updateDiscordNotificationsAction} className={accountStyles.channelMetadataForm}>
+          <label className={channelStyles.discordNotificationToggle}>
             <input
               defaultChecked={channel.discordNotificationsEnabled}
               name="discordNotificationsEnabled"
@@ -139,9 +141,9 @@ export default async function ChannelAccountPage({
         </form>
       </section>
 
-      <section className="account-panel">
+      <section className={accountStyles.accountPanel}>
         <h2>Channel details</h2>
-        <form action={updateChannelAction} className="channel-metadata-form">
+        <form action={updateChannelAction} className={accountStyles.channelMetadataForm}>
           <label>
             Title
             <input defaultValue={channel.title} maxLength={120} name="title" required />
@@ -159,7 +161,7 @@ export default async function ChannelAccountPage({
         </form>
       </section>
 
-      <section className="account-panel">
+      <section className={accountStyles.accountPanel}>
         <h2>End broadcast</h2>
         <p>Disconnect the publisher and everyone currently watching this channel.</p>
         <form action={disconnectBroadcastAction}>

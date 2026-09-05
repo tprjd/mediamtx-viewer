@@ -9,6 +9,7 @@ import {
   type StreamKeyActionState,
 } from '@/app/account/channel/actions'
 import { Button } from '@/components/ui/button'
+import styles from './stream-key-manager.module.css'
 
 const initialState: StreamKeyActionState = {}
 
@@ -43,8 +44,8 @@ export function StreamKeyManager({
   }
 
   return (
-    <div className="stream-key-manager">
-      <dl className="obs-settings">
+    <div className={styles.streamKeyManager}>
+      <dl className={styles.obsSettings}>
         <div>
           <dt>Service</dt>
           <dd>WHIP</dd>
@@ -65,7 +66,7 @@ export function StreamKeyManager({
       </dl>
 
       {state.key && (
-        <aside className="stream-key-reveal">
+        <aside className={styles.streamKeyReveal}>
           <strong>Copy this key now. It will not be shown again.</strong>
           <code>{state.key}</code>
           <Button onClick={() => copy('key', state.key!)} size="sm" variant="secondary">
@@ -100,13 +101,13 @@ export function StreamKeyManager({
 
       <Dialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
         <Dialog.Portal>
-          <Dialog.Overlay className="modal-backdrop" />
-          <Dialog.Content className="modal-card">
-            <Dialog.Title className="modal-title">Rotate stream key?</Dialog.Title>
-            <Dialog.Description className="modal-description">
+          <Dialog.Overlay className={styles.modalBackdrop} />
+          <Dialog.Content className={styles.modalCard}>
+            <Dialog.Title className={styles.modalTitle}>Rotate stream key?</Dialog.Title>
+            <Dialog.Description className={styles.modalDescription}>
               The current key will stop working immediately.
             </Dialog.Description>
-            <div className="modal-actions">
+            <div className={styles.modalActions}>
               <Dialog.Close asChild>
                 <Button type="button" variant="secondary">
                   Cancel

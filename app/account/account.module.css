@@ -1,0 +1,100 @@
+.accountLayout {
+  width: min(100% - 2rem, 90rem);
+  margin-inline: auto;
+  padding-block: 4rem 7rem;
+  display: grid;
+  max-width: 48rem;
+  gap: 1.5rem;
+}
+
+.accountLayout h1 {
+  margin: 0.65rem 0 0;
+  font-size: clamp(2rem, 8vw, 3.4rem);
+  font-weight: 620;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+
+.accountLayout > section:first-child > p:last-child {
+  margin: 1rem 0 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.accountPanel {
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(17, 17, 20, 0.68);
+}
+
+.accountPanel h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.accountPanel > p {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.accountPanel > a,
+.accountPanel > form:last-child {
+  margin-top: 1rem;
+}
+
+.accountSessionList {
+  display: grid;
+  gap: 0.7rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.accountSessionList li {
+  color: #d4d4d8;
+  font-size: 0.8rem;
+}
+
+.accountSessionList small {
+  display: block;
+  margin-top: 0.2rem;
+  color: #71717a;
+}
+
+.channelMetadataForm {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.channelMetadataForm label {
+  display: grid;
+  gap: 0.4rem;
+  color: #d4d4d8;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.channelMetadataForm input,
+.channelMetadataForm textarea {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 0.65rem;
+  outline: none;
+  background: #09090b;
+  color: white;
+  font: inherit;
+}
+
+.channelMetadataForm input:focus,
+.channelMetadataForm textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.channelMetadataForm button {
+  justify-self: start;
+}

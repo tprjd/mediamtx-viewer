@@ -1,0 +1,128 @@
+.streamKeyManager {
+  margin-top: 1rem;
+}
+
+.streamKeyManager > form {
+  margin-top: 1rem;
+}
+
+.streamKeyReveal {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent-soft) 28%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-size: 0.78rem;
+}
+
+.streamKeyReveal button {
+  justify-self: start;
+}
+
+.obsSettings {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+}
+
+.obsSettings > div {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.obsSettings dt {
+  color: #71717a;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.obsSettings dd {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0;
+  color: #d4d4d8;
+  font-size: 0.8rem;
+}
+
+.obsSettings code,
+.streamKeyReveal code {
+  overflow-wrap: anywhere;
+  color: var(--accent-soft);
+}
+
+.obsSettings button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.35rem;
+  border: 0;
+  background: transparent;
+  color: #a1a1aa;
+  cursor: pointer;
+  font: inherit;
+}
+
+.obsSettings button svg {
+  width: 0.85rem;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  padding: 1rem;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(6px);
+}
+
+.modalCard {
+  width: min(100%, 26rem);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 101;
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: #111114;
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.45);
+  transform: translate(-50%, -50%);
+}
+
+.modalTitle {
+  margin: 0;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.modalDescription {
+  margin: 0.65rem 0 0;
+  color: #a1a1aa;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.4rem;
+}
+
+@media (max-width: 700px) {
+  .obsSettings dd {
+    align-items: start;
+    flex-direction: column;
+  }
+}

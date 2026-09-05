@@ -7,6 +7,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { requireActiveSession } from '@/lib/auth/session'
 import { listUserSessions } from '@/lib/auth/store'
 import { getOwnedChannel } from '@/lib/channels'
+import styles from './account.module.css'
 
 export const metadata: Metadata = { title: 'Account' }
 export const dynamic = 'force-dynamic'
@@ -24,7 +25,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
   const channel = getOwnedChannel(session.user.id)
 
   return (
-    <main className="account-layout">
+    <main className={styles.accountLayout}>
       <section>
         <p className="eyebrow">Account</p>
         <h1>{session.user.name}</h1>
@@ -32,10 +33,10 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
       </section>
       {params.notice && <p className="notice-banner">{params.notice}</p>}
       {params.error && <p className="error-banner" role="alert">{params.error}</p>}
-      <section className="account-panel">
+      <section className={styles.accountPanel}>
         <h2>Profile name</h2>
         <p>This name appears below your stream across the site.</p>
-        <form action={updateProfileNameAction} className="channel-metadata-form">
+        <form action={updateProfileNameAction} className={styles.channelMetadataForm}>
           <label>
             Name
             <input
@@ -50,7 +51,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
           <Button type="submit">Save name</Button>
         </form>
       </section>
-      <section className="account-panel">
+      <section className={styles.accountPanel}>
         <h2>My channel</h2>
         <p>
           {channel
@@ -64,15 +65,15 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
           {channel ? 'Manage channel' : 'Channel status'}
         </Link>
       </section>
-      <section className="account-panel">
+      <section className={styles.accountPanel}>
         <h2>Change password</h2>
         <p>Changing it signs out every other browser session.</p>
         <ChangePasswordForm />
       </section>
-      <section className="account-panel">
+      <section className={styles.accountPanel}>
         <h2>Sessions</h2>
         <p>{sessions.length} active {sessions.length === 1 ? 'session' : 'sessions'}.</p>
-        <ul className="account-session-list">
+        <ul className={styles.accountSessionList}>
           {sessions.map((item) => (
             <li key={item.id}>
               {item.userAgent ?? 'Unknown device'}

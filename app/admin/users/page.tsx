@@ -30,6 +30,7 @@ import {
 } from '@/lib/auth/store'
 import type { AuthUser } from '@/lib/auth/types'
 import { listAdminChannels, type AdminChannel } from '@/lib/channels'
+import styles from '../users.module.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,26 +65,34 @@ function UserCard({
   const sessions = listUserSessions(user.id)
 
   return (
-    <article className="user-card">
-      <div className="user-card-heading">
+    <article className={`${styles.userCard}`}>
+      <div className={`${styles.userCardHeading}`}>
         <div>
-          <div className="user-title-line">
+          <div className={`${styles.userTitleLine}`}>
             <h3>{user.name}</h3>
-            {user.role === 'admin' && <span className="role-badge">Admin</span>}
+            {user.role === 'admin' && <span className={`${styles.roleBadge}`}>Admin</span>}
           </div>
           <p>@{user.username} · {user.email}</p>
         </div>
-        <span className={`activation-badge activation-${user.activationStatus}`}>
+        <span
+          className={`${styles.activationBadge} ${
+            user.activationStatus === 'active'
+              ? styles.activationActive
+              : user.activationStatus === 'pending'
+                ? styles.activationPending
+                : styles.activationDisabled
+          }`}
+        >
           {user.activationStatus}
         </span>
       </div>
 
-      <p className="user-meta">
+      <p className={`${styles.userMeta}`}>
         Registered {formatDate(user.createdAt)}
         {user.activatedAt ? ` · Activated ${formatDate(user.activatedAt)}` : ''}
       </p>
 
-      <div className="admin-actions">
+      <div className={`${styles.adminActions}`}>
         {user.activationStatus !== 'active' && (
           <form action={activateAction.bind(null, user.id)}>
             <Button size="sm" type="submit">
@@ -118,10 +127,10 @@ function UserCard({
       </div>
 
       {sessions.length > 0 && (
-        <details className="session-list">
+        <details className={`${styles.sessionList}`}>
           <summary>{sessions.length} active {sessions.length === 1 ? 'session' : 'sessions'}</summary>
           {sessions.map((session) => (
-            <div className="session-row" key={session.id}>
+            <div className={`${styles.sessionRow}`} key={session.id}>
               <span>
                 {session.userAgent ?? 'Unknown device'}
                 <small>Expires {formatDate(session.expiresAt)}</small>
@@ -137,7 +146,7 @@ function UserCard({
       {user.activationStatus === 'active' && !channel && (
         <form
           action={grantStreamingAction.bind(null, user.id)}
-          className="streaming-grant"
+          className={`${styles.streamingGrant}`}
         >
           <label>
             Channel slug
@@ -156,7 +165,7 @@ function UserCard({
       )}
 
       {channel && (
-        <div className="admin-channel-summary">
+        <div className={`${styles.adminChannelSummary}`}>
           <div>
             <strong>Channel: /watch/{channel.slug}</strong>
             <small>
@@ -164,7 +173,7 @@ function UserCard({
               {channel.streamKeyHint ? `ending ${channel.streamKeyHint}` : 'not generated'}
             </small>
           </div>
-          <div className="admin-actions">
+          <div className={`${styles.adminActions}`}>
             {channel.enabled && (
               <Link
                 className={buttonVariants({ size: 'sm', variant: 'ghost' })}
@@ -203,14 +212,14 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     : null
 
   return (
-    <main className="admin-layout">
-      <section className="admin-heading">
+    <main className={`${styles.adminLayout}`}>
+      <section className={`${styles.adminHeading}`}>
         <div>
           <p className="eyebrow">Administration</p>
           <h1>Viewer access</h1>
           <p>Approve friends, disable access, and revoke database sessions.</p>
         </div>
-        <form action={registrationAction} className="registration-control">
+        <form action={registrationAction} className={`${styles.registrationControl}`}>
           <input name="open" type="hidden" value={registrationOpen ? 'false' : 'true'} />
           <span>Registration is <strong>{registrationOpen ? 'open' : 'closed'}</strong></span>
           <Button type="submit" variant="secondary">
@@ -230,13 +239,13 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
       )}
 
       {(['pending', 'active', 'disabled'] as const).map((status) => (
-        <section className="user-group" key={status}>
-          <div className="user-group-heading">
+        <section className={`${styles.userGroup}`} key={status}>
+          <div className={`${styles.userGroupHeading}`}>
             {status === 'pending' ? <Clock3 /> : status === 'active' ? <UserCheck /> : <UserX />}
             <h2>{status[0].toUpperCase() + status.slice(1)}</h2>
             <span>{groups[status].length}</span>
           </div>
-          <div className="user-grid">
+          <div className={`${styles.userGrid}`}>
             {groups[status].length > 0 ? (
               groups[status].map((user) => (
                 <UserCard
@@ -247,22 +256,22 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                 />
               ))
             ) : (
-              <p className="empty-state">No {status} accounts.</p>
+              <p className={`${styles.emptyState}`}>No {status} accounts.</p>
             )}
           </div>
         </section>
       ))}
 
-      <section className="audit-section">
-        <div className="audit-heading">
-          <div className="user-group-heading">
+      <section className={`${styles.auditSection}`}>
+        <div className={`${styles.auditHeading}`}>
+          <div className={`${styles.userGroupHeading}`}>
             <ShieldCheck />
             <h2>Recent activity</h2>
           </div>
           <ClearActivityControl disabled={auditEntries.length === 0} />
         </div>
         {auditEntries.length > 0 ? (
-          <div className="audit-list">
+          <div className={`${styles.auditList}`}>
             {auditEntries.map((entry) => (
               <p key={entry.id}>
                 <strong>{entry.actorName}</strong> {entry.action.replaceAll('_', ' ')}
@@ -272,7 +281,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
             ))}
           </div>
         ) : (
-          <p className="empty-state">No recent activity.</p>
+          <p className={`${styles.emptyState}`}>No recent activity.</p>
         )}
       </section>
     </main>

@@ -1,0 +1,117 @@
+.channelAccountLayout {
+  max-width: 64rem;
+}
+
+.channelAccountHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.channelAccountCopy {
+  min-width: 0;
+}
+
+.channelAccountCopy h1 {
+  overflow-wrap: anywhere;
+}
+
+.channelAccountHeading .channelAccountMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.7rem 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.channelAccountMeta > span:last-child {
+  color: #d4d4d8;
+}
+
+.channelAccountHeading > svg {
+  width: 3.5rem;
+  height: 3.5rem;
+  color: var(--eyebrow);
+}
+
+.channelAccountHeading a {
+  color: var(--accent-soft);
+  text-decoration: none;
+}
+
+.discordNotificationToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: fit-content;
+  color: #d4d4d8;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.discordNotificationToggle input {
+  width: 1rem;
+  height: 1rem;
+  min-height: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.obsSetupPanel > a {
+  margin-top: 1.25rem;
+}
+
+.obsSetupHeading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.obsSetupHeading > div > p,
+.obsSetupNote,
+.obsSetupVersion {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+
+.obsSetupHeading > svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  color: var(--eyebrow);
+}
+
+.obsSetupVersion code {
+  overflow-wrap: anywhere;
+  color: #d4d4d8;
+}
+
+.obsSetupNote {
+  max-width: 48rem;
+}
+
+.obsSetupApprovalActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 700px) {
+  .channelAccountHeading {
+    gap: 1rem;
+  }
+
+  .channelAccountHeading > svg {
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: none;
+  }
+}

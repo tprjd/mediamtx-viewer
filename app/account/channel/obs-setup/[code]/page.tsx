@@ -10,6 +10,8 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { requireActiveSession } from '@/lib/auth/session'
 import { getOwnedChannel } from '@/lib/channels'
 import { getObsSetupApproval } from '@/lib/obs-setup'
+import accountStyles from '../../../account.module.css'
+import channelStyles from '../../channel.module.css'
 
 export const metadata: Metadata = { title: 'Authorize OBS setup' }
 export const dynamic = 'force-dynamic'
@@ -35,8 +37,8 @@ export default async function ObsSetupApprovalPage({
   const available = setup?.status === 'pending' && channel?.enabled
 
   return (
-    <main className="account-layout channel-account-layout">
-      <section className="channel-account-heading">
+    <main className={`${accountStyles.accountLayout} ${channelStyles.channelAccountLayout}`}>
+      <section className={channelStyles.channelAccountHeading}>
         <div>
           <p className="eyebrow">Windows OBS setup</p>
           <h1>Authorize this computer</h1>
@@ -47,7 +49,7 @@ export default async function ObsSetupApprovalPage({
 
       {query.error && <p className="error-banner" role="alert">{query.error}</p>}
 
-      <section className="account-panel">
+      <section className={accountStyles.accountPanel}>
         {available ? (
           <>
             <h2>Connect to {channel.title}</h2>
@@ -56,7 +58,7 @@ export default async function ObsSetupApprovalPage({
               publishing key to the waiting setup script. Any previous OBS key
               is revoked and a current broadcast may be disconnected.
             </p>
-            <div className="obs-setup-approval-actions">
+            <div className={channelStyles.obsSetupApprovalActions}>
               <form action={approveObsSetupAction}>
                 <input name="userCode" type="hidden" value={setup.userCode} />
                 <Button type="submit">Authorize OBS setup</Button>
