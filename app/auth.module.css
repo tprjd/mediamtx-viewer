@@ -53,7 +53,7 @@
 
 .authFootnote {
   margin: 1.35rem 0 0;
-  color: #71717a;
+  color: var(--text-faint);
   font-size: 0.78rem;
   text-align: center;
 }

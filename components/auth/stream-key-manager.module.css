@@ -33,7 +33,7 @@
 }
 
 .obsSettings dt {
-  color: #71717a;
+  color: var(--text-faint);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -47,7 +47,7 @@
   justify-content: space-between;
   gap: 1rem;
   margin: 0;
-  color: #d4d4d8;
+  color: var(--text);
   font-size: 0.8rem;
 }
 
@@ -64,7 +64,7 @@
   gap: 0.35rem;
   border: 0;
   background: transparent;
-  color: #a1a1aa;
+  color: var(--muted);
   cursor: pointer;
   font: inherit;
 }
@@ -108,7 +108,7 @@
 
 .modalDescription {
   margin: 0.65rem 0 0;
-  color: #a1a1aa;
+  color: var(--muted);
   font-size: 0.85rem;
   line-height: 1.6;
 }

@@ -82,13 +82,13 @@
 }
 
 .adminChannelSummary strong {
-  color: #d4d4d8;
+  color: var(--text);
   font-size: 0.78rem;
 }
 
 .adminChannelSummary small {
   margin-top: 0.25rem;
-  color: #71717a;
+  color: var(--text-faint);
   font-size: 0.68rem;
 }
 
@@ -114,7 +114,7 @@
 .userCardHeading p,
 .userMeta {
   margin: 0.3rem 0 0;
-  color: #71717a;
+  color: var(--text-faint);
   font-size: 0.72rem;
 }
 
@@ -134,17 +134,17 @@
 
 .activationActive {
   background: rgba(52, 211, 153, 0.12);
-  color: #6ee7b7;
+  color: var(--success-strong);
 }
 
 .activationPending {
   background: rgba(251, 191, 36, 0.12);
-  color: #fcd34d;
+  color: var(--warning);
 }
 
 .activationDisabled {
   background: rgba(248, 113, 113, 0.12);
-  color: #fca5a5;
+  color: var(--danger);
 }
 
 .adminActions {
@@ -166,7 +166,7 @@
   max-width: 10rem;
   align-items: center;
   gap: 0.4rem;
-  color: #a1a1aa;
+  color: var(--muted);
   font-size: 0.65rem;
   line-height: 1.35;
 }
@@ -175,7 +175,7 @@
   margin-top: 1rem;
   padding-top: 0.8rem;
   border-top: 1px solid var(--line);
-  color: #a1a1aa;
+  color: var(--muted);
   font-size: 0.72rem;
 }
 
@@ -199,7 +199,7 @@
 
 .sessionRow small {
   display: block;
-  color: #71717a;
+  color: var(--text-faint);
 }
 
 .emptyState {
@@ -207,7 +207,7 @@
   padding: 1.2rem;
   border: 1px dashed var(--line);
   border-radius: 0.8rem;
-  color: #71717a;
+  color: var(--text-faint);
   font-size: 0.8rem;
 }
 
@@ -234,12 +234,12 @@
   margin: 0;
   padding: 0.7rem 0;
   border-bottom: 1px solid var(--line);
-  color: #a1a1aa;
+  color: var(--muted);
   font-size: 0.75rem;
 }
 
 .auditList time {
-  color: #52525b;
+  color: var(--text-weak);
 }
 
 @media (max-width: 700px) {

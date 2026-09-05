@@ -32,7 +32,7 @@
   place-items: center;
   border-radius: 0.8rem;
   background: rgba(113, 113, 122, 0.12);
-  color: #a1a1aa;
+  color: var(--muted);
 }
 
 .oracleOverallIcon svg {
@@ -60,7 +60,7 @@
 
 .oracleStatusSafe .oracleOverallIcon {
   background: rgba(52, 211, 153, 0.12);
-  color: #6ee7b7;
+  color: var(--success-strong);
 }
 
 .oracleStatusWatch,
@@ -72,7 +72,7 @@
 .oracleStatusWatch .oracleOverallIcon,
 .oracleStatusNearLimit .oracleOverallIcon {
   background: rgba(251, 191, 36, 0.12);
-  color: #fcd34d;
+  color: var(--warning);
 }
 
 .oracleStatusChargeDetected {
@@ -82,7 +82,7 @@
 
 .oracleStatusChargeDetected .oracleOverallIcon {
   background: rgba(248, 113, 113, 0.12);
-  color: #fca5a5;
+  color: var(--danger);
 }
 
 .oracleSetupNotice {
@@ -142,25 +142,25 @@
 }
 
 .oracleSummaryCard > strong span {
-  color: #71717a;
+  color: var(--text-faint);
   font-size: 0.75rem;
   font-weight: 500;
 }
 
 .oracleSummaryCard > p {
   margin: 0.55rem 0 0;
-  color: #71717a;
+  color: var(--text-faint);
   font-size: 0.69rem;
 }
 
 .oracleSummaryCard > p span {
-  color: #a1a1aa;
+  color: var(--muted);
 }
 
 .oracleSummaryCard > small {
   display: block;
   margin-top: 0.6rem;
-  color: #52525b;
+  color: var(--text-weak);
   font-size: 0.62rem;
   line-height: 1.45;
 }
@@ -229,7 +229,7 @@
 }
 
 .oracleInstanceGrid dt {
-  color: #52525b;
+  color: var(--text-weak);
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -239,7 +239,7 @@
 .oracleInstanceGrid dd {
   overflow: hidden;
   margin: 0.3rem 0 0;
-  color: #d4d4d8;
+  color: var(--text);
   font-size: 0.78rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -261,20 +261,20 @@
 .oracleSource > svg {
   width: 1rem;
   margin-top: 0.05rem;
-  color: #71717a;
+  color: var(--text-faint);
 }
 
 .oracleSourceOk > svg {
-  color: #6ee7b7;
+  color: var(--success-strong);
 }
 
 .oracleSourceError > svg {
-  color: #fca5a5;
+  color: var(--danger);
 }
 
 .oracleSource strong {
   display: block;
-  color: #d4d4d8;
+  color: var(--text);
   font-size: 0.76rem;
 }
 
@@ -282,13 +282,13 @@
 .oracleSource small {
   display: block;
   margin: 0.25rem 0 0;
-  color: #71717a;
+  color: var(--text-faint);
   font-size: 0.68rem;
   line-height: 1.45;
 }
 
 .oracleSource small {
-  color: #52525b;
+  color: var(--text-weak);
 }
 
 .oracleMetricsHeading {
@@ -297,7 +297,7 @@
 
 .oracleMetricsHeading div > p:last-child {
   margin: 0.4rem 0 0;
-  color: #71717a;
+  color: var(--text-faint);
   font-size: 0.7rem;
 }
 
@@ -312,7 +312,7 @@
 .oracleRangeSwitcher a {
   padding: 0.4rem 0.6rem;
   border-radius: 0.45rem;
-  color: #71717a;
+  color: var(--text-faint);
   font-size: 0.68rem;
   font-weight: 650;
   text-decoration: none;
@@ -348,7 +348,7 @@
 
 .oracleMetricHeading p {
   margin: 0;
-  color: #71717a;
+  color: var(--text-faint);
   font-size: 0.65rem;
 }
 
@@ -360,7 +360,7 @@
 }
 
 .oracleMetricHeading small {
-  color: #52525b;
+  color: var(--text-weak);
   font-size: 0.58rem;
   text-align: right;
 }
@@ -393,7 +393,7 @@
   min-height: 7rem;
   margin: 1rem 0 0;
   place-items: center;
-  color: #52525b;
+  color: var(--text-weak);
   font-size: 0.7rem;
   text-align: center;
 }
@@ -416,7 +416,7 @@
 
 .oracleCostTable th {
   padding: 0.8rem 0.65rem;
-  color: #52525b;
+  color: var(--text-weak);
   font-size: 0.61rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -425,7 +425,7 @@
 .oracleCostTable td {
   padding: 0.8rem 0.65rem;
   border-top: 1px solid var(--line);
-  color: #a1a1aa;
+  color: var(--muted);
   vertical-align: top;
 }
 
@@ -438,7 +438,7 @@
 .oracleCostTable td small {
   display: block;
   margin-top: 0.2rem;
-  color: #52525b;
+  color: var(--text-weak);
 }
 
 .oracleReferenceNote {
@@ -452,14 +452,14 @@
 }
 
 .oracleReferenceNote strong {
-  color: #d4d4d8;
+  color: var(--text);
   font-size: 0.76rem;
 }
 
 .oracleReferenceNote p {
   max-width: 58rem;
   margin: 0.3rem 0 0;
-  color: #71717a;
+  color: var(--text-faint);
   font-size: 0.68rem;
   line-height: 1.5;
 }

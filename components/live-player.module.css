@@ -19,7 +19,7 @@
 }
 
 .playbackModeSwitch span {
-  color: #71717a;
+  color: var(--text-faint);
   font-size: 0.68rem;
 }
 

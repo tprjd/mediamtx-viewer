@@ -29,7 +29,7 @@
 }
 
 .channelAccountMeta > span:last-child {
-  color: #d4d4d8;
+  color: var(--text);
 }
 
 .channelAccountHeading > svg {
@@ -48,7 +48,7 @@
   align-items: center;
   gap: 0.55rem;
   width: fit-content;
-  color: #d4d4d8;
+  color: var(--text);
   font-size: 0.85rem;
   cursor: pointer;
 }
@@ -90,7 +90,7 @@
 
 .obsSetupVersion code {
   overflow-wrap: anywhere;
-  color: #d4d4d8;
+  color: var(--text);
 }
 
 .obsSetupNote {

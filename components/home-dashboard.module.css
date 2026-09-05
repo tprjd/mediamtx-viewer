@@ -41,7 +41,7 @@
   border: 1px solid var(--line);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.025);
-  color: #a1a1aa;
+  color: var(--muted);
   font-size: 0.68rem;
   font-weight: 750;
   letter-spacing: 0.12em;
@@ -52,28 +52,28 @@
   width: 0.45rem;
   height: 0.45rem;
   border-radius: 999px;
-  background: #52525b;
+  background: var(--text-weak);
 }
 
 .liveSummary.isLive {
   border-color: rgba(248, 113, 113, 0.2);
   background: rgba(239, 68, 68, 0.08);
-  color: #fca5a5;
+  color: var(--danger);
 }
 
 .liveSummary.isLive > span {
-  background: #f87171;
+  background: var(--danger-strong);
   box-shadow: 0 0 0 0.25rem rgba(248, 113, 113, 0.1);
   animation: live-breathe 2.2s ease-in-out infinite;
 }
 
 .liveSummary.isDelayed {
   border-color: rgba(251, 191, 36, 0.18);
-  color: #fcd34d;
+  color: var(--warning);
 }
 
 .liveSummary.isDelayed > span {
-  background: #fbbf24;
+  background: var(--warning-strong);
 }
 
 @keyframes live-breathe {
@@ -96,7 +96,7 @@
   min-height: 2.35rem;
   padding: 0.45rem 0.65rem;
   border-radius: 0.6rem;
-  color: #a1a1aa;
+  color: var(--muted);
   font-size: 0.72rem;
   font-weight: 600;
   text-decoration: none;
@@ -133,7 +133,7 @@
 
 .dashboardSectionHeading > p {
   margin: 0 0 0.3rem;
-  color: #71717a;
+  color: var(--text-faint);
   font-size: 0.75rem;
 }
 
@@ -232,7 +232,7 @@
   display: -webkit-box;
   overflow: hidden;
   margin: 1.1rem 0 0;
-  color: #a1a1aa;
+  color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.7;
   -webkit-box-orient: vertical;
@@ -306,7 +306,7 @@
 .quietStateWarning .quietIcon {
   border-color: rgba(251, 191, 36, 0.18);
   background: rgba(245, 158, 11, 0.08);
-  color: #fcd34d;
+  color: var(--warning);
 }
 
 .quietIcon svg {
@@ -429,7 +429,7 @@
 
 .channelRowOwner {
   overflow: hidden;
-  color: #d4d4d8;
+  color: var(--text);
   font-size: 0.78rem;
   font-weight: 650;
   text-overflow: ellipsis;
@@ -459,7 +459,7 @@
   place-items: center;
   border: 1px solid var(--line);
   border-radius: 999px;
-  color: #71717a;
+  color: var(--text-faint);
 }
 
 .channelRow:hover .channelRowArrow {
@@ -471,7 +471,7 @@
   padding: clamp(2rem, 6vw, 4rem);
   border: 1px dashed var(--line);
   border-radius: 1.25rem;
-  color: #71717a;
+  color: var(--text-faint);
   text-align: center;
 }
 
@@ -483,7 +483,7 @@
 
 .noChannelsState h3 {
   margin: 1rem 0 0;
-  color: #d4d4d8;
+  color: var(--text);
   font-size: 1.15rem;
 }
 

@@ -53,14 +53,14 @@
 }
 
 .accountSessionList li {
-  color: #d4d4d8;
+  color: var(--text);
   font-size: 0.8rem;
 }
 
 .accountSessionList small {
   display: block;
   margin-top: 0.2rem;
-  color: #71717a;
+  color: var(--text-faint);
 }
 
 .channelMetadataForm {
@@ -72,7 +72,7 @@
 .channelMetadataForm label {
   display: grid;
   gap: 0.4rem;
-  color: #d4d4d8;
+  color: var(--text);
   font-size: 0.75rem;
   font-weight: 600;
 }

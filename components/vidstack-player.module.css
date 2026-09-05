@@ -161,11 +161,11 @@
 
 .mediaLiveButton[data-edge],
 .mediaLiveLabel {
-  color: #f87171;
+  color: var(--danger-strong);
 }
 
 .mediaLiveButton:not([data-edge]) {
-  color: #d4d4d8;
+  color: var(--text);
 }
 
 .mediaLiveButton svg,
