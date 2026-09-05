@@ -1,6 +1,7 @@
 import { RadioTower } from 'lucide-react'
 import Link from 'next/link'
 import { Suspense } from 'react'
+import styles from './site-header.module.css'
 
 import { UserMenu } from '@/components/auth/user-menu'
 import { getActiveSession } from '@/lib/auth/session'
@@ -24,9 +25,9 @@ async function AccountNavigation() {
 
 export function SiteHeader() {
   return (
-    <header className="site-header">
-      <Link className="brand" href="/" aria-label="Stream home">
-        <span className="brand-mark">
+    <header className={styles.siteHeader}>
+      <Link className={styles.brand} href="/" aria-label="Stream home">
+        <span className={styles.brandMark}>
           <RadioTower className="size-4" aria-hidden="true" />
         </span>
         <span>Home Stream</span>

@@ -1,0 +1,41 @@
+.userMenu {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.userMenu a,
+.userMenu button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.65rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: #a1a1aa;
+  font: inherit;
+  font-size: 0.75rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.userMenu a:hover,
+.userMenu button:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+}
+
+@media (max-width: 700px) {
+  .userMenu a {
+    font-size: 0;
+  }
+
+  .userMenu a svg {
+    width: 1rem;
+  }
+
+  .userMenu button {
+    font-size: 0;
+  }
+}

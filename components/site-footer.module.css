@@ -1,0 +1,28 @@
+.siteFooter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  width: min(100% - 2rem, 90rem);
+  margin: 4rem auto 0;
+  padding-block: 1.25rem 1.75rem;
+  color: #71717a;
+  font-size: 0.72rem;
+}
+
+.siteFooter::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 1px;
+  content: "";
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    var(--line) 45%,
+    var(--line) 55%,
+    transparent 100%
+  );
+}

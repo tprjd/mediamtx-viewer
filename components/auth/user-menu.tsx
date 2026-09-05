@@ -3,6 +3,7 @@
 import { ChartNoAxesCombined, LogOut, RadioTower, Settings, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import styles from './user-menu.module.css'
 
 import { authClient } from '@/lib/auth/client'
 
@@ -25,7 +26,7 @@ export function UserMenu({ hasOwnedChannel, user }: UserMenuProps) {
   }
 
   return (
-    <nav className="user-menu" aria-label="Account">
+    <nav className={styles.userMenu} aria-label="Account">
       {user.role === 'admin' && (
         <Link href="/admin/users">
           <ShieldCheck className="size-4" aria-hidden="true" />

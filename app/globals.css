@@ -70,73 +70,6 @@ a {
   background: var(--ambient-two);
 }
 
-.site-header {
-  display: flex;
-  min-height: 4.5rem;
-  align-items: center;
-  justify-content: space-between;
-  width: min(100% - 2rem, 90rem);
-  margin-inline: auto;
-  border-bottom: 1px solid var(--line);
-}
-
-.site-footer {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  width: min(100% - 2rem, 90rem);
-  margin: 4rem auto 0;
-  padding-block: 1.25rem 1.75rem;
-  color: #71717a;
-  font-size: 0.72rem;
-}
-
-.site-footer::before {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 1px;
-  content: "";
-  background: linear-gradient(
-    to right,
-    transparent 0%,
-    var(--line) 45%,
-    var(--line) 55%,
-    transparent 100%
-  );
-}
-
-.user-menu {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.user-menu a,
-.user-menu button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.65rem;
-  border: 0;
-  border-radius: 0.55rem;
-  background: transparent;
-  color: #a1a1aa;
-  font: inherit;
-  font-size: 0.75rem;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.user-menu a:hover,
-.user-menu button:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: white;
-}
-
 .auth-form {
   display: grid;
   gap: 1rem;
@@ -248,29 +181,6 @@ a {
   margin: 1rem 0 0;
   color: var(--muted);
   line-height: 1.65;
-}
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.65rem;
-  color: white;
-  font-size: 0.875rem;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  text-decoration: none;
-}
-
-.brand-mark {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--accent-soft) 24%, transparent);
-  border-radius: 0.65rem;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent-soft);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .eyebrow {
@@ -414,18 +324,6 @@ a {
   .admin-heading {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .user-menu a {
-    font-size: 0;
-  }
-
-  .user-menu a svg {
-    width: 1rem;
-  }
-
-  .user-menu button {
-    font-size: 0;
   }
 
   .player-message p {
