@@ -114,6 +114,7 @@ describe('PlaybackStats diagnostics', () => {
           playbackRate: 1.03,
           playingDateLatencySeconds: 3.7,
           profileExitReason: 'Previous low-latency mode exceeded its SLO.',
+          measuredSegmentSeconds: 4,
           targetDurationSeconds: 2,
           targetLatencySeconds: 3,
         }}
@@ -137,6 +138,9 @@ describe('PlaybackStats diagnostics', () => {
     expect(within(details!).getByText('Live latency').nextElementSibling).toHaveTextContent(
       '3.4s',
     )
+    expect(
+      within(details!).getByText('Playlist timing').nextElementSibling,
+    ).toHaveTextContent('4.0s · avg / 2.0s / 0.2s / 0.5s')
     expect(details).toBeVisible()
     expect(within(details!).getByText('Target / max').nextElementSibling).toHaveTextContent(
       '3s / 6s',

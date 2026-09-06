@@ -6,6 +6,7 @@ interface HlsModeDocument {
   correctiveLatencyCeilingMs: number
   forwardBufferCeilingMs?: number
   maxBufferLengthMs?: number
+  adaptiveMaxSegmentMs?: number
 }
 
 export interface StreamingContractDocument {
@@ -95,6 +96,9 @@ function hlsMode(value: unknown, path: string, forwardBuffer: boolean): HlsModeD
   if (forwardBuffer && typeof mode.maxBufferLengthMs === 'number') {
     keys.push('maxBufferLengthMs')
   }
+  if (forwardBuffer && typeof mode.adaptiveMaxSegmentMs === 'number') {
+    keys.push('adaptiveMaxSegmentMs')
+  }
   exactKeys(mode, keys, path)
   const targetLatencyMs = positiveInteger(mode.targetLatencyMs, `${path}.targetLatencyMs`)
   const correctiveLatencyCeilingMs = positiveInteger(
@@ -113,6 +117,10 @@ function hlsMode(value: unknown, path: string, forwardBuffer: boolean): HlsModeD
   const maxBufferLengthMs = forwardBuffer && typeof mode.maxBufferLengthMs === 'number'
     ? positiveInteger(mode.maxBufferLengthMs, `${path}.maxBufferLengthMs`)
     : undefined
+  const adaptiveMaxSegmentMs =
+    forwardBuffer && typeof mode.adaptiveMaxSegmentMs === 'number'
+      ? positiveInteger(mode.adaptiveMaxSegmentMs, `${path}.adaptiveMaxSegmentMs`)
+      : undefined
   if (
     forwardBuffer &&
     forwardBufferCeilingMs !== undefined &&
@@ -131,6 +139,7 @@ function hlsMode(value: unknown, path: string, forwardBuffer: boolean): HlsModeD
       ? {}
       : { forwardBufferCeilingMs }),
     ...(maxBufferLengthMs === undefined ? {} : { maxBufferLengthMs }),
+    ...(adaptiveMaxSegmentMs === undefined ? {} : { adaptiveMaxSegmentMs }),
   }
 }
 

@@ -37,12 +37,15 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
     preferredPlayback: channel.preferredPlayback,
     streamStartedAt: channel.status.startedAt,
     supportsUltraLow: isHlsJsSupported,
+    tracks: channel.status.tracks,
   })
   const {
     balancedUnavailable,
     lowLatencyDisabled,
     mode,
     modeExitReason,
+    webrtcAvailable,
+    webrtcUnavailableReason,
     onBalancedUnavailable: handleBalancedUnavailable,
     onUltraLowFailure: handleUltraLowFailure,
     onUltraLowUnavailable: handleUltraLowUnavailable,
@@ -129,20 +132,25 @@ export function LivePlayer({ channel, viewerId }: LivePlayerProps) {
           </Button>
           <Button
             aria-pressed={mode === 'webrtc'}
-            disabled={lowLatencyDisabled}
+            disabled={!webrtcAvailable || lowLatencyDisabled}
             onClick={() => selectMode('webrtc')}
             size="sm"
             title={
-              retrySeconds > 0
-                ? `Low-latency retry available in ${retrySeconds} seconds`
-                : undefined
+              !webrtcAvailable
+                ? webrtcUnavailableReason
+                : retrySeconds > 0
+                  ? `Low-latency retry available in ${retrySeconds} seconds`
+                  : undefined
             }
+            aria-disabled={!webrtcAvailable}
             variant={mode === 'webrtc' ? 'default' : 'secondary'}
           >
             <Gauge className="size-3.5" aria-hidden="true" />
-            {retrySeconds > 0
-              ? `Try low latency in ${retrySeconds}s`
-              : 'Low latency'}
+            {!webrtcAvailable
+              ? 'Low latency unavailable'
+              : retrySeconds > 0
+                ? `Try low latency in ${retrySeconds}s`
+                : 'Low latency'}
           </Button>
         </div>
       </div>

@@ -97,10 +97,11 @@ For manual setup, configure OBS Custom WHIP service with:
 ### Stream quality and resilience
 
 Balanced LL-HLS is the default viewer mode and runs a few seconds behind the
-live edge. Viewers can select an experimental hls.js-only HLS ≤3s mode, Smooth
-HLS, or WebRTC. The three-second HLS mode uses a 1.8-second target, a three-second
-latency SLO and loading limit; repeated failures return it to
-Balanced instead of silently adding latency. A failed WebRTC repair falls back
+live edge. Viewers can select an experimental hls.js-only Low (best-possible)
+mode, Smooth HLS, or WebRTC. Low (best-possible) starts at a 1.8-second target
+with a three-second latency ceiling and adapts upward when the stream's real
+segment duration is longer (per the streaming contract); repeated failures
+return it to Balanced. A failed WebRTC repair falls back
 to the already-warm Smooth HLS muxer, and the player waits 60 seconds before
 offering another WebRTC attempt. HLS retries transient failures with bounded
 exponential backoff while the stream remains live; hidden tabs and intentional

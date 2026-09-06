@@ -16,6 +16,9 @@ interface PlaybackStatsProps {
 }
 
 export interface HlsPlaybackDiagnostics {
+  adaptiveTargetSeconds?: number
+  adaptiveCeilingSeconds?: number
+  measuredSegmentSeconds?: number
   bufferAheadSeconds?: number
   configuredMaxForwardBufferSeconds?: number
   correctiveSeekCount?: number
@@ -861,8 +864,14 @@ export function PlaybackStats({
           <div className={`${styles.playbackStat}`} title="Selected target and hard recovery boundary">
             <span>Target / max</span>
             <strong>
-              {formatConfiguredSeconds(hlsDiagnostics.targetLatencySeconds)} /{' '}
-              {formatConfiguredSeconds(hlsDiagnostics.maxLatencySeconds)}
+              {formatConfiguredSeconds(
+                hlsDiagnostics.adaptiveTargetSeconds ??
+                  hlsDiagnostics.targetLatencySeconds,
+              )} /{' '}
+              {formatConfiguredSeconds(
+                hlsDiagnostics.adaptiveCeilingSeconds ??
+                  hlsDiagnostics.maxLatencySeconds,
+              )}
             </strong>
           </div>
           <div className={`${styles.playbackStat}`} title="Decoded media available ahead of the playhead">
@@ -875,9 +884,11 @@ export function PlaybackStats({
               {hlsDiagnostics.engine ?? '—'} · {hlsDiagnostics.playbackRate.toFixed(2)}×
             </strong>
           </div>
-          <div className={`${styles.playbackStat}`} title="Target duration / part target / part hold-back">
+          <div className={`${styles.playbackStat}`} title="Measured average segment / target duration / part target / part hold-back">
             <span>Playlist timing</span>
             <strong>
+              {formatSeconds(hlsDiagnostics.measuredSegmentSeconds)}{' '}
+              <small>· avg</small> /{' '}
               {formatSeconds(hlsDiagnostics.targetDurationSeconds)} /{' '}
               {formatSeconds(hlsDiagnostics.partTargetSeconds)} /{' '}
               {formatSeconds(hlsDiagnostics.partHoldBackSeconds)}

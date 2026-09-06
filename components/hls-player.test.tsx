@@ -314,7 +314,7 @@ describe('HlsPlayer recovery', () => {
     ).toBeInTheDocument()
   })
 
-  it('rejects playlists whose segment or part timing cannot meet the SLO', async () => {
+  it('adapts the SLO ceiling for longer segments without demoting', async () => {
     const onUltraLowUnavailable = vi.fn()
     await act(async () => {
       render(
@@ -327,28 +327,68 @@ describe('HlsPlayer recovery', () => {
       await Promise.resolve()
     })
 
-    act(() => {
-      mocks.instances[0].emit('levelUpdated', {
-        details: {
-          partTarget: 0.2,
-          targetduration: 2,
-        },
-      })
+    // Base ultra-low hls.js config is kept (no player teardown on re-aim).
+    expect(mocks.instances[0].config).toMatchObject({
+      liveSyncDuration: 1.8,
+      liveMaxLatencyDuration: 3,
     })
-    expect(onUltraLowUnavailable).not.toHaveBeenCalled()
 
+    // A 3s segment relaxes the SLO window instead of demoting.
     act(() => {
       mocks.instances[0].emit('levelUpdated', {
         details: {
           partTarget: 0.2,
           targetduration: 3,
+          averagetargetduration: 3,
         },
       })
     })
+    expect(onUltraLowUnavailable).not.toHaveBeenCalled()
 
+    // Parts > 250ms are still a hard failure.
+    act(() => {
+      mocks.instances[0].emit('levelUpdated', {
+        details: {
+          partTarget: 0.4,
+          targetduration: 2,
+          averagetargetduration: 2,
+        },
+      })
+    })
     expect(onUltraLowUnavailable).toHaveBeenCalledOnce()
-    expect(onUltraLowUnavailable).toHaveBeenCalledWith(
-      expect.stringContaining('2-second LL-HLS segments'),
+  })
+
+  it('does not demote when latency stays below the adaptive ceiling', async () => {
+    const onUltraLowFailure = vi.fn()
+    const onUltraLowUnavailable = vi.fn()
+    await act(async () => {
+      render(
+        <HlsPlayer
+          channel={channel}
+          latencyProfile="ultra-low"
+          onUltraLowFailure={onUltraLowFailure}
+          onUltraLowUnavailable={onUltraLowUnavailable}
+        />,
+      )
+      await Promise.resolve()
+    })
+
+    // 4.167s WHIP stream -> adaptive ceiling ~4.37s; latency 4.0s is tolerated.
+    act(() => {
+      mocks.instances[0].emit('levelUpdated', {
+        details: {
+          partTarget: 0.2,
+          targetduration: 4.167,
+          averagetargetduration: 4.167,
+        },
+      })
+    })
+    await vi.waitFor(
+      () => {
+        expect(onUltraLowFailure).not.toHaveBeenCalled()
+        expect(onUltraLowUnavailable).not.toHaveBeenCalled()
+      },
+      { timeout: 500 },
     )
   })
 

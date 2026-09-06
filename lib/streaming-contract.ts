@@ -16,6 +16,7 @@ export interface HlsPlaybackContract {
   correctiveLatencyCeilingSeconds: number
   forwardBufferCeilingSeconds?: number
   maxBufferLengthSeconds?: number
+  adaptiveMaxSegmentSeconds?: number
   label: string
 }
 
@@ -48,12 +49,65 @@ export function hlsPlaybackContract(mode: HlsLatencyProfile): HlsPlaybackContrac
     ...(timing.maxBufferLengthMs === undefined
       ? {}
       : { maxBufferLengthSeconds: timing.maxBufferLengthMs / 1000 }),
+    ...(timing.adaptiveMaxSegmentMs === undefined
+      ? {}
+      : { adaptiveMaxSegmentSeconds: timing.adaptiveMaxSegmentMs / 1000 }),
     label:
       mode === 'ultra-low'
-        ? `HLS ≤${timing.correctiveLatencyCeilingMs / 1000}s`
+        ? 'Low (best-possible)'
         : mode === 'balanced'
           ? 'Balanced'
           : 'Smooth',
+  }
+}
+
+
+export interface AdaptiveLatencyProfile {
+  targetLatencySeconds: number
+  correctiveLatencyCeilingSeconds: number
+  maxBufferLengthSeconds: number
+}
+
+function roundSeconds(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+/**
+ * Picks the lowest achievable ultra-low latency target for a stream with the
+ * given average segment duration. Segments are the floor for how tight the
+ * live edge can be, so longer segments raise the target, ceiling, and buffer
+ * together. The 200 ms part contract is enforced separately by the player.
+ */
+export function adaptiveLatencyProfile(
+  averageSegmentSeconds: number | undefined,
+): AdaptiveLatencyProfile {
+  const base = hlsPlaybackContract('ultra-low')
+  if (
+    averageSegmentSeconds === undefined ||
+    averageSegmentSeconds <= 2.0
+  ) {
+    return {
+      targetLatencySeconds: base.targetLatencySeconds,
+      correctiveLatencyCeilingSeconds: base.correctiveLatencyCeilingSeconds,
+      maxBufferLengthSeconds:
+        base.maxBufferLengthSeconds ?? base.correctiveLatencyCeilingSeconds,
+    }
+  }
+  const midCeiling = base.adaptiveMaxSegmentSeconds ?? 4.0
+  if (averageSegmentSeconds <= midCeiling) {
+    return {
+      targetLatencySeconds: roundSeconds(averageSegmentSeconds * 0.8),
+      correctiveLatencyCeilingSeconds: roundSeconds(
+        averageSegmentSeconds * 1.05,
+      ),
+      maxBufferLengthSeconds: roundSeconds(averageSegmentSeconds * 0.875),
+    }
+  }
+  const segmentCeil = Math.ceil(averageSegmentSeconds)
+  return {
+    targetLatencySeconds: segmentCeil,
+    correctiveLatencyCeilingSeconds: segmentCeil + 1,
+    maxBufferLengthSeconds: segmentCeil - 0.25,
   }
 }
 

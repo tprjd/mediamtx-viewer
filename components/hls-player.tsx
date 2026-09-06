@@ -26,8 +26,10 @@ import {
 import { usePlaybackRun } from '@/components/use-playback-run'
 import { authClient } from '@/lib/auth/client'
 import {
+  adaptiveLatencyProfile,
   hlsPackagingContract,
   hlsPlaybackContract,
+  type AdaptiveLatencyProfile,
   type HlsLatencyProfile,
 } from '@/lib/streaming-contract'
 import type { PublicChannel } from '@/lib/types'
@@ -180,6 +182,8 @@ export function HlsPlayer({
   const recoveryRef = useRef({ attempts: 0 })
   const lastCorrectionRef = useRef<string>(undefined)
   const sloRef = useRef<HlsSloState>(createHlsSloState())
+  const adaptiveTargetRef = useRef<AdaptiveLatencyProfile | null>(null)
+  const measuredSegmentRef = useRef<number | undefined>(undefined)
   const ultraLowInstabilityRef = useRef<number[]>([])
   const ultraLowLastInstabilityRef = useRef<number>(undefined)
   const profile: HlsLatencyProfileConfig = HLS_LATENCY_PROFILES[latencyProfile]
@@ -339,19 +343,25 @@ export function HlsPlayer({
 
       lastMeasuredLatency = measuredLatency
       setHlsDiagnostics({
+        adaptiveTargetSeconds: adaptiveTargetRef.current?.targetLatencySeconds,
+        adaptiveCeilingSeconds: adaptiveTargetRef.current
+          ?.correctiveLatencyCeilingSeconds,
+        measuredSegmentSeconds: measuredSegmentRef.current,
         bufferAheadSeconds: readForwardBuffer(video),
         configuredMaxForwardBufferSeconds: profile.forwardBufferLimit,
         correctiveSeekCount: slo.correctiveSeekCount,
         engine: nativeHls ? 'native HLS' : hls ? 'hls.js' : undefined,
         forwardBufferBreachCount: slo.forwardBufferBreachCount,
-        forwardBufferLoadLimitSeconds: profile.maxMaxBufferLength,
+        forwardBufferLoadLimitSeconds:
+          adaptiveTargetRef.current?.maxBufferLengthSeconds ??
+          profile.maxMaxBufferLength,
         lastCorrection: lastCorrectionRef.current,
         lastBreachAt: slo.lastBreachAt,
         lastBreachMetric: slo.lastBreachMetric,
         lastBreachValueSeconds: slo.lastBreachValueSeconds,
         latencyBreachCount: slo.latencyBreachCount,
         liveLatencySeconds: measuredLatency,
-        maxLatencySeconds: profile.liveMaxLatencyDuration,
+        maxLatencySeconds: effectiveLatencyCeiling(),
         maxObservedForwardBufferSeconds: slo.maxObservedForwardBufferSeconds,
         maxObservedLatencySeconds: slo.maxObservedLatencySeconds,
         partHoldBackSeconds: details?.partHoldBack || undefined,
@@ -360,7 +370,9 @@ export function HlsPlayer({
         playingDateLatencySeconds: playingDateLatency,
         profileExitReason,
         targetDurationSeconds: details?.targetduration || undefined,
-        targetLatencySeconds: profile.liveSyncDuration,
+        targetLatencySeconds:
+          adaptiveTargetRef.current?.targetLatencySeconds ??
+          profile.liveSyncDuration,
       })
     }
 
@@ -537,9 +549,22 @@ export function HlsPlayer({
       slo.lastBreachValueSeconds = value
     }
 
+    const effectiveAdaptive = (): AdaptiveLatencyProfile | null =>
+      adaptiveTargetRef.current
+
+    const effectiveLatencyCeiling = (): number => {
+      return effectiveAdaptive()?.correctiveLatencyCeilingSeconds ??
+        profile.liveMaxLatencyDuration
+    }
+
+    const effectiveForwardBufferLimit = (): number | undefined => {
+      return effectiveAdaptive()?.maxBufferLengthSeconds ?? profile.forwardBufferLimit
+    }
+
     const pollUltraLowSlo = () => {
       if (
         latencyProfile !== 'ultra-low' ||
+        reportedUltraLowPackagingUnsupported ||
         !hls ||
         !everPlayed ||
         !canRecover() ||
@@ -567,7 +592,7 @@ export function HlsPlayer({
         )
       }
 
-      const forwardBufferLimit = profile.forwardBufferLimit
+      const forwardBufferLimit = effectiveForwardBufferLimit()
       if (
         forwardBuffer !== undefined &&
         forwardBufferLimit !== undefined &&
@@ -578,7 +603,8 @@ export function HlsPlayer({
         slo.forwardBufferBreaching = false
       }
 
-      if (latency === undefined || latency <= profile.liveMaxLatencyDuration) {
+      const latencyCeiling = effectiveLatencyCeiling()
+      if (latency === undefined || latency <= latencyCeiling) {
         slo.latencyBreaching = false
         slo.latencyCorrectionAt = undefined
         slo.latencyRecoveryScheduled = false
@@ -593,7 +619,7 @@ export function HlsPlayer({
         if (syncPosition !== null && syncPosition > video.currentTime) {
           video.currentTime = syncPosition
           markCorrection(
-            `${profile.label} latency exceeded ${profile.liveMaxLatencyDuration}s`,
+            `${profile.label} latency exceeded ${latencyCeiling}s`,
             true,
           )
         }
@@ -639,10 +665,10 @@ export function HlsPlayer({
       if (
         hls &&
         lastMeasuredLatency !== undefined &&
-        lastMeasuredLatency > profile.liveMaxLatencyDuration
+        lastMeasuredLatency > effectiveLatencyCeiling()
       ) {
         markCorrection(
-          `hls.js latency exceeded ${profile.liveMaxLatencyDuration}s`,
+          `hls.js latency exceeded ${effectiveLatencyCeiling()}s`,
         )
         publishDiagnostics()
       }
@@ -670,7 +696,7 @@ export function HlsPlayer({
       }
     }
     const handlePlay = () => {
-      if (hls && hls.latency > profile.liveMaxLatencyDuration) {
+      if (hls && hls.latency > effectiveLatencyCeiling()) {
         const syncPosition = hls.liveSyncPosition
         if (syncPosition !== null) {
           video.currentTime = syncPosition
@@ -714,26 +740,26 @@ export function HlsPlayer({
     }
 
     const handleLevelUpdated = (_event: string, data: LevelUpdatedData) => {
-      if (
-        latencyProfile !== 'ultra-low' ||
-        reportedUltraLowPackagingUnsupported
-      ) {
-        return
-      }
+      if (latencyProfile !== 'ultra-low') return
       const { partTarget, targetduration } = data.details
       const measuredSegment = data.details.averagetargetduration ?? targetduration
-      if (
-        measuredSegment <= packagingContract.segmentDurationSeconds &&
-        partTarget > 0 &&
-        partTarget <= packagingContract.partDurationSeconds + 0.05
-      ) {
+
+      // The LL-HLS part cadence is non-negotiable: without small parts the
+      // stream cannot be low latency at all.
+      if (partTarget <= 0 || partTarget > packagingContract.partDurationSeconds + 0.05) {
+        reportedUltraLowPackagingUnsupported = true
+        onUltraLowUnavailable?.(
+          `${profile.label} requires LL-HLS parts no longer than ${(packagingContract.partDurationSeconds + 0.05) * 1_000}ms.`,
+        )
         return
       }
 
-      reportedUltraLowPackagingUnsupported = true
-      onUltraLowUnavailable?.(
-        `${profile.label} requires ${packagingContract.segmentDurationSeconds}-second LL-HLS segments and parts no longer than ${(packagingContract.partDurationSeconds + 0.05) * 1_000}ms.`,
-      )
+      // Strive for the lowest latency this stream can support: longer segments
+      // raise the SLO ceiling (and the effective target) instead of demoting
+      // outright. hls.js keeps its base live-edge config; we only relax the
+      // corrective window, so the player is not torn down.
+      measuredSegmentRef.current = measuredSegment
+      adaptiveTargetRef.current = adaptiveLatencyProfile(measuredSegment)
     }
     const handleHlsError = (_event: string, data: ErrorData) => {
       if (!data.fatal) return

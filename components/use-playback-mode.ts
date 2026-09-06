@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { isWebRtcAvailable, webrtcUnavailableReason } from '@/lib/playback-availability'
 import {
   hlsPlaybackContract,
   type PlaybackMode,
@@ -18,6 +19,7 @@ interface PlaybackModeOptions {
   preferredPlayback: 'hls' | 'webrtc'
   streamStartedAt: string | null
   supportsUltraLow: () => boolean
+  tracks: readonly string[]
 }
 
 export function usePlaybackMode({
@@ -25,9 +27,12 @@ export function usePlaybackMode({
   preferredPlayback,
   streamStartedAt,
   supportsUltraLow,
+  tracks,
 }: PlaybackModeOptions) {
+  const webrtcAvailable = isWebRtcAvailable(tracks)
+  const webrtcUnavailableReasonText = webrtcUnavailableReason(tracks)
   const [mode, setMode] = useState<PlaybackMode>(
-    preferredPlayback === 'webrtc' ? 'webrtc' : 'balanced',
+    preferredPlayback === 'webrtc' && webrtcAvailable ? 'webrtc' : 'balanced',
   )
   const [fallback, setFallback] = useState<{
     retryAfter: number
@@ -65,12 +70,38 @@ export function usePlaybackMode({
           )
         }
       }
-      if (saved === 'balanced' || saved === 'smooth' || saved === 'webrtc') {
+      if (saved === 'balanced' || saved === 'smooth') {
         setMode(saved)
+      }
+      if (saved === 'webrtc') {
+        if (webrtcAvailable) {
+          setMode('webrtc')
+        } else {
+          window.sessionStorage.setItem(MODE_STORAGE_KEY, 'balanced')
+          setMode('balanced')
+          setModeExitReason(webrtcUnavailableReasonText)
+        }
       }
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [supportsUltraLow])
+  }, [supportsUltraLow, webrtcAvailable, webrtcUnavailableReasonText])
+
+  useEffect(() => {
+    if (mode !== 'webrtc' || webrtcAvailable) return
+    queueMicrotask(() => {
+      setMode('balanced')
+      setModeExitReason(webrtcUnavailableReasonText)
+    })
+  }, [mode, webrtcAvailable, webrtcUnavailableReasonText])
+
+  // Initial preferredPlayback fallback: remember the graceful degradation so a
+  // later pageload does not blindly retry WebRTC.
+  useEffect(() => {
+    if (preferredPlayback !== 'webrtc' || webrtcAvailable) return
+    if (window.sessionStorage.getItem(MODE_STORAGE_KEY) !== null) return
+    window.sessionStorage.setItem(MODE_STORAGE_KEY, 'balanced')
+    queueMicrotask(() => setModeExitReason(webrtcUnavailableReasonText))
+  }, [preferredPlayback, webrtcAvailable, webrtcUnavailableReasonText])
 
   const retryAfter =
     fallback?.startedAt === streamStartedAt ? fallback.retryAfter : 0
@@ -121,6 +152,8 @@ export function usePlaybackMode({
   return {
     balancedUnavailable,
     lowLatencyDisabled: !live || retrySeconds > 0,
+    webrtcAvailable,
+    webrtcUnavailableReason: webrtcUnavailableReasonText,
     mode,
     modeExitReason,
     onBalancedUnavailable,

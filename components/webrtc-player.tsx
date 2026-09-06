@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { PlaybackStats } from '@/components/playback-stats'
 import { usePlaybackRun } from '@/components/use-playback-run'
 import { VidstackPlayer } from '@/components/vidstack-player'
+import { hasAudioTrack, hasVideoTrack } from '@/lib/playback-availability'
 import { authClient } from '@/lib/auth/client'
 import type { PublicChannel } from '@/lib/types'
 
@@ -112,12 +113,8 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
     videoElement,
     videoRef,
   } = usePlaybackRun(status.live)
-  const sourceHasAudio = status.tracks.some((track) =>
-    /audio|aac|opus|g7/i.test(track),
-  )
-  const sourceHasVideo = status.tracks.some(
-    (track) => !/audio|aac|opus|g7|vorbis|pcma|pcmu/i.test(track),
-  )
+  const sourceHasAudio = hasAudioTrack(status.tracks)
+  const sourceHasVideo = hasVideoTrack(status.tracks)
   const playerSource = useMemo(
     () =>
       mediaStream
