@@ -47,7 +47,7 @@ export default async function ChannelAccountPage({
   }
 
   const origin = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'
-  const serverUrl = `rtmp://${new URL(origin).hostname}:1935/${channel.mediaPath}?token=…`
+  const serverUrl = `rtmp://${new URL(origin).hostname}:1935`
   const setupScript = getObsSetupScriptMetadata()
 
   return (
@@ -118,6 +118,7 @@ export default async function ChannelAccountPage({
           <StreamKeyManager
             hasKey={channel.hasStreamKey}
             keyHint={channel.streamKeyHint}
+            mediaPath={channel.mediaPath}
             serverUrl={serverUrl}
           />
         ) : (

@@ -16,12 +16,14 @@ const initialState: StreamKeyActionState = {}
 interface StreamKeyManagerProps {
   hasKey: boolean
   keyHint: string | null
+  mediaPath: string
   serverUrl: string
 }
 
 export function StreamKeyManager({
   hasKey,
   keyHint,
+  mediaPath,
   serverUrl,
 }: StreamKeyManagerProps) {
   const [state, action, pending] = useActionState(generateStreamKeyAction, initialState)
@@ -31,6 +33,7 @@ export function StreamKeyManager({
   const formRef = useRef<HTMLFormElement>(null)
   const currentHasKey = hasKey || Boolean(state.key)
   const currentHint = state.hint ?? keyHint
+  const playPath = (token: string) => `${mediaPath}?token=${token}`
 
   async function copy(label: string, value: string) {
     await navigator.clipboard.writeText(value)
@@ -60,18 +63,34 @@ export function StreamKeyManager({
           </dd>
         </div>
         <div>
-          <dt>Stream key</dt>
-          <dd>{currentHint ? `Current key ends in ${currentHint}` : 'No key generated'}</dd>
+          <dt>Stream key / play path</dt>
+          <dd>
+            {state.key ? (
+              <>
+                <code>{playPath(state.key!)}</code>
+                <button onClick={() => copy('playPath', playPath(state.key!))} type="button">
+                  <Copy aria-hidden="true" /> {copied === 'playPath' ? 'Copied' : 'Copy'}
+                </button>
+              </>
+            ) : currentHint ? `Current key ends in ${currentHint}` : 'No key generated'}
+          </dd>
         </div>
       </dl>
 
       {state.key && (
         <aside className={styles.streamKeyReveal}>
-          <strong>Copy this key now. It will not be shown again.</strong>
-          <code>{state.key}</code>
-          <Button onClick={() => copy('key', state.key!)} size="sm" variant="secondary">
-            <Copy aria-hidden="true" /> {copied === 'key' ? 'Copied' : 'Copy stream key'}
+          <strong>Copy the play path now. It is shown only once.</strong>
+          <code>{playPath(state.key)}</code>
+          <Button
+            onClick={() => copy('playPath', playPath(state.key!))}
+            size="sm"
+            variant="secondary"
+          >
+            <Copy aria-hidden="true" /> {copied === 'playPath' ? 'Copied' : 'Copy play path'}
           </Button>
+          <p className={styles.streamKeyHintText}>
+            Raw key: <code>{state.key}</code>
+          </p>
         </aside>
       )}
       {state.error && <p className="error-banner" role="alert">{state.error}</p>}

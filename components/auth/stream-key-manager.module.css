@@ -126,3 +126,10 @@
     flex-direction: column;
   }
 }
+
+.streamKeyHintText {
+  margin-top: 0.65rem;
+  font-size: 0.8125rem;
+  color: var(--muted, inherit);
+  overflow-wrap: anywhere;
+}
