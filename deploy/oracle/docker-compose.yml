@@ -63,7 +63,6 @@ services:
           wget -qO- http://mediamtx:9998/metrics >/dev/null &&
           nc -z -w 2 mediamtx 8554 &&
           nc -z -w 2 mediamtx 1935 &&
-          nc -z -w 2 mediamtx 1936 &&
           nc -z -w 2 mediamtx 8888 &&
           nc -z -w 2 mediamtx 8889 &&
           nc -z -w 2 mediamtx 8189
