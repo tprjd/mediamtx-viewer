@@ -133,3 +133,18 @@
   color: var(--muted, inherit);
   overflow-wrap: anywhere;
 }
+
+.streamKeyRevealRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.streamKeyRevealRow span {
+  min-width: 5.5rem;
+  font-size: 0.8125rem;
+  color: var(--muted, inherit);
+  font-weight: 600;
+}

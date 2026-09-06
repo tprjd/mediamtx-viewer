@@ -34,6 +34,7 @@ export function StreamKeyManager({
   const currentHasKey = hasKey || Boolean(state.key)
   const currentHint = state.hint ?? keyHint
   const playPath = (token: string) => `${mediaPath}?token=${token}`
+  const fullUrl = (token: string) => `${serverUrl}/${playPath(token)}`
 
   async function copy(label: string, value: string) {
     await navigator.clipboard.writeText(value)
@@ -79,18 +80,29 @@ export function StreamKeyManager({
 
       {state.key && (
         <aside className={styles.streamKeyReveal}>
-          <strong>Copy the play path now. It is shown only once.</strong>
-          <code>{playPath(state.key)}</code>
-          <Button
-            onClick={() => copy('playPath', playPath(state.key!))}
-            size="sm"
-            variant="secondary"
-          >
-            <Copy aria-hidden="true" /> {copied === 'playPath' ? 'Copied' : 'Copy play path'}
-          </Button>
-          <p className={styles.streamKeyHintText}>
-            Raw key: <code>{state.key}</code>
-          </p>
+          <strong>Paste these into OBS. They are shown only once.</strong>
+          <div className={styles.streamKeyRevealRow}>
+            <span>Full URL</span>
+            <code>{fullUrl(state.key!)}</code>
+            <Button
+              onClick={() => copy('fullUrl', fullUrl(state.key!))}
+              size="sm"
+              variant="secondary"
+            >
+              <Copy aria-hidden="true" /> {copied === 'fullUrl' ? 'Copied' : 'Copy URL'}
+            </Button>
+          </div>
+          <div className={styles.streamKeyRevealRow}>
+            <span>Raw key</span>
+            <code>{state.key!}</code>
+            <Button
+              onClick={() => copy('key', state.key!)}
+              size="sm"
+              variant="secondary"
+            >
+              <Copy aria-hidden="true" /> {copied === 'key' ? 'Copied' : 'Copy key'}
+            </Button>
+          </div>
         </aside>
       )}
       {state.error && <p className="error-banner" role="alert">{state.error}</p>}
