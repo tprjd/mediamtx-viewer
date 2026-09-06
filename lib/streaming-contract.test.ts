@@ -19,6 +19,7 @@ describe('streaming contract', () => {
       targetLatencySeconds: 1.8,
       correctiveLatencyCeilingSeconds: 3,
       forwardBufferCeilingSeconds: 3,
+      maxBufferLengthSeconds: 2,
       label: 'HLS ≤3s',
     })
     expect(hlsPlaybackContract('balanced')).toEqual({

@@ -12,7 +12,8 @@
       "ultra-low": {
         "targetLatencyMs": 1800,
         "correctiveLatencyCeilingMs": 3000,
-        "forwardBufferCeilingMs": 3000
+        "forwardBufferCeilingMs": 3000,
+        "maxBufferLengthMs": 2000
       },
       "balanced": {
         "targetLatencyMs": 3000,

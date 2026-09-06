@@ -5,6 +5,7 @@ const webrtcOrigin =
   process.env.MEDIAMTX_WEBRTC_URL ?? 'http://127.0.0.1:8889'
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
   output: 'standalone',
   poweredByHeader: false,
   serverExternalPackages: [

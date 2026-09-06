@@ -47,6 +47,7 @@ interface HlsLatencyProfileConfig {
   backBufferLength: number
   forwardBufferLimit?: number
   label: string
+  maxBufferLengthSeconds?: number
   liveMaxLatencyDuration: number
   liveSyncDuration: number
   liveSyncOnStallIncrease: number
@@ -68,9 +69,9 @@ export const HLS_LATENCY_PROFILES = {
     liveMaxLatencyDuration: ultraLowContract.correctiveLatencyCeilingSeconds,
     liveSyncDuration: ultraLowContract.targetLatencySeconds,
     liveSyncOnStallIncrease: 0,
-    maxBufferLength: ultraLowContract.forwardBufferCeilingSeconds,
+    maxBufferLength: ultraLowContract.maxBufferLengthSeconds,
     maxLiveSyncPlaybackRate: 1.05,
-    maxMaxBufferLength: ultraLowContract.forwardBufferCeilingSeconds,
+    maxMaxBufferLength: ultraLowContract.maxBufferLengthSeconds,
   },
   balanced: {
     backBufferLength: 30,
@@ -720,8 +721,9 @@ export function HlsPlayer({
         return
       }
       const { partTarget, targetduration } = data.details
+      const measuredSegment = data.details.averagetargetduration ?? targetduration
       if (
-        targetduration <= packagingContract.segmentDurationSeconds &&
+        measuredSegment <= packagingContract.segmentDurationSeconds &&
         partTarget > 0 &&
         partTarget <= packagingContract.partDurationSeconds + 0.05
       ) {

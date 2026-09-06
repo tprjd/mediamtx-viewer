@@ -255,8 +255,8 @@ describe('HlsPlayer recovery', () => {
       liveMaxLatencyDuration: 3,
       liveSyncOnStallIncrease: 0,
       maxLiveSyncPlaybackRate: 1.05,
-      maxBufferLength: 3,
-      maxMaxBufferLength: 3,
+      maxBufferLength: 2,
+      maxMaxBufferLength: 2,
     })
   })
 

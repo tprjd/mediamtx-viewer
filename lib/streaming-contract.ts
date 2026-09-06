@@ -15,6 +15,7 @@ export interface HlsPlaybackContract {
   targetLatencySeconds: number
   correctiveLatencyCeilingSeconds: number
   forwardBufferCeilingSeconds?: number
+  maxBufferLengthSeconds?: number
   label: string
 }
 
@@ -44,6 +45,9 @@ export function hlsPlaybackContract(mode: HlsLatencyProfile): HlsPlaybackContrac
     ...(timing.forwardBufferCeilingMs === undefined
       ? {}
       : { forwardBufferCeilingSeconds: timing.forwardBufferCeilingMs / 1000 }),
+    ...(timing.maxBufferLengthMs === undefined
+      ? {}
+      : { maxBufferLengthSeconds: timing.maxBufferLengthMs / 1000 }),
     label:
       mode === 'ultra-low'
         ? `HLS ≤${timing.correctiveLatencyCeilingMs / 1000}s`

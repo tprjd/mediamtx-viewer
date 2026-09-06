@@ -5,6 +5,7 @@ interface HlsModeDocument {
   targetLatencyMs: number
   correctiveLatencyCeilingMs: number
   forwardBufferCeilingMs?: number
+  maxBufferLengthMs?: number
 }
 
 export interface StreamingContractDocument {
@@ -88,13 +89,13 @@ function positiveInteger(value: unknown, path: string): number {
 
 function hlsMode(value: unknown, path: string, forwardBuffer: boolean): HlsModeDocument {
   const mode = recordAt(value, path)
-  exactKeys(
-    mode,
-    forwardBuffer
-      ? ['targetLatencyMs', 'correctiveLatencyCeilingMs', 'forwardBufferCeilingMs']
-      : ['targetLatencyMs', 'correctiveLatencyCeilingMs'],
-    path,
-  )
+  const keys = forwardBuffer
+    ? ['targetLatencyMs', 'correctiveLatencyCeilingMs', 'forwardBufferCeilingMs']
+    : ['targetLatencyMs', 'correctiveLatencyCeilingMs']
+  if (forwardBuffer && typeof mode.maxBufferLengthMs === 'number') {
+    keys.push('maxBufferLengthMs')
+  }
+  exactKeys(mode, keys, path)
   const targetLatencyMs = positiveInteger(mode.targetLatencyMs, `${path}.targetLatencyMs`)
   const correctiveLatencyCeilingMs = positiveInteger(
     mode.correctiveLatencyCeilingMs,
@@ -106,17 +107,30 @@ function hlsMode(value: unknown, path: string, forwardBuffer: boolean): HlsModeD
       `${path}.targetLatencyMs cannot exceed its corrective ceiling.`,
     )
   }
+  const forwardBufferCeilingMs = forwardBuffer
+    ? positiveInteger(mode.forwardBufferCeilingMs, `${path}.forwardBufferCeilingMs`)
+    : undefined
+  const maxBufferLengthMs = forwardBuffer && typeof mode.maxBufferLengthMs === 'number'
+    ? positiveInteger(mode.maxBufferLengthMs, `${path}.maxBufferLengthMs`)
+    : undefined
+  if (
+    forwardBuffer &&
+    forwardBufferCeilingMs !== undefined &&
+    maxBufferLengthMs !== undefined &&
+    maxBufferLengthMs >= forwardBufferCeilingMs
+  ) {
+    throw new StreamingContractError(
+      'contract_invariant_violation',
+      `${path}.maxBufferLengthMs must be below its forward-buffer ceiling.`,
+    )
+  }
   return {
     targetLatencyMs,
     correctiveLatencyCeilingMs,
-    ...(forwardBuffer
-      ? {
-          forwardBufferCeilingMs: positiveInteger(
-            mode.forwardBufferCeilingMs,
-            `${path}.forwardBufferCeilingMs`,
-          ),
-        }
-      : {}),
+    ...(forwardBufferCeilingMs === undefined
+      ? {}
+      : { forwardBufferCeilingMs }),
+    ...(maxBufferLengthMs === undefined ? {} : { maxBufferLengthMs }),
   }
 }
 
