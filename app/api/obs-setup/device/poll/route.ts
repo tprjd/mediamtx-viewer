@@ -85,8 +85,8 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(
       {
         status: 'authorized',
-        serverUrl: `${authEnvironment.baseUrl}/publish/whip/${result.streamKey.mediaPath}/whip`,
-        bearerToken: result.streamKey.token,
+        serverUrl: `rtmp://${new URL(authEnvironment.baseUrl).hostname}:1935/${result.streamKey.mediaPath}?token=${result.streamKey.token}`,
+        streamKey: result.streamKey.token,
         warning: warning ?? null,
       },
       { headers: responseHeaders },

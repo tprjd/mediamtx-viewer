@@ -135,6 +135,18 @@ resource "oci_core_security_list" "viewer" {
   }
 
   ingress_security_rules {
+    description = "MediaMTX RTMP publish (Enhanced RTMP, token-authenticated)"
+    protocol    = "6"
+    source      = "0.0.0.0/0"
+    source_type = "CIDR_BLOCK"
+
+    tcp_options {
+      min = 1935
+      max = 1935
+    }
+  }
+
+  ingress_security_rules {
     description = "ICMP fragmentation-needed messages for path MTU discovery"
     protocol    = "1"
     source      = "0.0.0.0/0"

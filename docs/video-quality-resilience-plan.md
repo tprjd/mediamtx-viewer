@@ -2,7 +2,18 @@
 
 > Historical design record; non-authoritative.
 > [`config/streaming-contract.v1.json`](../config/streaming-contract.v1.json)
+
 > defines current timing and resilience policy.
+>
+> 2026-09-06 local validation: the AV1 + AAC ingest path (OBS -> Enhanced RTMP
+> -> MediaMTX 1.20.1 -> LL-HLS) was proved end to end at 2560x1440/60 and held
+> the ultra-low mode at ~1.9 s glass-to-glass. Two findings from that test:
+> (1) MediaMTX 1.20.1 emits `#EXT-X-TARGETDURATION:4` for 2 s LL-HLS segments,
+> so the application's ultra-low packaging guard now validates the measured
+> average segment duration (`averagetargetduration`) instead of the header;
+> (2) the ultra-low hls.js buffer cap must sit below the forward-buffer SLO
+> ceiling (`maxBufferLengthMs` < `forwardBufferCeilingMs`), added to the
+> streaming contract.
 
 Status: the repository implementation is complete for the no-transcode design:
 Setup 1.3.0's one-second-GOP OBS baseline, four viewer modes, warm LL-HLS,

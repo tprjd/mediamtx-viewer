@@ -643,14 +643,13 @@ LowLatencyEnable=true
 [Stream1]
 IgnoreRecommended=true
 EnableMultitrackVideo=false
-WHIPSimulcastTotalLayers=1
 
 [AdvOut]
 ApplyServiceSettings=true
 UseRescale=false
 TrackIndex=1
 Encoder=$($Profile.Encoder.EncoderId)
-AudioEncoder=ffmpeg_opus
+AudioEncoder=ffmpeg_aac
 Track1Bitrate=160
 RecType=Standard
 RecFilePath=$videosPath
@@ -971,28 +970,31 @@ function Start-DeviceAuthorization {
     throw 'The ten-minute OBS authorization window expired. Run the script again.'
 }
 
-function Write-WhipService {
+function Write-RtmpService {
     param(
         [string[]]$ProfileDirectories,
-        [string]$ServerUrl,
-        [string]$BearerToken
+        [string]$ServerUrl
     )
-    if (-not $ServerUrl.StartsWith("$SiteOrigin/publish/whip/")) {
-        throw 'The site returned an unexpected WHIP server URL.'
+    if ($ServerUrl -notmatch '^rtmp://[^/]+:1935/[^?]+\?token=mtx_sk_[A-Za-z0-9_-]{24,}$') {
+        throw 'The site returned an unexpected RTMP server URL.'
     }
-    if (-not $BearerToken.StartsWith('mtx_sk_') -or $BearerToken.Length -lt 48) {
-        throw 'The site returned an invalid OBS publishing credential.'
+    $schemeEnd = $ServerUrl.IndexOf('://')
+    $slashIndex = $ServerUrl.IndexOf('/', $schemeEnd + 3)
+    if ($slashIndex -lt 1) {
+        throw 'The site returned an RTMP URL without a channel path.'
     }
+    $server = $ServerUrl.Substring(0, $slashIndex)
+    $playPath = $ServerUrl.Substring($slashIndex + 1)
     $targets = @($ProfileDirectories | Where-Object { Test-Path -LiteralPath $_ })
     if ($targets.Count -eq 0) {
         throw 'No managed OBS profiles were available to receive the publishing settings.'
     }
     $service = [ordered]@{
-        type = 'whip_custom'
+        type = 'rtmp_custom'
         settings = [ordered]@{
-            service = 'WHIP'
-            server = $ServerUrl
-            bearer_token = $BearerToken
+            service = 'Enhanced RTMP'
+            server = $server
+            key = $playPath
         }
         hotkeys = [ordered]@{}
     } | ConvertTo-Json -Depth 10
@@ -1206,9 +1208,8 @@ try {
         $directory = Join-Path $obsRoot "basic\profiles\$($definition.DirectoryName)"
         if (Test-Path -LiteralPath $directory) { $credentialTargetDirectories += $directory }
     }
-    Write-WhipService $credentialTargetDirectories $authorization.serverUrl $authorization.bearerToken
-    $authorization.bearerToken = $null
-    Write-Info "WHIP publishing settings saved to $($credentialTargetDirectories.Count) managed profile(s) without printing the credential."
+    Write-RtmpService $credentialTargetDirectories $authorization.serverUrl
+    Write-Info "RTMP publishing settings saved to $($credentialTargetDirectories.Count) managed profile(s) without printing the credential."
     $warningProperty = $authorization.PSObject.Properties['warning']
     if ($warningProperty -and $warningProperty.Value) {
         Write-Warning $warningProperty.Value

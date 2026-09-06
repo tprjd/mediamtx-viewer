@@ -176,15 +176,15 @@ describe('Windows OBS setup authorization', () => {
     const authorized = await authorizedResponse.json() as {
       status: string
       serverUrl: string
-      bearerToken: string
+      streamKey: string
       warning: string | null
     }
-    expect(authorized).toMatchObject({
-      status: 'authorized',
-      serverUrl: 'http://localhost:3000/publish/whip/channels/friend-stream/whip',
-      warning: null,
-    })
-    expect(authorized.bearerToken).toMatch(/^mtx_sk_/)
+    expect(authorized.status).toBe('authorized')
+    expect(authorized.serverUrl).toMatch(
+      /^rtmp:\/\/localhost:1935\/channels\/friend-stream\?token=/,
+    )
+    expect(authorized.warning).toBeNull()
+    expect(authorized.streamKey).toMatch(/^mtx_sk_/)
   })
 
   it('publishes a stable generic script with no credential material', async () => {
@@ -251,7 +251,16 @@ describe('Windows OBS setup authorization', () => {
     expect(source).toContain('$settings.bf = 2')
     expect(source).toContain("scale_filter = 'area'")
     expect(source).not.toContain("scale_filter = 'lanczos'")
-    expect(source).toContain('AudioEncoder=ffmpeg_opus')
+    expect(source).toContain('AudioEncoder=ffmpeg_aac')
+    expect(source).toContain("type = 'rtmp_custom'")
+    expect(source).toContain("service = 'Enhanced RTMP'")
+    expect(source).toContain("\$server = \$ServerUrl.Substring(0, \$slashIndex)")
+    expect(source).toContain("\$playPath = \$ServerUrl.Substring(\$slashIndex + 1)")
+    expect(source).toContain(
+      "'^rtmp://[^/]+:1935/[^?]+\\?token=mtx_sk_[A-Za-z0-9_-]{24,}$'",
+    )
+    expect(source).not.toContain('whip_custom')
+    expect(source).not.toContain('bearer_token')
     for (const encoderId of [
       'obs_nvenc_av1_tex',
       'obs_nvenc_hevc_tex',

@@ -265,23 +265,45 @@ describe('getChannelStatuses', () => {
 })
 
 describe('disconnectChannelPublisher', () => {
-  it('kicks only the publisher on the requested path', async () => {
+  it('kicks publishers on the requested path across WebRTC, RTMP, and RTMPS', async () => {
     const fetcher = vi.fn<typeof fetch>(async (input) => {
       const url = String(input)
-      if (url.endsWith('/list')) {
+      if (url.endsWith('/webrtcsessions/list')) {
         return Response.json({
           items: [
-            { id: 'publisher-a', path: 'channels/alice', state: 'publish' },
-            { id: 'reader-a', path: 'channels/alice', state: 'read' },
-            { id: 'publisher-b', path: 'channels/bob', state: 'publish' },
+            { id: 'webrtc-publisher-a', path: 'channels/alice', state: 'publish' },
+            { id: 'webrtc-reader-a', path: 'channels/alice', state: 'read' },
+            { id: 'webrtc-publisher-b', path: 'channels/bob', state: 'publish' },
+          ],
+        })
+      }
+      if (url.endsWith('/rtmpconns/list')) {
+        return Response.json({
+          items: [
+            { id: 'rtmp-publisher-a', path: 'channels/alice', state: 'publish' },
+            { id: 'rtmp-reader-b', path: 'channels/bob', state: 'read' },
+          ],
+        })
+      }
+      if (url.endsWith('/rtmpsconns/list')) {
+        return Response.json({
+          items: [
+            { id: 'rtmps-publisher-a', path: 'channels/alice', state: 'publish' },
+            { id: 'rtmps-reader-b', path: 'channels/alice', state: 'read' },
           ],
         })
       }
       return new Response(null, { status: 200 })
     })
 
-    await expect(disconnectChannelPublisher('channels/alice', fetcher)).resolves.toBe(1)
-    expect(fetcher).toHaveBeenCalledTimes(2)
-    expect(String(fetcher.mock.calls[1]?.[0])).toContain('/kick/publisher-a')
+    await expect(disconnectChannelPublisher('channels/alice', fetcher)).resolves.toBe(3)
+    const urls = fetcher.mock.calls.map((call) => String(call[0]))
+    const includes = (fragment: string) => urls.some((url) => url.includes(fragment))
+    expect(includes('/v3/webrtcsessions/list')).toBe(true)
+    expect(includes('/v3/webrtcsessions/kick/webrtc-publisher-a')).toBe(true)
+    expect(includes('/v3/rtmpconns/list')).toBe(true)
+    expect(includes('/v3/rtmpconns/kick/rtmp-publisher-a')).toBe(true)
+    expect(includes('/v3/rtmpsconns/list')).toBe(true)
+    expect(includes('/v3/rtmpsconns/kick/rtmps-publisher-a')).toBe(true)
   })
 })

@@ -1,6 +1,9 @@
 logLevel: info
 logDestinations: [stdout]
 
+# Docker Compose overrides this with HTTP authorization (MTX_AUTHHTTPADDRESS).
+# The internal fallback intentionally grants no publishing permission if
+# MediaMTX is started alone.
 authMethod: internal
 authInternalUsers:
   - user: any
@@ -25,7 +28,13 @@ rtsp: true
 rtspAddress: :8554
 rtspTransports: [tcp]
 udpReadBufferSize: 2500000
-rtmp: false
+rtmp: true
+rtmpEncryption: "no"
+rtmpAddress: :1935
+# RTMPS (rtmpsAddress: :1936, rtmpEncryption: optional/strict, rtmpServerKey/Cert)
+# is a config-ready follow-up once TLS certs are mounted for MediaMTX; until then
+# the token rides in the plain-RTMP URL (see plan).
+# rtmpsAddress: :1936
 srt: false
 moq: false
 
@@ -50,7 +59,7 @@ webrtcAdditionalHosts: ["158.180.29.172"]
 paths:
   live:
     source: publisher
-    overridePublisher: false
+    overridePublisher: true
   "~^channels/[a-z0-9]+(?:-[a-z0-9]+)*$":
     source: publisher
-    overridePublisher: false
+    overridePublisher: true

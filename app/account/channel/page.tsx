@@ -47,7 +47,7 @@ export default async function ChannelAccountPage({
   }
 
   const origin = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'
-  const serverUrl = `${origin}/publish/whip/${channel.mediaPath}/whip`
+  const serverUrl = `rtmp://${new URL(origin).hostname}:1935/${channel.mediaPath}?token=…`
   const setupScript = getObsSetupScriptMetadata()
 
   return (

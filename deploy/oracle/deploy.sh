@@ -86,7 +86,7 @@ echo true
 REMOTE_SCRIPT
 )
 
-ssh "$deploy_target" "sudo ufw allow 443/udp && sudo ufw allow 8189/tcp"
+ssh "$deploy_target" "sudo ufw allow 443/udp && sudo ufw allow 8189/tcp && sudo ufw allow 1935/tcp"
 ssh "$deploy_target" "cd '$remote_dir' && sudo install -m 644 deploy/oracle/90-mediamtx.conf /etc/sysctl.d/90-mediamtx.conf && sudo sysctl --system >/dev/null"
 
 ssh "$deploy_target" "cd '$remote_dir' && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml config --quiet && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml up -d --build --wait"

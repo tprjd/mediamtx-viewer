@@ -35,6 +35,8 @@ services:
       MTX_AUTHMETHOD: http
       MTX_AUTHHTTPADDRESS: http://viewer:3000/api/internal/mediamtx/authorize?secret=${MEDIAMTX_AUTH_SECRET:?Set MEDIAMTX_AUTH_SECRET in caddy.env}
     ports:
+      - "1935:1935/tcp"
+      - "1936:1936/tcp"
       - "8189:8189/udp"
       - "8189:8189/tcp"
     volumes:
@@ -60,6 +62,8 @@ services:
           wget -qO- http://mediamtx:9997/v3/paths/list >/dev/null &&
           wget -qO- http://mediamtx:9998/metrics >/dev/null &&
           nc -z -w 2 mediamtx 8554 &&
+          nc -z -w 2 mediamtx 1935 &&
+          nc -z -w 2 mediamtx 1936 &&
           nc -z -w 2 mediamtx 8888 &&
           nc -z -w 2 mediamtx 8889 &&
           nc -z -w 2 mediamtx 8189

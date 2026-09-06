@@ -35,6 +35,24 @@ const thumbnailQueryValue = 'thumbnail'
 const viewerQueryParameter = 'frankerzspam_viewer'
 const viewerIdPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 
+const rtmpSessionSchema = z
+  .object({
+    id: z.string().optional(),
+    path: z.string().optional(),
+    state: z.string().optional(),
+    query: z.string().optional(),
+  })
+  .passthrough()
+
+const rtmpSessionListSchema = z
+  .object({ items: z.array(rtmpSessionSchema).optional() })
+  .passthrough()
+
+const RTMP_SESSION_LIST_ENDPOINTS = [
+  { list: '/v3/rtmpconns/list', kick: '/v3/rtmpconns/kick/' },
+  { list: '/v3/rtmpsconns/list', kick: '/v3/rtmpsconns/kick/' },
+]
+
 const hlsSessionListSchema = z
   .object({
     items: z
@@ -329,7 +347,57 @@ export async function disconnectChannelPublisher(
   mediaPath: string,
   fetcher: typeof fetch = fetch,
 ): Promise<number> {
-  return disconnectWebRtcSessions({ mediaPath, state: 'publish' }, fetcher)
+  const webrtcKicked = await disconnectWebRtcSessions(
+    { mediaPath, state: 'publish' },
+    fetcher,
+  )
+  const rtmpKicked = await disconnectRtmpPublishers(mediaPath, fetcher)
+  return webrtcKicked + rtmpKicked
+}
+
+async function kickRtmpPublishersOnEndpoint(
+  endpoint: { list: string; kick: string },
+  mediaPath: string,
+  fetcher: typeof fetch,
+): Promise<number> {
+  const response = await fetcher(`${apiOrigin}${endpoint.list}`, {
+    cache: 'no-store',
+    signal: AbortSignal.timeout(2500),
+  })
+  if (!response.ok) throw new Error(`MediaMTX returned HTTP ${response.status}`)
+
+  const data: z.infer<typeof rtmpSessionListSchema> = rtmpSessionListSchema.parse(
+    await response.json(),
+  )
+  const ids = (data.items ?? [])
+    .filter((session) => session.path === mediaPath && session.state === 'publish')
+    .map((session) => session.id)
+    .filter((id): id is string => Boolean(id))
+
+  await Promise.all(
+    ids.map(async (id) => {
+      const kick = await fetcher(
+        `${apiOrigin}${endpoint.kick}${encodeURIComponent(id)}`,
+        { method: 'POST', signal: AbortSignal.timeout(2500) },
+      )
+      if (!kick.ok && kick.status !== 404) {
+        throw new Error(`MediaMTX returned HTTP ${kick.status}`)
+      }
+    }),
+  )
+  return ids.length
+}
+
+export async function disconnectRtmpPublishers(
+  mediaPath: string,
+  fetcher: typeof fetch = fetch,
+): Promise<number> {
+  const kicked = await Promise.all(
+    RTMP_SESSION_LIST_ENDPOINTS.map((endpoint) =>
+      kickRtmpPublishersOnEndpoint(endpoint, mediaPath, fetcher),
+    ),
+  )
+  return kicked.reduce((sum, count) => sum + count, 0)
 }
 
 async function disconnectWebRtcSessions(

@@ -44,14 +44,14 @@ positions and bounds remain correct when switching profiles.
 
 Requested codecs whose hardware encoder OBS does not report are skipped after
 confirmation; naming them explicitly with `-Codecs` makes the run fail before
-any write. The same WHIP credential, the `FrankerzSpam Games` collection, and
+any write. The same RTMP credential, the `FrankerzSpam Games` collection, and
 the desktop shortcut (which launches the preferred profile) apply to every
 managed profile:
 
 - collection `FrankerzSpam Games` with separate Desktop, League of Legends,
   EVE Online, STALKER 2, Path of Exile, Path of Exile 2, and Generic Game scenes;
-- WHIP service settings obtained through a single-use, ten-minute browser
-  authorization.
+- Enhanced RTMP service settings (plain RTMP on 1935; RTMPS is a follow-up)
+  obtained through a single-use, ten-minute browser authorization.
 
 `-Codecs` and `-Resolutions` narrow the matrix (for example
 `-Codecs AV1,H264 -Resolutions 1080p`), and `-BitrateKbps` remains a

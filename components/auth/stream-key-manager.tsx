@@ -48,7 +48,7 @@ export function StreamKeyManager({
       <dl className={styles.obsSettings}>
         <div>
           <dt>Service</dt>
-          <dd>WHIP</dd>
+          <dd>Enhanced RTMP (rtmp://)</dd>
         </div>
         <div>
           <dt>Server</dt>
@@ -60,7 +60,7 @@ export function StreamKeyManager({
           </dd>
         </div>
         <div>
-          <dt>Bearer token</dt>
+          <dt>Stream key</dt>
           <dd>{currentHint ? `Current key ends in ${currentHint}` : 'No key generated'}</dd>
         </div>
       </dl>

@@ -6,8 +6,9 @@ administrators approve accounts and grant individual streaming channels.
 
 The production stack runs on an Oracle Cloud VM at
 `https://frankerzspam.duckdns.org/`. Balanced LL-HLS is the default. Viewers can
-select experimental HLS ≤3s, recovery-oriented Smooth HLS, or WebRTC; failed
-low-margin modes return to a buffered HLS profile.
+select experimental HLS ≤3s, recovery-oriented Smooth HLS, or the existing
+opt-in WebRTC low-latency mode; failed low-margin modes return to a buffered
+HLS profile. (WebRTC retirement is a separate follow-up.)
 
 ## Features
 
@@ -33,11 +34,11 @@ low-margin modes return to a buffered HLS profile.
 ## Architecture
 
 ```text
-OBS ── WHIP + channel stream key ──> Caddy ──> MediaMTX
+OBS ── Enhanced RTMP (rtmp:// on 1935) + channel stream key ──> MediaMTX
 
 Browser ── session cookie ──> Caddy
                                ├── pages, APIs, SSE ─> Next.js ──> SQLite
-                               └── HLS and WHEP ───> MediaMTX
+                               └── HLS / WHEP ───────> MediaMTX
 
 Next.js status monitor ── private Control API ──> MediaMTX
                        └── status/count events ──> Browser
@@ -47,8 +48,10 @@ Thumbnail worker ── private API + HLS ──> MediaMTX
 ```
 
 Caddy asks Next.js to validate the Better Auth session before serving protected
-pages, APIs, HLS, or WHEP. Media bytes travel directly between Caddy and
-MediaMTX instead of passing through Next.js.
+pages, APIs, or HLS. Media bytes travel directly between OBS and
+MediaMTX instead of passing through Next.js or Caddy (Caddy cannot proxy raw
+TCP; RTMP listens directly on the host on port 1935). RTMPS/1936 is a
+config-ready follow-up once TLS certs are mounted for MediaMTX.
 
 MediaMTX separately asks a private Next.js callback to authorize each OBS token
 for its exact channel path. Website passwords, browser sessions, and publishing
@@ -108,7 +111,7 @@ verifies its embedded PowerShell payload, uses a temporary process-only
 execution policy, and then installs or updates
 OBS Studio through WinGet, checks the hardware encoders OBS actually reports,
 and creates one managed profile per requested codec and resolution — by default
-AV1, HEVC (H.265), and H.264 at 1440p and 1080p, all 60 fps CBR with Opus
+AV1, HEVC (H.265), and H.264 at 1440p and 1080p, all 60 fps CBR with AAC
 audio — plus a shared scene collection, without modifying unrelated OBS
 profiles. Named game scenes capture the active fullscreen game; each also has a
 disabled Window Capture fallback that can be selected while the game is
@@ -134,9 +137,9 @@ and disconnects its current publisher.
 
 Configure OBS with:
 
-- Service: `WHIP`
+- Service: `Enhanced RTMP` (custom with `rtmp://` URL)
 - Server: copy the channel URL from `/account/channel`
-- Bearer token: generate and copy the one-time stream key
+- Stream key: generate and copy the one-time stream key
 
 Different owned channels can be live simultaneously. A second publisher on the
 same channel is rejected instead of replacing the first one.
@@ -272,5 +275,5 @@ MediaMTX passes codecs through; the site does not transcode playback. AV1
 depends on browser, operating-system, and hardware support, and HEVC support
 is limited in some browsers. The downloadable Windows setup creates a profile
 for every hardware encoder OBS reports — AV1, HEVC (H.265), and H.264 at 1440p
-and 1080p by default — all with Opus audio. H.264 remains the broadly
+and 1080p by default — all with AAC audio. H.264 remains the broadly
 compatible profile for older viewer devices.
