@@ -4,12 +4,15 @@ import {
   buildHomeDashboardModel,
   mergeChannelsWithLastStatus,
   newlyLiveChannelNames,
+  sortChannelsForHome,
 } from '@/lib/home-dashboard'
 import type { PublicChannel, StreamState } from '@/lib/types'
 
 function channel(
   slug: string,
   state: StreamState = 'offline',
+  viewerCount: number | null =
+    state === 'live' ? 1 : state === 'offline' ? 0 : null,
 ): PublicChannel {
   return {
     slug,
@@ -27,14 +30,56 @@ function channel(
       live: state === 'live',
       startedAt: null,
       tracks: [],
-      viewerCount: state === 'live' ? 1 : state === 'offline' ? 0 : null,
+      viewerCount,
       checkedAt: '2026-08-30T12:00:00.000Z',
     },
   }
 }
 
+describe('sortChannelsForHome', () => {
+  it('sorts live channels first, then viewer count descending, then title', () => {
+    const sorted = sortChannelsForHome([
+      channel('offline-alpha', 'offline', 5),
+      channel('live-low', 'live', 1),
+      channel('offline-beta', 'offline', 9),
+      channel('live-high', 'live', 20),
+      channel('live-mid', 'live', 10),
+    ])
+
+    expect(sorted.map(({ slug }) => slug)).toEqual([
+      'live-high',
+      'live-mid',
+      'live-low',
+      'offline-beta',
+      'offline-alpha',
+    ])
+  })
+
+  it('breaks viewer count ties by title ascending', () => {
+    const sorted = sortChannelsForHome([
+      channel('zebra', 'offline', 3),
+      channel('apple', 'offline', 3),
+      channel('mango', 'offline', 3),
+    ])
+
+    expect(sorted.map(({ slug }) => slug)).toEqual(['apple', 'mango', 'zebra'])
+  })
+
+  it('treats a missing viewer count as zero without reordering groups', () => {
+    const sorted = sortChannelsForHome([
+      channel('null-live', 'live', null),
+      channel('counted-live', 'live', 4),
+    ])
+
+    expect(sorted.map(({ slug }) => slug)).toEqual([
+      'counted-live',
+      'null-live',
+    ])
+  })
+})
+
 describe('buildHomeDashboardModel', () => {
-  it('selects the first live channel and keeps live channels first', () => {
+  it('keeps the full directory sorted with live channels first', () => {
     const model = buildHomeDashboardModel([
       channel('offline-first'),
       channel('live-first', 'live'),
@@ -42,10 +87,6 @@ describe('buildHomeDashboardModel', () => {
       channel('offline-last'),
     ])
 
-    expect(model.featuredChannel?.slug).toBe('live-first')
-    expect(model.remainingLiveChannels.map(({ slug }) => slug)).toEqual([
-      'live-second',
-    ])
     expect(model.allChannels.map(({ slug }) => slug)).toEqual([
       'live-first',
       'live-second',
@@ -57,8 +98,6 @@ describe('buildHomeDashboardModel', () => {
 
   it('returns a deliberate empty model when there are no channels', () => {
     expect(buildHomeDashboardModel([])).toEqual({
-      featuredChannel: null,
-      remainingLiveChannels: [],
       allChannels: [],
       liveCount: 0,
       statusUnavailable: false,

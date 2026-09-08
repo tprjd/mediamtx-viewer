@@ -7,9 +7,12 @@ test('shows the channel directory', async ({ page }) => {
     page.getByRole('heading', { name: 'What are we watching?' }),
   ).toBeVisible()
   await expect(page.getByRole('heading', { name: 'All channels' })).toBeVisible()
-  await expect(
-    page.getByRole('link', { name: /Watch Live stream by power/ }),
-  ).toBeVisible()
+  const card = page.getByRole('link', { name: /Watch Live stream by power/ })
+  await expect(card).toBeVisible()
+  await card.click()
+
+  await expect(page).toHaveURL('/watch/live')
+  await expect(page.getByRole('heading', { name: 'Live stream' })).toBeVisible()
 })
 
 test('keeps the watch dashboard inside a 320px viewport', async ({ page }) => {

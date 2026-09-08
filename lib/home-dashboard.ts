@@ -1,26 +1,34 @@
 import type { PublicChannel } from '@/lib/types'
 
 export interface HomeDashboardModel {
-  featuredChannel: PublicChannel | null
-  remainingLiveChannels: PublicChannel[]
   allChannels: PublicChannel[]
   liveCount: number
   statusUnavailable: boolean
+}
+
+export function sortChannelsForHome(
+  channels: readonly PublicChannel[],
+): PublicChannel[] {
+  return [...channels].sort((a, b) => {
+    const aLive = a.status.live ? 1 : 0
+    const bLive = b.status.live ? 1 : 0
+    if (aLive !== bLive) return bLive - aLive
+
+    const aViewers = a.status.viewerCount ?? 0
+    const bViewers = b.status.viewerCount ?? 0
+    if (aViewers !== bViewers) return bViewers - aViewers
+
+    return a.title.localeCompare(b.title)
+  })
 }
 
 export function buildHomeDashboardModel(
   channels: readonly PublicChannel[],
 ): HomeDashboardModel {
   const liveChannels = channels.filter((channel) => channel.status.live)
-  const liveSlugs = new Set(liveChannels.map((channel) => channel.slug))
 
   return {
-    featuredChannel: liveChannels[0] ?? null,
-    remainingLiveChannels: liveChannels.slice(1),
-    allChannels: [
-      ...liveChannels,
-      ...channels.filter((channel) => !liveSlugs.has(channel.slug)),
-    ],
+    allChannels: sortChannelsForHome(channels),
     liveCount: liveChannels.length,
     statusUnavailable:
       channels.length > 0 &&

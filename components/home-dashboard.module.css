@@ -108,10 +108,6 @@
   color: white;
 }
 
-.featuredSection {
-  padding-top: 3.5rem;
-}
-
 .dashboardSectionHeading {
   display: flex;
   align-items: end;
@@ -137,334 +133,94 @@
   font-size: 0.75rem;
 }
 
-.featuredChannel {
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(18rem, 0.85fr);
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 1.5rem;
-  background: rgba(17, 17, 20, 0.76);
-  color: inherit;
-  text-decoration: none;
-  box-shadow: 0 35px 110px rgba(0, 0, 0, 0.24);
-  transition: border-color 180ms ease, transform 180ms ease;
+.channelSection {
+  padding-top: 3.5rem;
 }
 
-.featuredChannel:hover {
+.channelGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+  gap: 1.25rem;
+}
+
+.channelCard {
+  display: grid;
+  grid-template-rows: auto auto;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(17, 17, 20, 0.55);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.channelCard.isLive {
+  border-color: rgba(248, 113, 113, 0.18);
+}
+
+.channelCard:hover {
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--accent) 42%, transparent);
-}
-
-.featuredChannel:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-}
-
-.featuredArtwork {
-  position: relative;
-  display: grid;
-  min-height: clamp(19rem, 36vw, 31rem);
-  place-items: center;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--accent) 44%, transparent), transparent 36%),
-    radial-gradient(circle at 75% 70%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 42%),
-    linear-gradient(135deg, #17171c, #070708 74%);
-}
-
-.featuredArtwork::after {
-  position: absolute;
-  inset: 0;
-  content: "";
-  opacity: 0.16;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-  background-size: 3rem 3rem;
-  mask-image: linear-gradient(to bottom right, black, transparent 70%);
-  pointer-events: none;
-}
-
-.featuredArtwork > img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.featuredArtwork > span:not(.featuredStatus) {
-  color: color-mix(in srgb, var(--accent) 72%, white);
-  font-size: clamp(7rem, 17vw, 14rem);
-  font-weight: 700;
-  letter-spacing: -0.08em;
-  line-height: 1;
-  opacity: 0.72;
-  text-shadow: 0 30px 90px color-mix(in srgb, var(--accent) 45%, transparent);
-}
-
-.featuredStatus {
-  position: absolute;
-  top: 1.25rem;
-  left: 1.25rem;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.featuredDetails {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  align-items: start;
-  justify-content: space-between;
-  gap: 3rem;
-  padding: clamp(1.6rem, 4vw, 3.25rem);
-}
-
-.featuredDetails h2 {
-  margin: 0;
-  font-size: clamp(2rem, 4.5vw, 4rem);
-  font-weight: 620;
-  letter-spacing: -0.055em;
-  line-height: 1;
-}
-
-.featuredDescription {
-  display: -webkit-box;
-  overflow: hidden;
-  margin: 1.1rem 0 0;
-  color: var(--muted);
-  font-size: 0.9rem;
-  line-height: 1.7;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-}
-
-.featuredCopy {
-  min-width: 0;
-}
-
-.featuredFooter {
-  display: flex;
-  width: 100%;
-  height: 3rem;
-  flex: 0 0 3rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.featuredFooter :global(.channel-owner-name) {
-  min-width: 0;
-}
-
-.featuredAction {
-  display: inline-flex;
-  min-height: 2.75rem;
-  align-items: center;
-  gap: 0.55rem;
-  padding: 0.65rem 0.9rem;
-  border-radius: 0.7rem;
-  background: white;
-  color: #09090b;
-  font-size: 0.78rem;
-  font-weight: 750;
-  transition: background 160ms ease, transform 160ms ease;
-}
-
-.featuredChannel:hover .featuredAction {
-  background: color-mix(in srgb, var(--accent) 18%, white);
-  transform: translateX(2px);
-}
-
-.quietState {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 1.5rem;
-  margin-top: 3.5rem;
-  padding: clamp(1.5rem, 4vw, 2.5rem);
-  border: 1px solid var(--line);
-  border-radius: 1.25rem;
-  background: rgba(17, 17, 20, 0.55);
-}
-
-.quietStateWarning {
-  border-color: rgba(251, 191, 36, 0.12);
-}
-
-.quietIcon {
-  display: grid;
-  width: 4.25rem;
-  height: 4.25rem;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--accent-soft) 18%, transparent);
-  border-radius: 1.15rem;
-  background: color-mix(in srgb, var(--accent) 9%, transparent);
-  color: var(--eyebrow);
-}
-
-.quietStateWarning .quietIcon {
-  border-color: rgba(251, 191, 36, 0.18);
-  background: rgba(245, 158, 11, 0.08);
-  color: var(--warning);
-}
-
-.quietIcon svg {
-  width: 1.35rem;
-}
-
-.quietState h2 {
-  margin: 0.35rem 0 0;
-  font-size: clamp(1.5rem, 4vw, 2.25rem);
-  font-weight: 620;
-  letter-spacing: -0.045em;
-}
-
-.quietState div > p:last-child {
-  margin: 0.65rem 0 0;
-  color: #8b8b94;
-  font-size: 0.82rem;
-  line-height: 1.6;
-}
-
-.channelSection {
-  padding-top: 4rem;
-}
-
-.channelList {
-  display: grid;
-  gap: 0.55rem;
-}
-
-.channelRow {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 1rem;
-  min-height: 4.25rem;
-  padding: 0.75rem 0.9rem;
-  border: 1px solid var(--line);
-  border-radius: 0.85rem;
-  background: rgba(17, 17, 20, 0.55);
-  color: inherit;
-  text-decoration: none;
-  transition: border-color 160ms ease, background 160ms ease;
-}
-
-.channelRow.isLive {
-  min-height: 6rem;
-  gap: 1.1rem;
-  padding: 0.75rem 1rem;
-}
-
-.channelRow:hover {
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
   background: rgba(24, 24, 27, 0.72);
 }
 
-.channelRow:focus-visible {
+.channelCard:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
-.channelRowAvatar {
+.cardMedia {
+  position: relative;
   display: grid;
-  flex: none;
-  width: 2.75rem;
-  height: 2.75rem;
+  aspect-ratio: 16 / 9;
   place-items: center;
   overflow: hidden;
-  border-radius: 0.7rem;
   background:
-    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 55%),
-    linear-gradient(135deg, #121216, #08080a);
-  color: color-mix(in srgb, var(--accent) 72%, white);
-  font-size: 1.1rem;
-  font-weight: 700;
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--accent) 40%, transparent), transparent 40%),
+    radial-gradient(circle at 75% 75%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 45%),
+    linear-gradient(135deg, #17171c, #070708 74%);
 }
 
-.channelRowAvatar img {
+.cardMedia > img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.channelRowThumb {
-  display: grid;
-  flex: none;
-  width: 9rem;
-  height: 5.25rem;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 0.8rem;
-  background:
-    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 55%),
-    linear-gradient(135deg, #121216, #08080a);
+.cardMedia > span {
   color: color-mix(in srgb, var(--accent) 72%, white);
-  font-size: 1.35rem;
+  font-size: clamp(3rem, 9vw, 5rem);
   font-weight: 700;
+  letter-spacing: -0.06em;
+  line-height: 1;
+  opacity: 0.72;
+  text-shadow: 0 20px 60px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
-.channelRowThumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.channelRowCopy {
+.cardDetails {
   display: grid;
-  min-width: 0;
-  gap: 0.2rem;
+  align-content: start;
+  gap: 0.4rem;
+  padding: 0.9rem 1rem 1.1rem;
 }
 
-.channelRowTitle {
+.cardStatusRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.75rem;
+}
+
+.cardTitle {
   overflow: hidden;
+  margin: 0;
   color: white;
   font-size: 1rem;
   font-weight: 620;
   letter-spacing: -0.02em;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.channelRowOwner {
-  overflow: hidden;
-  color: var(--text);
-  font-size: 0.78rem;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.channelRowMeta {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  justify-self: end;
-  min-height: 2rem;
-  line-height: 1;
-}
-
-.channelRowMeta > * {
-  flex-shrink: 0;
-  align-self: center;
-  min-height: 2rem;
-}
-
-.channelRowArrow {
-  display: grid;
-  flex: none;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--text-faint);
-}
-
-.channelRow:hover .channelRowArrow {
-  border-color: rgba(255, 255, 255, 0.18);
-  color: white;
 }
 
 .noChannelsState {
@@ -501,21 +257,6 @@
   text-decoration: none;
 }
 
-@media (max-width: 1000px) {
-  .featuredChannel {
-    grid-template-columns: 1fr;
-  }
-
-  .featuredArtwork {
-    min-height: 0;
-    aspect-ratio: 16 / 8;
-  }
-
-  .featuredDetails {
-    gap: 2rem;
-  }
-}
-
 @media (max-width: 700px) {
   .homeLayout {
     width: min(100% - 1.25rem, 90rem);
@@ -538,12 +279,8 @@
     justify-content: start;
   }
 
-  .featuredSection {
-    padding-top: 2.5rem;
-  }
-
   .channelSection {
-    padding-top: 3rem;
+    padding-top: 2.5rem;
   }
 
   .dashboardSectionHeading {
@@ -557,66 +294,24 @@
     margin: 0;
   }
 
-  .featuredChannel {
-    border-radius: 1.1rem;
+  .channelGrid {
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    gap: 0.9rem;
   }
 
-  .featuredArtwork {
-    aspect-ratio: 16 / 9;
+  .channelCard {
+    border-radius: 0.85rem;
   }
 
-  .featuredDetails {
-    gap: 1.5rem;
-    padding: 1.35rem;
+  .cardDetails {
+    padding: 0.75rem 0.85rem 0.95rem;
   }
 
-  .featuredDetails h2 {
-    font-size: clamp(1.8rem, 10vw, 2.7rem);
+  .cardMedia > span {
+    font-size: clamp(2.5rem, 11vw, 4rem);
   }
 
-  .featuredFooter {
-    align-items: center;
-    flex-direction: row;
-  }
-
-  .featuredAction {
-    width: auto;
-    min-height: 2.75rem;
-    justify-content: center;
-  }
-
-  .quietState {
-    grid-template-columns: 1fr;
-    gap: 1.1rem;
-    margin-top: 2.5rem;
-  }
-
-  .quietIcon {
-    width: 3.5rem;
-    height: 3.5rem;
-  }
-
-  .channelRow {
-    gap: 0.7rem;
-    padding: 0.65rem 0.7rem;
-  }
-
-  .channelRow.isLive {
-    gap: 0.8rem;
-    padding: 0.7rem;
-  }
-
-  .channelRowAvatar {
-    width: 2.5rem;
-    height: 2.5rem;
-  }
-
-  .channelRowThumb {
-    width: 7rem;
-    height: 4rem;
-  }
-
-  .channelRow :global(.viewer-count) {
+  .cardStatusRow :global(.viewer-count) {
     display: none;
   }
 
