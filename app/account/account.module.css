@@ -24,8 +24,8 @@
 .accountPanel {
   padding: 1.5rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
-  background: rgba(17, 17, 20, 0.68);
+  border-radius: 0.25rem;
+  background: var(--panel);
 }
 
 .accountPanel h2 {

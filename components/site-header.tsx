@@ -27,11 +27,11 @@ async function AccountNavigation() {
 export function SiteHeader() {
   return (
     <header className={styles.siteHeader}>
-      <Link className={styles.brand} href="/" aria-label="Stream home">
+      <Link className={styles.brand} href="/" aria-label="FrankerzSpam home">
         <span className={styles.brandMark}>
           <RadioTower className="size-4" aria-hidden="true" />
         </span>
-        <span>Home Stream</span>
+        <span>FrankerzSpam</span>
       </Link>
       <div className={styles.headerActions}>
         <WatchRailToggle />

@@ -5,7 +5,7 @@
   gap: 1rem;
   padding: 0.8rem;
   border: 1px solid var(--line);
-  border-radius: 0.8rem;
+  border-radius: 0.25rem;
   background: var(--panel);
   color: var(--muted);
   font-size: 0.78rem;
@@ -53,8 +53,8 @@
 .userCard {
   padding: 1.2rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
-  background: rgba(17, 17, 20, 0.72);
+  border-radius: 0.25rem;
+  background: var(--panel);
 }
 
 .streamingGrant,
@@ -206,7 +206,7 @@
   margin: 0;
   padding: 1.2rem;
   border: 1px dashed var(--line);
-  border-radius: 0.8rem;
+  border-radius: 0.25rem;
   color: var(--text-faint);
   font-size: 0.8rem;
 }

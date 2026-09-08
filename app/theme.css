@@ -28,8 +28,6 @@
   --accent-soft: var(--color-accent-soft);
   --ring: var(--color-ring);
   --eyebrow: var(--color-accent-soft);
-  --ambient-one: #db2777;
-  --ambient-two: #be185d;
   --foreground: var(--color-foreground);
   --text: var(--color-text);
   --text-faint: var(--color-text-faint);

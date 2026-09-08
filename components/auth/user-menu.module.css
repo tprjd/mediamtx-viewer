@@ -4,8 +4,7 @@
   gap: 0.3rem;
 }
 
-.userMenu a,
-.userMenu button {
+.channelLink {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -20,22 +19,100 @@
   cursor: pointer;
 }
 
-.userMenu a:hover,
-.userMenu button:hover {
+.channelLink:hover {
   background: rgba(255, 255, 255, 0.05);
   color: white;
 }
 
+.accountTrigger {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent-soft) 32%, transparent);
+  border-radius: 50%;
+  background: var(--accent-strong);
+  color: white;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.accountTrigger:hover,
+.accountTrigger[data-state="open"] {
+  background: var(--accent);
+}
+
+.accountTrigger:focus-visible,
+.channelLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.menuContent {
+  z-index: 100;
+  min-width: 12rem;
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 0.25rem;
+  background: #18181b;
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.38);
+}
+
+.menuLabel {
+  overflow: hidden;
+  padding: 0.55rem 0.65rem;
+  color: var(--text-faint);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menuContent a,
+.menuContent button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border: 0;
+  border-radius: 0.2rem;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.menuContent a[data-highlighted],
+.menuContent button[data-highlighted] {
+  background: rgba(255, 255, 255, 0.07);
+  color: white;
+}
+
+.menuContent svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted);
+}
+
+.menuSeparator {
+  height: 1px;
+  margin: 0.3rem 0;
+  background: var(--line);
+}
+
 @media (max-width: 700px) {
-  .userMenu a {
+  .channelLink {
+    padding-inline: 0.5rem;
     font-size: 0;
   }
 
-  .userMenu a svg {
+  .channelLink svg {
     width: 1rem;
-  }
-
-  .userMenu button {
-    font-size: 0;
   }
 }

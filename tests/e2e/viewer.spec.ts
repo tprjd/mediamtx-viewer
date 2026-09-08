@@ -27,6 +27,10 @@ test('keeps the watch dashboard inside a 320px viewport', async ({ page }) => {
     scrollWidth: document.documentElement.scrollWidth,
   }))
   expect(sizes.scrollWidth).toBeLessThanOrEqual(sizes.clientWidth)
+  const header = await page.getByRole('banner').boundingBox()
+  expect(header).not.toBeNull()
+  expect(header!.height).toBeGreaterThanOrEqual(48)
+  expect(header!.height).toBeLessThanOrEqual(52)
 })
 
 test('opens a stable watch URL', async ({ page }) => {
@@ -140,6 +144,64 @@ test('shows username login without a shared browser prompt', async ({ page }) =>
   await expect(page.getByLabel('Password')).toBeVisible()
 })
 
+test('uses a compact full-width header that stays at the top', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/login')
+
+  const header = page.getByRole('banner')
+  const brand = page.getByRole('link', { name: 'FrankerzSpam home' })
+  await expect(header).toBeVisible()
+  await expect(brand).toBeVisible()
+  await expect(page.getByRole('search')).toHaveCount(0)
+
+  const beforeScroll = await header.boundingBox()
+  expect(beforeScroll).not.toBeNull()
+  expect(beforeScroll!.x).toBe(0)
+  expect(beforeScroll!.width).toBe(1440)
+  expect(beforeScroll!.height).toBeGreaterThanOrEqual(48)
+  expect(beforeScroll!.height).toBeLessThanOrEqual(52)
+
+  await page.evaluate(() => {
+    document.body.style.minHeight = '200vh'
+    window.scrollTo(0, document.body.scrollHeight)
+  })
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+  const afterScroll = await header.boundingBox()
+  expect(afterScroll).not.toBeNull()
+  expect(afterScroll!.y).toBe(0)
+})
+
+test('matches the shared desktop application frame', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Desktop frame uses the Chromium baseline.')
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/login')
+  await expect(page.getByRole('heading', { name: 'Welcome back.' })).toBeVisible()
+
+  await expect(page.locator('.app-shell')).toHaveScreenshot(
+    'shared-desktop-application-frame.png',
+    { stylePath: 'tests/e2e/screenshot.css' },
+  )
+})
+
+test('shows Channel-owner and administrator header actions', async ({ page }) => {
+  await page.goto('/login?returnTo=/')
+  await page.getByLabel('Username').fill('power')
+  await page.getByLabel('Password').fill('e2e-administrator-password')
+  await page.getByRole('button', { name: 'Sign in' }).click()
+
+  await expect(page.getByRole('link', { name: 'My channel' })).toBeVisible()
+  const accountControl = page.getByRole('button', {
+    name: 'Open account menu for power',
+  })
+  await expect(accountControl).toHaveText('P')
+  await accountControl.click()
+  await expect(page.getByRole('menuitem', { name: 'Statistics' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Admin' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Sign out' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(accountControl).toBeFocused()
+})
+
 test('keeps public registration closed by default', async ({ page }) => {
   await page.goto('/register')
 
@@ -158,7 +220,8 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
 
   await expect(page.getByRole('heading', { name: 'Live stream' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'My channel' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Admin' })).toBeVisible()
+  await page.getByRole('button', { name: 'Open account menu for power' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Admin' })).toBeVisible()
   await expect(page.getByText('/watch/live')).toBeVisible()
 
   await page.goto('/statistics')
@@ -211,10 +274,10 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
   await expect(
     page.getByRole('heading', { name: 'Windows OBS setup' }),
   ).toBeVisible()
-  const channelTitleBox = await page.getByRole('heading', { name: 'Live stream' }).boundingBox()
-  const channelIconBox = await page
-    .locator('.channel-account-heading > svg')
-    .boundingBox()
+  const channelTitle = page.getByRole('heading', { name: 'Live stream' })
+  const channelHeading = page.locator('section').filter({ has: channelTitle }).first()
+  const channelTitleBox = await channelTitle.boundingBox()
+  const channelIconBox = await channelHeading.locator(':scope > svg').boundingBox()
   expect(channelTitleBox).not.toBeNull()
   expect(channelIconBox).not.toBeNull()
   expect(channelIconBox!.y).toBeLessThan(channelTitleBox!.y + channelTitleBox!.height)

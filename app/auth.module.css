@@ -1,7 +1,7 @@
 .authLayout {
   display: grid;
   width: min(100% - 2rem, 34rem);
-  min-height: calc(100vh - 4.5rem);
+  min-height: calc(100vh - 3.125rem);
   margin-inline: auto;
   place-items: center;
   padding-block: 3rem 6rem;
@@ -11,10 +11,8 @@
   width: 100%;
   padding: clamp(1.5rem, 5vw, 2.5rem);
   border: 1px solid var(--line);
-  border-radius: 1.35rem;
-  background: rgba(17, 17, 20, 0.82);
-  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.32);
-  backdrop-filter: blur(18px);
+  border-radius: 0.25rem;
+  background: var(--panel);
 }
 
 .authCard > h1 {
@@ -42,7 +40,7 @@
   margin: 0 auto 1.25rem;
   place-items: center;
   border: 1px solid color-mix(in srgb, var(--accent-soft) 25%, transparent);
-  border-radius: 1rem;
+  border-radius: 0.25rem;
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--accent-soft);
 }

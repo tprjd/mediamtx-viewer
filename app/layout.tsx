@@ -8,8 +8,8 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: {
-    default: 'Home Stream',
-    template: '%s · Home Stream',
+    default: 'FrankerzSpam',
+    template: '%s · FrankerzSpam',
   },
   description: 'Independent live video, streamed directly from home.',
   metadataBase: new URL('http://localhost:3000'),
@@ -24,8 +24,6 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html data-scroll-behavior="smooth" lang="en">
       <body>
-        <div className="ambient ambient-one" aria-hidden="true" />
-        <div className="ambient ambient-two" aria-hidden="true" />
         <div className="app-shell">
           <SiteHeader />
           {children}
