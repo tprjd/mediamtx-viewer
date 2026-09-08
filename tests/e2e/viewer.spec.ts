@@ -49,6 +49,24 @@ test('opens a stable watch URL', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Low latency' })).toBeVisible()
 })
 
+test('switches to another live channel from the live rail', async ({ page }) => {
+  await page.goto('/watch/live')
+
+  const liveLinks = page
+    .getByRole('complementary', { name: 'Live channels' })
+    .getByRole('link')
+  const liveChannelCount = await liveLinks.count()
+  test.skip(
+    liveChannelCount < 2,
+    'The browser fixture needs at least two live channels for navigation coverage.',
+  )
+
+  const targetHref = await liveLinks.nth(1).getAttribute('href')
+  expect(targetHref).not.toBeNull()
+  await liveLinks.nth(1).click()
+  await expect(page).toHaveURL(new URL(targetHref!, page.url()).toString())
+})
+
 test('hides fullscreen controls, protocol badge, and cursor when idle', async ({
   page,
 }) => {
@@ -89,6 +107,9 @@ test('keeps all playback modes usable at 320px', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Balanced' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Smooth' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Low latency' })).toBeVisible()
+  await expect(
+    page.getByRole('complementary', { name: 'Live channels' }),
+  ).toBeHidden()
   await expect(
     page.locator('.playback-summary-stat').filter({ hasText: 'Live latency' }),
   ).toBeVisible()

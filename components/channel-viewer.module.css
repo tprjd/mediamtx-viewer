@@ -6,9 +6,13 @@
 
 .watchColumns {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 21.25rem;
+  grid-template-columns: 15rem minmax(0, 1fr) 21.25rem;
   gap: 1rem;
   align-items: start;
+}
+
+.withoutChat {
+  grid-template-columns: 15rem minmax(0, 1fr);
 }
 
 .watchMainColumn {
@@ -156,6 +160,10 @@
 
   .watchColumns {
     display: block;
+  }
+
+  .watchColumns :global(aside) {
+    display: none;
   }
 
   .watchPlayerWrap {

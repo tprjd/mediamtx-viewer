@@ -4,9 +4,9 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
 import { ChannelViewer } from '@/components/channel-viewer'
-import { getChannel } from '@/lib/channels'
+import { getChannel, getChannels } from '@/lib/channels'
 import { channelPosterUrl } from '@/lib/channel-thumbnails'
-import { getChannelStatus } from '@/lib/mediamtx'
+import { getChannelStatuses } from '@/lib/mediamtx'
 import { toPublicChannel } from '@/lib/public-channel'
 
 export const dynamic = 'force-dynamic'
@@ -39,15 +39,22 @@ export default async function WatchPage({ params }: WatchPageProps) {
 
   if (!channel) notFound()
 
-  const status = await getChannelStatus(channel.mediaPath)
+  const configuredChannels = getChannels()
+  const statuses = await getChannelStatuses(
+    configuredChannels.map((item) => item.mediaPath),
+  )
+  const channels = configuredChannels.map((item) => {
+    const status = statuses.get(item.mediaPath)!
+    return toPublicChannel(item, status, channelPosterUrl(item, status.live))
+  })
+  const watchedChannel = channels.find((item) => item.slug === channel.slug)
+
+  if (!watchedChannel) notFound()
 
   return (
     <ChannelViewer
-      channel={toPublicChannel(
-        channel,
-        status,
-        channelPosterUrl(channel, status.live),
-      )}
+      channel={watchedChannel}
+      channels={channels}
       viewerId={randomUUID()}
     />
   )

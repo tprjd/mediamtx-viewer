@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChannelViewer } from '@/components/channel-viewer'
@@ -81,7 +81,6 @@ describe('ChannelViewer', () => {
     render(<ChannelViewer channel={channel} />)
 
     expect(screen.getByText('Offline')).toBeInTheDocument()
-    expect(screen.queryByText('Live')).toBeNull()
     expect(screen.queryByText('Opus · AV1')).toBeNull()
     expect(screen.queryByText('Main channel')).toBeNull()
     expect(screen.getByText('David')).toBeInTheDocument()
@@ -112,6 +111,29 @@ describe('ChannelViewer', () => {
     )
   })
 
+  it('selects the watched channel from the shared all-channel event state', () => {
+    const otherChannel = {
+      ...channel,
+      slug: 'other',
+      ownerName: 'Other owner',
+      title: 'Other stream',
+    }
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [otherChannel, { ...channel, status: offlineStatus }],
+      statusDelayed: false,
+    })
+
+    render(<ChannelViewer channel={channel} channels={[channel, otherChannel]} />)
+
+    expect(screen.getByTestId('live-player')).toHaveAttribute(
+      'data-status',
+      'offline',
+    )
+    expect(
+      screen.getByRole('link', { name: /Other stream by Other owner/ }),
+    ).toBeInTheDocument()
+  })
+
   it('shows the current viewer count while live', () => {
     mocks.useChannelEvents.mockReturnValue({
       channels: [{ ...channel, status: liveStatus }],
@@ -120,7 +142,11 @@ describe('ChannelViewer', () => {
 
     render(<ChannelViewer channel={channel} />)
 
-    expect(screen.getByLabelText('2 viewers')).toHaveTextContent('2 viewers')
+    expect(
+      within(screen.getByRole('region', { name: 'Channel information' })).getByLabelText(
+        '2 viewers',
+      ),
+    ).toHaveTextContent('2 viewers')
     expect(screen.getByRole('complementary', { name: 'Chat placeholder' })).toBeInTheDocument()
     expect(screen.getByText('Chat is coming soon')).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeDisabled()

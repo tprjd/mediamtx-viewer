@@ -5,6 +5,7 @@ import { useState } from 'react'
 import styles from './channel-viewer.module.css'
 
 import { LivePlayer } from '@/components/live-player'
+import { LiveRail } from '@/components/live-rail'
 import { ShareButton } from '@/components/share-button'
 import { StatusBadge } from '@/components/status-badge'
 import { ViewerCount } from '@/components/viewer-count'
@@ -13,21 +14,26 @@ import type { PublicChannel } from '@/lib/types'
 
 interface ChannelViewerProps {
   channel: PublicChannel
+  channels?: PublicChannel[]
   viewerId?: string
 }
 
-export function ChannelViewer({ channel, viewerId }: ChannelViewerProps) {
+export function ChannelViewer({ channel, channels = [channel], viewerId }: ChannelViewerProps) {
   const [playbackControlsTarget, setPlaybackControlsTarget] =
     useState<HTMLDivElement | null>(null)
   const [playbackStatsTarget, setPlaybackStatsTarget] =
     useState<HTMLDivElement | null>(null)
-  const { channels } = useChannelEvents([channel])
-  const currentChannel = channels[0] ?? channel
+  const { channels: eventChannels } = useChannelEvents(channels)
+  const currentChannel =
+    eventChannels.find((item) => item.slug === channel.slug) ?? channel
   const status = currentChannel.status
 
   return (
     <main className={styles.watchLayout}>
-      <div className={styles.watchColumns}>
+      <div
+        className={`${styles.watchColumns}${status.live ? '' : ` ${styles.withoutChat}`}`}
+      >
+        <LiveRail channels={eventChannels} watchedSlug={currentChannel.slug} />
         <div className={styles.watchMainColumn}>
           <div className={styles.watchPlayerWrap}>
             <LivePlayer
