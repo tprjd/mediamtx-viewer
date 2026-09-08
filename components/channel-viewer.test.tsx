@@ -121,5 +121,20 @@ describe('ChannelViewer', () => {
     render(<ChannelViewer channel={channel} />)
 
     expect(screen.getByLabelText('2 viewers')).toHaveTextContent('2 viewers')
+    expect(screen.getByRole('complementary', { name: 'Chat placeholder' })).toBeInTheDocument()
+    expect(screen.getByText('Chat is coming soon')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeDisabled()
+  })
+
+  it('hides the chat placeholder when the channel is offline', () => {
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [{ ...channel, status: offlineStatus }],
+      statusDelayed: false,
+    })
+
+    render(<ChannelViewer channel={channel} />)
+
+    expect(screen.queryByRole('complementary', { name: 'Chat placeholder' })).toBeNull()
+    expect(screen.getByText('Offline')).toBeInTheDocument()
   })
 })

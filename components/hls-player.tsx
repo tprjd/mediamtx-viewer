@@ -6,6 +6,7 @@ import Hls, {
   type ErrorData,
   type LevelUpdatedData,
 } from 'hls.js'
+import { createPortal } from 'react-dom'
 import {
   AlertTriangle,
   RotateCcw,
@@ -43,6 +44,7 @@ interface HlsPlayerProps {
   onUltraLowFailure?: (reason: string) => void
   onUltraLowUnavailable?: (reason?: string) => void
   profileExitReason?: string
+  statsTarget?: HTMLElement | null
 }
 
 interface HlsLatencyProfileConfig {
@@ -178,6 +180,7 @@ export function HlsPlayer({
   onUltraLowFailure,
   onUltraLowUnavailable,
   profileExitReason,
+  statsTarget,
 }: HlsPlayerProps) {
   const recoveryRef = useRef({ attempts: 0 })
   const lastCorrectionRef = useRef<string>(undefined)
@@ -923,13 +926,26 @@ export function HlsPlayer({
         </VidstackPlayer>
       </div>
 
-      <PlaybackStats
-        hlsDiagnostics={hlsDiagnostics}
-        playing={visibleState === 'playing'}
-        protocol="HLS"
-        tracks={status.tracks}
-        videoRef={videoRef}
-      />
+      {statsTarget
+        ? createPortal(
+            <PlaybackStats
+              hlsDiagnostics={hlsDiagnostics}
+              playing={visibleState === 'playing'}
+              protocol="HLS"
+              tracks={status.tracks}
+              videoRef={videoRef}
+            />,
+            statsTarget,
+          )
+        : (
+          <PlaybackStats
+            hlsDiagnostics={hlsDiagnostics}
+            playing={visibleState === 'playing'}
+            protocol="HLS"
+            tracks={status.tracks}
+            videoRef={videoRef}
+          />
+        )}
     </div>
   )
 }

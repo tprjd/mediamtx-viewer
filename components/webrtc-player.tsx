@@ -1,6 +1,7 @@
 'use client'
 
 import { AlertTriangle, Waves } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { PlaybackRunOverlay } from '@/components/playback-run-overlay'
@@ -90,9 +91,10 @@ function loadReader(): Promise<MediaMtxReaderConstructor> {
 interface WebRtcPlayerProps {
   channel: PublicChannel
   onFallback: () => void
+  statsTarget?: HTMLElement | null
 }
 
-export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
+export function WebRtcPlayer({ channel, onFallback, statsTarget }: WebRtcPlayerProps) {
   const fallbackRef = useRef(onFallback)
   const sourceHasAudioRef = useRef(false)
   const sourceHasVideoRef = useRef(false)
@@ -603,13 +605,26 @@ export function WebRtcPlayer({ channel, onFallback }: WebRtcPlayerProps) {
         </VidstackPlayer>
       </div>
 
-      <PlaybackStats
-        peerConnection={peerConnection}
-        playing={playing}
-        protocol="WebRTC"
-        tracks={status.tracks}
-        videoRef={videoRef}
-      />
+      {statsTarget
+        ? createPortal(
+            <PlaybackStats
+              peerConnection={peerConnection}
+              playing={playing}
+              protocol="WebRTC"
+              tracks={status.tracks}
+              videoRef={videoRef}
+            />,
+            statsTarget,
+          )
+        : (
+          <PlaybackStats
+            peerConnection={peerConnection}
+            playing={playing}
+            protocol="WebRTC"
+            tracks={status.tracks}
+            videoRef={videoRef}
+          />
+        )}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
-import { Clock3, UserRound } from 'lucide-react'
+import { Clock3, MessageSquare, UserRound } from 'lucide-react'
+import { useState } from 'react'
 import styles from './channel-viewer.module.css'
 
 import { LivePlayer } from '@/components/live-player'
@@ -16,35 +17,45 @@ interface ChannelViewerProps {
 }
 
 export function ChannelViewer({ channel, viewerId }: ChannelViewerProps) {
+  const [playbackControlsTarget, setPlaybackControlsTarget] =
+    useState<HTMLDivElement | null>(null)
+  const [playbackStatsTarget, setPlaybackStatsTarget] =
+    useState<HTMLDivElement | null>(null)
   const { channels } = useChannelEvents([channel])
   const currentChannel = channels[0] ?? channel
   const status = currentChannel.status
 
   return (
     <main className={styles.watchLayout}>
-      <div className={styles.watchPlayerWrap}>
-        <LivePlayer channel={currentChannel} viewerId={viewerId} />
-      </div>
-
-      <section className={styles.watchDetails}>
-        <div className="min-w-0 flex-1">
-          <div className="mb-4 flex flex-wrap items-center gap-2.5">
-            <StatusBadge state={status.state} />
-            <ViewerCount count={status.viewerCount} live={status.live} />
+      <div className={styles.watchColumns}>
+        <div className={styles.watchMainColumn}>
+          <div className={styles.watchPlayerWrap}>
+            <LivePlayer
+              channel={currentChannel}
+              playbackControlsTarget={playbackControlsTarget}
+              playbackStatsTarget={playbackStatsTarget}
+              viewerId={viewerId}
+            />
           </div>
-          <h1 className="text-balance text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-            {currentChannel.title}
-          </h1>
-          {currentChannel.description && (
-            <p className="mt-3 max-w-2xl text-pretty text-sm leading-6 text-neutral-400 sm:text-base sm:leading-7">
-              {currentChannel.description}
-            </p>
-          )}
-          <div className="mt-5 flex flex-wrap items-center gap-3 text-xs text-neutral-500">
-            <span className="inline-flex items-center gap-1.5">
-              <UserRound className="size-3.5" aria-hidden="true" />
-              {currentChannel.ownerName}
-            </span>
+          <section className={styles.watchDetails} aria-label="Channel information">
+            <div className={styles.watchInfoRow}>
+              <StatusBadge state={status.state} />
+              <ViewerCount count={status.viewerCount} live={status.live} />
+              <h1>{currentChannel.title}</h1>
+              <span className={styles.channelOwner}>
+                <UserRound className="size-3.5" aria-hidden="true" />
+                {currentChannel.ownerName}
+              </span>
+            </div>
+            {currentChannel.description && (
+              <p className={styles.watchDescription}>{currentChannel.description}</p>
+            )}
+            <div className={styles.watchPlaybackRow}>
+              <div ref={setPlaybackControlsTarget} className={styles.playbackControlsTarget} />
+              <ShareButton title={currentChannel.title} />
+              <div ref={setPlaybackStatsTarget} className={styles.playbackStatsTarget} />
+            </div>
+            <div className={styles.watchMetadata}>
             <span className="inline-flex items-center gap-1.5">
               <Clock3 className="size-3.5" aria-hidden="true" />
               Live playback
@@ -52,10 +63,24 @@ export function ChannelViewer({ channel, viewerId }: ChannelViewerProps) {
             {status.tracks.length > 0 && (
               <span>{status.tracks.join(' · ')}</span>
             )}
-          </div>
+            </div>
+          </section>
         </div>
-        <ShareButton title={currentChannel.title} />
-      </section>
+        {status.live && (
+          <aside className={styles.chatPlaceholder} aria-label="Chat placeholder">
+            <div className={styles.chatHeading}>
+              <MessageSquare className="size-4" aria-hidden="true" />
+              <strong>Chat</strong>
+            </div>
+            <div className={styles.chatEmptyState}>
+              <MessageSquare className="size-7" aria-hidden="true" />
+              <p>Chat is coming soon</p>
+              <span>Conversation will be available here in a future update.</span>
+            </div>
+            <input aria-label="Chat message" disabled placeholder="Chat is unavailable" />
+          </aside>
+        )}
+      </div>
     </main>
   )
 }
