@@ -1,7 +1,8 @@
-import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { LiveRail } from '@/components/live-rail'
+import { LIVE_RAIL_PREFERENCE_STORAGE_KEY } from '@/lib/live-rail-preferences'
 import type { PublicChannel } from '@/lib/types'
 
 function channel(
@@ -32,7 +33,23 @@ function channel(
   }
 }
 
-afterEach(cleanup)
+function setViewportWidth(width: number): void {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    value: width,
+  })
+  window.dispatchEvent(new Event('resize'))
+}
+
+beforeEach(() => {
+  window.localStorage.clear()
+  setViewportWidth(1440)
+})
+
+afterEach(() => {
+  cleanup()
+  window.localStorage.clear()
+})
 
 describe('LiveRail', () => {
   it('lists live channels with their owner and viewer count', () => {
@@ -54,6 +71,97 @@ describe('LiveRail', () => {
     expect(screen.getByText('alpha owner')).toBeInTheDocument()
     expect(screen.getByLabelText('4 viewers')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /offline channel/ })).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Live' })).toBeInTheDocument()
+  })
+
+  it('renders a thin icon rail for a collapsed preference', () => {
+    window.localStorage.setItem(
+      LIVE_RAIL_PREFERENCE_STORAGE_KEY,
+      'collapsed',
+    )
+
+    render(
+      <LiveRail
+        channels={[channel('alpha', true, { title: 'Alpha stream' })]}
+        watchedSlug="alpha"
+      />,
+    )
+
+    expect(screen.getByText('A')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha stream')).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Live' })).toBeNull()
+  })
+
+  it('toggles between expanded and collapsed forms', () => {
+    render(
+      <LiveRail
+        channels={[channel('alpha', true, { title: 'Alpha stream' })]}
+        watchedSlug="alpha"
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse live rail' }))
+
+    expect(window.localStorage.getItem(LIVE_RAIL_PREFERENCE_STORAGE_KEY)).toBe('collapsed')
+    expect(screen.queryByText('Alpha stream')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Expand live rail' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand live rail' }))
+
+    expect(window.localStorage.getItem(LIVE_RAIL_PREFERENCE_STORAGE_KEY)).toBe('expanded')
+    expect(screen.getByText('Alpha stream')).toBeInTheDocument()
+  })
+
+  it('auto-collapses an expanded preference below 1280px', () => {
+    window.localStorage.setItem(
+      LIVE_RAIL_PREFERENCE_STORAGE_KEY,
+      'expanded',
+    )
+    setViewportWidth(1279)
+
+    render(
+      <LiveRail
+        channels={[channel('alpha', true, { title: 'Alpha stream' })]}
+        watchedSlug="alpha"
+      />,
+    )
+
+    expect(screen.getByText('A')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha stream')).toBeNull()
+  })
+
+  it('restores the persisted expanded form at full width', () => {
+    window.localStorage.setItem(
+      LIVE_RAIL_PREFERENCE_STORAGE_KEY,
+      'expanded',
+    )
+
+    render(
+      <LiveRail
+        channels={[channel('alpha', true, { title: 'Alpha stream' })]}
+        watchedSlug="alpha"
+      />,
+    )
+
+    setViewportWidth(1280)
+
+    expect(screen.getByText('Alpha stream')).toBeInTheDocument()
+  })
+
+  it('renders nothing for a hidden preference', () => {
+    window.localStorage.setItem(
+      LIVE_RAIL_PREFERENCE_STORAGE_KEY,
+      'hidden',
+    )
+
+    render(
+      <LiveRail
+        channels={[channel('alpha', true)]}
+        watchedSlug="alpha"
+      />,
+    )
+
+    expect(screen.queryByRole('complementary', { name: 'Live channels' })).toBeNull()
   })
 
   it('marks the watched live channel as current', () => {

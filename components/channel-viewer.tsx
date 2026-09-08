@@ -8,6 +8,7 @@ import { LivePlayer } from '@/components/live-player'
 import { LiveRail } from '@/components/live-rail'
 import { ShareButton } from '@/components/share-button'
 import { StatusBadge } from '@/components/status-badge'
+import { useLiveRailPreference } from '@/components/use-live-rail-preference'
 import { ViewerCount } from '@/components/viewer-count'
 import { useChannelEvents } from '@/hooks/use-channel-events'
 import type { PublicChannel } from '@/lib/types'
@@ -23,17 +24,22 @@ export function ChannelViewer({ channel, channels = [channel], viewerId }: Chann
     useState<HTMLDivElement | null>(null)
   const [playbackStatsTarget, setPlaybackStatsTarget] =
     useState<HTMLDivElement | null>(null)
+  const { effectivePreference } = useLiveRailPreference()
   const { channels: eventChannels } = useChannelEvents(channels)
   const currentChannel =
     eventChannels.find((item) => item.slug === channel.slug) ?? channel
   const status = currentChannel.status
+  const railHidden = effectivePreference === 'hidden'
+  const railCollapsed = effectivePreference === 'collapsed'
 
   return (
     <main className={styles.watchLayout}>
       <div
-        className={`${styles.watchColumns}${status.live ? '' : ` ${styles.withoutChat}`}`}
+        className={`${styles.watchColumns}${status.live ? '' : ` ${styles.withoutChat}`}${railCollapsed ? ` ${styles.railCollapsed}` : ''}${railHidden ? ` ${styles.railHidden}` : ''}`}
       >
-        <LiveRail channels={eventChannels} watchedSlug={currentChannel.slug} />
+        {!railHidden && (
+          <LiveRail channels={eventChannels} watchedSlug={currentChannel.slug} />
+        )}
         <div className={styles.watchMainColumn}>
           <div className={styles.watchPlayerWrap}>
             <LivePlayer

@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { RadioTower } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, RadioTower } from 'lucide-react'
 
 import styles from './live-rail.module.css'
 
+import { useLiveRailPreference } from '@/components/use-live-rail-preference'
 import { ViewerCount } from '@/components/viewer-count'
 import { buildLiveRailModel } from '@/lib/live-rail'
 import type { PublicChannel } from '@/lib/types'
@@ -20,12 +21,34 @@ function channelInitial(channel: PublicChannel): string {
 
 export function LiveRail({ channels, watchedSlug }: LiveRailProps) {
   const model = buildLiveRailModel(channels, watchedSlug)
+  const { effectivePreference, setPreference } = useLiveRailPreference()
+
+  if (effectivePreference === 'hidden') return null
+
+  const collapsed = effectivePreference === 'collapsed'
 
   return (
-    <aside className={styles.liveRail} aria-label="Live channels">
+    <aside
+      className={`${styles.liveRail}${collapsed ? ` ${styles.collapsed}` : ''}`}
+      aria-label="Live channels"
+      data-rail-state={effectivePreference}
+    >
       <div className={styles.railHeading}>
         <RadioTower className={styles.railIcon} aria-hidden="true" />
-        <h2>Live</h2>
+        {!collapsed && <h2>Live</h2>}
+        <button
+          aria-label={collapsed ? 'Expand live rail' : 'Collapse live rail'}
+          className={styles.railToggle}
+          onClick={() => setPreference(collapsed ? 'expanded' : 'collapsed')}
+          title={collapsed ? 'Expand live rail' : 'Collapse live rail'}
+          type="button"
+        >
+          {collapsed ? (
+            <PanelLeftOpen aria-hidden="true" />
+          ) : (
+            <PanelLeftClose aria-hidden="true" />
+          )}
+        </button>
       </div>
       {model.liveChannels.length > 0 ? (
         <nav className={styles.railList} aria-label="Live channel list">
@@ -42,15 +65,17 @@ export function LiveRail({ channels, watchedSlug }: LiveRailProps) {
                 <span className={styles.channelInitial} aria-hidden="true">
                   {channelInitial(channel)}
                 </span>
-                <span className={styles.channelCopy}>
-                  <span className={styles.channelTitle}>{channel.title}</span>
-                  <span className={styles.channelOwner}>{channel.ownerName}</span>
-                  <ViewerCount
-                    compact
-                    count={channel.status.viewerCount}
-                    live
-                  />
-                </span>
+                {!collapsed && (
+                  <span className={styles.channelCopy}>
+                    <span className={styles.channelTitle}>{channel.title}</span>
+                    <span className={styles.channelOwner}>{channel.ownerName}</span>
+                    <ViewerCount
+                      compact
+                      count={channel.status.viewerCount}
+                      live
+                    />
+                  </span>
+                )}
               </Link>
             )
           })}

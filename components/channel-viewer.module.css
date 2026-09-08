@@ -11,8 +11,24 @@
   align-items: start;
 }
 
+.railCollapsed {
+  grid-template-columns: 4rem minmax(0, 1fr) 21.25rem;
+}
+
+.railHidden {
+  grid-template-columns: minmax(0, 1fr) 21.25rem;
+}
+
 .withoutChat {
   grid-template-columns: 15rem minmax(0, 1fr);
+}
+
+.withoutChat.railCollapsed {
+  grid-template-columns: 4rem minmax(0, 1fr);
+}
+
+.withoutChat.railHidden {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .watchMainColumn {
