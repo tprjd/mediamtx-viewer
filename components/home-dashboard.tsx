@@ -65,11 +65,17 @@ function ChannelCard({ channel }: { channel: PublicChannel }) {
               compact={channel.status.state !== 'unavailable'}
               state={channel.status.state}
             />
-            <ViewerCount
-              compact
-              count={channel.status.viewerCount}
-              live={live}
-            />
+            {live && channel.status.viewerCount === null ? (
+              <span className={styles.viewerUnavailable}>
+                Viewers unavailable
+              </span>
+            ) : (
+              <ViewerCount
+                compact
+                count={channel.status.viewerCount}
+                live={live}
+              />
+            )}
           </div>
         </div>
       </div>

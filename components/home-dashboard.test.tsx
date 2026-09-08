@@ -100,6 +100,20 @@ describe('HomeDashboard', () => {
     expect(screen.getByText('David')).toBeInTheDocument()
   })
 
+  it('shows when a live viewer count is unavailable', () => {
+    const liveWithoutViewerCount = channel('live')
+    liveWithoutViewerCount.status.viewerCount = null
+
+    render(
+      <HomeDashboard
+        capabilities={{ isAdmin: false }}
+        initialChannels={[liveWithoutViewerCount]}
+      />,
+    )
+
+    expect(screen.getByText('Viewers unavailable')).toBeInTheDocument()
+  })
+
   it('shows circular Channel owner initials with the card metadata', () => {
     render(
       <HomeDashboard

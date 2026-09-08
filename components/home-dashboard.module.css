@@ -193,6 +193,11 @@
   backdrop-filter: none;
 }
 
+.viewerUnavailable {
+  color: var(--text-faint);
+  font-size: 0.68rem;
+}
+
 .emptySection {
   margin: 0;
   padding: 1.25rem;
