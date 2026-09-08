@@ -1,7 +1,8 @@
 import type { PublicChannel } from '@/lib/types'
 
 export interface HomeDashboardModel {
-  allChannels: PublicChannel[]
+  liveChannels: PublicChannel[]
+  offlineChannels: PublicChannel[]
   liveCount: number
   statusUnavailable: boolean
 }
@@ -14,9 +15,11 @@ export function sortChannelsForHome(
     const bLive = b.status.live ? 1 : 0
     if (aLive !== bLive) return bLive - aLive
 
-    const aViewers = a.status.viewerCount ?? 0
-    const bViewers = b.status.viewerCount ?? 0
-    if (aViewers !== bViewers) return bViewers - aViewers
+    if (a.status.live) {
+      const aViewers = a.status.viewerCount ?? 0
+      const bViewers = b.status.viewerCount ?? 0
+      if (aViewers !== bViewers) return bViewers - aViewers
+    }
 
     return a.title.localeCompare(b.title)
   })
@@ -25,10 +28,15 @@ export function sortChannelsForHome(
 export function buildHomeDashboardModel(
   channels: readonly PublicChannel[],
 ): HomeDashboardModel {
-  const liveChannels = channels.filter((channel) => channel.status.live)
+  const sortedChannels = sortChannelsForHome(channels)
+  const liveChannels = sortedChannels.filter((channel) => channel.status.live)
+  const offlineChannels = sortedChannels.filter(
+    (channel) => !channel.status.live,
+  )
 
   return {
-    allChannels: sortChannelsForHome(channels),
+    liveChannels,
+    offlineChannels,
     liveCount: liveChannels.length,
     statusUnavailable:
       channels.length > 0 &&

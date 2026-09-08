@@ -1,6 +1,6 @@
 import { HomeDashboard } from '@/components/home-dashboard'
 import { getActiveSession } from '@/lib/auth/session'
-import { getChannels, getOwnedChannel } from '@/lib/channels'
+import { getChannels } from '@/lib/channels'
 import { channelPosterUrl } from '@/lib/channel-thumbnails'
 import { getChannelStatuses } from '@/lib/mediamtx'
 import { toPublicChannel } from '@/lib/public-channel'
@@ -25,9 +25,6 @@ export default async function HomePage() {
   return (
     <HomeDashboard
       capabilities={{
-        hasOwnedChannel: session
-          ? Boolean(getOwnedChannel(session.user.id))
-          : false,
         isAdmin: session?.user.role === 'admin',
       }}
       initialChannels={channels}

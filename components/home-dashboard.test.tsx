@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { HomeDashboard } from '@/components/home-dashboard'
@@ -39,10 +39,10 @@ afterEach(() => {
 })
 
 describe('HomeDashboard', () => {
-  it('renders every channel as a card in the grid', () => {
+  it('renders live and offline Channels in separate sections', () => {
     render(
       <HomeDashboard
-        capabilities={{ hasOwnedChannel: false, isAdmin: false }}
+        capabilities={{ isAdmin: false }}
         initialChannels={[
           channel('live', 'live-a', { title: 'Live A' }),
           channel('offline', 'offline-b', { title: 'Offline B' }),
@@ -50,26 +50,30 @@ describe('HomeDashboard', () => {
       />,
     )
 
+    expect(screen.queryByText('What are we watching?')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'My channel' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Manage users' })).toBeNull()
+
+    const liveSection = screen.getByRole('region', { name: 'Live Channels' })
+    const offlineSection = screen.getByRole('region', {
+      name: 'Offline Channels',
+    })
     expect(
-      screen.getByRole('heading', { name: 'What are we watching?' }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'All channels' })).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', {
+      within(liveSection).getByRole('link', {
         name: 'Watch Live A by David, live',
       }),
     ).toHaveAttribute('href', '/watch/live-a')
     expect(
-      screen.getByRole('link', {
+      within(offlineSection).getByRole('link', {
         name: 'Watch Offline B by David, offline',
       }),
     ).toHaveAttribute('href', '/watch/offline-b')
   })
 
-  it('sorts live channels before offline channels in the grid', () => {
-    const { container } = render(
+  it('renders the live section before the offline section', () => {
+    render(
       <HomeDashboard
-        capabilities={{ hasOwnedChannel: false, isAdmin: false }}
+        capabilities={{ isAdmin: false }}
         initialChannels={[
           channel('offline', 'offline-z', { title: 'Offline Z' }),
           channel('live', 'live-a', { title: 'Live A' }),
@@ -77,16 +81,15 @@ describe('HomeDashboard', () => {
       />,
     )
 
-    const links = container.querySelectorAll('a')
-    expect(links).toHaveLength(2)
-    expect(links[0]).toHaveAttribute('href', '/watch/live-a')
-    expect(links[1]).toHaveAttribute('href', '/watch/offline-z')
+    const sections = screen.getAllByRole('region')
+    expect(sections[0]).toHaveAccessibleName('Live Channels')
+    expect(sections[1]).toHaveAccessibleName('Offline Channels')
   })
 
   it('shows the live badge, viewer count, title, and owner on a card', () => {
     render(
       <HomeDashboard
-        capabilities={{ hasOwnedChannel: false, isAdmin: false }}
+        capabilities={{ isAdmin: false }}
         initialChannels={[channel('live')]}
       />,
     )
@@ -97,6 +100,42 @@ describe('HomeDashboard', () => {
     expect(screen.getByText('David')).toBeInTheDocument()
   })
 
+  it('shows circular Channel owner initials with the card metadata', () => {
+    render(
+      <HomeDashboard
+        capabilities={{ isAdmin: false }}
+        initialChannels={[
+          channel('live', 'live', { ownerName: 'David Foster' }),
+        ]}
+      />,
+    )
+
+    expect(screen.getByText('DF')).toBeInTheDocument()
+    expect(screen.getByText('David Foster')).toBeInTheDocument()
+  })
+
+  it('keeps an unavailable Channel in the offline section with an accurate state', () => {
+    render(
+      <HomeDashboard
+        capabilities={{ isAdmin: false }}
+        initialChannels={[channel('unavailable', 'unavailable')]}
+      />,
+    )
+
+    const offlineSection = screen.getByRole('region', {
+      name: 'Offline Channels',
+    })
+    expect(
+      within(offlineSection).getByRole('link', {
+        name: 'Watch Late-night games by David, unavailable',
+      }),
+    ).toBeInTheDocument()
+    expect(within(offlineSection).getByText('Status unavailable')).toBeVisible()
+    expect(
+      screen.getByRole('status', { name: 'Channel status' }),
+    ).toHaveTextContent('Channel status updates are delayed.')
+  })
+
   it('uses the poster image when the channel has one', () => {
     const withPoster = {
       ...channel('live'),
@@ -104,7 +143,7 @@ describe('HomeDashboard', () => {
     }
     const { container } = render(
       <HomeDashboard
-        capabilities={{ hasOwnedChannel: false, isAdmin: false }}
+        capabilities={{ isAdmin: false }}
         initialChannels={[withPoster]}
       />,
     )
@@ -118,7 +157,7 @@ describe('HomeDashboard', () => {
   it('shows the channel initial when no poster is set', () => {
     const { container } = render(
       <HomeDashboard
-        capabilities={{ hasOwnedChannel: false, isAdmin: false }}
+        capabilities={{ isAdmin: false }}
         initialChannels={[channel('live')]}
       />,
     )
@@ -132,7 +171,7 @@ describe('HomeDashboard', () => {
   it('renders a quiet note when no channels exist', () => {
     render(
       <HomeDashboard
-        capabilities={{ hasOwnedChannel: false, isAdmin: false }}
+        capabilities={{ isAdmin: false }}
         initialChannels={[]}
       />,
     )
@@ -143,7 +182,7 @@ describe('HomeDashboard', () => {
   it('offers channel setup only to administrators when the directory is empty', () => {
     const { rerender } = render(
       <HomeDashboard
-        capabilities={{ hasOwnedChannel: false, isAdmin: false }}
+        capabilities={{ isAdmin: false }}
         initialChannels={[]}
       />,
     )
@@ -153,7 +192,7 @@ describe('HomeDashboard', () => {
 
     rerender(
       <HomeDashboard
-        capabilities={{ hasOwnedChannel: false, isAdmin: true }}
+        capabilities={{ isAdmin: true }}
         initialChannels={[]}
       />,
     )

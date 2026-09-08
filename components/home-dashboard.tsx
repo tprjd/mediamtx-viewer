@@ -1,10 +1,6 @@
 'use client'
 
-import {
-  RadioTower,
-  ShieldCheck,
-  SlidersHorizontal,
-} from 'lucide-react'
+import { RadioTower } from 'lucide-react'
 import Link from 'next/link'
 import {
   useEffect,
@@ -27,19 +23,25 @@ import type { PublicChannel } from '@/lib/types'
 interface HomeDashboardProps {
   initialChannels: PublicChannel[]
   capabilities: {
-    hasOwnedChannel: boolean
     isAdmin: boolean
   }
 }
 
 function ChannelCard({ channel }: { channel: PublicChannel }) {
   const initial = channel.title.trim().charAt(0).toUpperCase() || '•'
+  const ownerInitials =
+    channel.ownerName
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('') || '•'
   const live = channel.status.live
 
   return (
     <Link
       aria-label={`Watch ${channel.title} by ${channel.ownerName}, ${channel.status.state}`}
-      className={`${styles.channelCard}${live ? ` ${styles.isLive}` : ''}`}
+      className={`${styles.channelCard}${live ? '' : ` ${styles.isOffline}`}`}
       href={`/watch/${encodeURIComponent(channel.slug)}`}
       style={{ '--accent': channel.accentColor } as CSSProperties}
     >
@@ -52,12 +54,24 @@ function ChannelCard({ channel }: { channel: PublicChannel }) {
         )}
       </div>
       <div className={styles.cardDetails}>
-        <div className={styles.cardStatusRow}>
-          <StatusBadge compact state={channel.status.state} />
-          <ViewerCount count={channel.status.viewerCount} live={live} />
+        <span className={styles.ownerInitials} aria-hidden="true">
+          {ownerInitials}
+        </span>
+        <div className={styles.cardCopy}>
+          <h3 className={styles.cardTitle}>{channel.title}</h3>
+          <p className={styles.cardOwner}>{channel.ownerName}</p>
+          <div className={styles.cardStatus}>
+            <StatusBadge
+              compact={channel.status.state !== 'unavailable'}
+              state={channel.status.state}
+            />
+            <ViewerCount
+              compact
+              count={channel.status.viewerCount}
+              live={live}
+            />
+          </div>
         </div>
-        <h3 className={styles.cardTitle}>{channel.title}</h3>
-        <p className="channel-owner-name">{channel.ownerName}</p>
       </div>
     </Link>
   )
@@ -73,6 +87,8 @@ export function HomeDashboard({
   const previousChannels = useRef(initialChannels)
   const model = useMemo(() => buildHomeDashboardModel(channels), [channels])
   const statusDelayed = model.statusUnavailable || eventStatusDelayed
+  const hasChannels =
+    model.liveChannels.length + model.offlineChannels.length > 0
 
   useEffect(() => {
     const newlyLive = newlyLiveChannelNames(previousChannels.current, channels)
@@ -90,69 +106,53 @@ export function HomeDashboard({
         {announcement}
       </p>
 
-      <section className={styles.homeIntro} aria-labelledby="home-title">
-        <div className={styles.homeIntroCopy}>
-          <p className="eyebrow">Private streams</p>
-          <h1 id="home-title">What are we watching?</h1>
-        </div>
-        <div className={styles.homeIntroSide}>
-          <p
-            className={`${styles.liveSummary} ${
-              statusDelayed
-                ? styles.isDelayed
-                : model.liveCount > 0
-                  ? styles.isLive
-                  : ''
-            }`}
-            aria-label={
-              statusDelayed
-                ? 'Channel status updates are delayed'
-                : `${model.liveCount} ${model.liveCount === 1 ? 'channel' : 'channels'} live now`
-            }
-          >
-            <span aria-hidden="true" />
-            {statusDelayed
-              ? 'Status delayed'
-              : `${model.liveCount} live now`}
-          </p>
-          {(capabilities.hasOwnedChannel || capabilities.isAdmin) && (
-            <nav className={styles.homeShortcuts} aria-label="Channel shortcuts">
-              {capabilities.hasOwnedChannel && (
-                <Link href="/account/channel">
-                  <SlidersHorizontal className="size-4" aria-hidden="true" />
-                  My channel
-                </Link>
-              )}
-              {capabilities.isAdmin && (
-                <Link href="/admin/users">
-                  <ShieldCheck className="size-4" aria-hidden="true" />
-                  Manage users
-                </Link>
-              )}
-            </nav>
-          )}
-        </div>
-      </section>
+      <div className={styles.directoryHeading}>
+        <h1>Channels</h1>
+        <p aria-label="Channel status" role="status">
+          {statusDelayed
+            ? 'Channel status updates are delayed.'
+            : 'Channel status updates automatically.'}
+        </p>
+      </div>
 
-      <section className={styles.channelSection} aria-labelledby="channels-heading">
-        <div className={styles.dashboardSectionHeading}>
-          <div>
-            <p className="eyebrow">The group</p>
-            <h2 id="channels-heading">All channels</h2>
-          </div>
-          <p>
-            {statusDelayed
-              ? 'Waiting for a fresh status check.'
-              : 'Status updates automatically.'}
-          </p>
+      {hasChannels ? (
+        <div className={styles.directorySections}>
+          <section
+            className={styles.channelSection}
+            aria-labelledby="live-channels-heading"
+          >
+            <div className={styles.sectionHeading}>
+              <h2 id="live-channels-heading">Live Channels</h2>
+              <span>{model.liveCount}</span>
+            </div>
+            {model.liveChannels.length > 0 ? (
+              <div className={styles.channelGrid}>
+                {model.liveChannels.map((channel) => (
+                  <ChannelCard channel={channel} key={channel.slug} />
+                ))}
+              </div>
+            ) : (
+              <p className={styles.emptySection}>No Channels are live.</p>
+            )}
+          </section>
+
+          <section
+            className={styles.channelSection}
+            aria-labelledby="offline-channels-heading"
+          >
+            <div className={styles.sectionHeading}>
+              <h2 id="offline-channels-heading">Offline Channels</h2>
+              <span>{model.offlineChannels.length}</span>
+            </div>
+            <div className={styles.channelGrid}>
+              {model.offlineChannels.map((channel) => (
+                <ChannelCard channel={channel} key={channel.slug} />
+              ))}
+            </div>
+          </section>
         </div>
-        {model.allChannels.length > 0 ? (
-          <div className={styles.channelGrid}>
-            {model.allChannels.map((channel) => (
-              <ChannelCard channel={channel} key={channel.slug} />
-            ))}
-          </div>
-        ) : (
+      ) : (
+        <section className={styles.channelSection} aria-label="Channel directory">
           <div className={styles.noChannelsState}>
             <RadioTower aria-hidden="true" />
             <h3>No channels yet.</h3>
@@ -161,8 +161,8 @@ export function HomeDashboard({
               <Link href="/admin/users">Grant streaming access</Link>
             )}
           </div>
-        )}
-      </section>
+        </section>
+      )}
     </main>
   )
 }

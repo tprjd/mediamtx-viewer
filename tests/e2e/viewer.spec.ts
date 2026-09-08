@@ -1,13 +1,33 @@
 import { expect, test } from '@playwright/test'
 
-test('shows the channel directory', async ({ page }) => {
+test('shows the Channel directory sections in order and opens a watch page', async ({
+  page,
+}) => {
   await page.goto('/')
 
   await expect(
-    page.getByRole('heading', { name: 'What are we watching?' }),
+    page.getByRole('heading', { name: 'Channels', exact: true }),
   ).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'All channels' })).toBeVisible()
-  const card = page.getByRole('link', { name: /Watch Live stream by power/ })
+  await expect(page.getByText('What are we watching?')).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Manage users' })).toHaveCount(0)
+
+  const sections = page.getByRole('main').getByRole('region')
+  await expect(sections).toHaveCount(2)
+  await expect(sections.nth(0)).toHaveAccessibleName('Live Channels')
+  await expect(sections.nth(1)).toHaveAccessibleName('Offline Channels')
+
+  const offlineLinks = sections.nth(1).getByRole('link')
+  await expect(offlineLinks).toHaveCount(2)
+  await expect(offlineLinks.nth(0)).toHaveAccessibleName(
+    /Watch Alpha Channel by Alpha Owner, offline/,
+  )
+  await expect(offlineLinks.nth(1)).toHaveAccessibleName(
+    /Watch Zulu Channel by Zulu Owner, offline/,
+  )
+
+  const card = sections
+    .nth(0)
+    .getByRole('link', { name: /Watch Live stream by power, live/ })
   await expect(card).toBeVisible()
   await card.click()
 
@@ -20,7 +40,7 @@ test('keeps the watch dashboard inside a 320px viewport', async ({ page }) => {
   await page.goto('/')
 
   await expect(
-    page.getByRole('heading', { name: 'What are we watching?' }),
+    page.getByRole('heading', { name: 'Channels', exact: true }),
   ).toBeVisible()
   const sizes = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
@@ -76,15 +96,15 @@ test('hides fullscreen controls, protocol badge, and cursor when idle', async ({
 }) => {
   await page.goto('/watch/live')
 
-  const player = page.locator('.media-player')
-  const controls = player.locator('.media-controls')
+  const player = page.getByLabel('Live stream live video')
+  const controls = player.getByRole('group')
   await player.evaluate((element) => {
     element.setAttribute('data-fullscreen', '')
     const button = element.querySelector<HTMLButtonElement>(
       '[aria-label="Enter fullscreen"]',
     )
     button?.focus()
-    element.querySelector('.media-controls')?.removeAttribute('data-visible')
+    element.querySelector('[role="group"]')?.removeAttribute('data-visible')
 
     const badge = document.createElement('span')
     badge.className = 'protocol-badge'
@@ -115,11 +135,13 @@ test('keeps all playback modes usable at 320px', async ({ page }) => {
     page.getByRole('complementary', { name: 'Live channels' }),
   ).toBeHidden()
   await expect(
-    page.locator('.playback-summary-stat').filter({ hasText: 'Live latency' }),
+    page
+      .getByRole('button', { name: 'Show playback diagnostics' })
+      .getByText('Live latency'),
   ).toBeVisible()
   await page.getByRole('button', { name: 'Show playback diagnostics' }).click()
   await expect(
-    page.locator('.playback-stats').getByText('Live latency'),
+    page.getByLabel('Playback diagnostics').getByText('Live latency').last(),
   ).toBeVisible()
   const sizes = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
@@ -183,6 +205,21 @@ test('matches the shared desktop application frame', async ({ page }, testInfo) 
   )
 })
 
+test('matches the desktop Channel directory', async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'chromium',
+    'Desktop directory uses the Chromium baseline.',
+  )
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/')
+  await expect(page.getByRole('region', { name: 'Live Channels' })).toBeVisible()
+
+  await expect(page.getByRole('main')).toHaveScreenshot(
+    'desktop-channel-directory.png',
+    { stylePath: 'tests/e2e/screenshot.css' },
+  )
+})
+
 test('shows Channel-owner and administrator header actions', async ({ page }) => {
   await page.goto('/login?returnTo=/')
   await page.getByLabel('Username').fill('power')
@@ -212,7 +249,11 @@ test('keeps public registration closed by default', async ({ page }) => {
 
 test('administrator can manage the owned OBS channel and reveal a key once', async ({
   page,
-}) => {
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'chromium',
+    'The administrator flow mutates the shared browser-test database.',
+  )
   await page.goto('/login?returnTo=/account/channel')
   await page.getByLabel('Username').fill('power')
   await page.getByLabel('Password').fill('e2e-administrator-password')
@@ -296,10 +337,15 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
   expect(launcher).toContain('-ExecutionPolicy RemoteSigned')
   expect(launcher).not.toContain('-ExecutionPolicy Bypass')
 
-  page.once('dialog', (dialog) => dialog.accept())
   await page
     .getByRole('button', { name: /(?:Generate|Rotate) stream key/ })
     .click()
-  await expect(page.getByText('Copy this key now. It will not be shown again.')).toBeVisible()
-  await expect(page.locator('.stream-key-reveal code')).toContainText('mtx_sk_')
+  const rotationDialog = page.getByRole('dialog', { name: 'Rotate stream key?' })
+  if (await rotationDialog.isVisible()) {
+    await rotationDialog.getByRole('button', { name: 'Rotate key' }).click()
+  }
+  await expect(
+    page.getByText('Paste these into OBS. They are shown only once.'),
+  ).toBeVisible()
+  await expect(page.getByText(/^mtx_sk_[A-Za-z0-9_-]+$/)).toBeVisible()
 })
