@@ -53,6 +53,125 @@ test('keeps the watch dashboard inside a 320px viewport', async ({ page }) => {
   expect(header!.height).toBeLessThanOrEqual(52)
 })
 
+test('pins the home Channel rail and shares its saved preference with watch pages', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/')
+
+  const header = page.getByRole('banner')
+  const rail = page.getByRole('complementary', { name: 'Channels' })
+  const directory = page
+    .getByRole('main')
+    .getByRole('region', { name: 'Live Channels' })
+    .last()
+  const headerBox = await header.boundingBox()
+  const expandedRailBox = await rail.boundingBox()
+  const expandedDirectoryBox = await directory.boundingBox()
+
+  expect(headerBox).not.toBeNull()
+  expect(expandedRailBox).not.toBeNull()
+  expect(expandedDirectoryBox).not.toBeNull()
+  expect(expandedRailBox!.x).toBe(0)
+  expect(expandedRailBox!.y).toBe(headerBox!.height)
+  expect(expandedRailBox!.width).toBeGreaterThanOrEqual(236)
+  expect(expandedRailBox!.width).toBeLessThanOrEqual(244)
+  expect(expandedRailBox!.height).toBe(900 - headerBox!.height)
+  expect(expandedDirectoryBox!.x).toBeGreaterThanOrEqual(
+    expandedRailBox!.x + expandedRailBox!.width,
+  )
+
+  await page.getByRole('button', { name: 'Collapse Channel rail' }).click()
+  const collapsedRailBox = await rail.boundingBox()
+  const collapsedDirectoryBox = await directory.boundingBox()
+  expect(collapsedRailBox).not.toBeNull()
+  expect(collapsedDirectoryBox).not.toBeNull()
+  expect(collapsedRailBox!.width).toBeGreaterThanOrEqual(60)
+  expect(collapsedRailBox!.width).toBeLessThanOrEqual(68)
+  expect(collapsedDirectoryBox!.width).toBeGreaterThan(
+    expandedDirectoryBox!.width,
+  )
+
+  await page.goto('/watch/live')
+  await expect(
+    page.getByRole('complementary', { name: 'Channels' }),
+  ).toHaveAttribute('data-rail-state', 'collapsed')
+
+  const sizes = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }))
+  expect(sizes.scrollWidth).toBeLessThanOrEqual(sizes.clientWidth)
+})
+
+test('opens accessible Channel drawers on narrow home and watch pages', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 768, height: 1024 })
+  await page.goto('/')
+
+  const trigger = page.getByRole('button', { name: 'Open Channel drawer' })
+  await expect(trigger).toBeVisible()
+  await expect(
+    page.getByRole('complementary', { name: 'Channels' }),
+  ).toBeHidden()
+
+  await trigger.click()
+  let drawer = page.getByRole('dialog', { name: 'Channels' })
+  await expect(drawer).toBeVisible()
+  await expect(
+    drawer.getByRole('heading', { name: 'Live Channels' }),
+  ).toBeVisible()
+  await expect(
+    drawer.getByRole('heading', { name: 'Other Channels' }),
+  ).toBeVisible()
+
+  await page.keyboard.press('Escape')
+  await expect(drawer).toBeHidden()
+  await expect(trigger).toBeFocused()
+
+  await trigger.click()
+  drawer = page.getByRole('dialog', { name: 'Channels' })
+  await drawer
+    .getByRole('link', { name: /Watch Live stream by power, live/ })
+    .click()
+  await expect(page).toHaveURL('/watch/live')
+  await expect(drawer).toBeHidden()
+
+  await page.getByRole('button', { name: 'Open Channel drawer' }).click()
+  drawer = page.getByRole('dialog', { name: 'Channels' })
+  await expect(
+    drawer.getByRole('link', { name: /Watch Live stream by power, live/ }),
+  ).toHaveAttribute('aria-current', 'page')
+
+  const focusedElementStaysInDrawer = await drawer.evaluate((element) =>
+    element.contains(document.activeElement),
+  )
+  expect(focusedElementStaysInDrawer).toBe(true)
+
+  const sizes = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }))
+  expect(sizes.scrollWidth).toBeLessThanOrEqual(sizes.clientWidth)
+})
+
+test('matches the mobile Channel drawer', async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'chromium',
+    'The mobile Channel drawer uses the Chromium baseline.',
+  )
+  await page.setViewportSize({ width: 412, height: 915 })
+  await page.goto('/watch/live')
+  await page.getByRole('button', { name: 'Open Channel drawer' }).click()
+
+  await expect(page.getByRole('dialog', { name: 'Channels' })).toHaveScreenshot(
+    'mobile-channel-drawer.png', {
+    stylePath: 'tests/e2e/screenshot.css',
+    },
+  )
+})
+
 test('opens a stable watch URL', async ({ page }) => {
   await page.goto('/watch/live')
 
@@ -254,6 +373,20 @@ test('keeps all playback modes usable at 320px', async ({ page }) => {
   expect(sizes.scrollWidth).toBeLessThanOrEqual(sizes.clientWidth)
 })
 
+test('keeps an offline watch page inside a 320px viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 760 })
+  await page.goto('/watch/alpha')
+
+  await expect(
+    page.getByRole('button', { name: 'Open Channel drawer' }),
+  ).toBeVisible()
+  const sizes = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }))
+  expect(sizes.scrollWidth).toBeLessThanOrEqual(sizes.clientWidth)
+})
+
 test('returns a useful page for unknown channels', async ({ page }) => {
   await page.goto('/watch/not-configured')
 
@@ -268,6 +401,12 @@ test('shows username login without a shared browser prompt', async ({ page }) =>
   await expect(page.getByRole('heading', { name: 'Welcome back.' })).toBeVisible()
   await expect(page.getByLabel('Username')).toBeVisible()
   await expect(page.getByLabel('Password')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Open Channel drawer' }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('complementary', { name: 'Channels' }),
+  ).toHaveCount(0)
 })
 
 test('uses a compact full-width header that stays at the top', async ({ page }) => {

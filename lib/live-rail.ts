@@ -4,12 +4,12 @@ import { sortChannelsForHome } from '@/lib/home-dashboard'
 export interface LiveRailModel {
   liveChannels: PublicChannel[]
   otherChannels: PublicChannel[]
-  watchedSlug: string
+  watchedSlug?: string
 }
 
 export function buildLiveRailModel(
   channels: readonly PublicChannel[],
-  watchedSlug: string,
+  watchedSlug?: string,
 ): LiveRailModel {
   const sortedChannels = sortChannelsForHome(channels)
 

@@ -1,5 +1,5 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomeDashboard } from '@/components/home-dashboard'
 import type { PublicChannel, StreamState } from '@/lib/types'
@@ -33,8 +33,17 @@ function channel(
   }
 }
 
+beforeEach(() => {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    value: 1440,
+  })
+  window.localStorage.clear()
+})
+
 afterEach(() => {
   cleanup()
+  window.localStorage.clear()
   vi.restoreAllMocks()
 })
 
@@ -68,6 +77,9 @@ describe('HomeDashboard', () => {
         name: 'Watch Offline B by David, offline',
       }),
     ).toHaveAttribute('href', '/watch/offline-b')
+    expect(
+      screen.getByRole('complementary', { name: 'Channels' }),
+    ).toBeInTheDocument()
   })
 
   it('renders the live section before the offline section', () => {
@@ -94,10 +106,13 @@ describe('HomeDashboard', () => {
       />,
     )
 
-    expect(screen.getByText('Live')).toBeInTheDocument()
-    expect(screen.getByLabelText('1 viewer')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Late-night games' })).toBeInTheDocument()
-    expect(screen.getByText('David')).toBeInTheDocument()
+    const directory = screen.getByRole('region', { name: 'Live Channels' })
+    expect(within(directory).getByText('Live')).toBeInTheDocument()
+    expect(within(directory).getByLabelText('1 viewer')).toBeInTheDocument()
+    expect(
+      within(directory).getByRole('heading', { name: 'Late-night games' }),
+    ).toBeInTheDocument()
+    expect(within(directory).getByText('David')).toBeInTheDocument()
   })
 
   it('shows when a live viewer count is unavailable', () => {
@@ -124,8 +139,9 @@ describe('HomeDashboard', () => {
       />,
     )
 
-    expect(screen.getByText('DF')).toBeInTheDocument()
-    expect(screen.getByText('David Foster')).toBeInTheDocument()
+    const directory = screen.getByRole('region', { name: 'Live Channels' })
+    expect(within(directory).getByText('DF')).toBeInTheDocument()
+    expect(within(directory).getByText('David Foster')).toBeInTheDocument()
   })
 
   it('keeps an unavailable Channel in the offline section with an accurate state', () => {
@@ -177,7 +193,8 @@ describe('HomeDashboard', () => {
     )
 
     expect(container.querySelector('img')).toBeNull()
-    const card = container.querySelector('a')
+    const directory = screen.getByRole('region', { name: 'Live Channels' })
+    const card = within(directory).getByRole('link')
     const media = card?.querySelector('div')
     expect(media?.querySelector('span')).toHaveTextContent('L')
   })

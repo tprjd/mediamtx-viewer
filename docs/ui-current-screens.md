@@ -18,7 +18,9 @@ Every page is wrapped in a shared shell:
 
 - Compact sticky header: the FrankerzSpam brand is on the left. **My channel**
   appears on the right for a Channel owner. The account menu contains account,
-  statistics, administrator, and sign-out actions when each action applies.
+  statistics, administrator, and sign-out actions when each action applies. On
+  narrow home and watch pages, a menu button on the left opens the Channel
+  drawer.
 - Footer: shows the application version. On watch pages, it stays below the
   center content column.
 - Shared system states: a full-page loading state ("Checking the signal…" with a
@@ -45,21 +47,19 @@ Purpose: private group landing page showing every channel and what is live now.
 
 Content, top to bottom:
 
-- Intro block: eyebrow "Private streams", large display heading "What are we
-  watching?", short subtitle, and a live-summary pill ("N live now", amber
-  "Status delayed", or gray "0 live now").
-- Right of the intro, contextual shortcuts: "My channel" for channel owners,
-  "Manage users" for admins.
-- "Live now" section when any channel is live: a large **featured channel** card
-  (artwork/poster or big initial, live badge + viewer count overlaid, title,
-  description, owner name, "Watch live" affordance). When nothing is live a
-  **quiet state** replaces it ("Quiet right now." with radio icon, or a warning
-  variant when status checks are unavailable).
-- "More live" grid when more than one channel is live (compact channel cards).
-- "All channels" grid of compact cards: poster or initial-letter placeholder,
-  live/offline badge and viewer count overlaid, title, description, owner name,
-  corner arrow. If no channels exist, an empty state invites the admin to grant
-  streaming access.
+- **Channel rail** on desktop: the same saved 240-pixel or 64-pixel navigation
+  used on watch pages. It stays at the left viewport edge below the header and
+  scrolls independently.
+- **Channels** heading and a status-update note.
+- **Live Channels** section followed by an **Offline Channels** section. Each
+  Channel card has a 16:9 poster or accent-color fallback, Channel owner
+  initials, title, Channel owner, state, and live viewer count. Offline cards
+  use muted media and text.
+- Empty directory state when no Channels exist. Administrators can open user
+  administration from this state.
+
+On narrow screens, the pinned rail becomes a left-side Channel drawer. The
+drawer has the same groups and order as the desktop rail.
 
 Live status, counts, and posters update in place over an authenticated
 server-sent event feed; announcements like "X is live now" are read aloud to
@@ -76,7 +76,9 @@ Structure, top to bottom:
   viewer count, then lists offline and unavailable Channels by title. The rail
   starts at 240 pixels wide on wide screens and collapses to a 64-pixel icon
   rail. The saved state persists in browser storage. Collapsed items show
-  Channel owner initials and accessible Channel details in tooltips.
+  Channel owner initials and accessible Channel details in tooltips. On narrow
+  screens, the pinned rail becomes a left-side Channel drawer. The drawer marks
+  the current Channel and closes after the viewer selects a Channel.
 
 - **Playback mode bar** (top of the player container): label "Playback mode"
   with one-line description of the current mode, and four mode buttons:

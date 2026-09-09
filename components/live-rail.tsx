@@ -14,13 +14,16 @@ import type { PublicChannel, StreamState } from '@/lib/types'
 
 interface LiveRailProps {
   channels: readonly PublicChannel[]
-  watchedSlug: string
+  watchedSlug?: string
+  onChannelSelect?: () => void
+  variant?: 'drawer' | 'rail'
 }
 
 interface ChannelLinkProps {
   channel: PublicChannel
   collapsed: boolean
   current: boolean
+  onSelect?: () => void
 }
 
 function ownerInitials(ownerName: string): string {
@@ -51,20 +54,24 @@ function channelDescription(channel: PublicChannel): string {
     channel.status.state,
   ]
   if (channel.status.live) {
-    details.push(
-      viewerCountLabel(channel.status.viewerCount),
-    )
+    details.push(viewerCountLabel(channel.status.viewerCount))
   }
   return details.join(', ')
 }
 
-function ChannelLink({ channel, collapsed, current }: ChannelLinkProps) {
+function ChannelLink({
+  channel,
+  collapsed,
+  current,
+  onSelect,
+}: ChannelLinkProps) {
   const link = (
     <Link
       aria-current={current ? 'page' : undefined}
       aria-label={channelDescription(channel)}
       className={`${styles.railItem}${current ? ` ${styles.isActive}` : ''}${channel.status.live ? ` ${styles.isLive}` : ` ${styles.isMuted}`}`}
       href={`/watch/${encodeURIComponent(channel.slug)}`}
+      onClick={onSelect}
       style={{ '--channel-accent': channel.accentColor } as CSSProperties}
     >
       <span className={styles.channelInitial} aria-hidden="true">
@@ -118,11 +125,13 @@ function ChannelGroup({
   collapsed,
   heading,
   watchedSlug,
+  onChannelSelect,
 }: {
   channels: readonly PublicChannel[]
   collapsed: boolean
   heading: string
-  watchedSlug: string
+  watchedSlug?: string
+  onChannelSelect?: () => void
 }) {
   return (
     <section
@@ -136,17 +145,24 @@ function ChannelGroup({
           collapsed={collapsed}
           current={channel.slug === watchedSlug}
           key={channel.slug}
+          onSelect={onChannelSelect}
         />
       ))}
     </section>
   )
 }
 
-export function LiveRail({ channels, watchedSlug }: LiveRailProps) {
+export function LiveRail({
+  channels,
+  onChannelSelect,
+  variant = 'rail',
+  watchedSlug,
+}: LiveRailProps) {
   const model = buildLiveRailModel(channels, watchedSlug)
   const { effectivePreference, setPreference } = useLiveRailPreference()
 
-  const collapsed = effectivePreference === 'collapsed'
+  const drawer = variant === 'drawer'
+  const collapsed = !drawer && effectivePreference === 'collapsed'
   const groups: ReactNode[] = []
 
   if (model.liveChannels.length > 0) {
@@ -156,6 +172,7 @@ export function LiveRail({ channels, watchedSlug }: LiveRailProps) {
         collapsed={collapsed}
         heading="Live Channels"
         key="live"
+        onChannelSelect={onChannelSelect}
         watchedSlug={model.watchedSlug}
       />,
     )
@@ -174,6 +191,7 @@ export function LiveRail({ channels, watchedSlug }: LiveRailProps) {
         collapsed={collapsed}
         heading="Other Channels"
         key="other"
+        onChannelSelect={onChannelSelect}
         watchedSlug={model.watchedSlug}
       />,
     )
@@ -182,7 +200,7 @@ export function LiveRail({ channels, watchedSlug }: LiveRailProps) {
   return (
     <Tooltip.Provider delayDuration={0}>
       <aside
-        className={`${styles.liveRail}${collapsed ? ` ${styles.collapsed}` : ''}`}
+        className={`${styles.liveRail}${collapsed ? ` ${styles.collapsed}` : ''}${drawer ? ` ${styles.drawerRail}` : ''}`}
         aria-label="Channels"
         data-rail-state={effectivePreference}
       >
@@ -191,19 +209,27 @@ export function LiveRail({ channels, watchedSlug }: LiveRailProps) {
             <RadioTower className={styles.railIcon} aria-hidden="true" />
           )}
           {!collapsed && <strong>Channels</strong>}
-          <button
-            aria-label={collapsed ? 'Expand Channel rail' : 'Collapse Channel rail'}
-            className={styles.railToggle}
-            onClick={() => setPreference(collapsed ? 'expanded' : 'collapsed')}
-            title={collapsed ? 'Expand Channel rail' : 'Collapse Channel rail'}
-            type="button"
-          >
-            {collapsed ? (
-              <PanelLeftOpen aria-hidden="true" />
-            ) : (
-              <PanelLeftClose aria-hidden="true" />
-            )}
-          </button>
+          {!drawer && (
+            <button
+              aria-label={
+                collapsed ? 'Expand Channel rail' : 'Collapse Channel rail'
+              }
+              className={styles.railToggle}
+              onClick={() =>
+                setPreference(collapsed ? 'expanded' : 'collapsed')
+              }
+              title={
+                collapsed ? 'Expand Channel rail' : 'Collapse Channel rail'
+              }
+              type="button"
+            >
+              {collapsed ? (
+                <PanelLeftOpen aria-hidden="true" />
+              ) : (
+                <PanelLeftClose aria-hidden="true" />
+              )}
+            </button>
+          )}
         </div>
         <nav className={styles.railList} aria-label="Channel list">
           {groups}

@@ -11,7 +11,9 @@ import {
 } from 'react'
 import styles from './home-dashboard.module.css'
 
+import { ChannelNavigation } from '@/components/channel-navigation'
 import { StatusBadge } from '@/components/status-badge'
+import { useLiveRailPreference } from '@/components/use-live-rail-preference'
 import { ViewerCount } from '@/components/viewer-count'
 import { useChannelEvents } from '@/hooks/use-channel-events'
 import {
@@ -93,6 +95,7 @@ export function HomeDashboard({
   const previousChannels = useRef(initialChannels)
   const model = useMemo(() => buildHomeDashboardModel(channels), [channels])
   const statusDelayed = model.statusUnavailable || eventStatusDelayed
+  const { effectivePreference } = useLiveRailPreference()
   const hasChannels =
     model.liveChannels.length + model.offlineChannels.length > 0
 
@@ -107,68 +110,73 @@ export function HomeDashboard({
   }, [channels])
 
   return (
-    <main className={styles.homeLayout}>
+    <main
+      className={`${styles.homeLayout}${effectivePreference === 'collapsed' ? ` ${styles.railCollapsed}` : ''}`}
+    >
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {announcement}
       </p>
+      <ChannelNavigation channels={channels} />
 
-      <div className={styles.directoryHeading}>
-        <h1>Channels</h1>
-        <p aria-label="Channel status" role="status">
-          {statusDelayed
-            ? 'Channel status updates are delayed.'
-            : 'Channel status updates automatically.'}
-        </p>
-      </div>
+      <div className={styles.homeContent}>
+        <div className={styles.directoryHeading}>
+          <h1>Channels</h1>
+          <p aria-label="Channel status" role="status">
+            {statusDelayed
+              ? 'Channel status updates are delayed.'
+              : 'Channel status updates automatically.'}
+          </p>
+        </div>
 
-      {hasChannels ? (
-        <div className={styles.directorySections}>
-          <section
-            className={styles.channelSection}
-            aria-labelledby="live-channels-heading"
-          >
-            <div className={styles.sectionHeading}>
-              <h2 id="live-channels-heading">Live Channels</h2>
-              <span>{model.liveCount}</span>
-            </div>
-            {model.liveChannels.length > 0 ? (
+        {hasChannels ? (
+          <div className={styles.directorySections}>
+            <section
+              className={styles.channelSection}
+              aria-labelledby="live-channels-heading"
+            >
+              <div className={styles.sectionHeading}>
+                <h2 id="live-channels-heading">Live Channels</h2>
+                <span>{model.liveCount}</span>
+              </div>
+              {model.liveChannels.length > 0 ? (
+                <div className={styles.channelGrid}>
+                  {model.liveChannels.map((channel) => (
+                    <ChannelCard channel={channel} key={channel.slug} />
+                  ))}
+                </div>
+              ) : (
+                <p className={styles.emptySection}>No Channels are live.</p>
+              )}
+            </section>
+
+            <section
+              className={styles.channelSection}
+              aria-labelledby="offline-channels-heading"
+            >
+              <div className={styles.sectionHeading}>
+                <h2 id="offline-channels-heading">Offline Channels</h2>
+                <span>{model.offlineChannels.length}</span>
+              </div>
               <div className={styles.channelGrid}>
-                {model.liveChannels.map((channel) => (
+                {model.offlineChannels.map((channel) => (
                   <ChannelCard channel={channel} key={channel.slug} />
                 ))}
               </div>
-            ) : (
-              <p className={styles.emptySection}>No Channels are live.</p>
-            )}
-          </section>
-
-          <section
-            className={styles.channelSection}
-            aria-labelledby="offline-channels-heading"
-          >
-            <div className={styles.sectionHeading}>
-              <h2 id="offline-channels-heading">Offline Channels</h2>
-              <span>{model.offlineChannels.length}</span>
-            </div>
-            <div className={styles.channelGrid}>
-              {model.offlineChannels.map((channel) => (
-                <ChannelCard channel={channel} key={channel.slug} />
-              ))}
-            </div>
-          </section>
-        </div>
-      ) : (
-        <section className={styles.channelSection} aria-label="Channel directory">
-          <div className={styles.noChannelsState}>
-            <RadioTower aria-hidden="true" />
-            <h3>No channels yet.</h3>
-            <p>An administrator can grant streaming access to an active account.</p>
-            {capabilities.isAdmin && (
-              <Link href="/admin/users">Grant streaming access</Link>
-            )}
+            </section>
           </div>
-        </section>
-      )}
+        ) : (
+          <section className={styles.channelSection} aria-label="Channel directory">
+            <div className={styles.noChannelsState}>
+              <RadioTower aria-hidden="true" />
+              <h3>No channels yet.</h3>
+              <p>An administrator can grant streaming access to an active account.</p>
+              {capabilities.isAdmin && (
+                <Link href="/admin/users">Grant streaming access</Link>
+              )}
+            </div>
+          </section>
+        )}
+      </div>
     </main>
   )
 }

@@ -4,8 +4,8 @@ import { Clock3, MessageSquare, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import styles from './channel-viewer.module.css'
 
+import { ChannelNavigation } from '@/components/channel-navigation'
 import { LivePlayer } from '@/components/live-player'
-import { LiveRail } from '@/components/live-rail'
 import { ShareButton } from '@/components/share-button'
 import { StatusBadge } from '@/components/status-badge'
 import { useLiveRailPreference } from '@/components/use-live-rail-preference'
@@ -36,7 +36,10 @@ export function ChannelViewer({ channel, channels = [channel], viewerId }: Chann
       <div
         className={`${styles.watchColumns}${status.live ? '' : ` ${styles.withoutChat}`}${railCollapsed ? ` ${styles.railCollapsed}` : ''}`}
       >
-        <LiveRail channels={eventChannels} watchedSlug={currentChannel.slug} />
+        <ChannelNavigation
+          channels={eventChannels}
+          watchedSlug={currentChannel.slug}
+        />
         <div className={styles.watchMainColumn}>
           <div className={styles.watchPlayerWrap}>
             <LivePlayer

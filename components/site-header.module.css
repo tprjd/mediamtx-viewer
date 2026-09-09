@@ -24,6 +24,23 @@
   text-decoration: none;
 }
 
+.headerStart {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.channelDrawerTarget {
+  display: none;
+}
+
+@media (max-width: 800px) {
+  .channelDrawerTarget:not(:empty) {
+    display: block;
+  }
+}
+
 .brandMark {
   display: grid;
   width: 1.75rem;

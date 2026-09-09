@@ -1,5 +1,16 @@
 .homeLayout {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  align-items: start;
+}
+
+.railCollapsed {
+  grid-template-columns: 4rem minmax(0, 1fr);
+}
+
+.homeContent {
   width: min(100% - 2rem, 90rem);
+  min-width: 0;
   margin-inline: auto;
   padding-block: 1.5rem 7rem;
 }
@@ -241,8 +252,17 @@
   text-decoration: none;
 }
 
-@media (max-width: 700px) {
-  .homeLayout {
+@media (max-width: 800px) {
+  .homeLayout,
+  .railCollapsed {
+    display: block;
+  }
+
+  .homeLayout :global(aside) {
+    display: none;
+  }
+
+  .homeContent {
     width: min(100% - 1.25rem, 90rem);
     padding-block: 1.25rem 5rem;
   }

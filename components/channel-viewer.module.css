@@ -159,7 +159,7 @@
   font: inherit;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 800px) {
   .watchLayout {
     width: 100%;
     padding-top: 0;

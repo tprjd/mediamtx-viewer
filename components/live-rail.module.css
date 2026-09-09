@@ -11,6 +11,18 @@
   background: var(--panel);
 }
 
+.drawerRail {
+  position: static;
+  height: auto;
+  min-height: 0;
+  flex: 1;
+  border-right: 0;
+}
+
+.drawerRail .railHeading {
+  display: none;
+}
+
 .collapsed .railHeading {
   justify-content: center;
   padding-inline: 0.5rem;
