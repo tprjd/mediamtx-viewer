@@ -104,23 +104,115 @@
 }
 
 .chatPlaceholder {
+  position: sticky;
+  top: 3.125rem;
   display: flex;
-  min-height: 31.5rem;
+  height: calc(100vh - 3.125rem);
+  min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 0.9rem;
-  background: rgba(17, 17, 20, 0.76);
+  border-left: 1px solid var(--line);
+  background: var(--panel);
 }
 
 .chatHeading {
   display: flex;
+  min-height: 3rem;
+  flex: none;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.85rem 1rem;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.8rem 0.65rem 1rem;
   border-bottom: 1px solid var(--line);
   color: var(--text);
   font-size: 0.85rem;
+}
+
+.chatTitle,
+.chatActions {
+  display: flex;
+  align-items: center;
+}
+
+.chatTitle {
+  min-width: 0;
+  gap: 0.5rem;
+}
+
+.chatTitle svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--accent-soft);
+}
+
+.chatActions {
+  gap: 0.3rem;
+}
+
+.chatToggle,
+.chatClose,
+.chatRestore {
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.chatToggle,
+.chatClose {
+  width: 1.8rem;
+  height: 1.8rem;
+}
+
+.chatToggle {
+  display: none;
+  grid-auto-flow: column;
+  gap: 0.4rem;
+  width: auto;
+  padding-inline: 0.5rem;
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.chatToggle svg,
+.chatClose svg,
+.chatRestore svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.chatToggle:hover,
+.chatClose:hover,
+.chatRestore:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+}
+
+.chatToggle:focus-visible,
+.chatClose:focus-visible,
+.chatRestore:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.chatRestore {
+  width: 2rem;
+  height: 2rem;
+}
+
+.chatContent {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chatContent[hidden] {
+  display: none;
 }
 
 .chatEmptyState {
@@ -149,6 +241,7 @@
 
 .chatPlaceholder input {
   width: calc(100% - 1.5rem);
+  flex: none;
   min-height: 2.4rem;
   margin: 0 0.75rem 0.75rem;
   padding: 0 0.7rem;
@@ -169,7 +262,7 @@
     display: block;
   }
 
-  .watchColumns :global(aside) {
+  .watchColumns > :global(aside[aria-label='Channels']) {
     display: none;
   }
 
@@ -180,6 +273,26 @@
 
   .watchDetails {
     padding: 1.5rem 1rem 0;
+  }
+
+  .chatPlaceholder {
+    position: static;
+    height: auto;
+    min-height: 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+
+  .chatTitle {
+    display: none;
+  }
+
+  .chatToggle {
+    display: grid;
+  }
+
+  .chatContent {
+    min-height: 20rem;
   }
 
   .watchInfoRow {

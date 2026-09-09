@@ -192,6 +192,119 @@ test('opens a stable watch URL', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Low latency' })).toBeVisible()
 })
 
+test('pins live chat to the right edge while the center column scrolls', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/watch/live')
+
+  const header = page.getByRole('banner')
+  const chat = page.getByRole('complementary', { name: 'Chat placeholder' })
+  const player = page.getByLabel('Live stream live video')
+  const headerBox = await header.boundingBox()
+  const chatBox = await chat.boundingBox()
+  const playerBox = await player.boundingBox()
+
+  expect(headerBox).not.toBeNull()
+  expect(chatBox).not.toBeNull()
+  expect(playerBox).not.toBeNull()
+  expect(chatBox!.x + chatBox!.width).toBe(1440)
+  expect(chatBox!.width).toBeGreaterThanOrEqual(338)
+  expect(chatBox!.width).toBeLessThanOrEqual(342)
+  expect(chatBox!.y).toBe(headerBox!.height)
+  expect(chatBox!.height).toBe(900 - headerBox!.height)
+  expect(playerBox!.width).toBeGreaterThan(0)
+  await expect(chat.getByText('Chat is coming soon')).toBeVisible()
+  await expect(chat.getByRole('textbox', { name: 'Chat message' })).toBeDisabled()
+
+  await page.evaluate(() => {
+    const details = document.querySelector<HTMLElement>(
+      '[aria-label="Channel information"]',
+    )
+    if (details) details.style.minHeight = '150vh'
+    window.scrollTo(0, document.body.scrollHeight)
+  })
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+  expect((await chat.boundingBox())!.y).toBe(headerBox!.height)
+})
+
+test('closes and restores chat without leaving an empty player column', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/watch/live')
+
+  const player = page.getByLabel('Live stream live video')
+  const openPlayerBox = await player.boundingBox()
+  expect(openPlayerBox).not.toBeNull()
+
+  await page.getByRole('button', { name: 'Close Chat' }).click()
+  await expect(
+    page.getByRole('complementary', { name: 'Chat placeholder' }),
+  ).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Open Chat' })).toBeVisible()
+  const closedPlayerBox = await player.boundingBox()
+  expect(closedPlayerBox).not.toBeNull()
+  expect(closedPlayerBox!.width).toBeGreaterThan(openPlayerBox!.width + 300)
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('home-stream.chat-preference')))
+    .toBe('closed')
+
+  await page.goto('/')
+  await page.goto('/watch/live')
+  await expect(
+    page.getByRole('complementary', { name: 'Chat placeholder' }),
+  ).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Open Chat' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open Chat' }).click()
+  await expect(
+    page.getByRole('complementary', { name: 'Chat placeholder' }),
+  ).toBeVisible()
+  await page.reload()
+  await expect(
+    page.getByRole('complementary', { name: 'Chat placeholder' }),
+  ).toBeVisible()
+})
+
+test('moves live chat below the player at the narrow content breakpoint', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 768, height: 900 })
+  await page.goto('/watch/live')
+
+  const chat = page.getByRole('complementary', { name: 'Chat placeholder' })
+  const player = page.getByLabel('Live stream live video')
+  const chatBox = await chat.boundingBox()
+  const playerBox = await player.boundingBox()
+
+  expect(chatBox).not.toBeNull()
+  expect(playerBox).not.toBeNull()
+  expect(chatBox!.x).toBe(0)
+  expect(chatBox!.width).toBe(768)
+  expect(chatBox!.y).toBeGreaterThan(playerBox!.y + playerBox!.height)
+  const chatToggle = chat.getByRole('button', { name: 'Chat', exact: true })
+  await expect(chatToggle).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  )
+  await expect(chat.getByText('Chat is coming soon')).toBeHidden()
+
+  await chatToggle.click()
+  await expect(chatToggle).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  )
+  await expect(chat.getByText('Chat is coming soon')).toBeVisible()
+  await expect(chat.getByRole('textbox', { name: 'Chat message' })).toBeDisabled()
+
+  const sizes = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }))
+  expect(sizes.scrollWidth).toBeLessThanOrEqual(sizes.clientWidth)
+})
+
 test('switches to another live Channel from the Channel rail', async ({ page }) => {
   await page.goto('/watch/live')
 
@@ -309,6 +422,17 @@ test('matches expanded and collapsed desktop watch states', async ({
 
   await page.getByRole('button', { name: 'Collapse Channel rail' }).click()
   await expect(main).toHaveScreenshot('desktop-watch-collapsed.png', {
+    mask: [page.locator('video')],
+    stylePath: 'tests/e2e/screenshot.css',
+  })
+})
+
+test('matches the narrow normal watch state', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Narrow watch uses the Chromium baseline.')
+  await page.setViewportSize({ width: 768, height: 900 })
+  await page.goto('/watch/live')
+
+  await expect(page.getByRole('main')).toHaveScreenshot('narrow-watch.png', {
     mask: [page.locator('video')],
     stylePath: 'tests/e2e/screenshot.css',
   })

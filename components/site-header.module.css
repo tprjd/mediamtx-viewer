@@ -57,3 +57,8 @@
   align-items: center;
   gap: 0.65rem;
 }
+
+.chatRestoreTarget {
+  display: flex;
+  align-items: center;
+}

@@ -39,6 +39,7 @@ export function SiteHeader() {
         </Link>
       </div>
       <div className={styles.headerActions}>
+        <div className={styles.chatRestoreTarget} id="chat-restore-target" />
         <Suspense fallback={null}>
           <AccountNavigation />
         </Suspense>

@@ -1,7 +1,8 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChannelViewer } from '@/components/channel-viewer'
+import { CHAT_PREFERENCE_STORAGE_KEY } from '@/lib/chat-preferences'
 import type { ChannelStatus, PublicChannel } from '@/lib/types'
 
 const mocks = vi.hoisted(() => ({
@@ -44,6 +45,12 @@ const offlineStatus: ChannelStatus = {
   checkedAt: '2026-08-30T12:05:00.000Z',
 }
 
+const unavailableStatus: ChannelStatus = {
+  ...offlineStatus,
+  state: 'unavailable',
+  viewerCount: null,
+}
+
 const channel: PublicChannel = {
   slug: 'live',
   ownerName: 'David',
@@ -62,9 +69,19 @@ const channel: PublicChannel = {
 describe('ChannelViewer', () => {
   beforeEach(() => {
     mocks.useChannelEvents.mockReset()
+    document.body.innerHTML =
+      '<div id="channel-drawer-trigger"></div><div id="chat-restore-target"></div>'
+    window.localStorage.clear()
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 1440,
+    })
   })
 
-  afterEach(cleanup)
+  afterEach(() => {
+    cleanup()
+    window.localStorage.clear()
+  })
 
   it('uses the event status for the badge, player, and track metadata', () => {
     mocks.useChannelEvents.mockReturnValue({
@@ -80,10 +97,18 @@ describe('ChannelViewer', () => {
 
     render(<ChannelViewer channel={channel} />)
 
-    expect(screen.getByText('Offline')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('region', { name: 'Channel information' })).getByText(
+        'Offline',
+      ),
+    ).toBeInTheDocument()
     expect(screen.queryByText('Opus · AV1')).toBeNull()
     expect(screen.queryByText('Main channel')).toBeNull()
-    expect(screen.getByText('David')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('region', { name: 'Channel information' })).getByText(
+        'David',
+      ),
+    ).toBeInTheDocument()
     expect(screen.getByTestId('live-player')).toHaveAttribute(
       'data-status',
       'offline',
@@ -161,6 +186,60 @@ describe('ChannelViewer', () => {
     render(<ChannelViewer channel={channel} />)
 
     expect(screen.queryByRole('complementary', { name: 'Chat placeholder' })).toBeNull()
-    expect(screen.getByText('Offline')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('region', { name: 'Channel information' })).getByText(
+        'Offline',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('hides the chat placeholder when the Channel is unavailable', () => {
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [{ ...channel, status: unavailableStatus }],
+      statusDelayed: true,
+    })
+
+    render(<ChannelViewer channel={channel} />)
+
+    expect(screen.queryByRole('complementary', { name: 'Chat placeholder' })).toBeNull()
+    expect(screen.getByText('Unavailable')).toBeInTheDocument()
+  })
+
+  it('saves a closed chat choice and restores it from the compact header control', () => {
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [{ ...channel, status: liveStatus }],
+      statusDelayed: false,
+    })
+
+    render(<ChannelViewer channel={channel} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Chat' }))
+
+    expect(screen.queryByRole('complementary', { name: 'Chat placeholder' })).toBeNull()
+    expect(window.localStorage.getItem(CHAT_PREFERENCE_STORAGE_KEY)).toBe('closed')
+    fireEvent.click(screen.getByRole('button', { name: 'Open Chat' }))
+    expect(screen.getByRole('complementary', { name: 'Chat placeholder' })).toBeInTheDocument()
+    expect(window.localStorage.getItem(CHAT_PREFERENCE_STORAGE_KEY)).toBe('open')
+  })
+
+  it('starts the below-player Chat disclosure collapsed on a narrow layout', () => {
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 768,
+    })
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [{ ...channel, status: liveStatus }],
+      statusDelayed: false,
+    })
+
+    render(<ChannelViewer channel={channel} />)
+
+    const chatToggle = screen.getByRole('button', { name: 'Chat' })
+    expect(chatToggle).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(chatToggle)
+
+    expect(chatToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeDisabled()
   })
 })
