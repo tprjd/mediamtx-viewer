@@ -4,26 +4,23 @@ Reference document for design work. It lists every screen that currently exists,
 what it shows, and the rough structure of each, so a design agent can compare the
 current app against a target design without reading the source.
 
-App product name shown in the header: **Home Stream**. Product/domain language
+App product name shown in the header: **FrankerzSpam**. Product/domain language
 uses "channel" (not stream), "stream key", "playback mode", "OBS setup session",
 and similar terms; a design should keep those names.
 
 ## Global shell (all screens)
 
-Visual language: dark theme (`#09090b` background), two fixed blurred violet/indigo
-"ambient" glow blobs in the backdrop, near-white text, muted gray secondary text,
-thin white-on-dark borders, translucent panels with rounded corners, uppercase
-violet "eyebrow" labels, and Lucide line icons. Fully responsive; the app is
-tested down to a 320px viewport.
+Visual language: dark theme (`#09090b` background), near-white text, muted gray
+secondary text, thin white-on-dark borders, pink accents, and Lucide line icons.
+The app is tested down to a 320px viewport.
 
 Every page is wrapped in a shared shell:
 
-- Header bar: brand at left (radio-tower icon + "Home Stream", links to home).
-- Right side of header: contextual account navigation — always shows
-  "Statistics" and the signed-in user's name ("Account") for members; admins also
-  get "Admin"; channel owners also get "My channel". There is a Sign out button.
-  Signed-out visitors see no menu.
-- No footer. Pages are top-level `<main>` content below the header.
+- Compact sticky header: the FrankerzSpam brand is on the left. **My channel**
+  appears on the right for a Channel owner. The account menu contains account,
+  statistics, administrator, and sign-out actions when each action applies.
+- Footer: shows the application version. On watch pages, it stays below the
+  center content column.
 - Shared system states: a full-page loading state ("Checking the signal…" with a
   pulsing dot), a branded 404 page ("That channel does not exist." / "No signal"),
   and a generic error page ("The viewer hit a problem." with Try again).
@@ -73,6 +70,13 @@ screen readers rather than shown visibly.
 Purpose: single-channel live viewer.
 
 Structure, top to bottom:
+
+- **Channel rail**: fixed-width navigation at the left viewport edge. The rail
+  stays below the header and scrolls independently. It lists live Channels by
+  viewer count, then lists offline and unavailable Channels by title. The rail
+  starts at 240 pixels wide on wide screens and collapses to a 64-pixel icon
+  rail. The saved state persists in browser storage. Collapsed items show
+  Channel owner initials and accessible Channel details in tooltips.
 
 - **Playback mode bar** (top of the player container): label "Playback mode"
   with one-line description of the current mode, and four mode buttons:

@@ -1,12 +1,12 @@
 export const LIVE_RAIL_PREFERENCE_STORAGE_KEY = 'home-stream.live-rail-preference'
 export const LIVE_RAIL_BREAKPOINT = 1280
 
-export type LiveRailPreference = 'expanded' | 'collapsed' | 'hidden'
+export type LiveRailPreference = 'expanded' | 'collapsed'
 
 export function isLiveRailPreference(
   value: unknown,
 ): value is LiveRailPreference {
-  return value === 'expanded' || value === 'collapsed' || value === 'hidden'
+  return value === 'expanded' || value === 'collapsed'
 }
 
 export function readLiveRailPreference(
@@ -26,6 +26,5 @@ export function getEffectiveLiveRailPreference(
   preference: LiveRailPreference,
   viewportWidth: number,
 ): LiveRailPreference {
-  if (preference === 'hidden') return 'hidden'
   return viewportWidth < LIVE_RAIL_BREAKPOINT ? 'collapsed' : preference
 }

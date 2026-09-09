@@ -29,17 +29,14 @@ export function ChannelViewer({ channel, channels = [channel], viewerId }: Chann
   const currentChannel =
     eventChannels.find((item) => item.slug === channel.slug) ?? channel
   const status = currentChannel.status
-  const railHidden = effectivePreference === 'hidden'
   const railCollapsed = effectivePreference === 'collapsed'
 
   return (
     <main className={styles.watchLayout}>
       <div
-        className={`${styles.watchColumns}${status.live ? '' : ` ${styles.withoutChat}`}${railCollapsed ? ` ${styles.railCollapsed}` : ''}${railHidden ? ` ${styles.railHidden}` : ''}`}
+        className={`${styles.watchColumns}${status.live ? '' : ` ${styles.withoutChat}`}${railCollapsed ? ` ${styles.railCollapsed}` : ''}`}
       >
-        {!railHidden && (
-          <LiveRail channels={eventChannels} watchedSlug={currentChannel.slug} />
-        )}
+        <LiveRail channels={eventChannels} watchedSlug={currentChannel.slug} />
         <div className={styles.watchMainColumn}>
           <div className={styles.watchPlayerWrap}>
             <LivePlayer

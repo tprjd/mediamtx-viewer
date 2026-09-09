@@ -1,22 +1,17 @@
 .watchLayout {
-  width: min(100% - 2rem, 100rem);
-  margin-inline: auto;
-  padding-block: 2rem 5rem;
+  width: 100%;
+  padding: 0 0 5rem;
 }
 
 .watchColumns {
   display: grid;
   grid-template-columns: 15rem minmax(0, 1fr) 21.25rem;
-  gap: 1rem;
+  gap: 0;
   align-items: start;
 }
 
 .railCollapsed {
   grid-template-columns: 4rem minmax(0, 1fr) 21.25rem;
-}
-
-.railHidden {
-  grid-template-columns: minmax(0, 1fr) 21.25rem;
 }
 
 .withoutChat {
@@ -25,10 +20,6 @@
 
 .withoutChat.railCollapsed {
   grid-template-columns: 4rem minmax(0, 1fr);
-}
-
-.withoutChat.railHidden {
-  grid-template-columns: minmax(0, 1fr);
 }
 
 .watchMainColumn {

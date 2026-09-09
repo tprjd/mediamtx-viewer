@@ -32,12 +32,13 @@ function channel(
 }
 
 describe('live rail model', () => {
-  it('keeps only live channels, orders them by viewers, and preserves the watched slug', () => {
+  it('groups live Channels before other Channels and preserves the watched slug', () => {
     const model = buildLiveRailModel(
       [
         channel('offline', 'offline', 0),
         channel('quiet', 'live', 1),
         channel('popular', 'live', 8),
+        channel('unavailable', 'unavailable', null),
       ],
       'quiet',
     )
@@ -45,6 +46,10 @@ describe('live rail model', () => {
     expect(model.liveChannels.map((item) => item.slug)).toEqual([
       'popular',
       'quiet',
+    ])
+    expect(model.otherChannels.map((item) => item.slug)).toEqual([
+      'offline',
+      'unavailable',
     ])
     expect(model.watchedSlug).toBe('quiet')
   })
@@ -60,6 +65,23 @@ describe('live rail model', () => {
 
     expect(model.liveChannels.map((item) => item.title)).toEqual([
       'Alpha',
+      'Zulu',
+    ])
+  })
+
+  it('sorts offline and unavailable Channels by title', () => {
+    const model = buildLiveRailModel(
+      [
+        channel('zulu', 'offline', 0, 'Zulu'),
+        channel('bravo', 'unavailable', null, 'Bravo'),
+        channel('alpha', 'offline', 0, 'Alpha'),
+      ],
+      'zulu',
+    )
+
+    expect(model.otherChannels.map((item) => item.title)).toEqual([
+      'Alpha',
+      'Bravo',
       'Zulu',
     ])
   })

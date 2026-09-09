@@ -4,7 +4,6 @@ import { Suspense } from 'react'
 import styles from './site-header.module.css'
 
 import { UserMenu } from '@/components/auth/user-menu'
-import { WatchRailToggle } from '@/components/watch-rail-toggle'
 import { getActiveSession } from '@/lib/auth/session'
 import { getOwnedChannel } from '@/lib/channels'
 
@@ -34,7 +33,6 @@ export function SiteHeader() {
         <span>FrankerzSpam</span>
       </Link>
       <div className={styles.headerActions}>
-        <WatchRailToggle />
         <Suspense fallback={null}>
           <AccountNavigation />
         </Suspense>

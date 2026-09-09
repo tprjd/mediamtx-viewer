@@ -73,11 +73,12 @@ test('opens a stable watch URL', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Low latency' })).toBeVisible()
 })
 
-test('switches to another live channel from the live rail', async ({ page }) => {
+test('switches to another live Channel from the Channel rail', async ({ page }) => {
   await page.goto('/watch/live')
 
   const liveLinks = page
-    .getByRole('complementary', { name: 'Live channels' })
+    .getByRole('complementary', { name: 'Channels' })
+    .getByRole('region', { name: 'Live Channels' })
     .getByRole('link')
   const liveChannelCount = await liveLinks.count()
   test.skip(
@@ -89,6 +90,109 @@ test('switches to another live channel from the live rail', async ({ page }) => 
   expect(targetHref).not.toBeNull()
   await liveLinks.nth(1).click()
   await expect(page).toHaveURL(new URL(targetHref!, page.url()).toString())
+})
+
+test('pins the Channel rail and gives its released width to the player', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/watch/live')
+
+  const header = page.getByRole('banner')
+  const rail = page.getByRole('complementary', { name: 'Channels' })
+  const player = page.getByLabel('Live stream live video')
+  const headerBox = await header.boundingBox()
+  const expandedRailBox = await rail.boundingBox()
+  const expandedPlayerBox = await player.boundingBox()
+
+  expect(headerBox).not.toBeNull()
+  expect(expandedRailBox).not.toBeNull()
+  expect(expandedPlayerBox).not.toBeNull()
+  expect(expandedRailBox!.x).toBe(0)
+  expect(expandedRailBox!.y).toBe(headerBox!.height)
+  expect(expandedRailBox!.width).toBeGreaterThanOrEqual(236)
+  expect(expandedRailBox!.width).toBeLessThanOrEqual(244)
+  expect(expandedRailBox!.height).toBe(900 - headerBox!.height)
+  await expect(
+    header.getByRole('button', { name: /Channel rail/ }),
+  ).toHaveCount(0)
+
+  await page.evaluate(() => {
+    const details = document.querySelector<HTMLElement>(
+      '[aria-label="Channel information"]',
+    )
+    if (details) details.style.minHeight = '150vh'
+    window.scrollTo(0, document.body.scrollHeight)
+  })
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+  expect((await rail.boundingBox())!.y).toBe(headerBox!.height)
+
+  await page.getByRole('button', { name: 'Collapse Channel rail' }).click()
+  const collapsedRailBox = await rail.boundingBox()
+  const collapsedPlayerBox = await player.boundingBox()
+  expect(collapsedRailBox).not.toBeNull()
+  expect(collapsedPlayerBox).not.toBeNull()
+  expect(collapsedRailBox!.width).toBeGreaterThanOrEqual(60)
+  expect(collapsedRailBox!.width).toBeLessThanOrEqual(68)
+  expect(collapsedPlayerBox!.width).toBeGreaterThan(expandedPlayerBox!.width + 160)
+
+  await page.reload()
+  await expect(rail).toHaveAttribute('data-rail-state', 'collapsed')
+})
+
+test('collapses the Channel rail at narrower desktop widths', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 })
+  await page.goto('/watch/live')
+
+  await expect(
+    page.getByRole('complementary', { name: 'Channels' }),
+  ).toHaveAttribute('data-rail-state', 'collapsed')
+})
+
+test('scrolls a short-height Channel rail without moving the document', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 220 })
+  await page.goto('/watch/live')
+
+  const list = page.getByRole('navigation', { name: 'Channel list' })
+  const measurements = await list.evaluate((element) => {
+    const beforeDocumentScroll = window.scrollY
+    element.scrollTop = element.scrollHeight
+    return {
+      beforeDocumentScroll,
+      clientHeight: element.clientHeight,
+      documentScroll: window.scrollY,
+      overflowY: getComputedStyle(element).overflowY,
+      scrollHeight: element.scrollHeight,
+      scrollTop: element.scrollTop,
+    }
+  })
+
+  expect(measurements.overflowY).toBe('auto')
+  expect(measurements.scrollHeight).toBeGreaterThan(measurements.clientHeight)
+  expect(measurements.scrollTop).toBeGreaterThan(0)
+  expect(measurements.documentScroll).toBe(measurements.beforeDocumentScroll)
+})
+
+test('matches expanded and collapsed desktop watch states', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Desktop watch uses the Chromium baseline.')
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/watch/live')
+
+  const main = page.getByRole('main')
+  await expect(main).toHaveScreenshot('desktop-watch-expanded.png', {
+    mask: [page.locator('video')],
+    stylePath: 'tests/e2e/screenshot.css',
+  })
+
+  await page.getByRole('button', { name: 'Collapse Channel rail' }).click()
+  await expect(main).toHaveScreenshot('desktop-watch-collapsed.png', {
+    mask: [page.locator('video')],
+    stylePath: 'tests/e2e/screenshot.css',
+  })
 })
 
 test('hides fullscreen controls, protocol badge, and cursor when idle', async ({
@@ -132,7 +236,7 @@ test('keeps all playback modes usable at 320px', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Smooth' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Low latency' })).toBeVisible()
   await expect(
-    page.getByRole('complementary', { name: 'Live channels' }),
+    page.getByRole('complementary', { name: 'Channels' }),
   ).toBeHidden()
   await expect(
     page

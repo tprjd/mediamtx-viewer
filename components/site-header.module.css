@@ -40,39 +40,3 @@
   align-items: center;
   gap: 0.65rem;
 }
-
-.railToggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.65rem;
-  border: 0;
-  border-radius: 0.55rem;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.railToggle:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: white;
-}
-
-.railToggle:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-@media (max-width: 700px) {
-  .railToggle {
-    padding-inline: 0.5rem;
-    font-size: 0;
-  }
-
-  .railToggle svg {
-    width: 1rem;
-    height: 1rem;
-  }
-}

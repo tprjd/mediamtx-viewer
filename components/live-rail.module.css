@@ -1,13 +1,14 @@
 .liveRail {
+  position: sticky;
+  top: 3.125rem;
   display: flex;
   width: 100%;
   min-width: 0;
-  min-height: 31.5rem;
+  height: calc(100vh - 3.125rem);
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 0.9rem;
-  background: rgba(17, 17, 20, 0.76);
+  border-right: 1px solid var(--line);
+  background: var(--panel);
 }
 
 .collapsed .railHeading {
@@ -26,18 +27,18 @@
 
 .railHeading {
   display: flex;
+  min-height: 3rem;
+  flex: none;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.85rem 1rem;
+  padding: 0.65rem 0.75rem 0.65rem 1rem;
   border-bottom: 1px solid var(--line);
 }
 
-.railHeading h2 {
+.railHeading strong {
   flex: 1;
-  margin: 0;
   color: var(--text);
-  font-size: 0.85rem;
-  font-weight: 700;
+  font-size: 0.8rem;
 }
 
 .railIcon {
@@ -64,9 +65,10 @@
   color: var(--text);
 }
 
-.railToggle:focus-visible {
+.railToggle:focus-visible,
+.railItem:focus-visible {
   outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .railToggle svg {
@@ -76,55 +78,88 @@
 
 .railList {
   display: grid;
-  gap: 0.35rem;
-  padding: 0.55rem;
+  min-height: 0;
+  flex: 1;
+  align-content: start;
+  gap: 0.7rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.65rem 0.55rem 1rem;
+  scrollbar-width: thin;
+}
+
+.channelGroup {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.channelGroup h2 {
+  margin: 0;
+  padding: 0.25rem 0.45rem;
+  color: var(--text-faint);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .railItem {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 0.7rem;
-  padding: 0.55rem;
-  border: 1px solid transparent;
-  border-radius: 0.65rem;
+  gap: 0.65rem;
+  padding: 0.45rem;
+  border-radius: 0.35rem;
   color: inherit;
   text-decoration: none;
-  transition: border-color 160ms ease, background 160ms ease;
+  transition: background 120ms ease;
 }
 
 .railItem:hover {
-  border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.railItem:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .isActive {
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .channelInitial {
+  position: relative;
   display: grid;
   width: 2.2rem;
   height: 2.2rem;
   flex: none;
   place-items: center;
-  border-radius: 0.55rem;
-  background: color-mix(in srgb, var(--accent) 22%, #18181b);
-  color: var(--accent-soft);
-  font-size: 0.9rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--channel-accent) 34%, #18181b);
+  color: white;
+  font-size: 0.78rem;
   font-weight: 750;
+}
+
+.isLive .channelInitial::after {
+  position: absolute;
+  right: -0.05rem;
+  bottom: -0.05rem;
+  width: 0.65rem;
+  height: 0.65rem;
+  border: 2px solid var(--panel);
+  border-radius: 50%;
+  background: #ef4444;
+  content: '';
+}
+
+.isMuted .channelInitial {
+  filter: saturate(0.25);
+  opacity: 0.62;
 }
 
 .channelCopy {
   display: grid;
   min-width: 0;
-  gap: 0.2rem;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.15rem 0.5rem;
 }
 
 .channelTitle,
@@ -135,9 +170,10 @@
 }
 
 .channelTitle {
+  grid-column: 1 / -1;
   color: var(--text);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 650;
 }
 
 .channelOwner {
@@ -145,27 +181,63 @@
   font-size: 0.7rem;
 }
 
-.channelCopy :global(.viewer-count) {
-  width: fit-content;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
+.channelStatus {
+  display: flex;
+  grid-column: 2;
+  grid-row: 2;
+  align-items: center;
+  gap: 0.35rem;
   color: var(--text-faint);
   font-size: 0.68rem;
 }
 
-.channelCopy :global(.viewer-count svg) {
-  width: 0.7rem;
-  height: 0.7rem;
+.channelStatus :global(.viewer-count) {
+  width: fit-content;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+}
+
+.channelStatus :global(.viewer-count svg) {
+  display: none;
 }
 
 .emptyState {
-  margin: auto;
-  padding: 1.5rem;
+  margin: 0;
+  padding: 0.5rem;
   color: var(--text-faint);
-  font-size: 0.78rem;
-  text-align: center;
+  font-size: 0.72rem;
+}
+
+.tooltipContent {
+  z-index: 70;
+  display: grid;
+  gap: 0.2rem;
+  max-width: 15rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  background: #242428;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.tooltipContent strong {
+  overflow: hidden;
+  color: white;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tooltipArrow {
+  fill: #242428;
 }
 
 @media (prefers-reduced-motion: reduce) {
