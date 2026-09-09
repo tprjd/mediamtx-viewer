@@ -1,4 +1,11 @@
+import { createRequire } from 'node:module'
+
 import { expect, test } from '@playwright/test'
+
+const require = createRequire(import.meta.url)
+const packageJson = require('../../package.json') as { version: string }
+
+const appVersion = `v${packageJson.version}`
 
 test('shows the Channel directory sections in order and opens a watch page', async ({
   page,
@@ -307,9 +314,10 @@ test('enters theater mode, reallocates chat width, and resets on reload or Chann
   const header = page.getByRole('banner')
   const rail = page.getByRole('complementary', { name: 'Channels' })
   const details = page.getByRole('region', { name: 'Channel information' })
-  const footer = page.locator('[data-watch-footer]')
   const player = page.getByLabel('Live stream live video')
   const chat = page.getByRole('complementary', { name: 'Chat placeholder' })
+
+  await expect(page.getByRole('contentinfo')).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Collapse Channel rail' }).click()
   await expect(rail).toHaveAttribute('data-rail-state', 'collapsed')
@@ -322,7 +330,6 @@ test('enters theater mode, reallocates chat width, and resets on reload or Chann
   await expect(header).toBeHidden()
   await expect(rail).toBeHidden()
   await expect(details).toBeHidden()
-  await expect(footer).toBeHidden()
   await expect(chat).toBeVisible()
   await expect(player.getByRole('button', { name: 'Exit theater mode' })).toBeAttached()
 
@@ -356,7 +363,6 @@ test('enters theater mode, reallocates chat width, and resets on reload or Chann
   await expect(header).toBeVisible()
   await expect(rail).toBeVisible()
   await expect(details).toBeVisible()
-  await expect(footer).toBeVisible()
   await expect(chat).toBeVisible()
 
   await page.getByRole('button', { name: 'Enter theater mode' }).click()
@@ -364,7 +370,6 @@ test('enters theater mode, reallocates chat width, and resets on reload or Chann
   await expect(header).toBeVisible()
   await expect(rail).toBeVisible()
   await expect(details).toBeVisible()
-  await expect(footer).toBeVisible()
   await expect(
     page.getByRole('button', { name: 'Enter theater mode' }),
   ).toBeAttached()
@@ -374,7 +379,6 @@ test('enters theater mode, reallocates chat width, and resets on reload or Chann
   await expect(header).toBeVisible()
   await expect(rail).toBeVisible()
   await expect(details).toBeVisible()
-  await expect(footer).toBeVisible()
   await expect(
     page.getByRole('complementary', { name: 'Chat placeholder' }),
   ).toHaveCount(0)
@@ -694,7 +698,7 @@ test('keeps an offline watch page inside a 320px viewport', async ({ page }) => 
   await expect(page.getByRole('button', { name: 'Share this stream' })).toBeVisible()
   await expect(page.getByRole('button', { name: /playback settings/i })).toHaveCount(0)
   await expect(page.getByLabel('Playback diagnostics')).toHaveCount(0)
-  await expect(page.locator('[data-watch-footer]')).toContainText('v0.6.2')
+  await expect(page.getByRole('contentinfo')).toHaveCount(0)
   const sizes = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,
@@ -702,22 +706,10 @@ test('keeps an offline watch page inside a 320px viewport', async ({ page }) => 
   expect(sizes.scrollWidth).toBeLessThanOrEqual(sizes.clientWidth)
 })
 
-test('places the watch footer below the center Channel details', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 })
+test('does not render a footer on the watch page', async ({ page }) => {
   await page.goto('/watch/alpha')
 
-  const details = page.getByRole('region', { name: 'Channel information' })
-  const footer = page.locator('[data-watch-footer]')
-  const detailsBox = await details.boundingBox()
-  const footerBox = await footer.boundingBox()
-  expect(detailsBox).not.toBeNull()
-  expect(footerBox).not.toBeNull()
-  expect(footerBox!.x).toBeGreaterThanOrEqual(detailsBox!.x)
-  expect(footerBox!.x + footerBox!.width).toBeLessThanOrEqual(
-    detailsBox!.x + detailsBox!.width,
-  )
-  expect(footerBox!.y).toBeGreaterThan(detailsBox!.y + detailsBox!.height)
-  await expect(footer).toContainText('v0.6.2')
+  await expect(page.getByRole('contentinfo')).toHaveCount(0)
 })
 
 test('returns a useful page for unknown channels', async ({ page }) => {
@@ -747,9 +739,14 @@ test('uses a compact full-width header that stays at the top', async ({ page }) 
   await page.goto('/login')
 
   const header = page.getByRole('banner')
-  const brand = page.getByRole('link', { name: 'FrankerzSpam home' })
+  const brand = page.getByRole('link', {
+    name: `FrankerzSpam home, version ${packageJson.version}`,
+  })
   await expect(header).toBeVisible()
   await expect(brand).toBeVisible()
+  await expect(brand.locator('sup')).toHaveText(appVersion)
+  await expect(brand.locator('sup')).toHaveCSS('vertical-align', 'super')
+  await expect(page.getByRole('contentinfo')).toHaveCount(0)
   await expect(page.getByRole('search')).toHaveCount(0)
 
   const beforeScroll = await header.boundingBox()

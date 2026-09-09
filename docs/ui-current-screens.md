@@ -16,13 +16,12 @@ The app is tested down to a 320px viewport.
 
 Every page is wrapped in a shared shell:
 
-- Compact sticky header: the FrankerzSpam brand is on the left. **My channel**
-  appears on the right for a Channel owner. The account menu contains account,
-  statistics, administrator, and sign-out actions when each action applies. On
-  narrow home and watch pages, a menu button on the left opens the Channel
-  drawer.
-- Footer: shows the application version. On watch pages, it stays below the
-  center content column.
+- Compact sticky header: the FrankerzSpam brand and a small superscript
+  application version are on the left. **My channel** appears on the right for
+  a Channel owner. The account menu contains account, statistics,
+  administrator, and sign-out actions when each action applies. On narrow home
+  and watch pages, a menu button on the left opens the Channel drawer.
+- No application footer is rendered.
 - Shared system states: a full-page loading state ("Checking the signal…" with a
   pulsing dot), a branded 404 page ("That channel does not exist." / "No signal"),
   and a generic error page ("The viewer hit a problem." with Try again).
@@ -103,8 +102,7 @@ Structure, top to bottom:
   counters, transport, and a "Copy snapshot" button for bug reports.
 - **Channel details** below the player: live/offline badge and viewer count,
   channel title, description, owner name, "Live playback" tag, codec/track
-  summary, and a share button (native share or copy-link). The application
-  version appears below these details on normal watch pages.
+  summary, and a share button (native share or copy-link).
 - **Normal live chat**: a pinned 340-pixel placeholder on the right side. It
   stays below the header while the center column scrolls, has a disabled
   composer, and can be closed or restored from the header. Closed chat gives
@@ -113,15 +111,14 @@ Structure, top to bottom:
   drawer and chat moves below the player in a collapsed disclosure. The player
   and page remain inside the viewport at 320 pixels.
 - **Offline watch state**: the player keeps its poster and offline message.
-  Channel details, description, Share, and the version footer remain visible.
-  Playback settings, diagnostics, and chat are absent.
+  Channel details, description, and Share remain visible. Playback settings,
+  diagnostics, chat, and a footer are absent.
 - **Theater watch state**: the player control enters a temporary viewport-wide
-  layout. The global header, Channel rail, Channel details, and footer are
-  hidden. Open chat stays on the right and uses the viewport height. Closing
-  chat gives its width to the player, and an in-player Open Chat control
-  restores it. The Exit theater mode control leaves the layout. Theater mode
-  resets after reload or Channel navigation and is not saved in browser
-  storage.
+  layout. The global header, Channel rail, and Channel details are hidden. Open
+  chat stays on the right and uses the viewport height. Closing chat gives its
+  width to the player, and an in-player Open Chat control restores it. The Exit
+  theater mode control leaves the layout. Theater mode resets after reload or
+  Channel navigation and is not saved in browser storage.
 
 ## 3. Sign in — `/login`
 

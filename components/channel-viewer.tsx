@@ -21,7 +21,6 @@ import { useChatPreference } from '@/components/use-chat-preference'
 import { useLiveRailPreference } from '@/components/use-live-rail-preference'
 import { useNarrowWatchLayout } from '@/components/use-narrow-watch-layout'
 import { ViewerCount } from '@/components/viewer-count'
-import { SiteFooter } from '@/components/site-footer'
 import { useChannelEvents } from '@/hooks/use-channel-events'
 import type { PublicChannel } from '@/lib/types'
 
@@ -340,7 +339,6 @@ export function ChannelViewer({
                 />
               )}
             </section>
-            <SiteFooter placement="watch" />
           </div>
           {chatOpen && (
             <ChatPlaceholder

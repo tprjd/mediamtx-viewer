@@ -12,7 +12,7 @@ This plan is not implemented yet.
 - The build will derive `APP_VERSION` from `package.json` for the server and
   client. There is no duplicate version string to keep in sync.
 - `/api/health` will include the version in its JSON response.
-- The site footer will show the version as `v0.6.0`.
+- The site header will show the version as a superscript next to the brand.
 
 Change `package.json` and `package-lock.json` when a release is cut. The build
 derives the runtime version from them.
@@ -76,4 +76,4 @@ The changelog groups changes by the type in the commit message.
 - Start tagging releases with annotated `git tag -a vX.Y.Z` tags.
 - Put the version in `/api/health` so deploy checks can confirm the running
   release.
-- Keep the footer version small and unobtrusive, with no active link.
+- Keep the header version small and unobtrusive, with no active link of its own.

@@ -24,6 +24,16 @@
   text-decoration: none;
 }
 
+.brandVersion {
+  margin-left: 0.15rem;
+  color: var(--muted);
+  font-size: 0.55rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 0;
+  vertical-align: super;
+}
+
 .headerStart {
   display: flex;
   min-width: 0;

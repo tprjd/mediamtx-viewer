@@ -40,7 +40,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   a release.
 - Run lint, tests, and build before tagging.
 - Do not bump the version for docs-only or planning changes.
-- Once implemented, show `APP_VERSION` in the footer and in `/api/health`.
+- Once implemented, show `APP_VERSION` in the header and in `/api/health`.
 
 # Delivery workflow
 

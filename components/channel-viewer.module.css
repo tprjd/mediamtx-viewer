@@ -489,8 +489,7 @@
   aspect-ratio: auto;
 }
 
-.theaterMainColumn .watchDetails,
-.theaterMainColumn :global([data-watch-footer]) {
+.theaterMainColumn .watchDetails {
   display: none;
 }
 

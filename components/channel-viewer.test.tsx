@@ -348,7 +348,7 @@ describe('ChannelViewer', () => {
     expect(screen.queryByLabelText('Playback diagnostics')).toBeNull()
   })
 
-  it('places the version footer below the Channel details', () => {
+  it('does not render a version footer', () => {
     mocks.useChannelEvents.mockReturnValue({
       channels: [{ ...channel, status: offlineStatus }],
       statusDelayed: false,
@@ -356,12 +356,7 @@ describe('ChannelViewer', () => {
 
     render(<ChannelViewer channel={channel} />)
 
-    const details = screen.getByRole('region', { name: 'Channel information' })
-    const footer = screen.getByRole('contentinfo')
-    expect(footer).toHaveTextContent('v0.6.2')
-    expect(details.compareDocumentPosition(footer)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    )
+    expect(screen.queryByRole('contentinfo')).toBeNull()
   })
 
   it('saves a closed chat choice and restores it from the compact header control', () => {
