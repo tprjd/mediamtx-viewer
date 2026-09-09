@@ -154,7 +154,7 @@ export function LivePlayer({ channel, playbackControlsTarget, playbackStatsTarge
     }),
     [channel, viewerId],
   )
-  const playbackModeControls = (
+  const playbackModeControls = channel.status.live ? (
     <PlaybackModeControls
       balancedUnavailable={balancedUnavailable}
       lowLatencyDisabled={lowLatencyDisabled}
@@ -167,18 +167,27 @@ export function LivePlayer({ channel, playbackControlsTarget, playbackStatsTarge
       webrtcAvailable={webrtcAvailable}
       webrtcUnavailableReason={webrtcUnavailableReason}
     />
-  )
+  ) : null
+  const hasExternalControlsTarget = playbackControlsTarget !== undefined
+  const hasExternalStatsTarget = playbackStatsTarget !== undefined
+  const showStats =
+    channel.status.live &&
+    (!hasExternalStatsTarget || playbackStatsTarget !== null)
 
   return (
     <div className="live-player">
-      {playbackControlsTarget
-        ? createPortal(playbackModeControls, playbackControlsTarget)
-        : playbackModeControls}
+      {playbackModeControls &&
+        (hasExternalControlsTarget
+          ? playbackControlsTarget
+            ? createPortal(playbackModeControls, playbackControlsTarget)
+            : null
+          : playbackModeControls)}
 
       {mode === 'webrtc' ? (
         <WebRtcPlayer
           channel={taggedChannel}
           onFallback={handleFallback}
+          showStats={showStats}
           statsTarget={playbackStatsTarget}
         />
       ) : (
@@ -189,6 +198,7 @@ export function LivePlayer({ channel, playbackControlsTarget, playbackStatsTarge
           onUltraLowFailure={handleUltraLowFailure}
           onUltraLowUnavailable={handleUltraLowUnavailable}
           profileExitReason={modeExitReason}
+          showStats={showStats}
           statsTarget={playbackStatsTarget}
         />
       )}

@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LivePlayer } from '@/components/live-player'
@@ -111,6 +112,56 @@ describe('LivePlayer playback mode', () => {
     expect(window.sessionStorage.getItem('mediamtx-viewer:playback-mode')).toBe(
       'webrtc',
     )
+  })
+
+  it('keeps the selected mode when the external controls target remounts', () => {
+    function ControlsTargetHarness() {
+      const [open, setOpen] = useState(true)
+      const [target, setTarget] = useState<HTMLDivElement | null>(null)
+
+      return (
+        <>
+          <button onClick={() => setOpen((value) => !value)} type="button">
+            Toggle settings
+          </button>
+          {open && <div data-testid="controls-target" ref={setTarget} />}
+          <LivePlayer channel={channel} playbackControlsTarget={target} />
+        </>
+      )
+    }
+
+    render(<ControlsTargetHarness />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Smooth' }))
+    expect(screen.getByRole('button', { name: 'Smooth' })).toBePressed()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle settings' }))
+    expect(screen.queryByRole('button', { name: 'Smooth' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle settings' }))
+    expect(screen.getByRole('button', { name: 'Smooth' })).toBePressed()
+  })
+
+  it('hides playback mode controls while the Channel is offline', () => {
+    render(
+      <LivePlayer
+        channel={{
+          ...channel,
+          status: {
+            ...channel.status,
+            live: false,
+            state: 'offline',
+            startedAt: null,
+            tracks: [],
+            viewerCount: 0,
+          },
+        }}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Balanced' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Smooth' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Low latency' })).toBeNull()
   })
 
   it('tags every transport with one viewer identity across mode changes', () => {

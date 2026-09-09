@@ -11,6 +11,12 @@
   font-size: 0.72rem;
 }
 
+.watchFooter {
+  width: 100%;
+  margin-top: 2rem;
+  padding-block: 1rem 2rem;
+}
+
 .siteFooter::before {
   position: absolute;
   top: 0;

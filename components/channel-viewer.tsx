@@ -1,7 +1,7 @@
 'use client'
 
 import * as Collapsible from '@radix-ui/react-collapsible'
-import { Clock3, MessageSquare, UserRound, X } from 'lucide-react'
+import { ChevronDown, Clock3, MessageSquare, Settings2, UserRound, X } from 'lucide-react'
 import { useId, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import styles from './channel-viewer.module.css'
@@ -14,6 +14,7 @@ import { useChatPreference } from '@/components/use-chat-preference'
 import { useLiveRailPreference } from '@/components/use-live-rail-preference'
 import { useNarrowWatchLayout } from '@/components/use-narrow-watch-layout'
 import { ViewerCount } from '@/components/viewer-count'
+import { SiteFooter } from '@/components/site-footer'
 import { useChannelEvents } from '@/hooks/use-channel-events'
 import type { PublicChannel } from '@/lib/types'
 
@@ -26,6 +27,12 @@ interface ChannelViewerProps {
 interface ChatPlaceholderProps {
   narrowLayout: boolean
   onClose: () => void
+}
+
+interface PlaybackSettingsProps {
+  controlsTarget: (target: HTMLDivElement | null) => void
+  statsTarget: (target: HTMLDivElement | null) => void
+  tracks: readonly string[]
 }
 
 function noopSubscribe(): () => void {
@@ -115,6 +122,62 @@ function ChatPlaceholder({ narrowLayout, onClose }: ChatPlaceholderProps) {
   )
 }
 
+function PlaybackSettings({
+  controlsTarget,
+  statsTarget,
+  tracks,
+}: PlaybackSettingsProps) {
+  const [open, setOpen] = useState(false)
+  const contentId = useId()
+
+  return (
+    <Collapsible.Root
+      className={styles.playbackSettings}
+      open={open}
+      onOpenChange={setOpen}
+    >
+      <div className={styles.playbackSettingsHeader}>
+        <div className={styles.playbackSettingsLabel}>
+          <Settings2 aria-hidden="true" />
+          <div>
+            <strong>Playback settings</strong>
+            <span>Modes, tracks, and live diagnostics</span>
+          </div>
+        </div>
+        <Collapsible.Trigger asChild>
+          <button
+            aria-controls={contentId}
+            className={styles.playbackSettingsTrigger}
+            type="button"
+          >
+            <span>
+              {open ? 'Hide playback settings' : 'Show playback settings'}
+            </span>
+            <ChevronDown aria-hidden="true" />
+          </button>
+        </Collapsible.Trigger>
+      </div>
+      <Collapsible.Content
+        className={styles.playbackSettingsContent}
+        id={contentId}
+      >
+        <div ref={controlsTarget} className={styles.playbackControlsTarget} />
+        <div
+          aria-label="Live playback metadata"
+          className={styles.watchMetadata}
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <Clock3 className="size-3.5" aria-hidden="true" />
+            Live playback
+          </span>
+          {tracks.length > 0 && <span>{tracks.join(' · ')}</span>}
+        </div>
+        <div ref={statsTarget} className={styles.playbackStatsTarget} />
+      </Collapsible.Content>
+    </Collapsible.Root>
+  )
+}
+
 export function ChannelViewer({
   channel,
   channels = [channel],
@@ -140,7 +203,7 @@ export function ChannelViewer({
       {status.live && !chatOpen && (
         <ChatRestoreControl onOpen={() => setChatPreference('open')} />
       )}
-      <main className={styles.watchLayout}>
+      <main className={styles.watchLayout} data-watch-page>
         <div
           className={`${styles.watchColumns}${chatOpen ? '' : ` ${styles.withoutChat}`}${railCollapsed ? ` ${styles.railCollapsed}` : ''}`}
         >
@@ -161,41 +224,34 @@ export function ChannelViewer({
               className={styles.watchDetails}
               aria-label="Channel information"
             >
-              <div className={styles.watchInfoRow}>
-                <StatusBadge state={status.state} />
-                <ViewerCount count={status.viewerCount} live={status.live} />
-                <h1>{currentChannel.title}</h1>
-                <span className={styles.channelOwner}>
-                  <UserRound className="size-3.5" aria-hidden="true" />
-                  {currentChannel.ownerName}
-                </span>
+              <div className={styles.watchIdentity}>
+                <div className={styles.watchTitleRow}>
+                  <h1>{currentChannel.title}</h1>
+                  <ShareButton title={currentChannel.title} />
+                </div>
+                <div className={styles.watchInfoRow}>
+                  <StatusBadge state={status.state} />
+                  <ViewerCount count={status.viewerCount} live={status.live} />
+                  <span className={styles.channelOwner}>
+                    <UserRound className="size-3.5" aria-hidden="true" />
+                    {currentChannel.ownerName}
+                  </span>
+                </div>
               </div>
               {currentChannel.description && (
                 <p className={styles.watchDescription}>
                   {currentChannel.description}
                 </p>
               )}
-              <div className={styles.watchPlaybackRow}>
-                <div
-                  ref={setPlaybackControlsTarget}
-                  className={styles.playbackControlsTarget}
+              {status.live && (
+                <PlaybackSettings
+                  controlsTarget={setPlaybackControlsTarget}
+                  statsTarget={setPlaybackStatsTarget}
+                  tracks={status.tracks}
                 />
-                <ShareButton title={currentChannel.title} />
-                <div
-                  ref={setPlaybackStatsTarget}
-                  className={styles.playbackStatsTarget}
-                />
-              </div>
-              <div className={styles.watchMetadata}>
-                <span className="inline-flex items-center gap-1.5">
-                  <Clock3 className="size-3.5" aria-hidden="true" />
-                  Live playback
-                </span>
-                {status.tracks.length > 0 && (
-                  <span>{status.tracks.join(' · ')}</span>
-                )}
-              </div>
+              )}
             </section>
+            <SiteFooter placement="watch" />
           </div>
           {chatOpen && (
             <ChatPlaceholder

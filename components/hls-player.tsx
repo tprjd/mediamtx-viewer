@@ -44,6 +44,7 @@ interface HlsPlayerProps {
   onUltraLowFailure?: (reason: string) => void
   onUltraLowUnavailable?: (reason?: string) => void
   profileExitReason?: string
+  showStats?: boolean
   statsTarget?: HTMLElement | null
 }
 
@@ -180,6 +181,7 @@ export function HlsPlayer({
   onUltraLowFailure,
   onUltraLowUnavailable,
   profileExitReason,
+  showStats = true,
   statsTarget,
 }: HlsPlayerProps) {
   const recoveryRef = useRef({ attempts: 0 })
@@ -926,26 +928,27 @@ export function HlsPlayer({
         </VidstackPlayer>
       </div>
 
-      {statsTarget
-        ? createPortal(
+      {showStats &&
+        (statsTarget
+          ? createPortal(
+              <PlaybackStats
+                hlsDiagnostics={hlsDiagnostics}
+                playing={visibleState === 'playing'}
+                protocol="HLS"
+                tracks={status.tracks}
+                videoRef={videoRef}
+              />,
+              statsTarget,
+            )
+          : (
             <PlaybackStats
               hlsDiagnostics={hlsDiagnostics}
               playing={visibleState === 'playing'}
               protocol="HLS"
               tracks={status.tracks}
               videoRef={videoRef}
-            />,
-            statsTarget,
-          )
-        : (
-          <PlaybackStats
-            hlsDiagnostics={hlsDiagnostics}
-            playing={visibleState === 'playing'}
-            protocol="HLS"
-            tracks={status.tracks}
-            videoRef={videoRef}
-          />
-        )}
+            />
+          ))}
     </div>
   )
 }

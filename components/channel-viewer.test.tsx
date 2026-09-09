@@ -1,4 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChannelViewer } from '@/components/channel-viewer'
@@ -14,17 +16,64 @@ vi.mock('@/hooks/use-channel-events', () => ({
 }))
 
 vi.mock('@/components/live-player', () => ({
-  LivePlayer: ({ channel }: { channel: PublicChannel }) => (
-    <div
-      data-poster={channel.poster ?? ''}
-      data-status={channel.status.state}
-      data-testid="live-player"
-    />
-  ),
+  LivePlayer: ({
+    channel,
+    playbackControlsTarget,
+    playbackStatsTarget,
+  }: {
+    channel: PublicChannel
+    playbackControlsTarget?: HTMLElement | null
+    playbackStatsTarget?: HTMLElement | null
+  }) => {
+    const [mode, setMode] = useState<'balanced' | 'smooth'>('balanced')
+
+    return (
+      <>
+        <div
+          data-poster={channel.poster ?? ''}
+          data-status={channel.status.state}
+          data-testid="live-player"
+        />
+        {channel.status.live && playbackControlsTarget
+          ? createPortal(
+              <>
+                <button
+                  aria-pressed={mode === 'balanced'}
+                  onClick={() => setMode('balanced')}
+                  type="button"
+                >
+                  Balanced
+                </button>
+                <button
+                  aria-pressed={mode === 'smooth'}
+                  onClick={() => setMode('smooth')}
+                  type="button"
+                >
+                  Smooth
+                </button>
+              </>,
+              playbackControlsTarget,
+            )
+          : null}
+        {channel.status.live && playbackStatsTarget
+          ? createPortal(
+              <div aria-label="Playback diagnostics">
+                <span>Live latency</span>
+              </div>,
+              playbackStatsTarget,
+            )
+          : null}
+      </>
+    )
+  },
 }))
 
 vi.mock('@/components/share-button', () => ({
-  ShareButton: () => null,
+  ShareButton: () => (
+    <button aria-label="Share this stream" type="button">
+      Share
+    </button>
+  ),
 }))
 
 const liveStatus: ChannelStatus = {
@@ -177,6 +226,63 @@ describe('ChannelViewer', () => {
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeDisabled()
   })
 
+  it('keeps common details visible and puts live playback tools in settings', () => {
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [{ ...channel, status: liveStatus }],
+      statusDelayed: false,
+    })
+
+    render(<ChannelViewer channel={channel} />)
+
+    const details = screen.getByRole('region', { name: 'Channel information' })
+    expect(within(details).getByRole('heading', { name: channel.title })).toBeInTheDocument()
+    expect(within(details).getByText(channel.ownerName)).toBeInTheDocument()
+    expect(within(details).getByLabelText('2 viewers')).toBeInTheDocument()
+    expect(
+      within(details).getByRole('button', { name: 'Share this stream' }),
+    ).toBeInTheDocument()
+
+    const settings = screen.getByRole('button', {
+      name: 'Show playback settings',
+    })
+    expect(settings).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: 'Balanced' })).toBeNull()
+    expect(screen.queryByLabelText('Playback diagnostics')).toBeNull()
+
+    fireEvent.click(settings)
+
+    expect(
+      screen.getByRole('button', { name: 'Hide playback settings' }),
+    ).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Balanced' })).toBeVisible()
+    expect(screen.getByLabelText('Playback diagnostics')).toBeVisible()
+    expect(screen.getByText('Opus · AV1')).toBeVisible()
+  })
+
+  it('keeps the selected playback mode when settings closes and reopens', () => {
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [{ ...channel, status: liveStatus }],
+      statusDelayed: false,
+    })
+
+    render(<ChannelViewer channel={channel} />)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show playback settings' }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Smooth' }))
+    expect(screen.getByRole('button', { name: 'Smooth' })).toBePressed()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Hide playback settings' }),
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show playback settings' }),
+    )
+
+    expect(screen.getByRole('button', { name: 'Smooth' })).toBePressed()
+  })
+
   it('hides the chat placeholder when the channel is offline', () => {
     mocks.useChannelEvents.mockReturnValue({
       channels: [{ ...channel, status: offlineStatus }],
@@ -191,6 +297,13 @@ describe('ChannelViewer', () => {
         'Offline',
       ),
     ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Share this stream' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Show playback settings' }),
+    ).toBeNull()
+    expect(screen.queryByLabelText('Playback diagnostics')).toBeNull()
   })
 
   it('hides the chat placeholder when the Channel is unavailable', () => {
@@ -203,6 +316,26 @@ describe('ChannelViewer', () => {
 
     expect(screen.queryByRole('complementary', { name: 'Chat placeholder' })).toBeNull()
     expect(screen.getByText('Unavailable')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Show playback settings' }),
+    ).toBeNull()
+    expect(screen.queryByLabelText('Playback diagnostics')).toBeNull()
+  })
+
+  it('places the version footer below the Channel details', () => {
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [{ ...channel, status: offlineStatus }],
+      statusDelayed: false,
+    })
+
+    render(<ChannelViewer channel={channel} />)
+
+    const details = screen.getByRole('region', { name: 'Channel information' })
+    const footer = screen.getByRole('contentinfo')
+    expect(footer).toHaveTextContent('v0.6.2')
+    expect(details.compareDocumentPosition(footer)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
   })
 
   it('saves a closed chat choice and restores it from the compact header control', () => {

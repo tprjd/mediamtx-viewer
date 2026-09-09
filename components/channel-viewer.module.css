@@ -28,27 +28,31 @@
 
 .watchPlayerWrap {
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 1.35rem;
   background: #000;
-  box-shadow: 0 30px 120px rgba(0, 0, 0, 0.45);
 }
 
 .watchDetails {
-  padding: 1rem 0.25rem 0;
+  padding: 1rem 0.75rem 0;
 }
 
-.watchInfoRow,
-.watchPlaybackRow {
+.watchIdentity {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.watchTitleRow,
+.watchInfoRow {
   display: flex;
   align-items: center;
   gap: 0.65rem;
   min-width: 0;
 }
 
-.watchInfoRow h1 {
+.watchTitleRow h1 {
   min-width: 0;
-  margin: 0 0 0 0.35rem;
+  flex: 1;
+  margin: 0;
   overflow: hidden;
   color: white;
   font-size: clamp(1rem, 2vw, 1.35rem);
@@ -76,19 +80,117 @@
   line-height: 1.55;
 }
 
-.watchPlaybackRow {
-  align-items: stretch;
-  margin-top: 0.85rem;
+.playbackSettings {
+  margin-top: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.playbackSettingsHeader {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0.85rem;
+}
+
+.playbackSettingsLabel {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.playbackSettingsLabel > svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  color: var(--accent-soft);
+}
+
+.playbackSettingsLabel > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.18rem;
+}
+
+.playbackSettingsLabel strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playbackSettingsLabel span {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playbackSettingsTrigger {
+  display: inline-flex;
+  flex: none;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.playbackSettingsTrigger:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+}
+
+.playbackSettingsTrigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.playbackSettingsTrigger svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  transition: transform 160ms ease;
+}
+
+.playbackSettings[data-state='open'] .playbackSettingsTrigger svg {
+  transform: rotate(180deg);
+}
+
+.playbackSettingsContent {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.playbackSettingsContent[hidden] {
+  display: none;
+}
+
+.playbackSettingsContent[data-state='closed'] {
+  display: none;
 }
 
 .playbackControlsTarget {
   min-width: 0;
-  flex: 1;
 }
 
 .playbackStatsTarget {
   min-width: 0;
-  flex: 1.4;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 0.65rem;
@@ -98,9 +200,23 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
-  margin-top: 0.75rem;
+  margin: 0;
   color: var(--text-faint);
   font-size: 0.7rem;
+}
+
+.watchMetadata span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Keep the normal watch details readable when a very long title is supplied. */
+.watchTitleRow > :global(button) {
+  flex: none;
+}
+
+.watchInfoRow {
+  flex-wrap: wrap;
 }
 
 .chatPlaceholder {
@@ -267,12 +383,11 @@
   }
 
   .watchPlayerWrap {
-    border-inline: 0;
-    border-radius: 0;
+    border: 0;
   }
 
   .watchDetails {
-    padding: 1.5rem 1rem 0;
+    padding: 1rem 0.75rem 0;
   }
 
   .chatPlaceholder {
@@ -295,22 +410,21 @@
     min-height: 20rem;
   }
 
-  .watchInfoRow {
-    flex-wrap: wrap;
+  .playbackSettingsHeader {
+    align-items: flex-start;
+    gap: 0.5rem;
   }
 
-  .watchInfoRow h1 {
-    order: 3;
-    flex-basis: 100%;
-    margin-left: 0;
+  .playbackSettingsLabel span {
+    white-space: normal;
   }
 
-  .watchPlaybackRow {
-    align-items: stretch;
-    flex-direction: column;
+  .playbackSettingsTrigger {
+    min-height: 1.9rem;
+    padding-inline: 0.35rem;
   }
 
-  .playbackStatsTarget {
-    flex: none;
+  .playbackSettingsContent {
+    padding: 0.5rem;
   }
 }

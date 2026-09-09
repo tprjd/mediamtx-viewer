@@ -186,10 +186,40 @@ test('opens a stable watch URL', async ({ page }) => {
   ).toBeAttached()
   await expect(player.getByRole('button', { name: 'Live' })).toBeAttached()
   await expect(player.locator('video[controls]')).toHaveCount(0)
+  const settings = page.getByRole('button', {
+    name: 'Show playback settings',
+  })
+  await expect(settings).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Balanced' })).toHaveCount(0)
+
+  await settings.click()
+  await expect(
+    page.getByRole('button', { name: 'Hide playback settings' }),
+  ).toBeVisible()
   await expect(page.getByRole('button', { name: /Low \(best-possible\)/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Balanced' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Smooth' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Low latency' })).toBeVisible()
+})
+
+test('keeps the selected playback mode when settings closes and reopens', async ({
+  page,
+}) => {
+  await page.goto('/watch/live')
+
+  await page.getByRole('button', { name: 'Show playback settings' }).click()
+  const smooth = page.getByRole('button', { name: 'Smooth' })
+  await smooth.click()
+  await expect(smooth).toHaveAttribute('aria-pressed', 'true')
+
+  await page.getByRole('button', { name: 'Hide playback settings' }).click()
+  await expect(page.getByRole('button', { name: 'Show playback settings' })).toBeVisible()
+  await page.getByRole('button', { name: 'Show playback settings' }).click()
+
+  await expect(page.getByRole('button', { name: 'Smooth' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
 })
 
 test('pins live chat to the right edge while the center column scrolls', async ({
@@ -438,6 +468,18 @@ test('matches the narrow normal watch state', async ({ page }, testInfo) => {
   })
 })
 
+test('matches the offline watch state', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Offline watch uses the Chromium baseline.')
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/watch/alpha')
+  await expect(page.getByText('Stream offline')).toBeVisible()
+
+  await expect(page.getByRole('main')).toHaveScreenshot('offline-watch.png', {
+    mask: [page.locator('video')],
+    stylePath: 'tests/e2e/screenshot.css',
+  })
+})
+
 test('hides fullscreen controls, protocol badge, and cursor when idle', async ({
   page,
 }) => {
@@ -474,6 +516,7 @@ test('keeps all playback modes usable at 320px', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 760 })
   await page.goto('/watch/live')
 
+  await page.getByRole('button', { name: 'Show playback settings' }).click()
   await expect(page.getByRole('button', { name: /Low \(best-possible\)/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Balanced' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Smooth' })).toBeVisible()
@@ -482,9 +525,9 @@ test('keeps all playback modes usable at 320px', async ({ page }) => {
     page.getByRole('complementary', { name: 'Channels' }),
   ).toBeHidden()
   await expect(
-    page
-      .getByRole('button', { name: 'Show playback diagnostics' })
-      .getByText('Live latency'),
+    page.getByRole('button', { name: 'Show playback diagnostics' }).getByText(
+      'Live latency',
+    ),
   ).toBeVisible()
   await page.getByRole('button', { name: 'Show playback diagnostics' }).click()
   await expect(
@@ -504,11 +547,34 @@ test('keeps an offline watch page inside a 320px viewport', async ({ page }) => 
   await expect(
     page.getByRole('button', { name: 'Open Channel drawer' }),
   ).toBeVisible()
+  await expect(page.getByText('Stream offline')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Share this stream' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /playback settings/i })).toHaveCount(0)
+  await expect(page.getByLabel('Playback diagnostics')).toHaveCount(0)
+  await expect(page.locator('[data-watch-footer]')).toContainText('v0.6.2')
   const sizes = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,
   }))
   expect(sizes.scrollWidth).toBeLessThanOrEqual(sizes.clientWidth)
+})
+
+test('places the watch footer below the center Channel details', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/watch/alpha')
+
+  const details = page.getByRole('region', { name: 'Channel information' })
+  const footer = page.locator('[data-watch-footer]')
+  const detailsBox = await details.boundingBox()
+  const footerBox = await footer.boundingBox()
+  expect(detailsBox).not.toBeNull()
+  expect(footerBox).not.toBeNull()
+  expect(footerBox!.x).toBeGreaterThanOrEqual(detailsBox!.x)
+  expect(footerBox!.x + footerBox!.width).toBeLessThanOrEqual(
+    detailsBox!.x + detailsBox!.width,
+  )
+  expect(footerBox!.y).toBeGreaterThan(detailsBox!.y + detailsBox!.height)
+  await expect(footer).toContainText('v0.6.2')
 })
 
 test('returns a useful page for unknown channels', async ({ page }) => {

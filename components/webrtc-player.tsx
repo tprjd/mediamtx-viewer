@@ -91,10 +91,16 @@ function loadReader(): Promise<MediaMtxReaderConstructor> {
 interface WebRtcPlayerProps {
   channel: PublicChannel
   onFallback: () => void
+  showStats?: boolean
   statsTarget?: HTMLElement | null
 }
 
-export function WebRtcPlayer({ channel, onFallback, statsTarget }: WebRtcPlayerProps) {
+export function WebRtcPlayer({
+  channel,
+  onFallback,
+  showStats = true,
+  statsTarget,
+}: WebRtcPlayerProps) {
   const fallbackRef = useRef(onFallback)
   const sourceHasAudioRef = useRef(false)
   const sourceHasVideoRef = useRef(false)
@@ -605,26 +611,27 @@ export function WebRtcPlayer({ channel, onFallback, statsTarget }: WebRtcPlayerP
         </VidstackPlayer>
       </div>
 
-      {statsTarget
-        ? createPortal(
+      {showStats &&
+        (statsTarget
+          ? createPortal(
+              <PlaybackStats
+                peerConnection={peerConnection}
+                playing={playing}
+                protocol="WebRTC"
+                tracks={status.tracks}
+                videoRef={videoRef}
+              />,
+              statsTarget,
+            )
+          : (
             <PlaybackStats
               peerConnection={peerConnection}
               playing={playing}
               protocol="WebRTC"
               tracks={status.tracks}
               videoRef={videoRef}
-            />,
-            statsTarget,
-          )
-        : (
-          <PlaybackStats
-            peerConnection={peerConnection}
-            playing={playing}
-            protocol="WebRTC"
-            tracks={status.tracks}
-            videoRef={videoRef}
-          />
-        )}
+            />
+          ))}
     </div>
   )
 }
