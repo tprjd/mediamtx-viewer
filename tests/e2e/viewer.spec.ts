@@ -297,6 +297,132 @@ test('closes and restores chat without leaving an empty player column', async ({
   ).toBeVisible()
 })
 
+test('enters theater mode, reallocates chat width, and resets on reload or Channel navigation', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/watch/live')
+
+  const main = page.getByRole('main')
+  const header = page.getByRole('banner')
+  const rail = page.getByRole('complementary', { name: 'Channels' })
+  const details = page.getByRole('region', { name: 'Channel information' })
+  const footer = page.locator('[data-watch-footer]')
+  const player = page.getByLabel('Live stream live video')
+  const chat = page.getByRole('complementary', { name: 'Chat placeholder' })
+
+  await page.getByRole('button', { name: 'Collapse Channel rail' }).click()
+  await expect(rail).toHaveAttribute('data-rail-state', 'collapsed')
+
+  const theaterEntry = player.getByRole('button', {
+    name: 'Enter theater mode',
+  })
+  await theaterEntry.click()
+
+  await expect(header).toBeHidden()
+  await expect(rail).toBeHidden()
+  await expect(details).toBeHidden()
+  await expect(footer).toBeHidden()
+  await expect(chat).toBeVisible()
+  await expect(player.getByRole('button', { name: 'Exit theater mode' })).toBeAttached()
+
+  const theaterPlayerBox = await player.boundingBox()
+  const theaterChatBox = await chat.boundingBox()
+  const theaterMainBox = await main.boundingBox()
+  expect(theaterPlayerBox).not.toBeNull()
+  expect(theaterChatBox).not.toBeNull()
+  expect(theaterMainBox).not.toBeNull()
+  expect(theaterMainBox!.x).toBe(0)
+  expect(theaterMainBox!.y).toBe(0)
+  expect(theaterMainBox!.width).toBe(1440)
+  expect(theaterMainBox!.height).toBe(900)
+  expect(theaterChatBox!.x + theaterChatBox!.width).toBe(1440)
+  expect(theaterChatBox!.y).toBe(0)
+  expect(theaterChatBox!.height).toBe(900)
+  expect(theaterPlayerBox!.width + theaterChatBox!.width).toBe(1440)
+
+  await page.getByRole('button', { name: 'Close Chat' }).click()
+  await expect(chat).toHaveCount(0)
+  const closedPlayerBox = await player.boundingBox()
+  expect(closedPlayerBox).not.toBeNull()
+  expect(closedPlayerBox!.width).toBe(1440)
+  const theaterChatRestore = page.locator('[data-theater-chat-restore]')
+  await expect(theaterChatRestore).toBeVisible()
+  await theaterChatRestore.click()
+  await expect(chat).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Close Chat' })).toBeFocused()
+
+  await page.getByRole('button', { name: 'Exit theater mode' }).click()
+  await expect(header).toBeVisible()
+  await expect(rail).toBeVisible()
+  await expect(details).toBeVisible()
+  await expect(footer).toBeVisible()
+  await expect(chat).toBeVisible()
+
+  await page.getByRole('button', { name: 'Enter theater mode' }).click()
+  await page.reload()
+  await expect(header).toBeVisible()
+  await expect(rail).toBeVisible()
+  await expect(details).toBeVisible()
+  await expect(footer).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Enter theater mode' }),
+  ).toBeAttached()
+
+  await page.getByRole('button', { name: 'Enter theater mode' }).click()
+  await page.goto('/watch/alpha')
+  await expect(header).toBeVisible()
+  await expect(rail).toBeVisible()
+  await expect(details).toBeVisible()
+  await expect(footer).toBeVisible()
+  await expect(
+    page.getByRole('complementary', { name: 'Chat placeholder' }),
+  ).toHaveCount(0)
+})
+
+test('keeps theater mode inside a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 760 })
+  await page.goto('/watch/live')
+
+  await page.getByRole('button', { name: 'Enter theater mode' }).click()
+  await expect(page.getByRole('banner')).toBeHidden()
+  await expect(
+    page.getByRole('complementary', { name: 'Chat placeholder' }),
+  ).toBeVisible()
+
+  const sizes = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    clientHeight: document.documentElement.clientHeight,
+    scrollHeight: document.documentElement.scrollHeight,
+  }))
+  expect(sizes.scrollWidth).toBeLessThanOrEqual(sizes.clientWidth)
+  expect(sizes.scrollHeight).toBeLessThanOrEqual(sizes.clientHeight)
+
+  const chat = page.getByRole('complementary', { name: 'Chat placeholder' })
+  const player = page.getByLabel('Live stream live video')
+  const chatBox = await chat.boundingBox()
+  const playerBox = await player.boundingBox()
+  expect(chatBox).not.toBeNull()
+  expect(playerBox).not.toBeNull()
+  expect(chatBox!.x + chatBox!.width).toBe(320)
+  expect(playerBox!.width + chatBox!.width).toBe(320)
+
+  await page.getByRole('button', { name: 'Exit theater mode' }).click()
+  const drawerTrigger = page.getByRole('button', {
+    name: 'Open Channel drawer',
+  })
+  await expect(drawerTrigger).toBeVisible()
+  await drawerTrigger.click()
+  const drawer = page.getByRole('dialog', { name: 'Channels' })
+  await expect(drawer).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(drawer).toBeHidden()
+  await expect(
+    page.getByRole('button', { name: 'Enter theater mode' }),
+  ).toBeVisible()
+})
+
 test('moves live chat below the player at the narrow content breakpoint', async ({
   page,
 }) => {
@@ -464,6 +590,23 @@ test('matches the narrow normal watch state', async ({ page }, testInfo) => {
 
   await expect(page.getByRole('main')).toHaveScreenshot('narrow-watch.png', {
     mask: [page.locator('video')],
+    stylePath: 'tests/e2e/screenshot.css',
+  })
+})
+
+test('matches open and closed theater watch states', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Theater watch uses the Chromium baseline.')
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/watch/live')
+
+  const main = page.getByRole('main')
+  await page.getByRole('button', { name: 'Enter theater mode' }).click()
+  await expect(main).toHaveScreenshot('theater-watch-open.png', {
+    stylePath: 'tests/e2e/screenshot.css',
+  })
+
+  await page.getByRole('button', { name: 'Close Chat' }).click()
+  await expect(main).toHaveScreenshot('theater-watch-closed.png', {
     stylePath: 'tests/e2e/screenshot.css',
   })
 })

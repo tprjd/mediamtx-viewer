@@ -222,4 +222,34 @@ describe('VidstackPlayer', () => {
       keyTarget: 'document',
     })
   })
+
+  it('provides a theater-mode control without changing fullscreen behavior', () => {
+    const onTheaterModeChange = vi.fn()
+    const { rerender } = render(
+      <VidstackPlayer
+        ariaLabel="Live channel video"
+        onTheaterModeChange={onTheaterModeChange}
+      />,
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Enter theater mode' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Enter fullscreen' }),
+    ).toBeInTheDocument()
+
+    screen.getByRole('button', { name: 'Enter theater mode' }).click()
+    expect(onTheaterModeChange).toHaveBeenLastCalledWith(true)
+
+    rerender(
+      <VidstackPlayer
+        ariaLabel="Live channel video"
+        onTheaterModeChange={onTheaterModeChange}
+        theaterMode
+      />,
+    )
+    screen.getByRole('button', { name: 'Exit theater mode' }).click()
+    expect(onTheaterModeChange).toHaveBeenLastCalledWith(false)
+  })
 })

@@ -12,10 +12,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { usePlaybackMode } from '@/components/use-playback-mode'
 import { WebRtcPlayer } from '@/components/webrtc-player'
+import type { PlayerTheaterProps } from '@/components/vidstack-player'
 import { hlsPlaybackContract } from '@/lib/streaming-contract'
 import type { PublicChannel } from '@/lib/types'
 
-interface LivePlayerProps {
+interface LivePlayerProps extends PlayerTheaterProps {
   channel: PublicChannel
   playbackControlsTarget?: HTMLElement | null
   playbackStatsTarget?: HTMLElement | null
@@ -117,7 +118,17 @@ export function PlaybackModeControls({
   )
 }
 
-export function LivePlayer({ channel, playbackControlsTarget, playbackStatsTarget, viewerId }: LivePlayerProps) {
+export function LivePlayer({
+  channel,
+  chatOpen,
+  onOpenChat,
+  onTheaterModeChange,
+  playbackControlsTarget,
+  playbackStatsTarget,
+  theaterChatRestoreRef,
+  theaterMode,
+  viewerId,
+}: LivePlayerProps) {
   const playback = usePlaybackMode({
     live: channel.status.live,
     preferredPlayback: channel.preferredPlayback,
@@ -186,13 +197,19 @@ export function LivePlayer({ channel, playbackControlsTarget, playbackStatsTarge
       {mode === 'webrtc' ? (
         <WebRtcPlayer
           channel={taggedChannel}
+          chatOpen={chatOpen}
           onFallback={handleFallback}
+          onOpenChat={onOpenChat}
+          onTheaterModeChange={onTheaterModeChange}
           showStats={showStats}
           statsTarget={playbackStatsTarget}
+          theaterChatRestoreRef={theaterChatRestoreRef}
+          theaterMode={theaterMode}
         />
       ) : (
         <HlsPlayer
           channel={taggedChannel}
+          chatOpen={chatOpen}
           latencyProfile={mode}
           onBalancedUnavailable={handleBalancedUnavailable}
           onUltraLowFailure={handleUltraLowFailure}
@@ -200,6 +217,10 @@ export function LivePlayer({ channel, playbackControlsTarget, playbackStatsTarge
           profileExitReason={modeExitReason}
           showStats={showStats}
           statsTarget={playbackStatsTarget}
+          onOpenChat={onOpenChat}
+          onTheaterModeChange={onTheaterModeChange}
+          theaterChatRestoreRef={theaterChatRestoreRef}
+          theaterMode={theaterMode}
         />
       )}
     </div>

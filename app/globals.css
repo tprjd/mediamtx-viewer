@@ -22,6 +22,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+body[data-theater-mode='true'] [data-site-header] {
+  display: none;
+}
+
 button,
 a {
   -webkit-tap-highlight-color: transparent;

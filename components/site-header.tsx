@@ -25,7 +25,7 @@ async function AccountNavigation() {
 
 export function SiteHeader() {
   return (
-    <header className={styles.siteHeader}>
+    <header className={styles.siteHeader} data-site-header>
       <div className={styles.headerStart}>
         <div
           className={styles.channelDrawerTarget}

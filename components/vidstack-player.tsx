@@ -24,12 +24,15 @@ import {
 } from '@vidstack/react'
 import Hls, { type HlsConfig } from 'hls.js'
 import {
+  Expand,
   Maximize,
+  MessageSquare,
   Minimize,
   Pause,
   PictureInPicture,
   Play,
   Radio,
+  Shrink,
   Volume2,
   VolumeX,
 } from 'lucide-react'
@@ -37,7 +40,15 @@ import { type ReactNode, useCallback, useEffect, useRef } from 'react'
 
 export type VidstackProviderKind = 'hls' | 'native' | null
 
-interface VidstackPlayerProps {
+export interface PlayerTheaterProps {
+  chatOpen?: boolean
+  onOpenChat?: () => void
+  onTheaterModeChange?: (theaterMode: boolean) => void
+  theaterChatRestoreRef?: (element: HTMLButtonElement | null) => void
+  theaterMode?: boolean
+}
+
+interface VidstackPlayerProps extends PlayerTheaterProps {
   ariaLabel: string
   children?: ReactNode
   hlsConfig?: Partial<HlsConfig>
@@ -68,13 +79,23 @@ function PlayerPoster({ poster }: { poster?: string | null }) {
   return <Poster alt="" className={`${styles.mediaPoster}`} />
 }
 
-function PlayerControls({ seekableLive }: { seekableLive: boolean }) {
+function PlayerControls({
+  onTheaterModeChange,
+  seekableLive,
+  theaterMode = false,
+}: Pick<PlayerTheaterProps, 'onTheaterModeChange' | 'theaterMode'> & {
+  seekableLive: boolean
+}) {
   const fullscreen = useMediaState('fullscreen')
   const muted = useMediaState('muted')
   const paused = useMediaState('paused')
 
   return (
-    <Controls.Root className={`${styles.mediaControls}`} hideDelay={2_000}>
+    <Controls.Root
+      className={`${styles.mediaControls}`}
+      data-player-controls="true"
+      hideDelay={2_000}
+    >
       <Controls.Group className={`${styles.mediaControlsGroup}`}>
         <PlayButton
           aria-label={paused ? 'Play video' : 'Pause video'}
@@ -117,6 +138,22 @@ function PlayerControls({ seekableLive }: { seekableLive: boolean }) {
           </span>
         )}
 
+        {onTheaterModeChange && (
+          <button
+            aria-label={theaterMode ? 'Exit theater mode' : 'Enter theater mode'}
+            className={`${styles.mediaControlButton}`}
+            onClick={() => onTheaterModeChange(!theaterMode)}
+            title={theaterMode ? 'Exit theater mode' : 'Theater mode'}
+            type="button"
+          >
+            {theaterMode ? (
+              <Shrink aria-hidden="true" />
+            ) : (
+              <Expand aria-hidden="true" />
+            )}
+          </button>
+        )}
+
         <PIPButton
           aria-label="Toggle picture in picture"
           className={`${styles.mediaControlButton}`}
@@ -141,6 +178,28 @@ function PlayerControls({ seekableLive }: { seekableLive: boolean }) {
   )
 }
 
+function TheaterChatRestore({
+  onOpenChat,
+  theaterChatRestoreRef,
+}: Pick<PlayerTheaterProps, 'onOpenChat' | 'theaterChatRestoreRef'>) {
+  if (!onOpenChat) return null
+
+  return (
+    <div className={styles.theaterChatRestore}>
+      <button
+        aria-label="Open Chat"
+        data-theater-chat-restore="true"
+        onClick={onOpenChat}
+        ref={theaterChatRestoreRef}
+        type="button"
+      >
+        <MessageSquare aria-hidden="true" />
+        <span>Open chat</span>
+      </button>
+    </div>
+  )
+}
+
 export function VidstackPlayer({
   ariaLabel,
   children,
@@ -154,6 +213,11 @@ export function VidstackPlayer({
   seekableLive = false,
   src,
   streamType = 'live',
+  chatOpen = true,
+  onOpenChat,
+  onTheaterModeChange,
+  theaterChatRestoreRef,
+  theaterMode = false,
 }: VidstackPlayerProps) {
   const disposeHlsInstanceRef = useRef<(() => void) | undefined>(undefined)
 
@@ -216,8 +280,18 @@ export function VidstackPlayer({
     >
       <MediaProvider />
       <PlayerPoster poster={poster} />
+      {theaterMode && !chatOpen && (
+        <TheaterChatRestore
+          onOpenChat={onOpenChat}
+          theaterChatRestoreRef={theaterChatRestoreRef}
+        />
+      )}
       {children}
-      <PlayerControls seekableLive={seekableLive} />
+      <PlayerControls
+        onTheaterModeChange={onTheaterModeChange}
+        seekableLive={seekableLive}
+        theaterMode={theaterMode}
+      />
       <MediaAnnouncer />
     </MediaPlayer>
   )

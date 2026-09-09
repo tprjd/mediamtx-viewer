@@ -149,6 +149,47 @@
   flex: 1;
 }
 
+.theaterChatRestore {
+  position: absolute;
+  z-index: 4;
+  top: 0.75rem;
+  right: 0.75rem;
+}
+
+.theaterChatRestore button {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0.4rem;
+  background: rgba(9, 9, 11, 0.82);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 650;
+  backdrop-filter: blur(10px);
+}
+
+.theaterChatRestore button:hover {
+  border-color: color-mix(in srgb, var(--accent) 60%, white);
+  background: rgba(9, 9, 11, 0.94);
+  color: white;
+}
+
+.theaterChatRestore button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.theaterChatRestore svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--accent-soft);
+}
+
 .mediaLiveButton,
 .mediaLiveLabel {
   gap: 0.35rem;
@@ -173,6 +214,31 @@
   width: 0.8rem;
   height: 0.8rem;
   fill: currentColor;
+}
+
+@media (max-width: 500px) {
+  .mediaControls {
+    padding-inline: 0.5rem;
+  }
+
+  .mediaControlButton,
+  .mediaLiveButton,
+  .mediaLiveLabel {
+    height: 2.1rem;
+  }
+
+  .mediaControlButton {
+    width: 2.1rem;
+  }
+
+  .mediaVolumeSlider {
+    width: 3.2rem;
+  }
+
+  .mediaLiveButton,
+  .mediaLiveLabel {
+    padding-inline: 0.4rem;
+  }
 }
 
 .mediaPlayer:not([data-fullscreen]):focus-within :global(.protocol-badge),

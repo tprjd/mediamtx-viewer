@@ -2,7 +2,14 @@
 
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { ChevronDown, Clock3, MessageSquare, Settings2, UserRound, X } from 'lucide-react'
-import { useId, useState, useSyncExternalStore } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { createPortal } from 'react-dom'
 import styles from './channel-viewer.module.css'
 
@@ -25,6 +32,7 @@ interface ChannelViewerProps {
 }
 
 interface ChatPlaceholderProps {
+  closeButtonRef?: (element: HTMLButtonElement | null) => void
   narrowLayout: boolean
   onClose: () => void
 }
@@ -43,7 +51,13 @@ function getChatHeaderTarget(): HTMLElement | null {
   return document.getElementById('chat-restore-target')
 }
 
-function ChatRestoreControl({ onOpen }: { onOpen: () => void }) {
+function ChatRestoreControl({
+  buttonRef,
+  onOpen,
+}: {
+  buttonRef?: (element: HTMLButtonElement | null) => void
+  onOpen: () => void
+}) {
   const target = useSyncExternalStore(
     noopSubscribe,
     getChatHeaderTarget,
@@ -57,6 +71,7 @@ function ChatRestoreControl({ onOpen }: { onOpen: () => void }) {
       aria-label="Open Chat"
       className={styles.chatRestore}
       onClick={onOpen}
+      ref={buttonRef}
       title="Open Chat"
       type="button"
     >
@@ -66,7 +81,11 @@ function ChatRestoreControl({ onOpen }: { onOpen: () => void }) {
   )
 }
 
-function ChatPlaceholder({ narrowLayout, onClose }: ChatPlaceholderProps) {
+function ChatPlaceholder({
+  closeButtonRef,
+  narrowLayout,
+  onClose,
+}: ChatPlaceholderProps) {
   const [mobileExpanded, setMobileExpanded] = useState(false)
   const contentId = useId()
   const isOpen = !narrowLayout || mobileExpanded
@@ -98,6 +117,7 @@ function ChatPlaceholder({ narrowLayout, onClose }: ChatPlaceholderProps) {
               aria-label="Close Chat"
               className={styles.chatClose}
               onClick={onClose}
+              ref={closeButtonRef}
               title="Close Chat"
               type="button"
             >
@@ -187,6 +207,14 @@ export function ChannelViewer({
     useState<HTMLDivElement | null>(null)
   const [playbackStatsTarget, setPlaybackStatsTarget] =
     useState<HTMLDivElement | null>(null)
+  const [theaterState, setTheaterState] = useState({
+    channelSlug: channel.slug,
+    enabled: false,
+  })
+  const chatRestoreRef = useRef<HTMLButtonElement | null>(null)
+  const theaterChatCloseRef = useRef<HTMLButtonElement | null>(null)
+  const theaterChatRestoreRef = useRef<HTMLButtonElement | null>(null)
+  const previousChatOpenRef = useRef(false)
   const { effectivePreference } = useLiveRailPreference()
   const { preference: chatPreference, setPreference: setChatPreference } =
     useChatPreference()
@@ -197,26 +225,87 @@ export function ChannelViewer({
   const status = currentChannel.status
   const railCollapsed = effectivePreference === 'collapsed'
   const chatOpen = status.live && chatPreference === 'open'
+  const theaterMode =
+    theaterState.channelSlug === channel.slug && theaterState.enabled
+  const setTheaterMode = useCallback(
+    (enabled: boolean) => {
+      setTheaterState({ channelSlug: channel.slug, enabled })
+    },
+    [channel.slug],
+  )
+
+  useEffect(() => {
+    if (!theaterMode) return
+
+    const body = document.body
+    const previousTheaterMode = body.getAttribute('data-theater-mode')
+    const previousOverflow = body.style.overflow
+    body.setAttribute('data-theater-mode', 'true')
+    body.style.overflow = 'hidden'
+
+    return () => {
+      if (previousTheaterMode === null) {
+        body.removeAttribute('data-theater-mode')
+      } else {
+        body.setAttribute('data-theater-mode', previousTheaterMode)
+      }
+      body.style.overflow = previousOverflow
+    }
+  }, [theaterMode])
+
+  useEffect(() => {
+    const wasChatOpen = previousChatOpenRef.current
+
+    if (theaterMode && wasChatOpen && !chatOpen) {
+      theaterChatRestoreRef.current?.focus()
+    } else if (theaterMode && !wasChatOpen && chatOpen) {
+      theaterChatCloseRef.current?.focus()
+    } else if (!theaterMode && wasChatOpen && !chatOpen) {
+      chatRestoreRef.current?.focus()
+    }
+
+    previousChatOpenRef.current = chatOpen
+  }, [chatOpen, theaterMode])
 
   return (
     <>
-      {status.live && !chatOpen && (
-        <ChatRestoreControl onOpen={() => setChatPreference('open')} />
+      {status.live && !chatOpen && !theaterMode && (
+        <ChatRestoreControl
+          buttonRef={(element) => {
+            chatRestoreRef.current = element
+          }}
+          onOpen={() => setChatPreference('open')}
+        />
       )}
-      <main className={styles.watchLayout} data-watch-page>
+      <main
+        className={`${styles.watchLayout}${theaterMode ? ` ${styles.theaterLayout}` : ''}`}
+        data-theater-mode={theaterMode ? 'true' : undefined}
+        data-watch-page
+      >
         <div
-          className={`${styles.watchColumns}${chatOpen ? '' : ` ${styles.withoutChat}`}${railCollapsed ? ` ${styles.railCollapsed}` : ''}`}
+          className={`${styles.watchColumns}${chatOpen ? '' : ` ${styles.withoutChat}`}${railCollapsed ? ` ${styles.railCollapsed}` : ''}${theaterMode ? ` ${styles.theaterColumns}` : ''}${theaterMode && !chatOpen ? ` ${styles.theaterColumnsWithoutChat}` : ''}`}
         >
           <ChannelNavigation
             channels={eventChannels}
             watchedSlug={currentChannel.slug}
           />
-          <div className={styles.watchMainColumn}>
+          <div
+            className={`${styles.watchMainColumn}${theaterMode ? ` ${styles.theaterMainColumn}` : ''}`}
+          >
             <div className={styles.watchPlayerWrap}>
               <LivePlayer
+                chatOpen={chatOpen}
                 channel={currentChannel}
+                onOpenChat={
+                  status.live ? () => setChatPreference('open') : undefined
+                }
+                onTheaterModeChange={setTheaterMode}
                 playbackControlsTarget={playbackControlsTarget}
                 playbackStatsTarget={playbackStatsTarget}
+                theaterChatRestoreRef={(element) => {
+                  theaterChatRestoreRef.current = element
+                }}
+                theaterMode={theaterMode}
                 viewerId={viewerId}
               />
             </div>
@@ -255,7 +344,10 @@ export function ChannelViewer({
           </div>
           {chatOpen && (
             <ChatPlaceholder
-              narrowLayout={narrowLayout}
+              closeButtonRef={(element) => {
+                theaterChatCloseRef.current = element
+              }}
+              narrowLayout={narrowLayout && !theaterMode}
               onClose={() => setChatPreference('closed')}
             />
           )}

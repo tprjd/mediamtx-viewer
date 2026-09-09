@@ -55,6 +55,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
     <ChannelViewer
       channel={watchedChannel}
       channels={channels}
+      key={watchedChannel.slug}
       viewerId={randomUUID()}
     />
   )

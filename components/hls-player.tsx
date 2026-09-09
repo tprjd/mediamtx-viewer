@@ -22,6 +22,7 @@ import {
 } from '@/components/playback-stats'
 import {
   VidstackPlayer,
+  type PlayerTheaterProps,
   type VidstackProviderKind,
 } from '@/components/vidstack-player'
 import { usePlaybackRun } from '@/components/use-playback-run'
@@ -37,7 +38,7 @@ import type { PublicChannel } from '@/lib/types'
 
 export type { HlsLatencyProfile } from '@/lib/streaming-contract'
 
-interface HlsPlayerProps {
+interface HlsPlayerProps extends PlayerTheaterProps {
   channel: PublicChannel
   latencyProfile: HlsLatencyProfile
   onBalancedUnavailable?: () => void
@@ -175,6 +176,7 @@ function readNativeSeekTarget(
 }
 
 export function HlsPlayer({
+  chatOpen,
   channel,
   latencyProfile,
   onBalancedUnavailable,
@@ -183,6 +185,10 @@ export function HlsPlayer({
   profileExitReason,
   showStats = true,
   statsTarget,
+  onOpenChat,
+  onTheaterModeChange,
+  theaterChatRestoreRef,
+  theaterMode,
 }: HlsPlayerProps) {
   const recoveryRef = useRef({ attempts: 0 })
   const lastCorrectionRef = useRef<string>(undefined)
@@ -867,12 +873,17 @@ export function HlsPlayer({
           liveEdgeTolerance={profile.liveSyncDuration}
           onHlsInstanceChange={setHlsInstance}
           onProviderKindChange={setProviderKind}
+          chatOpen={chatOpen}
+          onOpenChat={onOpenChat}
+          onTheaterModeChange={onTheaterModeChange}
           onUserPauseChange={onUserPauseChange}
           onVideoElementChange={onVideoElementChange}
           poster={channel.poster}
           seekableLive
           src={playerSource}
           streamType="ll-live"
+          theaterChatRestoreRef={theaterChatRestoreRef}
+          theaterMode={theaterMode}
         >
           {visibleState === 'playing' && (
             <span className="protocol-badge">

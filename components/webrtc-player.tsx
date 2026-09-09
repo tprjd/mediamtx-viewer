@@ -8,7 +8,10 @@ import { PlaybackRunOverlay } from '@/components/playback-run-overlay'
 import { Button } from '@/components/ui/button'
 import { PlaybackStats } from '@/components/playback-stats'
 import { usePlaybackRun } from '@/components/use-playback-run'
-import { VidstackPlayer } from '@/components/vidstack-player'
+import {
+  VidstackPlayer,
+  type PlayerTheaterProps,
+} from '@/components/vidstack-player'
 import { hasAudioTrack, hasVideoTrack } from '@/lib/playback-availability'
 import { authClient } from '@/lib/auth/client'
 import type { PublicChannel } from '@/lib/types'
@@ -88,7 +91,7 @@ function loadReader(): Promise<MediaMtxReaderConstructor> {
   return promise
 }
 
-interface WebRtcPlayerProps {
+interface WebRtcPlayerProps extends PlayerTheaterProps {
   channel: PublicChannel
   onFallback: () => void
   showStats?: boolean
@@ -96,10 +99,15 @@ interface WebRtcPlayerProps {
 }
 
 export function WebRtcPlayer({
+  chatOpen,
   channel,
   onFallback,
+  onOpenChat,
+  onTheaterModeChange,
   showStats = true,
   statsTarget,
+  theaterChatRestoreRef,
+  theaterMode,
 }: WebRtcPlayerProps) {
   const fallbackRef = useRef(onFallback)
   const sourceHasAudioRef = useRef(false)
@@ -570,11 +578,16 @@ export function WebRtcPlayer({
       >
         <VidstackPlayer
           ariaLabel={`${channel.title} live video`}
+          chatOpen={chatOpen}
+          onOpenChat={onOpenChat}
+          onTheaterModeChange={onTheaterModeChange}
           onUserPauseChange={onUserPauseChange}
           onVideoElementChange={onVideoElementChange}
           poster={channel.poster}
           src={playerSource}
           streamType="live"
+          theaterChatRestoreRef={theaterChatRestoreRef}
+          theaterMode={theaterMode}
         >
           {playing && (
             <span className="protocol-badge">

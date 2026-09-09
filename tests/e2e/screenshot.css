@@ -1,3 +1,16 @@
 nextjs-portal {
   display: none !important;
 }
+
+[data-theater-mode='true'] video {
+  opacity: 0 !important;
+}
+
+[data-theater-mode='true'] .player-overlay {
+  visibility: hidden !important;
+}
+
+[data-theater-mode='true'] [data-player-controls='true'] {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}

@@ -18,12 +18,22 @@ vi.mock('@/hooks/use-channel-events', () => ({
 vi.mock('@/components/live-player', () => ({
   LivePlayer: ({
     channel,
+    chatOpen = false,
+    onOpenChat,
+    onTheaterModeChange,
     playbackControlsTarget,
     playbackStatsTarget,
+    theaterChatRestoreRef,
+    theaterMode = false,
   }: {
     channel: PublicChannel
+    chatOpen?: boolean
+    onOpenChat?: () => void
     playbackControlsTarget?: HTMLElement | null
     playbackStatsTarget?: HTMLElement | null
+    theaterChatRestoreRef?: (element: HTMLButtonElement | null) => void
+    theaterMode?: boolean
+    onTheaterModeChange?: (theaterMode: boolean) => void
   }) => {
     const [mode, setMode] = useState<'balanced' | 'smooth'>('balanced')
 
@@ -34,6 +44,22 @@ vi.mock('@/components/live-player', () => ({
           data-status={channel.status.state}
           data-testid="live-player"
         />
+        {onTheaterModeChange && (
+          <button
+            aria-label={theaterMode ? 'Exit theater mode' : 'Enter theater mode'}
+            onClick={() => onTheaterModeChange(!theaterMode)}
+            type="button"
+          />
+        )}
+        {theaterMode && !chatOpen && onOpenChat && (
+          <button
+            aria-label="Open Chat"
+            data-testid="theater-chat-restore"
+            onClick={onOpenChat}
+            ref={theaterChatRestoreRef}
+            type="button"
+          />
+        )}
         {channel.status.live && playbackControlsTarget
           ? createPortal(
               <>
@@ -374,5 +400,46 @@ describe('ChannelViewer', () => {
 
     expect(chatToggle).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeDisabled()
+  })
+
+  it('enters and leaves theater mode without changing the saved chat choice', () => {
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [{ ...channel, status: liveStatus }],
+      statusDelayed: false,
+    })
+
+    render(<ChannelViewer channel={channel} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enter theater mode' }))
+
+    expect(screen.getByRole('main')).toHaveAttribute('data-theater-mode', 'true')
+    expect(screen.getByRole('complementary', { name: 'Chat placeholder' })).toBeInTheDocument()
+    expect(window.localStorage.getItem(CHAT_PREFERENCE_STORAGE_KEY)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Exit theater mode' }))
+
+    expect(screen.getByRole('main')).not.toHaveAttribute('data-theater-mode')
+    expect(screen.getByRole('complementary', { name: 'Chat placeholder' })).toBeInTheDocument()
+  })
+
+  it('restores closed theater chat from the player overlay and returns focus to chat controls', () => {
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [{ ...channel, status: liveStatus }],
+      statusDelayed: false,
+    })
+
+    render(<ChannelViewer channel={channel} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enter theater mode' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close Chat' }))
+
+    expect(screen.queryByRole('complementary', { name: 'Chat placeholder' })).toBeNull()
+    expect(screen.getByTestId('theater-chat-restore')).toBeInTheDocument()
+    expect(screen.getByTestId('theater-chat-restore')).toHaveFocus()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Chat' }))
+
+    expect(screen.getByRole('complementary', { name: 'Chat placeholder' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Close Chat' })).toHaveFocus()
   })
 })

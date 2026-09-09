@@ -34,8 +34,8 @@ Common building blocks used across screens:
 - **Viewer count**: small person-count chip, only visible while a channel is live.
 - **Channel accent color**: each channel carries an accent color used on hover,
   artwork, and playback frames.
-- **Panels**: bordered translucent cards used for account settings, admin cards,
-  and statistic cards.
+- **Panels**: flat dark surfaces with thin separators. Account settings, admin
+  cards, and statistic cards may still use bordered panels.
 - **Banners**: inline green notice, red error, or amber reset-key banners after
   server actions.
 
@@ -81,29 +81,47 @@ Structure, top to bottom:
   the current Channel and closes after the viewer selects a Channel.
 
 - **Playback mode bar** (top of the player container): label "Playback mode"
-  with one-line description of the current mode, and four mode buttons:
-  "HLS ≤3s" (experimental ultra-low), "Balanced", "Smooth", and "Low latency"
-  (WebRTC). Buttons show when a mode is unavailable or is cooling down ("Try low
-  latency in Ns"). The chosen mode persists per browser tab.
-- **Video player**: dark rounded video frame with the channel's accent glow,
-  Vidstack controls overlaid on hover (play/pause, mute + volume slider, live
-  badge/button, picture-in-picture, fullscreen; keyboard shortcuts enabled),
-  auto-start muted, poster image while waiting, and a small protocol badge
-  ("HLS · Balanced", "WebRTC · Low latency") while playing.
+  with one-line description of the current mode, and four mode buttons inside
+  the closed-by-default **Playback settings** disclosure: "HLS ≤3s"
+  (experimental ultra-low), "Balanced", "Smooth", and "Low latency"
+  (WebRTC). Buttons show when a mode is unavailable or is cooling down ("Try
+  low latency in Ns"). The chosen mode persists per browser tab.
+- **Video player**: flat, square-edged video surface that fills the center
+  column. Vidstack controls appear on hover or focus and provide play/pause,
+  mute + volume slider, live badge/button, theater mode, picture-in-picture,
+  and fullscreen. Keyboard shortcuts remain enabled. The player starts muted,
+  shows a poster while waiting, and shows a small protocol badge ("HLS ·
+  Balanced", "WebRTC · Low latency") while playing.
   - Player overlays cover the video depending on state: "Joining stream",
     "Reconnecting", "Stream offline" (auto-retries), "Session expired" (sign-in
     button returning to this channel), "Video format not supported" (offers a
     compatibility stream when one exists), or "Playback interrupted" / WebRTC
     fallback messages with Try again / Use HLS now actions.
-- **Playback diagnostics strip** directly under the video: collapsible
-  "More"-style row showing Status (Playing/Waiting), Mode, Quality
-  (resolution · fps), Live latency or Network RTT, Forward buffer or Loss rate.
-  Expanding it shows a technical grid: codecs, resolution, frame rate, frame
-  pacing chart, latency/buffer targets, SLO breach counters, transport, and a
-  "Copy snapshot" button for bug reports.
+- **Playback diagnostics**: inside the same Playback settings disclosure as
+  playback modes. The expanded section keeps the technical grid: codecs,
+  resolution, frame rate, frame pacing chart, latency/buffer targets, SLO breach
+  counters, transport, and a "Copy snapshot" button for bug reports.
 - **Channel details** below the player: live/offline badge and viewer count,
   channel title, description, owner name, "Live playback" tag, codec/track
-  summary, and a share button (native share or copy-link).
+  summary, and a share button (native share or copy-link). The application
+  version appears below these details on normal watch pages.
+- **Normal live chat**: a pinned 340-pixel placeholder on the right side. It
+  stays below the header while the center column scrolls, has a disabled
+  composer, and can be closed or restored from the header. Closed chat gives
+  its width to the player.
+- **Responsive watch state**: at narrow widths, the Channel rail becomes a
+  drawer and chat moves below the player in a collapsed disclosure. The player
+  and page remain inside the viewport at 320 pixels.
+- **Offline watch state**: the player keeps its poster and offline message.
+  Channel details, description, Share, and the version footer remain visible.
+  Playback settings, diagnostics, and chat are absent.
+- **Theater watch state**: the player control enters a temporary viewport-wide
+  layout. The global header, Channel rail, Channel details, and footer are
+  hidden. Open chat stays on the right and uses the viewport height. Closing
+  chat gives its width to the player, and an in-player Open Chat control
+  restores it. The Exit theater mode control leaves the layout. Theater mode
+  resets after reload or Channel navigation and is not saved in browser
+  storage.
 
 ## 3. Sign in — `/login`
 
@@ -260,8 +278,8 @@ Notes for the design work:
 
 - The channel owner and admin roles appear as extra header/home links rather
   than separate navigation systems.
-- The watch page is intentionally tool-heavy (mode switcher + visible playback
-  diagnostics) because latency modes and diagnostics are first-class features.
+- The watch page keeps latency modes and diagnostics available without placing
+  them between the viewer and the player.
 - Account/admin/statistics screens are functional, panel-stacked pages with few
   visual flourishes; the landing page and watch page carry most of the visual
   identity.
