@@ -8,6 +8,7 @@ export default defineConfig([
   globalIgnores([
     '.next/**',
     '.next-e2e/**',
+    '.next-e2e-chat/**',
     'coverage/**',
     'playwright-report/**',
     'test-results/**',

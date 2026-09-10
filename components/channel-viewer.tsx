@@ -1,7 +1,7 @@
 'use client'
 
 import * as Collapsible from '@radix-ui/react-collapsible'
-import { ChevronDown, Clock3, MessageSquare, Settings2, UserRound, X } from 'lucide-react'
+import { ChevronDown, Clock3, MessageSquare, Settings2, UserRound } from 'lucide-react'
 import {
   useCallback,
   useEffect,
@@ -14,6 +14,8 @@ import { createPortal } from 'react-dom'
 import styles from './channel-viewer.module.css'
 
 import { ChannelNavigation } from '@/components/channel-navigation'
+import { ChatPlaceholder } from '@/components/chat-frame'
+import { ChatPanel } from '@/components/chat-panel'
 import { LivePlayer } from '@/components/live-player'
 import { ShareButton } from '@/components/share-button'
 import { StatusBadge } from '@/components/status-badge'
@@ -27,13 +29,8 @@ import type { PublicChannel } from '@/lib/types'
 interface ChannelViewerProps {
   channel: PublicChannel
   channels?: PublicChannel[]
+  chatEnabled?: boolean
   viewerId?: string
-}
-
-interface ChatPlaceholderProps {
-  closeButtonRef?: (element: HTMLButtonElement | null) => void
-  narrowLayout: boolean
-  onClose: () => void
 }
 
 interface PlaybackSettingsProps {
@@ -77,67 +74,6 @@ function ChatRestoreControl({
       <MessageSquare aria-hidden="true" />
     </button>,
     target,
-  )
-}
-
-function ChatPlaceholder({
-  closeButtonRef,
-  narrowLayout,
-  onClose,
-}: ChatPlaceholderProps) {
-  const [mobileExpanded, setMobileExpanded] = useState(false)
-  const contentId = useId()
-  const isOpen = !narrowLayout || mobileExpanded
-
-  return (
-    <Collapsible.Root
-      asChild
-      open={isOpen}
-      onOpenChange={setMobileExpanded}
-    >
-      <aside className={styles.chatPlaceholder} aria-label="Chat placeholder">
-        <div className={styles.chatHeading}>
-          <div className={styles.chatTitle}>
-            <MessageSquare aria-hidden="true" />
-            <strong>Chat</strong>
-          </div>
-          <div className={styles.chatActions}>
-            <Collapsible.Trigger
-              asChild
-              aria-controls={contentId}
-              className={styles.chatToggle}
-            >
-              <button type="button">
-                <MessageSquare aria-hidden="true" />
-                <span>Chat</span>
-              </button>
-            </Collapsible.Trigger>
-            <button
-              aria-label="Close Chat"
-              className={styles.chatClose}
-              onClick={onClose}
-              ref={closeButtonRef}
-              title="Close Chat"
-              type="button"
-            >
-              <X aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-        <Collapsible.Content className={styles.chatContent} id={contentId}>
-          <div className={styles.chatEmptyState}>
-            <MessageSquare className="size-7" aria-hidden="true" />
-            <p>Chat is coming soon</p>
-            <span>Conversation will be available here in a future update.</span>
-          </div>
-          <input
-            aria-label="Chat message"
-            disabled
-            placeholder="Chat is unavailable"
-          />
-        </Collapsible.Content>
-      </aside>
-    </Collapsible.Root>
   )
 }
 
@@ -200,6 +136,7 @@ function PlaybackSettings({
 export function ChannelViewer({
   channel,
   channels = [channel],
+  chatEnabled = false,
   viewerId,
 }: ChannelViewerProps) {
   const [playbackControlsTarget, setPlaybackControlsTarget] =
@@ -341,13 +278,24 @@ export function ChannelViewer({
             </section>
           </div>
           {chatOpen && (
-            <ChatPlaceholder
-              closeButtonRef={(element) => {
-                theaterChatCloseRef.current = element
-              }}
-              narrowLayout={narrowLayout && !theaterMode}
-              onClose={() => setChatPreference('closed')}
-            />
+            chatEnabled ? (
+              <ChatPanel
+                channelSlug={currentChannel.slug}
+                closeButtonRef={(element) => {
+                  theaterChatCloseRef.current = element
+                }}
+                narrowLayout={narrowLayout && !theaterMode}
+                onClose={() => setChatPreference('closed')}
+              />
+            ) : (
+              <ChatPlaceholder
+                closeButtonRef={(element) => {
+                  theaterChatCloseRef.current = element
+                }}
+                narrowLayout={narrowLayout && !theaterMode}
+                onClose={() => setChatPreference('closed')}
+              />
+            )
           )}
         </div>
       </main>

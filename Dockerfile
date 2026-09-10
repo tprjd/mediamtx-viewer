@@ -27,7 +27,8 @@ COPY --from=dependencies --chown=nextjs:nodejs /app/node_modules/@better-auth/ut
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/migrations ./migrations
+COPY --from=builder --chown=nextjs:nodejs /app/chat-migrations ./chat-migrations
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 USER nextjs
 EXPOSE 3000
-CMD ["sh", "-c", "node scripts/migrate.mjs && exec node server.js"]
+CMD ["sh", "-c", "node scripts/migrate.mjs && node scripts/migrate-chat.mjs && exec node server.js"]

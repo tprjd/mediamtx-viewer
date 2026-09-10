@@ -53,6 +53,12 @@ export interface GeneratedStreamKey {
   rotated: boolean
 }
 
+export interface ChatChannel {
+  id: string
+  ownerUserId: string
+  mediaPath: string
+}
+
 function toChannel(row: ChannelRow): Channel {
   return channelSchema.parse({
     slug: row.slug,
@@ -119,6 +125,23 @@ export function getChannel(slug: string): Channel | undefined {
     )
     .get(parsed.data) as ChannelRow | undefined
   return row ? toChannel(row) : undefined
+}
+
+export function getChatChannel(slug: string): ChatChannel | null {
+  const parsed = channelSlugSchema.safeParse(slug)
+  if (!parsed.success) return null
+  const row = getDatabase()
+    .prepare(
+      `SELECT channel.id, channel.owner_user_id AS ownerUserId,
+              channel.media_path AS mediaPath
+       FROM channel
+       JOIN user ON user.id = channel.owner_user_id
+       WHERE channel.slug = ? COLLATE NOCASE
+         AND channel.enabled = 1
+         AND user.activationStatus = 'active'`,
+    )
+    .get(parsed.data) as ChatChannel | undefined
+  return row ?? null
 }
 
 export function getOwnedChannel(ownerUserId: string): OwnedChannel | null {

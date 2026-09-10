@@ -1,4 +1,11 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -156,6 +163,7 @@ describe('ChannelViewer', () => {
   afterEach(() => {
     cleanup()
     window.localStorage.clear()
+    vi.unstubAllGlobals()
   })
 
   it('uses the event status for the badge, player, and track metadata', () => {
@@ -235,6 +243,8 @@ describe('ChannelViewer', () => {
   })
 
   it('shows the current viewer count while live', () => {
+    const fetcher = vi.fn()
+    vi.stubGlobal('fetch', fetcher)
     mocks.useChannelEvents.mockReturnValue({
       channels: [{ ...channel, status: liveStatus }],
       statusDelayed: false,
@@ -250,6 +260,110 @@ describe('ChannelViewer', () => {
     expect(screen.getByRole('complementary', { name: 'Chat placeholder' })).toBeInTheDocument()
     expect(screen.getByText('Chat is coming soon')).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeDisabled()
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('loads plain-text messages and adds a successful send to the transcript', async () => {
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [{ ...channel, status: liveStatus }],
+      statusDelayed: false,
+    })
+    const historyMessage = {
+      id: 'history-message',
+      sequence: 1,
+      content: 'read https://example.test',
+      profileName: 'Friend',
+      authorTag: 'a1b2',
+      badges: [],
+      serverTimestamp: '2026-09-11T09:00:00.000Z',
+    }
+    const sentMessage = {
+      id: 'sent-message',
+      sequence: 2,
+      content: 'hello Chat',
+      profileName: 'David',
+      authorTag: 'c3d4',
+      badges: ['admin'],
+      serverTimestamp: '2026-09-11T09:01:00.000Z',
+    }
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ messages: [historyMessage] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: sentMessage }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        }),
+      )
+    vi.stubGlobal('fetch', fetcher)
+
+    render(<ChannelViewer channel={channel} chatEnabled />)
+
+    const chat = await screen.findByRole('complementary', { name: 'Chat' })
+    expect(within(chat).getByText('read https://example.test')).toBeInTheDocument()
+    expect(within(chat).queryByRole('link')).toBeNull()
+
+    fireEvent.change(within(chat).getByRole('textbox', { name: 'Chat message' }), {
+      target: { value: 'hello Chat' },
+    })
+    fireEvent.click(within(chat).getByRole('button', { name: 'Send' }))
+
+    await waitFor(() => {
+      expect(within(chat).getByText('hello Chat')).toBeInTheDocument()
+    })
+    expect(within(chat).getByText('Admin')).toBeInTheDocument()
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      '/api/channels/live/chat/messages',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ content: 'hello Chat' }),
+      }),
+    )
+  })
+
+  it('does not load Chat when an enabled Channel becomes unavailable', () => {
+    const fetcher = vi.fn()
+    vi.stubGlobal('fetch', fetcher)
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [{ ...channel, status: unavailableStatus }],
+      statusDelayed: true,
+    })
+
+    render(<ChannelViewer channel={channel} chatEnabled />)
+
+    expect(screen.queryByRole('complementary', { name: 'Chat' })).toBeNull()
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('disables the composer when the account cannot access Chat', async () => {
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [{ ...channel, status: liveStatus }],
+      statusDelayed: false,
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ error: 'An active account is required.' }),
+          {
+            status: 401,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      ),
+    )
+
+    render(<ChannelViewer channel={channel} chatEnabled />)
+
+    expect(await screen.findByText('An active account is required.')).toBeVisible()
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
   })
 
   it('keeps common details visible and puts live playback tools in settings', () => {

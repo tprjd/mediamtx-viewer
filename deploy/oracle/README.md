@@ -36,9 +36,11 @@ Keep the age private key out of Git and back it up separately.
 
 Generate independent strong secrets:
 
-- `BETTER_AUTH_SECRET`, `INTERNAL_AUTH_SECRET`, and `MEDIAMTX_AUTH_SECRET`:
+- `BETTER_AUTH_SECRET`, `INTERNAL_AUTH_SECRET`, `MEDIAMTX_AUTH_SECRET`, and
+  `CHAT_TAG_HMAC_SECRET`:
   generate each with
   `openssl rand -hex 32` and put them in `caddy.env`.
+- Keep `CHAT_ENABLED=false` until the Chat rollout checks pass.
 - Initial administrator: set username, email, display name, and a password of
   at least 15 characters in `admin.env`. Bootstrap is skipped after an active
   administrator exists.

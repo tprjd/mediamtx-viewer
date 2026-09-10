@@ -7,6 +7,7 @@ import { ChannelViewer } from '@/components/channel-viewer'
 import { getChannel, getChannels } from '@/lib/channels'
 import { channelPosterUrl } from '@/lib/channel-thumbnails'
 import { getChannelStatuses } from '@/lib/mediamtx'
+import { isChatEnabled } from '@/lib/chat-environment'
 import { toPublicChannel } from '@/lib/public-channel'
 
 export const dynamic = 'force-dynamic'
@@ -55,6 +56,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
     <ChannelViewer
       channel={watchedChannel}
       channels={channels}
+      chatEnabled={isChatEnabled()}
       key={watchedChannel.slug}
       viewerId={randomUUID()}
     />

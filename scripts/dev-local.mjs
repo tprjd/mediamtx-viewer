@@ -355,6 +355,7 @@ export async function runLocalDevelopment({
     ...process.env,
     NODE_ENV: 'development',
     AUTH_DB_PATH: authDatabasePath,
+    CHAT_DB_PATH: path.resolve(cwd, '.data/chat.sqlite'),
     ADMIN_USERNAME: localAdmin.username,
     ADMIN_EMAIL: localAdmin.email,
     ADMIN_PASSWORD: localAdmin.password,
@@ -411,6 +412,12 @@ export async function runLocalDevelopment({
 
   try {
     await runOneShot(process.execPath, ['scripts/migrate.mjs'], childEnvironment, cwd)
+    await runOneShot(
+      process.execPath,
+      ['scripts/migrate-chat.mjs'],
+      childEnvironment,
+      cwd,
+    )
     await runOneShot(
       process.execPath,
       ['scripts/bootstrap-local-admin.mjs'],

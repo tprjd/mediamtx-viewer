@@ -140,6 +140,9 @@ services:
     environment:
       AUTH_DB_PATH: /data/auth.sqlite
       AUTH_BACKUP_DIR: /data/backups
+      CHAT_DB_PATH: /data/chat.sqlite
+      CHAT_ENABLED: ${CHAT_ENABLED:-false}
+      CHAT_TAG_HMAC_SECRET: ${CHAT_TAG_HMAC_SECRET:-}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in caddy.env}
       BETTER_AUTH_URL: https://${PUBLIC_HOSTNAME:?Set PUBLIC_HOSTNAME in caddy.env}
       INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:?Set INTERNAL_AUTH_SECRET in caddy.env}

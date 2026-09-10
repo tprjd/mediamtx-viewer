@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "eslint .",
     "auth:migrate": "node scripts/migrate.mjs",
+    "chat:migrate": "node scripts/migrate-chat.mjs",
     "auth:bootstrap": "node scripts/bootstrap-admin.mjs",
     "auth:backup": "node scripts/backup-auth.mjs",
     "auth:restore": "node scripts/restore-auth.mjs",
