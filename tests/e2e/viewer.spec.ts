@@ -254,6 +254,14 @@ test('pins live chat to the right edge while the center column scrolls', async (
   await expect(chat.getByText('Chat is coming soon')).toBeVisible()
   await expect(chat.getByRole('textbox', { name: 'Chat message' })).toBeDisabled()
 
+  const initialDocumentSize = await page.evaluate(() => ({
+    clientHeight: document.documentElement.clientHeight,
+    scrollHeight: document.documentElement.scrollHeight,
+  }))
+  expect(initialDocumentSize.scrollHeight).toBeLessThanOrEqual(
+    initialDocumentSize.clientHeight,
+  )
+
   await page.evaluate(() => {
     const details = document.querySelector<HTMLElement>(
       '[aria-label="Channel information"]',
@@ -620,6 +628,14 @@ test('matches the offline watch state', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/watch/alpha')
   await expect(page.getByText('Stream offline')).toBeVisible()
+
+  const documentSize = await page.evaluate(() => ({
+    clientHeight: document.documentElement.clientHeight,
+    scrollHeight: document.documentElement.scrollHeight,
+  }))
+  expect(documentSize.scrollHeight).toBeLessThanOrEqual(
+    documentSize.clientHeight,
+  )
 
   await expect(page.getByRole('main')).toHaveScreenshot('offline-watch.png', {
     mask: [page.locator('video')],
