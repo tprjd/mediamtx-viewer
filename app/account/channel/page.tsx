@@ -10,6 +10,7 @@ import {
 import { StreamKeyManager } from '@/components/auth/stream-key-manager'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { requireActiveSession } from '@/lib/auth/session'
+import { authEnvironment } from '@/lib/auth/env'
 import { getOwnedChannel } from '@/lib/channels'
 import {
   OBS_SETUP_SCRIPT_FILENAME,
@@ -46,8 +47,8 @@ export default async function ChannelAccountPage({
     )
   }
 
-  const origin = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'
-  const serverUrl = `rtmp://${new URL(origin).hostname}:1935`
+  const origin = authEnvironment.baseUrl
+  const serverUrl = `rtmp://${new URL(origin).hostname}:${authEnvironment.mediaMtxRtmpPort}`
   const setupScript = getObsSetupScriptMetadata()
 
   return (

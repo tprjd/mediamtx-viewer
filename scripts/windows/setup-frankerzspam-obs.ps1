@@ -975,7 +975,10 @@ function Write-RtmpService {
         [string[]]$ProfileDirectories,
         [string]$ServerUrl
     )
-    if ($ServerUrl -notmatch '^rtmp://[^/]+:1935/[^?]+\?token=mtx_sk_[A-Za-z0-9_-]{24,}$') {
+    # The usual local port is 1935. The local development stack may select a
+    # higher free port when that port is occupied. The old fixed-port pattern
+    # was '^rtmp://[^/]+:1935/[^?]+\?token=mtx_sk_[A-Za-z0-9_-]{24,}$'.
+    if ($ServerUrl -notmatch '^rtmp://[^/]+:[0-9]{1,5}/[^?]+\?token=mtx_sk_[A-Za-z0-9_-]{24,}$') {
         throw 'The site returned an unexpected RTMP server URL.'
     }
     $schemeEnd = $ServerUrl.IndexOf('://')

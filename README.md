@@ -60,41 +60,54 @@ stored only as SHA-256 hashes.
 
 ## Local development
 
-Use Node.js 24. MediaMTX must be running with its Control API, HLS, and WebRTC
-listeners on the default local ports.
+Use Node.js 24 and Docker. The `dev:local` command starts Next.js and
+MediaMTX 1.20.1 as one local stack. It uses the normal `.data/auth.sqlite`
+database and applies migrations on every start.
 
 ```sh
 npm install
-cp .env.example .env.local
-npm run auth:migrate
-
-# One time only; use a password between 15 and 128 characters.
-ADMIN_USERNAME=power \
-ADMIN_EMAIL=administrator@example.com \
-ADMIN_PASSWORD='replace-with-a-strong-password' \
-npm run auth:bootstrap
-
-npm run dev
+npm run dev:local
 ```
 
-Open <http://localhost:3000>. The initial administrator owns the `live` channel,
-which maps to the MediaMTX path named `live`.
-
-The default local paths and origins are:
+The command creates or repairs the local administrator account with these
+account credentials:
 
 ```text
+Username: power
+Password: local-development-password
+```
+
+Set `ADMIN_USERNAME`, `ADMIN_EMAIL`, or `ADMIN_PASSWORD` to override these
+local defaults. The command prints the effective username and password.
+
+It keeps other accounts, channels, activity, and browser sessions. It does not
+create a stream key. Sign in and open `/account/channel` to generate one.
+The command prints the selected login and OBS server URLs after all services
+are ready. Press Ctrl+C to stop the two managed processes. The database and
+thumbnails remain in `.data`. The thumbnail worker remains a separate process
+for deployments that need generated posters.
+
+The default local ports are:
+
+```text
+RTMP=1935
 MEDIAMTX_API_URL=http://127.0.0.1:9997
 MEDIAMTX_HLS_URL=http://127.0.0.1:8888
 MEDIAMTX_WEBRTC_URL=http://127.0.0.1:8889
+WebRTC ICE TCP+UDP=8189
 THUMBNAIL_DIR=.data/thumbnails
 AUTH_DB_PATH=.data/auth.sqlite
 BETTER_AUTH_URL=http://localhost:3000
 ```
 
-`.env.example` also contains three distinct development secrets. Generate fresh
-values before any non-local deployment. Registration starts closed. Sign in as
-the bootstrap administrator, enable it temporarily on `/admin/users`, and
-activate each new account after registration.
+If one of these ports is occupied, `dev:local` chooses the first free port
+above its default for that service. It does not stop or reuse an unrelated
+process, and it does not save the selected ports. All listeners bind to
+`127.0.0.1`. The generated MediaMTX configuration uses the selected origins,
+HTTP authorization callback, RTMP port, and WebRTC ICE port.
+
+Registration starts closed. Sign in as the local administrator, enable it
+temporarily on `/admin/users`, and activate each new account after registration.
 
 ## Accounts and streaming
 
@@ -212,18 +225,10 @@ primary desktop and mobile account/viewing flows.
 
 ## Docker
 
-The development Compose stack builds the viewer and thumbnail worker while
-using MediaMTX from the existing host stack. It expects the external
-`feedboard_feedboard-net` network.
-
-```sh
-docker network inspect feedboard_feedboard-net >/dev/null 2>&1 || \
-  docker network create feedboard_feedboard-net
-docker compose up -d --build
-```
-
-The viewer binds to `127.0.0.1:3000`. Both containers reach the host MediaMTX
-listeners through `host.docker.internal`.
+`dev:local` owns one disposable `bluenviron/mediamtx:1.20.1` container. It
+does not stop unrelated containers. Use the Compose file when you need the
+separate development container workflow or want to mirror the production
+layout.
 
 ## Oracle deployment
 

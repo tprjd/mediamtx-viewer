@@ -11,7 +11,7 @@ export const auth = betterAuth({
   baseURL: authEnvironment.baseUrl,
   secret: authEnvironment.secret,
   database: getDatabase(),
-  trustedOrigins: [authEnvironment.baseUrl],
+  trustedOrigins: authEnvironment.trustedOrigins,
   emailAndPassword: {
     enabled: true,
     autoSignIn: false,
@@ -113,4 +113,3 @@ export const auth = betterAuth({
 })
 
 export type Session = typeof auth.$Infer.Session
-

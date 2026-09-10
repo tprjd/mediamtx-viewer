@@ -85,7 +85,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(
       {
         status: 'authorized',
-        serverUrl: `rtmp://${new URL(authEnvironment.baseUrl).hostname}:1935/${result.streamKey.mediaPath}?token=${result.streamKey.token}`,
+        serverUrl: `rtmp://${new URL(authEnvironment.baseUrl).hostname}:${authEnvironment.mediaMtxRtmpPort}/${result.streamKey.mediaPath}?token=${result.streamKey.token}`,
         streamKey: result.streamKey.token,
         warning: warning ?? null,
       },

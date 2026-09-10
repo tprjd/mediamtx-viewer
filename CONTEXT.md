@@ -12,6 +12,10 @@ _Avoid_: Latency configuration, streaming settings
 
 ### Access
 
+**Account credentials**:
+A username and password used to sign in to one account. They do not grant streaming access and are not a stream key.
+_Avoid_: Login credentials, website credentials
+
 **Viewing access**:
 Permission to watch channels, granted through an account's active status.
 _Avoid_: Viewing grant, viewer permission

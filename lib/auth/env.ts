@@ -5,9 +5,24 @@ function isBuildPhase(): boolean {
   return process.env.NEXT_PHASE === 'phase-production-build'
 }
 
+function parsePort(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? '', 10)
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 65_535
+    ? parsed
+    : fallback
+}
+
+const baseUrl = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'
+const configuredTrustedOrigins = (process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+
 export const authEnvironment = {
-  baseUrl: process.env.BETTER_AUTH_URL ?? 'http://localhost:3000',
+  baseUrl,
+  trustedOrigins: [...new Set([baseUrl, ...configuredTrustedOrigins])],
   databasePath: process.env.AUTH_DB_PATH ?? '.data/auth.sqlite',
+  mediaMtxRtmpPort: parsePort(process.env.MEDIAMTX_RTMP_PORT, 1935),
   internalSecret:
     process.env.INTERNAL_AUTH_SECRET ??
     (process.env.NODE_ENV === 'production' ? '' : DEVELOPMENT_SECRET),
