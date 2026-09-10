@@ -4,7 +4,7 @@ Use Semantic Versioning for the application. The version applies to the whole
 viewer release, not to the streaming contract or the OBS setup script. Those
 have their own versions and stay independent.
 
-This plan is not implemented yet.
+This plan is implemented.
 
 ## Planned version sources
 
@@ -19,8 +19,8 @@ derives the runtime version from them.
 
 ## Historical mapping
 
-The project did not carry explicit release tags, so the versions below assign
-a sensible baseline from the commit history.
+The first project versions did not have release tags. The tags now mark the last
+commit in each milestone.
 
 | Version | Date range | Milestone |
 | --- | --- | --- |
@@ -29,23 +29,12 @@ a sensible baseline from the commit history.
 | 0.3.0 | 2026-08-31 to 2026-09-01 | OBS setup, Oracle statistics, SSE status |
 | 0.4.0 | 2026-09-02 | Balanced and low-latency playback, Vidstack controls |
 | 0.5.0 | 2026-09-03 to 2026-09-04 | Streaming contract, keyboard shortcuts, theme, dashboard list |
-| 0.6.0 | Current tip | Discord notifications, footer, and explicit versioning |
-
-## Patch candidates
-
-The project never tagged patch releases, so these are the notable fixes that
-would have been patch versions if tags had existed.
-
-| Version | Date | Commit | Fix |
-| --- | --- | --- | --- |
-| 0.2.1 | 2026-08-30 | `74b1295` | Fix AV1 thumbnail capture |
-| 0.3.1 | 2026-08-31 | `39d9c19` | Fix OBS setup mode check and channel header |
-| 0.3.2 | 2026-08-31 | `aa4a6a5` | Fix OBS managed file replacement |
-| 0.3.3 | 2026-08-31 | `cccceb8` | Fix OBS game capture presets |
-| 0.3.4 | 2026-09-01 | `8e306aa` | Fix stalled WebRTC video recovery |
-| 0.4.1 | 2026-09-02 | `3cec3fc` | Fix playback recovery and fullscreen HUD |
-| 0.5.1 | 2026-09-04 | `cb80fc9` | Fix OCI byte metric aggregation |
-| 0.6.1 | 2026-09-04 | `4f86cd4` | Fix Discord notifier script mount path |
+| 0.6.0 | 2026-09-04 | Discord notifications, footer, and explicit versioning |
+| 0.6.1 | 2026-09-04 | Footer redesign |
+| 0.6.2 | 2026-09-05 | CSS modules and responsive layout fixes |
+| 0.7.0 | 2026-09-05 to 2026-09-06 | SOPS secrets and Enhanced RTMP publishing |
+| 0.8.0 | 2026-09-07 | Adaptive playback availability and HLS fallback |
+| 0.9.0 | 2026-09-08 to 2026-09-10 | Twitch-style layout and local streaming stack |
 
 ## Bump policy
 
