@@ -7,6 +7,11 @@ import { getChatDatabase } from '@/lib/chat-database'
 import { chatEnvironment } from '@/lib/chat-environment'
 import { allocateChatAuthorTag, normalizeChatMessage } from '@/lib/chat-rules'
 import type { PublicChatMessage } from '@/lib/chat-types'
+import type { PublicChatMessageEvent } from '@/lib/chat-types'
+import {
+  chatTranscriptChannel,
+  createChatPublicationId,
+} from '@/lib/chat-realtime'
 
 export type { PublicChatMessage } from '@/lib/chat-types'
 
@@ -88,7 +93,7 @@ export function sendChatMessage({
   const content = normalizeChatMessage(rawContent)
   const database = getChatDatabase()
 
-  const row = database.transaction(() => {
+  return database.transaction(() => {
     database
       .prepare(
         `INSERT OR IGNORE INTO chat_room (id, channel_id, next_sequence, created_at)
@@ -156,7 +161,7 @@ export function sendChatMessage({
         now.getTime(),
       )
 
-    return {
+    const row = {
       id: messageId,
       sequence: room.nextSequence,
       accountId: participant.accountId,
@@ -165,9 +170,29 @@ export function sendChatMessage({
       content,
       createdAt: now.getTime(),
     }
+    const message = toPublicMessage(row, channel)
+    const eventId = createChatPublicationId()
+    const event: PublicChatMessageEvent = {
+      type: 'message',
+      eventId,
+      message,
+    }
+    database
+      .prepare(
+        `INSERT INTO chat_outbox (
+          id, message_id, channel_name, payload, next_attempt_at, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        eventId,
+        messageId,
+        chatTranscriptChannel(channel.id),
+        JSON.stringify(event),
+        now.getTime(),
+        now.getTime(),
+      )
+    return message
   })()
-
-  return toPublicMessage(row, channel)
 }
 
 export function loadLatestChatMessages(
@@ -191,4 +216,33 @@ export function loadLatestChatMessages(
     .all(channel.id) as ChatMessageRow[]
 
   return rows.map((row) => toPublicMessage(row, channel))
+}
+
+const GAP_REPAIR_PAGE_SIZE = 300
+
+export function loadChatMessagesAfter(
+  channel: ChatChannelReference,
+  afterSequence: number,
+): { messages: PublicChatMessage[]; hasMore: boolean } {
+  const rows = getChatDatabase()
+    .prepare(
+      `SELECT message.id, message.room_sequence AS sequence,
+              message.account_id AS accountId,
+              message.profile_name AS profileName,
+              message.author_tag AS authorTag, message.content,
+              message.created_at AS createdAt
+       FROM chat_message message
+       JOIN chat_room room ON room.id = message.room_id
+       WHERE room.channel_id = ? AND message.room_sequence > ?
+       ORDER BY message.room_sequence ASC
+       LIMIT ?`,
+    )
+    .all(channel.id, afterSequence, GAP_REPAIR_PAGE_SIZE + 1) as ChatMessageRow[]
+  const hasMore = rows.length > GAP_REPAIR_PAGE_SIZE
+  return {
+    messages: rows
+      .slice(0, GAP_REPAIR_PAGE_SIZE)
+      .map((row) => toPublicMessage(row, channel)),
+    hasMore,
+  }
 }

@@ -107,6 +107,7 @@ describe('durable Chat messages', () => {
         .all(),
     ).toEqual([
       { name: 'chat_message' },
+      { name: 'chat_outbox' },
       { name: 'chat_participant' },
       { name: 'chat_room' },
     ])
@@ -117,6 +118,7 @@ describe('durable Chat messages', () => {
 
   it('commits a message and reloads its safe public representation', async () => {
     const { sendChatMessage, loadLatestChatMessages } = await import('@/lib/chat')
+    const { getChatDatabase } = await import('@/lib/chat-database')
     const channel = {
       id: 'stable-channel-id',
       ownerUserId: 'owner-id',
@@ -155,6 +157,95 @@ describe('durable Chat messages', () => {
         serverTimestamp: '2026-09-11T10:00:00.000Z',
       },
     ])
+
+    expect(
+      getChatDatabase()
+        .prepare(
+          `SELECT message_id AS messageId, channel_name AS channelName,
+                  attempt_count AS attemptCount
+           FROM chat_outbox WHERE message_id = ?`,
+        )
+        .get(accepted.id),
+    ).toEqual({
+      messageId: accepted.id,
+      channelName: 'chat:stable-channel-id',
+      attemptCount: 0,
+    })
+  })
+
+  it('loads all committed messages after a room sequence for gap repair', async () => {
+    const { loadChatMessagesAfter, sendChatMessage } = await import('@/lib/chat')
+    const channel = {
+      id: 'gap-channel-id',
+      ownerUserId: 'owner-id',
+    }
+    const first = sendChatMessage({
+      channel,
+      participant: { accountId: 'viewer-id', profileName: 'Original Name' },
+      rawContent: 'gap repair one',
+    })
+    const second = sendChatMessage({
+      channel,
+      participant: { accountId: 'viewer-id', profileName: 'Original Name' },
+      rawContent: 'gap repair two',
+    })
+
+    expect(loadChatMessagesAfter(channel, first.sequence)).toEqual({
+      messages: [expect.objectContaining({ id: second.id })],
+      hasMore: false,
+    })
+  })
+
+  it('retries an outbox publication with one stable Centrifugo idempotency key', async () => {
+    const { sendChatMessage } = await import('@/lib/chat')
+    const { getChatDatabase } = await import('@/lib/chat-database')
+    const { dispatchNextChatOutboxEvent } = await import('@/lib/chat-outbox')
+    const database = getChatDatabase()
+    database.prepare('DELETE FROM chat_outbox').run()
+    const accepted = sendChatMessage({
+      channel: { id: 'outbox-channel-id', ownerUserId: 'owner-id' },
+      participant: { accountId: 'viewer-id', profileName: 'Original Name' },
+      rawContent: 'retry this publication',
+      now: new Date('2026-09-11T10:00:00.000Z'),
+    })
+    const calls: Array<{ idempotency_key: string }> = []
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockImplementationOnce(async (_input, init) => {
+        calls.push(JSON.parse(String(init?.body)))
+        return Response.json({ error: { code: 500, message: 'temporary' } }, { status: 503 })
+      })
+      .mockImplementationOnce(async (_input, init) => {
+        calls.push(JSON.parse(String(init?.body)))
+        return Response.json({ result: { offset: 1, epoch: 'test' } })
+      })
+
+    await expect(
+      dispatchNextChatOutboxEvent(fetcher, new Date('2026-09-11T10:00:00.000Z')),
+    ).resolves.toBe(false)
+    const pending = database
+      .prepare(
+        `SELECT id, attempt_count AS attemptCount, next_attempt_at AS nextAttemptAt
+         FROM chat_outbox WHERE message_id = ?`,
+      )
+      .get(accepted.id) as {
+      id: string
+      attemptCount: number
+      nextAttemptAt: number
+    }
+    expect(pending.attemptCount).toBe(1)
+    expect(pending.nextAttemptAt).toBeGreaterThan(1_789_120_800_000)
+
+    await expect(
+      dispatchNextChatOutboxEvent(fetcher, new Date(pending.nextAttemptAt)),
+    ).resolves.toBe(true)
+    expect(calls).toEqual([
+      expect.objectContaining({ idempotency_key: pending.id }),
+      expect.objectContaining({ idempotency_key: pending.id }),
+    ])
+    expect(
+      database.prepare('SELECT id FROM chat_outbox WHERE message_id = ?').get(accepted.id),
+    ).toBeUndefined()
   })
 
   it('keeps one room across publishing restarts and returns only the latest 100', async () => {

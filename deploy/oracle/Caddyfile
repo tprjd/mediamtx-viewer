@@ -58,6 +58,13 @@
 		}
 	}
 
+	handle_path /chat/realtime/* {
+		reverse_proxy centrifugo:8000 {
+			header_up -Authorization
+			header_up -Cookie
+		}
+	}
+
 	handle {
 		reverse_proxy viewer:3000
 	}

@@ -22,6 +22,10 @@ vi.mock('@/hooks/use-channel-events', () => ({
   useChannelEvents: mocks.useChannelEvents,
 }))
 
+vi.mock('@/components/use-chat-realtime', () => ({
+  useChatRealtime: () => 'connected',
+}))
+
 vi.mock('@/components/live-player', () => ({
   LivePlayer: ({
     channel,

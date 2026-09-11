@@ -1,4 +1,6 @@
 import Database from 'better-sqlite3'
+import { hashPassword } from '@better-auth/utils/password'
+import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
 
 if (process.env.E2E_FIXTURES !== '1') {
@@ -42,6 +44,7 @@ const fixtures = [
 ]
 
 const now = Date.now()
+const participantPassword = await hashPassword('e2e-participant-password')
 const insertUser = database.prepare(`
   INSERT OR IGNORE INTO user (
     id, name, email, emailVerified, image, createdAt, updatedAt,
@@ -102,6 +105,36 @@ database.transaction(() => {
       fixture.id,
     )
   }
+
+  database
+    .prepare(
+      `INSERT OR IGNORE INTO user (
+        id, name, email, emailVerified, image, createdAt, updatedAt,
+        username, displayUsername, role, banned, banReason, banExpires,
+        activationStatus, activatedAt, activatedBy, disabledAt
+      ) VALUES (
+        'e2e-chat-participant', 'Chat Friend', 'chat-friend@example.test', 0,
+        NULL, ?, ?, 'chat_friend', 'chat_friend', 'user', 0, NULL, NULL,
+        'active', ?, ?, NULL
+      )`,
+    )
+    .run(now, now, now, admin.id)
+  database
+    .prepare(
+      `UPDATE user SET activationStatus = 'active', disabledAt = NULL, updatedAt = ?
+       WHERE id = 'e2e-chat-participant'`,
+    )
+    .run(now)
+  database
+    .prepare(
+      `INSERT INTO account (
+        id, issuer, accountId, providerId, userId, password, createdAt, updatedAt
+      ) VALUES (?, 'local:credential', 'e2e-chat-participant', 'credential',
+                'e2e-chat-participant', ?, ?, ?)
+       ON CONFLICT(issuer, accountId) DO UPDATE SET
+         password = excluded.password, updatedAt = excluded.updatedAt`,
+    )
+    .run(randomUUID(), participantPassword, now, now)
 })()
 
 database.close()

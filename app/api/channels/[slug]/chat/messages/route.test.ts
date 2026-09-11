@@ -8,8 +8,11 @@ const mocks = vi.hoisted(() => ({
   getChannelStatus: vi.fn(),
   getUserById: vi.fn(),
   loadLatestChatMessages: vi.fn(),
+  requestChatOutboxDispatch: vi.fn(),
   sendChatMessage: vi.fn(),
 }))
+
+vi.mock('server-only', () => ({}))
 
 vi.mock('@/lib/auth/session', () => ({
   getActiveSession: mocks.getActiveSession,
@@ -28,9 +31,13 @@ vi.mock('@/lib/chat', async () => {
   return {
     ChatMessageValidationError,
     loadLatestChatMessages: mocks.loadLatestChatMessages,
+    loadChatMessagesAfter: vi.fn(),
     sendChatMessage: mocks.sendChatMessage,
   }
 })
+vi.mock('@/lib/chat-outbox', () => ({
+  requestChatOutboxDispatch: mocks.requestChatOutboxDispatch,
+}))
 
 import { GET, POST } from '@/app/api/channels/[slug]/chat/messages/route'
 
@@ -132,6 +139,7 @@ describe('/api/channels/[slug]/chat/messages', () => {
       },
       rawContent: ' hello ',
     })
+    expect(mocks.requestChatOutboxDispatch).toHaveBeenCalledOnce()
   })
 
   it('returns a validation error without storing an invalid message', async () => {

@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests/e2e',
+  globalTeardown: './tests/e2e/global-teardown.ts',
   fullyParallel: true,
   retries: 1,
   reporter: 'html',
@@ -31,6 +32,12 @@ export default defineConfig({
   ],
   webServer: [
     {
+      command: 'node scripts/e2e-centrifugo.mjs',
+      url: 'http://127.0.0.1:3800/health',
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+    {
       command: 'node scripts/e2e-mediamtx-api.mjs',
       url: 'http://[::1]:3997/v3/paths/list',
       reuseExistingServer: !process.env.CI,
@@ -44,7 +51,7 @@ export default defineConfig({
     },
     {
       command:
-        'AUTH_DB_PATH=.data/e2e-chat-auth.sqlite npm run auth:migrate && CHAT_DB_PATH=.data/e2e-chat.sqlite npm run chat:migrate && AUTH_DB_PATH=.data/e2e-chat-auth.sqlite ADMIN_USERNAME=power ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=e2e-administrator-password npm run auth:bootstrap && AUTH_DB_PATH=.data/e2e-chat-auth.sqlite E2E_FIXTURES=1 node scripts/bootstrap-e2e-channels.mjs && AUTH_DB_PATH=.data/e2e-chat-auth.sqlite CHAT_DB_PATH=.data/e2e-chat.sqlite CHAT_ENABLED=true CHAT_TAG_HMAC_SECRET=e2e-chat-tag-secret-that-is-at-least-32-characters NEXT_DIST_DIR=.next-e2e-chat BETTER_AUTH_URL=http://localhost:3299 BETTER_AUTH_SECRET=e2e-chat-better-auth-secret-at-least-32-characters INTERNAL_AUTH_SECRET=e2e-chat-internal-secret-at-least-32-characters MEDIAMTX_AUTH_SECRET=e2e-chat-mediamtx-secret-at-least-32-characters MEDIAMTX_API_URL=http://[::1]:3997 npm run dev -- --hostname ::1 --port 3299',
+        'AUTH_DB_PATH=.data/e2e-chat-auth.sqlite npm run auth:migrate && CHAT_DB_PATH=.data/e2e-chat.sqlite npm run chat:migrate && AUTH_DB_PATH=.data/e2e-chat-auth.sqlite ADMIN_USERNAME=power ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=e2e-administrator-password npm run auth:bootstrap && AUTH_DB_PATH=.data/e2e-chat-auth.sqlite E2E_FIXTURES=1 node scripts/bootstrap-e2e-channels.mjs && AUTH_DB_PATH=.data/e2e-chat-auth.sqlite CHAT_DB_PATH=.data/e2e-chat.sqlite CHAT_ENABLED=true CHAT_TAG_HMAC_SECRET=e2e-chat-tag-secret-that-is-at-least-32-characters CENTRIFUGO_API_KEY=e2e-centrifugo-api-key-that-is-at-least-32-characters CENTRIFUGO_API_URL=http://127.0.0.1:3800/api CENTRIFUGO_TOKEN_HMAC_SECRET=e2e-centrifugo-token-secret-that-is-at-least-32-characters NEXT_PUBLIC_CENTRIFUGO_WEBSOCKET_URL=ws://127.0.0.1:3800/connection/websocket NEXT_DIST_DIR=.next-e2e-chat BETTER_AUTH_URL=http://localhost:3299 BETTER_AUTH_SECRET=e2e-chat-better-auth-secret-at-least-32-characters INTERNAL_AUTH_SECRET=e2e-chat-internal-secret-at-least-32-characters MEDIAMTX_AUTH_SECRET=e2e-chat-mediamtx-secret-at-least-32-characters MEDIAMTX_API_URL=http://[::1]:3997 npm run dev -- --hostname ::1 --port 3299',
       url: 'http://[::1]:3299',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

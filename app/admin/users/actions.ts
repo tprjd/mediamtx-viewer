@@ -14,6 +14,7 @@ import {
   setRegistrationOpen,
 } from '@/lib/auth/store'
 import { grantStreaming, setChannelEnabled } from '@/lib/channels'
+import { disconnectChatParticipant } from '@/lib/chat-realtime'
 import { disconnectChannelSessions } from '@/lib/mediamtx'
 
 function destination(kind: 'notice' | 'error', message: string): string {
@@ -41,8 +42,14 @@ export async function activateAction(userId: string) {
 
 export async function disableAction(userId: string) {
   let disconnectWarning = false
+  let chatDisconnectWarning = false
   await runAdminAction(async (actorId) => {
     const mediaPath = disableUser(actorId, userId)
+    try {
+      await disconnectChatParticipant(userId)
+    } catch {
+      chatDisconnectWarning = true
+    }
     if (mediaPath) {
       try {
         await disconnectChannelSessions(mediaPath)
@@ -56,6 +63,8 @@ export async function disableAction(userId: string) {
       'notice',
       disconnectWarning
         ? 'Account disabled and credentials revoked. MediaMTX could not confirm active stream disconnection.'
+        : chatDisconnectWarning
+          ? 'Account disabled and sessions revoked. Centrifugo could not confirm Chat disconnection.'
         : 'Account disabled and sessions revoked.',
     ),
   )

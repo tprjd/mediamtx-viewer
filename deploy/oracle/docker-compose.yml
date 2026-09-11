@@ -15,12 +15,46 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
+      centrifugo:
+        condition: service_healthy
       mediamtx:
         condition: service_started
       mediamtx-health:
         condition: service_healthy
       viewer:
         condition: service_healthy
+    networks:
+      - viewer_net
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  centrifugo:
+    image: centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025
+    restart: unless-stopped
+    environment:
+      CENTRIFUGO_CHANNEL_NAMESPACES: >-
+        [{"name":"chat","history_size":300,"history_ttl":"30s","force_recovery":true,"force_positioning":true,"allow_subscribe_for_client":false,"allow_publish_for_client":false,"allow_publish_for_subscriber":false},{"name":"control","allow_subscribe_for_client":false,"allow_publish_for_client":false,"allow_publish_for_subscriber":false}]
+      CENTRIFUGO_CLIENT_ALLOWED_ORIGINS: https://${PUBLIC_HOSTNAME:?Set PUBLIC_HOSTNAME in caddy.env}
+      CENTRIFUGO_CLIENT_DISALLOW_ANONYMOUS_CONNECTION_TOKENS: "true"
+      CENTRIFUGO_CLIENT_TOKEN_AUDIENCE: frankerzspam-chat
+      CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY: ${CENTRIFUGO_TOKEN_HMAC_SECRET:?Set CENTRIFUGO_TOKEN_HMAC_SECRET in caddy.env}
+      CENTRIFUGO_CLIENT_TOKEN_ISSUER: frankerzspam-viewer
+      CENTRIFUGO_ENGINE_TYPE: memory
+      CENTRIFUGO_HEALTH_ENABLED: "true"
+      CENTRIFUGO_HTTP_API_KEY: ${CENTRIFUGO_API_KEY:?Set CENTRIFUGO_API_KEY in caddy.env}
+      CENTRIFUGO_LOG_LEVEL: warn
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     networks:
       - viewer_net
     logging:
@@ -143,6 +177,9 @@ services:
       CHAT_DB_PATH: /data/chat.sqlite
       CHAT_ENABLED: ${CHAT_ENABLED:-false}
       CHAT_TAG_HMAC_SECRET: ${CHAT_TAG_HMAC_SECRET:-}
+      CENTRIFUGO_API_KEY: ${CENTRIFUGO_API_KEY:?Set CENTRIFUGO_API_KEY in caddy.env}
+      CENTRIFUGO_API_URL: http://centrifugo:8000/api
+      CENTRIFUGO_TOKEN_HMAC_SECRET: ${CENTRIFUGO_TOKEN_HMAC_SECRET:?Set CENTRIFUGO_TOKEN_HMAC_SECRET in caddy.env}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in caddy.env}
       BETTER_AUTH_URL: https://${PUBLIC_HOSTNAME:?Set PUBLIC_HOSTNAME in caddy.env}
       INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:?Set INTERNAL_AUTH_SECRET in caddy.env}

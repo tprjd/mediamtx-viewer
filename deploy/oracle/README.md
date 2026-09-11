@@ -36,8 +36,9 @@ Keep the age private key out of Git and back it up separately.
 
 Generate independent strong secrets:
 
-- `BETTER_AUTH_SECRET`, `INTERNAL_AUTH_SECRET`, `MEDIAMTX_AUTH_SECRET`, and
-  `CHAT_TAG_HMAC_SECRET`:
+- `BETTER_AUTH_SECRET`, `INTERNAL_AUTH_SECRET`, `MEDIAMTX_AUTH_SECRET`,
+  `CHAT_TAG_HMAC_SECRET`, `CENTRIFUGO_TOKEN_HMAC_SECRET`, and
+  `CENTRIFUGO_API_KEY`:
   generate each with
   `openssl rand -hex 32` and put them in `caddy.env`.
 - Keep `CHAT_ENABLED=false` until the Chat rollout checks pass.
@@ -123,9 +124,10 @@ timing contract. Existing streamers must download setup 1.4.0 and run
 Release acceptance still requires an observed glass-to-glass latency check; the
 repository validators cannot measure it.
 
-MediaMTX metrics and its Control API remain private on the Compose network. The
-health sidecar checks them and the RTSP, HLS, WHEP, and TCP ICE listeners without
-restarting MediaMTX on a failed probe. Inspect the counters with:
+MediaMTX metrics, its Control API, and the Centrifugo server API remain private
+on the Compose network. Caddy proxies only the authenticated Centrifugo
+WebSocket path. The health checks cover Centrifugo and the MediaMTX RTSP, HLS,
+WHEP, and TCP ICE listeners. Inspect the MediaMTX counters with:
 
 ```sh
 docker compose --env-file deploy/oracle/secrets/caddy.env \

@@ -1,16 +1,14 @@
 import { z } from 'zod'
 
-import { getActiveSession } from '@/lib/auth/session'
-import { getUserById } from '@/lib/auth/store'
-import { getChatChannel, type ChatChannel } from '@/lib/channels'
-import { loadLatestChatMessages, sendChatMessage } from '@/lib/chat'
+import { authorizeLiveChat } from '@/lib/chat-access'
 import {
-  getChatRuntimeConfigurationErrors,
-  isChatEnabled,
-} from '@/lib/chat-environment'
+  loadChatMessagesAfter,
+  loadLatestChatMessages,
+  sendChatMessage,
+} from '@/lib/chat'
+import { requestChatOutboxDispatch } from '@/lib/chat-outbox'
 import { ChatMessageValidationError } from '@/lib/chat-rules'
 import { readUtf8BodyWithLimit } from '@/lib/http-body'
-import { getChannelStatus } from '@/lib/mediamtx'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,73 +24,36 @@ const responseHeaders = {
   Pragma: 'no-cache',
 }
 
-async function authorizeChatRequest(
-  context: RouteContext,
-): Promise<
-  | { channel: ChatChannel; accountId: string; profileName: string }
-  | Response
-> {
-  if (!isChatEnabled()) {
-    return Response.json(
-      { error: 'Not found' },
-      { status: 404, headers: responseHeaders },
-    )
-  }
-  if (getChatRuntimeConfigurationErrors().length > 0) {
-    return Response.json(
-      { error: 'Chat is unavailable.' },
-      { status: 503, headers: responseHeaders },
-    )
-  }
-
-  const session = await getActiveSession()
-  if (!session) {
-    return Response.json(
-      { error: 'An active account is required.' },
-      { status: 401, headers: responseHeaders },
-    )
-  }
-
-  const account = getUserById(session.user.id)
-  if (!account || account.activationStatus !== 'active') {
-    return Response.json(
-      { error: 'An active account is required.' },
-      { status: 401, headers: responseHeaders },
-    )
-  }
-
+async function authorizeChatRequest(context: RouteContext) {
   const { slug } = await context.params
-  const channel = getChatChannel(slug)
-  if (!channel) {
-    return Response.json(
-      { error: 'Channel not found.' },
-      { status: 404, headers: responseHeaders },
-    )
-  }
-
-  const status = await getChannelStatus(channel.mediaPath)
-  if (!status.live) {
-    return Response.json(
-      { error: 'Chat is available only while the Channel is live.' },
-      { status: 409, headers: responseHeaders },
-    )
-  }
-
-  return {
-    channel,
-    accountId: account.id,
-    profileName: account.name,
-  }
+  const access = await authorizeLiveChat(slug)
+  if (access.ok) return access
+  return Response.json(
+    { error: access.error },
+    { status: access.status, headers: responseHeaders },
+  )
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: RouteContext,
 ): Promise<Response> {
   const access = await authorizeChatRequest(context)
   if (access instanceof Response) return access
 
   try {
+    const after = new URL(request.url).searchParams.get('after')
+    if (after !== null) {
+      if (!/^\d+$/.test(after) || !Number.isSafeInteger(Number(after))) {
+        return Response.json(
+          { error: 'Invalid room sequence.' },
+          { status: 400, headers: responseHeaders },
+        )
+      }
+      return Response.json(loadChatMessagesAfter(access.channel, Number(after)), {
+        headers: responseHeaders,
+      })
+    }
     return Response.json(
       { messages: loadLatestChatMessages(access.channel) },
       { headers: responseHeaders },
@@ -152,6 +113,7 @@ export async function POST(
       },
       rawContent: parsed.data.content,
     })
+    requestChatOutboxDispatch()
     return Response.json(
       { message },
       { status: 201, headers: responseHeaders },

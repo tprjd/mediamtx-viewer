@@ -1,11 +1,22 @@
 'use client'
 
 import { Send } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react'
 
 import { ChatFrame } from '@/components/chat-frame'
 import { ChatMessage } from '@/components/chat-message'
+import { useChatRealtime } from '@/components/use-chat-realtime'
 import styles from '@/components/channel-viewer.module.css'
+import {
+  firstChatSequenceGap,
+  mergeChatMessages,
+} from '@/lib/chat-client-state'
 import type { PublicChatMessage } from '@/lib/chat-types'
 
 interface ChatPanelProps {
@@ -17,6 +28,7 @@ interface ChatPanelProps {
 
 interface ChatPanelContentProps {
   active: boolean
+  channelSlug: string
   endpoint: string
 }
 
@@ -30,13 +42,93 @@ interface SendResponse {
   error?: string
 }
 
-function ChatPanelContent({ active, endpoint }: ChatPanelContentProps) {
+function ChatPanelContent({
+  active,
+  channelSlug,
+  endpoint,
+}: ChatPanelContentProps) {
   const [messages, setMessages] = useState<PublicChatMessage[]>([])
+  const messagesRef = useRef<PublicChatMessage[]>([])
+  const reconciliationRef = useRef<Promise<void> | null>(null)
+  const pendingReconciliationRef = useRef<number | null>(null)
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [accessDenied, setAccessDenied] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const mergeMessages = useCallback((incoming: PublicChatMessage[]) => {
+    const merged = mergeChatMessages(messagesRef.current, incoming)
+    messagesRef.current = merged
+    setMessages(merged)
+    return merged
+  }, [])
+
+  const reconcile = useCallback((afterSequence?: number) => {
+    const requestedAfter =
+      afterSequence ?? messagesRef.current.at(-1)?.sequence ?? 0
+    pendingReconciliationRef.current =
+      pendingReconciliationRef.current === null
+        ? requestedAfter
+        : Math.min(pendingReconciliationRef.current, requestedAfter)
+    if (reconciliationRef.current) return
+    const work = (async () => {
+      while (pendingReconciliationRef.current !== null) {
+        let after = pendingReconciliationRef.current
+        pendingReconciliationRef.current = null
+        let hasMore = true
+        while (hasMore) {
+          const response = await fetch(`${endpoint}?after=${after}`, {
+            cache: 'no-store',
+          })
+          const result = (await response.json()) as HistoryResponse & {
+            hasMore?: boolean
+          }
+          if (!response.ok) {
+            throw new Error(result.error ?? 'Could not reconcile Chat.')
+          }
+          const incoming = result.messages ?? []
+          mergeMessages(incoming)
+          after = incoming.at(-1)?.sequence ?? after
+          hasMore = result.hasMore === true && incoming.length > 0
+        }
+        const remainingGap = firstChatSequenceGap(messagesRef.current)
+        if (remainingGap !== null) pendingReconciliationRef.current = remainingGap
+      }
+    })()
+      .catch((reconcileError: unknown) => {
+        setError(
+          reconcileError instanceof Error
+            ? reconcileError.message
+            : 'Could not reconcile Chat.',
+        )
+      })
+      .finally(() => {
+        reconciliationRef.current = null
+      })
+    reconciliationRef.current = work
+  }, [endpoint, mergeMessages])
+
+  const receiveMessage = useCallback(
+    (message: PublicChatMessage) => {
+      const lastSequence = messagesRef.current.at(-1)?.sequence
+      mergeMessages([message])
+      if (
+        lastSequence !== undefined &&
+        message.sequence > lastSequence + 1
+      ) {
+        reconcile(lastSequence)
+      }
+    },
+    [mergeMessages, reconcile],
+  )
+
+  const realtimeState = useChatRealtime({
+    active,
+    channelSlug,
+    onMessage: receiveMessage,
+    onRecoveryFailed: reconcile,
+  })
 
   useEffect(() => {
     if (!active) return
@@ -52,7 +144,9 @@ function ChatPanelContent({ active, endpoint }: ChatPanelContentProps) {
           setAccessDenied(true)
         }
         if (!response.ok) throw new Error(result.error ?? 'Could not load Chat.')
-        setMessages(result.messages ?? [])
+        const merged = mergeMessages(result.messages ?? [])
+        const gap = firstChatSequenceGap(merged)
+        if (gap !== null) reconcile(gap)
       })
       .catch((loadError: unknown) => {
         if (controller.signal.aborted) return
@@ -65,7 +159,7 @@ function ChatPanelContent({ active, endpoint }: ChatPanelContentProps) {
       })
 
     return () => controller.abort()
-  }, [active, endpoint])
+  }, [active, endpoint, mergeMessages, reconcile])
 
   async function sendMessage(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
@@ -87,11 +181,7 @@ function ChatPanelContent({ active, endpoint }: ChatPanelContentProps) {
         throw new Error(result.error ?? 'Could not send the message.')
       }
       const acceptedMessage = result.message
-      setMessages((current) =>
-        current.some(({ id }) => id === acceptedMessage.id)
-          ? current
-          : [...current, acceptedMessage],
-      )
+      mergeMessages([acceptedMessage])
       setDraft('')
     } catch (sendError) {
       setError(
@@ -106,7 +196,12 @@ function ChatPanelContent({ active, endpoint }: ChatPanelContentProps) {
 
   return (
     <>
-      <ol aria-label="Chat messages" className={styles.chatTranscript} role="log">
+      <ol
+        aria-label="Chat messages"
+        className={styles.chatTranscript}
+        data-realtime-state={realtimeState}
+        role="log"
+      >
         {loading && <li className={styles.chatNotice}>Loading Chat...</li>}
         {!loading && messages.length === 0 && !error && (
           <li className={styles.chatNotice}>No messages yet.</li>
@@ -152,7 +247,13 @@ export function ChatPanel({
       narrowLayout={narrowLayout}
       onClose={onClose}
     >
-      {(active) => <ChatPanelContent active={active} endpoint={endpoint} />}
+      {(active) => (
+        <ChatPanelContent
+          active={active}
+          channelSlug={channelSlug}
+          endpoint={endpoint}
+        />
+      )}
     </ChatFrame>
   )
 }
