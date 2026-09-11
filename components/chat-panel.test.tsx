@@ -98,6 +98,51 @@ describe('live Chat delivery', () => {
     await expect(realtime.instances[0].refreshToken()).resolves.toBe('token-2')
   })
 
+  it('replaces the transcript and connection when the visible Channel changes', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.endsWith('/token')) return Response.json({ token: 'token' })
+        if (url.includes('/first/chat/messages')) {
+          return Response.json({
+            messages: [
+              { ...message('first', 1), content: 'first Channel message' },
+            ],
+          })
+        }
+        return Response.json({
+          messages: [
+            { ...message('second', 1), content: 'second Channel message' },
+          ],
+        })
+      }),
+    )
+    const view = render(
+      <ChatPanel
+        channelSlug="first"
+        narrowLayout={false}
+        onClose={() => undefined}
+      />,
+    )
+    await screen.findByText('first Channel message')
+
+    view.rerender(
+      <ChatPanel
+        channelSlug="second"
+        narrowLayout={false}
+        onClose={() => undefined}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(realtime.instances).toHaveLength(2)
+      expect(realtime.instances[0].disconnect).toHaveBeenCalledOnce()
+    })
+    await screen.findByText('second Channel message')
+    expect(screen.queryByText('first Channel message')).toBeNull()
+  })
+
   it('merges a publication once and repairs a room-sequence gap from SQLite', async () => {
     const requests: string[] = []
     vi.stubGlobal(

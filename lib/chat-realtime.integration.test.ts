@@ -42,6 +42,22 @@ async function waitForHealth(): Promise<void> {
   throw new Error('Centrifugo did not become healthy')
 }
 
+async function callCentrifugoApi<T>(
+  method: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  const response = await fetch(`http://127.0.0.1:${port}/api/${method}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': apiKey,
+    },
+    body: JSON.stringify(body),
+  })
+  expect(response.ok).toBe(true)
+  return (await response.json()) as T
+}
+
 function nextEvent<T>(
   client: Centrifuge,
   event: 'connected' | 'disconnected' | 'publication' | 'subscribed',
@@ -177,5 +193,56 @@ describe('Centrifugo Chat delivery', () => {
     const accountDisconnected = nextEvent<{ code: number }>(client, 'disconnected')
     await disconnectChatParticipant(accountId)
     await expect(accountDisconnected).resolves.toMatchObject({ code: 3500 })
+  }, 20_000)
+
+  it('replaces an expired connection token and connects within five seconds', async () => {
+    const { createChatConnectionToken } = await import('@/lib/chat-realtime')
+    let tokenRequests = 0
+    const client = new Centrifuge(
+      `ws://127.0.0.1:${port}/connection/websocket`,
+      {
+        getToken: async () => {
+          tokenRequests += 1
+          return createChatConnectionToken({
+            accountId: 'refresh-participant',
+            channelId: 'refresh-channel',
+            now:
+              tokenRequests === 1
+                ? new Date(Date.now() - 301_000)
+                : new Date(),
+            secret: tokenSecret,
+          })
+        },
+        minReconnectDelay: 250,
+        maxReconnectDelay: 3_000,
+        websocket: WebSocket,
+      },
+    )
+    const connected = nextEvent(client, 'connected')
+    const startedAt = Date.now()
+    client.connect()
+
+    await connected
+    expect(Date.now() - startedAt).toBeLessThan(5_000)
+    expect(tokenRequests).toBe(2)
+    client.disconnect()
+  }, 10_000)
+
+  it('keeps no more than 300 room publications in memory', async () => {
+    const { publishChatEvent } = await import('@/lib/chat-realtime')
+    const channel = 'chat:retention-integration-channel'
+    for (let index = 0; index < 301; index += 1) {
+      await publishChatEvent(
+        channel,
+        { index },
+        `retention-publication-${index}`,
+      )
+    }
+
+    const history = await callCentrifugoApi<{
+      result: { publications: Array<{ data: { index: number } }> }
+    }>('history', { channel, limit: 301 })
+    expect(history.result.publications).toHaveLength(300)
+    expect(history.result.publications.at(-1)?.data).toEqual({ index: 300 })
   }, 20_000)
 })

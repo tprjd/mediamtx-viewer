@@ -54,10 +54,18 @@ export async function authorizeLiveChat(slug: string): Promise<LiveChatAccess> {
       error: 'Chat is available only while the Channel is live.',
     }
   }
+  const currentAccount = getUserById(session.user.id)
+  if (!currentAccount || currentAccount.activationStatus !== 'active') {
+    return {
+      ok: false,
+      status: 401,
+      error: 'An active account is required.',
+    }
+  }
   return {
     ok: true,
     channel,
-    accountId: account.id,
-    profileName: account.name,
+    accountId: currentAccount.id,
+    profileName: currentAccount.name,
   }
 }

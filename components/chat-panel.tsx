@@ -252,6 +252,7 @@ export function ChatPanel({
           active={active}
           channelSlug={channelSlug}
           endpoint={endpoint}
+          key={channelSlug}
         />
       )}
     </ChatFrame>
