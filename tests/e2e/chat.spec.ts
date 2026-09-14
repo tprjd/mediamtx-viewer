@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 import Database from 'better-sqlite3'
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
@@ -30,7 +30,17 @@ async function waitForCentrifugo(): Promise<void> {
     .toBe(true)
 }
 
-function seedRetainedChatHistory(prefix: string): void {
+async function scrollChatToTop(log: Locator): Promise<void> {
+  await log.evaluate((element) => {
+    element.scrollTop = 0
+    element.dispatchEvent(new Event('scroll'))
+  })
+}
+
+function seedRetainedChatHistory(
+  prefix: string,
+  includeDateBoundary = false,
+): void {
   const authDatabase = new Database(authDatabasePath, { readonly: true })
   const channel = authDatabase
     .prepare(
@@ -46,6 +56,9 @@ function seedRetainedChatHistory(prefix: string): void {
   chatDatabase.pragma('foreign_keys = ON')
   const roomId = randomUUID()
   const now = Date.now()
+  const localMidnight = new Date(now)
+  localMidnight.setHours(0, 0, 0, 0)
+  const previousLocalDay = localMidnight.getTime() - 1_000
   chatDatabase.transaction(() => {
     chatDatabase
       .prepare('DELETE FROM chat_room WHERE channel_id = ?')
@@ -86,7 +99,9 @@ function seedRetainedChatHistory(prefix: string): void {
         channel.ownerId,
         channel.ownerName,
         `${prefix} retained ${retainedNumber}`,
-        now,
+        includeDateBoundary && retainedNumber === 1
+          ? previousLocalDay
+          : now,
       )
     }
   })()
@@ -132,7 +147,7 @@ test('browses retained Chat history without losing the reading position', async 
   runDocker('start', centrifugoContainer)
   await waitForCentrifugo()
   const prefix = `retained-${randomUUID()}`
-  seedRetainedChatHistory(prefix)
+  seedRetainedChatHistory(prefix, true)
   await page.setViewportSize({ width: 1440, height: 900 })
   await signInAsAdministrator(page)
 
@@ -177,10 +192,7 @@ test('browses retained Chat history without losing the reading position', async 
     await route.continue()
   })
 
-  await log.evaluate((element) => {
-    element.scrollTop = 0
-    element.dispatchEvent(new Event('scroll'))
-  })
+  await scrollChatToTop(log)
   await firstPageRequested
   const anchor = chat.locator(`[data-message-id="${prefix}-106"]`)
   await expect(anchor).toBeVisible()
@@ -190,9 +202,7 @@ test('browses retained Chat history without losing the reading position', async 
   )
   releaseFirstPage()
   await firstPageResponse
-  await expect(
-    anchor.locator('xpath=../..'),
-  ).toHaveAttribute('data-index', '100')
+  await expect(chat.locator('[data-chat-item-index="100"]')).toBeVisible()
   const anchorTopAfter = (await anchor.boundingBox())!.y
   expect(Math.abs(anchorTopAfter - anchorTopBefore)).toBeLessThan(12)
   expect(await chat.getByRole('listitem').count()).toBeLessThan(30)
@@ -200,15 +210,9 @@ test('browses retained Chat history without losing the reading position', async 
   const finalPageResponse = page.waitForResponse((response) =>
     response.url().includes('/chat/messages?before='),
   )
-  await log.evaluate((element) => {
-    element.scrollTop = 0
-    element.dispatchEvent(new Event('scroll'))
-  })
+  await scrollChatToTop(log)
   await finalPageResponse
-  await log.evaluate((element) => {
-    element.scrollTop = 0
-    element.dispatchEvent(new Event('scroll'))
-  })
+  await scrollChatToTop(log)
   await expect(
     chat.getByText('This is the start of the last seven days.'),
   ).toBeVisible()
@@ -233,10 +237,23 @@ test('browses retained Chat history without losing the reading position', async 
   )
   expect((await oldestMessage.boundingBox())!.y).toBe(oldestTopBefore)
   await expect(chat.getByRole('button', { name: 'New messages' })).toBeVisible()
+  await expect(chat.getByRole('status')).toBeEmpty()
+  await expect(chat.getByRole('status')).toHaveAttribute('aria-live', 'off')
+  await expect(chat.getByRole('separator')).toHaveCount(2)
 
   await chat.getByRole('button', { name: 'New messages' }).click()
   await expect(chat.getByText(incomingContent, { exact: true })).toBeVisible()
   await expect.poll(() => log.getAttribute('data-at-bottom')).toBe('true')
+
+  const announcedContent = `${prefix} announced at the live end`
+  const announcedResponse = await page.request.post(
+    '/api/channels/live/chat/messages',
+    { data: { content: announcedContent } },
+  )
+  expect(announcedResponse.ok()).toBe(true)
+  await expect(chat.getByText(announcedContent, { exact: true })).toBeVisible()
+  await expect(chat.getByRole('status')).toContainText(announcedContent)
+  await expect(chat.getByRole('status')).toHaveAttribute('aria-live', 'polite')
 
   await chat.getByRole('button', { name: 'Close Chat' }).click()
   await page.getByRole('button', { name: 'Open Chat' }).click()
@@ -255,6 +272,21 @@ test('browses retained Chat history without losing the reading position', async 
   await expect(narrowToggle).toHaveAttribute('aria-expanded', 'false')
   await narrowToggle.click()
   await expect(reopenedLog).toBeVisible()
+
+  await narrowToggle.click()
+  await expect(reopenedLog).toBeHidden()
+  const hiddenContent = `${prefix} arrived while Chat was hidden`
+  const hiddenResponse = await page.request.post(
+    '/api/channels/live/chat/messages',
+    { data: { content: hiddenContent } },
+  )
+  expect(hiddenResponse.ok()).toBe(true)
+  await narrowToggle.click()
+  await expect(reopenedLog).toBeVisible()
+  await expect(
+    reopenedChat.getByText(hiddenContent, { exact: true }),
+  ).toBeVisible()
+  await expect(reopenedChat.getByRole('status')).toBeEmpty()
 
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.getByRole('button', { name: 'Enter theater mode' }).click()

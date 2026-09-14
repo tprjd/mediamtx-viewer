@@ -6,7 +6,7 @@ import { ChatMessage } from '@/components/chat-message'
 describe('Chat message rendering rules', () => {
   it('renders a URL as plain text without creating a link', () => {
     render(
-      <ol>
+      <div>
         <ChatMessage
           message={{
             id: 'message-id',
@@ -18,7 +18,7 @@ describe('Chat message rendering rules', () => {
             serverTimestamp: '2026-09-11T09:00:00.000Z',
           }}
         />
-      </ol>,
+      </div>,
     )
 
     expect(screen.getByText('read https://example.test')).toBeInTheDocument()

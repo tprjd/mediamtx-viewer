@@ -15,7 +15,7 @@ import {
   type VirtuosoHandle,
 } from 'react-virtuoso'
 
-import { ChatMessageContent } from '@/components/chat-message'
+import { ChatMessage } from '@/components/chat-message'
 import styles from '@/components/channel-viewer.module.css'
 import type { PublicChatMessage } from '@/lib/chat-types'
 
@@ -153,8 +153,12 @@ export function ChatTranscript({
       defaultItemHeight={68}
       firstItemIndex={firstItemIndex}
       followOutput="auto"
-      itemContent={(_index, entry) => (
-        <div className={styles.chatTranscriptItem} role="listitem">
+      itemContent={(index, entry) => (
+        <div
+          className={styles.chatTranscriptItem}
+          data-chat-item-index={index}
+          role="listitem"
+        >
           {entry.startsLocalDay && (
             <div className={styles.chatDaySeparator} role="separator">
               <time dateTime={entry.message.serverTimestamp}>
@@ -164,7 +168,7 @@ export function ChatTranscript({
               </time>
             </div>
           )}
-          <ChatMessageContent message={entry.message} />
+          <ChatMessage message={entry.message} />
         </div>
       )}
       minOverscanItemCount={{ bottom: 4, top: 4 }}

@@ -218,46 +218,28 @@ function decodeChatHistoryCursor(cursor: string): number | null {
   return sequence
 }
 
-export function loadLatestChatHistory(
-  channel: ChatChannelReference,
-  now = new Date(),
-): ChatHistoryPage {
-  const cutoff = now.getTime() - HISTORY_RETENTION_MS
-  const rows = getChatDatabase()
-    .prepare(
-      `SELECT * FROM (
-         SELECT message.id, message.room_sequence AS sequence,
-                message.account_id AS accountId,
-                message.profile_name AS profileName,
-                message.author_tag AS authorTag, message.content,
-                message.created_at AS createdAt
-         FROM chat_message message
-         JOIN chat_room room ON room.id = message.room_id
-         WHERE room.channel_id = ? AND message.created_at >= ?
-         ORDER BY message.room_sequence DESC
-         LIMIT ?
-       ) ORDER BY sequence ASC`,
-    )
-    .all(channel.id, cutoff, HISTORY_PAGE_SIZE + 1) as ChatMessageRow[]
-
-  const hasMore = rows.length > HISTORY_PAGE_SIZE
-  const selectedRows = hasMore ? rows.slice(1) : rows
-  return {
-    messages: selectedRows.map((row) => toPublicMessage(row, channel)),
-    hasMore,
-    cursor: hasMore ? encodeChatHistoryCursor(selectedRows[0].sequence) : null,
+interface RetainedChatRowsOptions {
+  order: 'ASC' | 'DESC'
+  pageSize: number
+  sequence?: {
+    operator: '>' | '<'
+    value: number
   }
 }
 
-const GAP_REPAIR_PAGE_SIZE = 300
-
-export function loadChatMessagesAfter(
+function loadRetainedChatRows(
   channel: ChatChannelReference,
-  afterSequence: number,
-  now = new Date(),
-): { messages: PublicChatMessage[]; hasMore: boolean } {
+  now: Date,
+  options: RetainedChatRowsOptions,
+): ChatMessageRow[] {
   const cutoff = now.getTime() - HISTORY_RETENTION_MS
-  const rows = getChatDatabase()
+  const sequencePredicate = options.sequence
+    ? `AND message.room_sequence ${options.sequence.operator} ?`
+    : ''
+  const parameters = options.sequence
+    ? [channel.id, cutoff, options.sequence.value, options.pageSize + 1]
+    : [channel.id, cutoff, options.pageSize + 1]
+  return getChatDatabase()
     .prepare(
       `SELECT message.id, message.room_sequence AS sequence,
               message.account_id AS accountId,
@@ -267,17 +249,55 @@ export function loadChatMessagesAfter(
        FROM chat_message message
        JOIN chat_room room ON room.id = message.room_id
        WHERE room.channel_id = ?
-         AND message.room_sequence > ?
          AND message.created_at >= ?
-       ORDER BY message.room_sequence ASC
+         ${sequencePredicate}
+       ORDER BY message.room_sequence ${options.order}
        LIMIT ?`,
     )
-    .all(
-      channel.id,
-      afterSequence,
-      cutoff,
-      GAP_REPAIR_PAGE_SIZE + 1,
-    ) as ChatMessageRow[]
+    .all(...parameters) as ChatMessageRow[]
+}
+
+function toChatHistoryPage(
+  rows: ChatMessageRow[],
+  channel: ChatChannelReference,
+): ChatHistoryPage {
+  const hasMore = rows.length > HISTORY_PAGE_SIZE
+  const selectedRows = rows.slice(0, HISTORY_PAGE_SIZE).toReversed()
+  return {
+    messages: selectedRows.map((row) => toPublicMessage(row, channel)),
+    hasMore,
+    cursor:
+      hasMore && selectedRows[0]
+        ? encodeChatHistoryCursor(selectedRows[0].sequence)
+        : null,
+  }
+}
+
+export function loadLatestChatHistory(
+  channel: ChatChannelReference,
+  now = new Date(),
+): ChatHistoryPage {
+  return toChatHistoryPage(
+    loadRetainedChatRows(channel, now, {
+      order: 'DESC',
+      pageSize: HISTORY_PAGE_SIZE,
+    }),
+    channel,
+  )
+}
+
+const GAP_REPAIR_PAGE_SIZE = 300
+
+export function loadChatMessagesAfter(
+  channel: ChatChannelReference,
+  afterSequence: number,
+  now = new Date(),
+): { messages: PublicChatMessage[]; hasMore: boolean } {
+  const rows = loadRetainedChatRows(channel, now, {
+    order: 'ASC',
+    pageSize: GAP_REPAIR_PAGE_SIZE,
+    sequence: { operator: '>', value: afterSequence },
+  })
   const hasMore = rows.length > GAP_REPAIR_PAGE_SIZE
   return {
     messages: rows
@@ -296,39 +316,12 @@ export function loadOlderChatMessages(
   if (beforeSequence === null) {
     throw new InvalidChatHistoryCursorError('Invalid Chat history cursor.')
   }
-  const cutoff = now.getTime() - HISTORY_RETENTION_MS
-  const rows = getChatDatabase()
-    .prepare(
-      `SELECT message.id, message.room_sequence AS sequence,
-              message.account_id AS accountId,
-              message.profile_name AS profileName,
-              message.author_tag AS authorTag, message.content,
-              message.created_at AS createdAt
-       FROM chat_message message
-       JOIN chat_room room ON room.id = message.room_id
-       WHERE room.channel_id = ?
-         AND message.created_at >= ?
-         AND message.room_sequence < ?
-       ORDER BY message.room_sequence DESC
-       LIMIT ?`,
-    )
-    .all(
-      channel.id,
-      cutoff,
-      beforeSequence,
-      HISTORY_PAGE_SIZE + 1,
-    ) as ChatMessageRow[]
-
-  const selectedRows = rows.slice(0, HISTORY_PAGE_SIZE)
-  const lastRow = selectedRows.at(-1)
-  return {
-    messages: selectedRows
-      .toReversed()
-      .map((row) => toPublicMessage(row, channel)),
-    hasMore: rows.length > HISTORY_PAGE_SIZE,
-    cursor:
-      lastRow === undefined || rows.length <= HISTORY_PAGE_SIZE
-        ? null
-        : encodeChatHistoryCursor(lastRow.sequence),
-  }
+  return toChatHistoryPage(
+    loadRetainedChatRows(channel, now, {
+      order: 'DESC',
+      pageSize: HISTORY_PAGE_SIZE,
+      sequence: { operator: '<', value: beforeSequence },
+    }),
+    channel,
+  )
 }

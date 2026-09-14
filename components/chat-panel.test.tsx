@@ -1,7 +1,7 @@
 import {
   cleanup,
   fireEvent,
-  render as testingRender,
+  render,
   screen,
   waitFor,
   within,
@@ -9,7 +9,6 @@ import {
 import {
   useState,
   type ComponentType,
-  type ReactElement,
   type ReactNode,
   type UIEvent,
 } from 'react'
@@ -130,10 +129,6 @@ vi.mock('react-virtuoso', async (importOriginal) => {
 })
 
 import { ChatPanel } from '@/components/chat-panel'
-
-function render(element: ReactElement) {
-  return testingRender(element)
-}
 
 function message(id: string, sequence: number): PublicChatMessage {
   return {

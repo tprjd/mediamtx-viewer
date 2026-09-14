@@ -8,7 +8,7 @@ function localTime(timestamp: string): string {
   }).format(new Date(timestamp))
 }
 
-export function ChatMessageContent({
+export function ChatMessage({
   message,
 }: {
   message: PublicChatMessage
@@ -32,13 +32,5 @@ export function ChatMessageContent({
       </div>
       <p>{message.content}</p>
     </div>
-  )
-}
-
-export function ChatMessage({ message }: { message: PublicChatMessage }) {
-  return (
-    <li>
-      <ChatMessageContent message={message} />
-    </li>
   )
 }
