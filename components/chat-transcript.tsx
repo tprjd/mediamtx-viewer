@@ -1,12 +1,6 @@
 'use client'
 
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react'
+import { forwardRef, useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   Virtuoso,
   type Components,
@@ -14,6 +8,7 @@ import {
   type VirtuosoHandle,
 } from 'react-virtuoso'
 
+import type { ChatSubmission } from '@/components/use-chat-sending'
 import { ChatMessage } from '@/components/chat-message'
 import styles from '@/components/channel-viewer.module.css'
 import type { PublicChatMessage } from '@/lib/chat-types'
@@ -46,6 +41,7 @@ type ChatTranscriptEntry =
   | ChatDaySeparatorEntry
   | ChatMessageEntry
   | HistoryBoundaryEntry
+  | { kind: 'submission'; submission: ChatSubmission }
 
 function buildChatTranscriptEntries(
   messages: PublicChatMessage[],
@@ -105,6 +101,9 @@ interface ChatTranscriptProps {
   messages: PublicChatMessage[]
   onAtBottomChange: (atBottom: boolean) => void
   onLoadOlder: () => void
+  submissions?: ChatSubmission[]
+  onRetry?: (submission: ChatSubmission) => void
+  retryDisabled?: boolean
   realtimeState: 'connected' | 'connecting' | 'disconnected'
 }
 
@@ -117,13 +116,21 @@ export function ChatTranscript({
   onAtBottomChange,
   onLoadOlder,
   realtimeState,
+  submissions = [],
+  onRetry,
+  retryDisabled = false,
 }: ChatTranscriptProps) {
   const initialPositionSetRef = useRef(false)
   const atBottomRef = useRef(atBottom)
   const virtuosoRef = useRef<VirtuosoHandle | null>(null)
   const entries = useMemo<ChatTranscriptEntry[]>(
-    () => buildChatTranscriptEntries(messages, historyExhausted),
-    [historyExhausted, messages],
+    () => [
+      ...buildChatTranscriptEntries(messages, historyExhausted),
+      ...submissions
+        .filter((submission) => !submission.message)
+        .map((submission) => ({ kind: 'submission' as const, submission })),
+    ],
+    [historyExhausted, messages, submissions],
   )
   const handleStartReached = useCallback(() => {
     if (initialPositionSetRef.current && !atBottomRef.current) onLoadOlder()
@@ -161,6 +168,7 @@ export function ChatTranscript({
         className={styles.chatTranscript}
         components={transcriptComponents}
         computeItemKey={(_index, entry) => {
+          if (entry.kind === 'submission') return entry.submission.key
           if (entry.kind === 'history-boundary') return 'history-boundary'
           if (entry.kind === 'day-separator') {
             return `day-separator:${entry.dayKey}`
@@ -174,6 +182,27 @@ export function ChatTranscript({
         firstItemIndex={firstItemIndex}
         followOutput="auto"
         itemContent={(_index, entry) => {
+          if (entry.kind === 'submission') {
+            return (
+              <div className={styles.chatTranscriptItem} role="listitem">
+                <p>{entry.submission.content}</p>
+                <span>
+                  {entry.submission.state === 'sending'
+                    ? 'Sending'
+                    : 'Could not send.'}
+                </span>
+                {entry.submission.state === 'failed' && (
+                  <button
+                    type="button"
+                    disabled={retryDisabled}
+                    onClick={() => onRetry?.(entry.submission)}
+                  >
+                    Retry
+                  </button>
+                )}
+              </div>
+            )
+          }
           if (entry.kind === 'history-boundary') {
             return (
               <div className={styles.chatNotice} role="listitem">
@@ -199,6 +228,11 @@ export function ChatTranscript({
               role="listitem"
             >
               <ChatMessage message={entry.message} />
+              {submissions.some(
+                (submission) =>
+                  submission.state === 'delayed' &&
+                  submission.message?.id === entry.message.id,
+              ) && <span>Delayed</span>}
             </div>
           )
         }}

@@ -150,6 +150,11 @@ export function ChannelViewer({
   const chatRestoreRef = useRef<HTMLButtonElement | null>(null)
   const theaterChatCloseRef = useRef<HTMLButtonElement | null>(null)
   const theaterChatRestoreRef = useRef<HTMLButtonElement | null>(null)
+  const [chatFocusRequest, setChatFocusRequest] = useState<string | null>(null)
+  const openChat = () => {
+    setChatFocusRequest(channel.slug)
+    setChatPreference('open')
+  }
   const previousChatOpenRef = useRef(false)
   const { effectivePreference } = useLiveRailPreference()
   const { preference: chatPreference, setPreference: setChatPreference } =
@@ -194,14 +199,14 @@ export function ChannelViewer({
 
     if (theaterMode && wasChatOpen && !chatOpen) {
       theaterChatRestoreRef.current?.focus()
-    } else if (theaterMode && !wasChatOpen && chatOpen) {
+    } else if (!chatEnabled && theaterMode && !wasChatOpen && chatOpen) {
       theaterChatCloseRef.current?.focus()
     } else if (!theaterMode && wasChatOpen && !chatOpen) {
       chatRestoreRef.current?.focus()
     }
 
     previousChatOpenRef.current = chatOpen
-  }, [chatOpen, theaterMode])
+  }, [chatEnabled, chatOpen, theaterMode])
 
   return (
     <>
@@ -210,7 +215,7 @@ export function ChannelViewer({
           buttonRef={(element) => {
             chatRestoreRef.current = element
           }}
-          onOpen={() => setChatPreference('open')}
+          onOpen={openChat}
         />
       )}
       <main
@@ -233,7 +238,7 @@ export function ChannelViewer({
                 chatOpen={chatOpen}
                 channel={currentChannel}
                 onOpenChat={
-                  status.live ? () => setChatPreference('open') : undefined
+                  status.live ? openChat : undefined
                 }
                 onTheaterModeChange={setTheaterMode}
                 playbackControlsTarget={playbackControlsTarget}
@@ -277,17 +282,20 @@ export function ChannelViewer({
               )}
             </section>
           </div>
-          {chatOpen && (
+          {(chatEnabled || status.live) && (
             chatEnabled ? (
               <ChatPanel
+                key={currentChannel.slug}
                 channelSlug={currentChannel.slug}
+                open={chatOpen}
+                focusComposer={chatFocusRequest === currentChannel.slug && chatOpen}
                 closeButtonRef={(element) => {
                   theaterChatCloseRef.current = element
                 }}
                 narrowLayout={narrowLayout && !theaterMode}
-                onClose={() => setChatPreference('closed')}
+                onClose={() => { setChatFocusRequest(null); setChatPreference('closed') }}
               />
-            ) : (
+            ) : chatOpen ? (
               <ChatPlaceholder
                 closeButtonRef={(element) => {
                   theaterChatCloseRef.current = element
@@ -295,7 +303,7 @@ export function ChannelViewer({
                 narrowLayout={narrowLayout && !theaterMode}
                 onClose={() => setChatPreference('closed')}
               />
-            )
+            ) : null
           )}
         </div>
       </main>

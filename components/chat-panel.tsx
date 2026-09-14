@@ -1,22 +1,18 @@
 'use client'
 
 import { Send } from 'lucide-react'
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-} from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ChatFrame } from '@/components/chat-frame'
 import {
   ChatTranscript,
   chatTranscriptEntryCount,
 } from '@/components/chat-transcript'
+import { useChatSending } from '@/components/use-chat-sending'
 import { useChatRealtime } from '@/components/use-chat-realtime'
 import styles from '@/components/channel-viewer.module.css'
 import {
+  chatRequestBlocksSending,
   firstChatSequenceGap,
   mergeChatHistoryPages,
   mergeChatMessages,
@@ -25,6 +21,8 @@ import type { ChatHistoryPage, PublicChatMessage } from '@/lib/chat-types'
 
 interface ChatPanelProps {
   channelSlug: string
+  open?: boolean
+  focusComposer?: boolean
   closeButtonRef?: (element: HTMLButtonElement | null) => void
   narrowLayout: boolean
   onClose: () => void
@@ -34,14 +32,10 @@ interface ChatPanelContentProps {
   isChatVisible: boolean
   channelSlug: string
   endpoint: string
+  focusComposer: boolean
 }
 
 interface HistoryResponse extends Partial<ChatHistoryPage> {
-  error?: string
-}
-
-interface SendResponse {
-  message?: PublicChatMessage
   error?: string
 }
 
@@ -56,6 +50,7 @@ function ChatPanelContent({
   channelSlug,
   endpoint,
   isChatVisible,
+  focusComposer,
 }: ChatPanelContentProps) {
   const [messages, setMessages] = useState<PublicChatMessage[]>([])
   const messagesRef = useRef<PublicChatMessage[]>([])
@@ -63,14 +58,17 @@ function ChatPanelContent({
   const pendingReconciliationRef = useRef<number | null>(null)
   const requestGenerationRef = useRef(0)
   const wasChatVisibleRef = useRef(isChatVisible)
-  const [draft, setDraft] = useState('')
+  const composerRef = useRef<HTMLInputElement | null>(null)
+  const composingRef = useRef(false)
+  const [confirmedIds, setConfirmedIds] = useState<ReadonlySet<string>>(
+    new Set(),
+  )
+  const [unavailable, setUnavailable] = useState(false)
+  const [transcriptVisit, setTranscriptVisit] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [sending, setSending] = useState(false)
   const [accessDenied, setAccessDenied] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [firstItemIndex, setFirstItemIndex] = useState(
-    INITIAL_FIRST_ITEM_INDEX,
-  )
+  const [firstItemIndex, setFirstItemIndex] = useState(INITIAL_FIRST_ITEM_INDEX)
   const [atBottom, setAtBottom] = useState(true)
   const atBottomRef = useRef(true)
   const hasOlderHistoryRef = useRef(false)
@@ -111,7 +109,6 @@ function ChatPanelContent({
 
   const resetChatPanelState = useCallback(() => {
     requestGenerationRef.current += 1
-    messagesRef.current = []
     reconciliationRef.current = null
     pendingReconciliationRef.current = null
     historyCursorRef.current = null
@@ -119,14 +116,16 @@ function ChatPanelContent({
     updateHistoryAvailability(false)
     setHistoryExhausted(false)
     updateAtBottomState(true)
-    setMessages([])
-    setLoading(true)
-    setSending(false)
+    setLoading(messagesRef.current.length === 0)
     setAccessDenied(false)
     setError(null)
     setFirstItemIndex(INITIAL_FIRST_ITEM_INDEX)
     setAnnouncement(null)
-  }, [updateAtBottomState, updateHistoryAvailability, updateOlderHistoryLoading])
+  }, [
+    updateAtBottomState,
+    updateHistoryAvailability,
+    updateOlderHistoryLoading,
+  ])
 
   const announceMessage = useCallback((message: PublicChatMessage) => {
     announcementIdRef.current += 1
@@ -134,6 +133,23 @@ function ChatPanelContent({
       id: announcementIdRef.current,
       text: `${message.profileName}: ${message.content}`,
     })
+  }, [])
+
+  const confirmMessages = useCallback((incoming: PublicChatMessage[]) => {
+    setConfirmedIds(
+      (current) =>
+        new Set([
+          ...current,
+          ...incoming.flatMap(({ id, submissionId }) =>
+            submissionId ? [id, submissionId] : [id],
+          ),
+        ]),
+    )
+  }, [])
+
+  const checkAvailability = useCallback((response: Response) => {
+    if (chatRequestBlocksSending(response.status)) setUnavailable(true)
+    else if (response.ok) setUnavailable(false)
   }, [])
 
   const mergeMessages = useCallback((incoming: PublicChatMessage[]) => {
@@ -196,13 +212,17 @@ function ChatPanelContent({
             const response = await fetch(`${endpoint}?after=${after}`, {
               cache: 'no-store',
             })
+            if (requestGeneration !== requestGenerationRef.current) return
+            checkAvailability(response)
             const result = (await response.json()) as HistoryResponse
             if (requestGeneration !== requestGenerationRef.current) return
             if (!response.ok) {
               throw new Error(result.error ?? 'Could not reconcile Chat.')
             }
             const incoming = result.messages ?? []
+            setError(null)
             mergeMessages(incoming)
+            confirmMessages(incoming)
             after = incoming.at(-1)?.sequence ?? after
             hasMore = result.hasMore === true && incoming.length > 0
           }
@@ -223,7 +243,7 @@ function ChatPanelContent({
         })
       reconciliationRef.current = work
     },
-    [endpoint, mergeMessages],
+    [checkAvailability, confirmMessages, endpoint, mergeMessages],
   )
 
   const receiveMessage = useCallback(
@@ -231,14 +251,12 @@ function ChatPanelContent({
       if (!isChatVisible) return
       const lastSequence = messagesRef.current.at(-1)?.sequence
       mergeAndAnnounceMessage(message)
-      if (
-        lastSequence !== undefined &&
-        message.sequence > lastSequence + 1
-      ) {
+      confirmMessages([message])
+      if (lastSequence !== undefined && message.sequence > lastSequence + 1) {
         reconcile(lastSequence)
       }
     },
-    [isChatVisible, mergeAndAnnounceMessage, reconcile],
+    [confirmMessages, isChatVisible, mergeAndAnnounceMessage, reconcile],
   )
 
   const loadOlderHistory = useCallback(async () => {
@@ -258,6 +276,8 @@ function ChatPanelContent({
         `${endpoint}?before=${encodeURIComponent(cursor)}`,
         { cache: 'no-store' },
       )
+      if (requestGeneration !== requestGenerationRef.current) return
+      checkAvailability(response)
       const result = (await response.json()) as HistoryResponse
       if (requestGeneration !== requestGenerationRef.current) return
       if (!response.ok) {
@@ -278,6 +298,7 @@ function ChatPanelContent({
     }
   }, [
     applyHistoryPageMetadata,
+    checkAvailability,
     endpoint,
     mergeOlderPage,
     updateOlderHistoryLoading,
@@ -311,18 +332,32 @@ function ChatPanelContent({
 
     const requestGeneration = requestGenerationRef.current
     const controller = new AbortController()
+    const latestRequestSequence = messagesRef.current.at(-1)?.sequence ?? 0
     void fetch(endpoint, {
       cache: 'no-store',
       signal: controller.signal,
     })
       .then(async (response) => {
+        if (requestGeneration !== requestGenerationRef.current) return
+        checkAvailability(response)
         const result = (await response.json()) as HistoryResponse
         if (requestGeneration !== requestGenerationRef.current) return
         if (response.status === 401 || response.status === 403) {
           setAccessDenied(true)
         }
-        if (!response.ok) throw new Error(result.error ?? 'Could not load Chat.')
-        const { merged } = mergeMessages(result.messages ?? [])
+        if (!response.ok)
+          throw new Error(result.error ?? 'Could not load Chat.')
+        const incoming = result.messages ?? []
+        // Reopening starts with the latest page. Keep loaded history until it succeeds.
+        messagesRef.current = messagesRef.current.filter(
+          (message) =>
+            message.sequence >
+            Math.max(latestRequestSequence, incoming.at(-1)?.sequence ?? 0),
+        )
+        const { merged } = mergeMessages(incoming)
+        confirmMessages(incoming)
+        setError(null)
+        setTranscriptVisit((visit) => visit + 1)
         applyHistoryPageMetadata(result)
         const gap = firstChatSequenceGap(merged)
         if (gap !== null) reconcile(gap)
@@ -350,42 +385,61 @@ function ChatPanelContent({
       })
 
     return () => controller.abort()
-  }, [applyHistoryPageMetadata, endpoint, isChatVisible, mergeMessages, reconcile])
+  }, [
+    applyHistoryPageMetadata,
+    checkAvailability,
+    confirmMessages,
+    endpoint,
+    isChatVisible,
+    mergeMessages,
+    reconcile,
+  ])
 
-  async function sendMessage(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault()
-    if (!draft.trim() || sending) return
-
-    const requestGeneration = requestGenerationRef.current
-    setSending(true)
-    setError(null)
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ content: draft }),
-      })
-      const result = (await response.json()) as SendResponse
-      if (requestGeneration !== requestGenerationRef.current) return
-      if (response.status === 401 || response.status === 403) {
-        setAccessDenied(true)
-      }
-      if (!response.ok || !result.message) {
-        throw new Error(result.error ?? 'Could not send the message.')
-      }
-      mergeAndAnnounceMessage(result.message)
-      setDraft('')
-    } catch (sendError) {
-      if (requestGeneration !== requestGenerationRef.current) return
-      setError(
-        sendError instanceof Error
-          ? sendError.message
-          : 'Could not send the message.',
+  const sending = useChatSending({
+    endpoint,
+    connected: realtimeState === 'connected',
+    confirmedIds,
+    unavailable: unavailable || accessDenied || loading,
+    onUnavailable: () => setUnavailable(true),
+    onAccepted: mergeAndAnnounceMessage,
+  })
+  const delayed = sending.submissions.some((entry) => entry.state === 'delayed')
+  const previousRealtimeState = useRef(realtimeState)
+  const delayedAfter = Math.min(
+    ...sending.submissions.flatMap((entry) =>
+      entry.message ? [entry.message.sequence - 1] : [],
+    ),
+  )
+  useEffect(() => {
+    if (
+      realtimeState === 'connected' &&
+      previousRealtimeState.current !== 'connected'
+    ) {
+      // Include accepted sends whose publications were lost during the outage.
+      reconcile(
+        Math.min(delayedAfter, messagesRef.current.at(-1)?.sequence ?? 0),
       )
-    } finally {
-      if (requestGeneration === requestGenerationRef.current) setSending(false)
     }
-  }
+    previousRealtimeState.current = realtimeState
+  }, [delayedAfter, realtimeState, reconcile])
+
+  useEffect(() => {
+    if (!isChatVisible || !unavailable) return
+    const timer = setInterval(() => reconcile(0), 3_000)
+    return () => clearInterval(timer)
+  }, [isChatVisible, unavailable, reconcile])
+
+  useEffect(() => {
+    if (isChatVisible && focusComposer && !loading && !unavailable)
+      composerRef.current?.focus()
+  }, [focusComposer, isChatVisible, loading, unavailable])
+
+  const sendDisabled =
+    loading ||
+    sending.sending ||
+    accessDenied ||
+    unavailable ||
+    sending.remainingSeconds > 0
 
   return (
     <>
@@ -400,6 +454,7 @@ function ChatPanelContent({
         </div>
       ) : (
         <ChatTranscript
+          key={transcriptVisit}
           atBottom={atBottom}
           firstItemIndex={firstItemIndex}
           historyExhausted={historyExhausted}
@@ -408,6 +463,9 @@ function ChatPanelContent({
           onAtBottomChange={updateAtBottomState}
           onLoadOlder={() => void loadOlderHistory()}
           realtimeState={realtimeState}
+          submissions={sending.submissions}
+          onRetry={(submission) => void sending.send(submission)}
+          retryDisabled={sendDisabled}
         />
       )}
       <p
@@ -416,23 +474,63 @@ function ChatPanelContent({
         className={styles.chatAnnouncement}
         role="status"
       >
-        {announcement && (
-          <span key={announcement.id}>{announcement.text}</span>
-        )}
+        {announcement && <span key={announcement.id}>{announcement.text}</span>}
       </p>
-      {error && <p className={styles.chatError}>{error}</p>}
-      <form className={styles.chatComposer} onSubmit={sendMessage}>
+      <div
+        aria-live={isChatVisible ? 'polite' : 'off'}
+        aria-atomic="true"
+        className={styles.chatError}
+      >
+        {unavailable ? (
+          <p>Chat is unavailable.</p>
+        ) : (
+          (realtimeState !== 'connected' || delayed) && (
+            <p>
+              Reconnecting{delayed ? '. Message delivery is delayed.' : '...'}
+            </p>
+          )
+        )}
+        {(sending.error || error) && <p>{sending.error || error}</p>}
+        {sending.remainingSeconds > 0 && (
+          <p>Try again in {sending.remainingSeconds} seconds.</p>
+        )}
+      </div>
+      <form
+        className={styles.chatComposer}
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (!composingRef.current) void sending.send()
+        }}
+      >
         <input
           aria-label="Chat message"
           autoComplete="off"
-          disabled={loading || sending || accessDenied}
-          onChange={(event) => setDraft(event.target.value)}
+          ref={composerRef}
+          disabled={loading || accessDenied || unavailable}
+          onChange={(event) => sending.setDraft(event.target.value)}
+          onCompositionStart={() => {
+            composingRef.current = true
+          }}
+          onCompositionEnd={() => {
+            composingRef.current = false
+          }}
+          onKeyDown={(event) => {
+            event.stopPropagation()
+            if (
+              event.key === 'Enter' &&
+              (composingRef.current ||
+                event.nativeEvent.isComposing ||
+                event.keyCode === 229)
+            )
+              event.preventDefault()
+          }}
+          onKeyUp={(event) => event.stopPropagation()}
           placeholder="Send a message"
-          value={draft}
+          value={sending.draft}
         />
         <button
           aria-label="Send"
-          disabled={loading || sending || accessDenied || !draft.trim()}
+          disabled={sendDisabled || !sending.draft.trim()}
           type="submit"
         >
           <Send aria-hidden="true" />
@@ -444,6 +542,8 @@ function ChatPanelContent({
 
 export function ChatPanel({
   channelSlug,
+  open = true,
+  focusComposer = false,
   closeButtonRef,
   narrowLayout,
   onClose,
@@ -454,14 +554,17 @@ export function ChatPanel({
     <ChatFrame
       closeButtonRef={closeButtonRef}
       label="Chat"
+      open={open}
+      focusComposer={focusComposer}
       narrowLayout={narrowLayout}
       onClose={onClose}
     >
-      {(isChatVisible) => (
+      {(isChatVisible, explicitlyOpened) => (
         <ChatPanelContent
           channelSlug={channelSlug}
           endpoint={endpoint}
           isChatVisible={isChatVisible}
+          focusComposer={explicitlyOpened}
           key={channelSlug}
         />
       )}

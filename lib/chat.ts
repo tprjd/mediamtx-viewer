@@ -1,11 +1,17 @@
 import 'server-only'
 
-import { createHmac, randomUUID } from 'node:crypto'
+import { createHash, createHmac, randomUUID } from 'node:crypto'
 
 import { getDatabase } from '@/lib/auth/database'
 import { getChatDatabase } from '@/lib/chat-database'
 import { chatEnvironment } from '@/lib/chat-environment'
-import { allocateChatAuthorTag, normalizeChatMessage } from '@/lib/chat-rules'
+import {
+  allocateChatAuthorTag,
+  normalizeChatMessage,
+  decideChatSendRate,
+  ChatRateLimitError,
+  ChatMessageValidationError,
+} from '@/lib/chat-rules'
 import type {
   ChatHistoryPage,
   PublicChatMessage,
@@ -29,6 +35,7 @@ export interface ChatParticipantReference {
 }
 
 interface ChatMessageRow {
+  clientIdempotencyKey?: string | null
   id: string
   sequence: number
   accountId: string
@@ -43,6 +50,7 @@ interface SendChatMessageInput {
   participant: ChatParticipantReference
   rawContent: string
   now?: Date
+  clientIdempotencyKey?: string
   messageId?: string
 }
 
@@ -61,8 +69,7 @@ function currentBadges(
   const account = getDatabase()
     .prepare('SELECT role, activationStatus FROM user WHERE id = ?')
     .get(accountId) as
-    | { role: string | null; activationStatus: string }
-    | undefined
+    { role: string | null; activationStatus: string } | undefined
   if (!account || account.activationStatus !== 'active') return []
 
   const badges: Array<'admin' | 'owner'> = []
@@ -77,6 +84,13 @@ function toPublicMessage(
 ): PublicChatMessage {
   return {
     id: row.id,
+    ...(row.clientIdempotencyKey
+      ? {
+          submissionId: createHash('sha256')
+            .update(row.clientIdempotencyKey)
+            .digest('hex'),
+        }
+      : {}),
     sequence: row.sequence,
     content: row.content,
     profileName: row.profileName,
@@ -92,110 +106,169 @@ export function sendChatMessage({
   rawContent,
   now = new Date(),
   messageId = randomUUID(),
+  clientIdempotencyKey = randomUUID(),
 }: SendChatMessageInput): PublicChatMessage {
   const content = normalizeChatMessage(rawContent)
   const database = getChatDatabase()
 
-  return database.transaction(() => {
-    database
-      .prepare(
-        `INSERT OR IGNORE INTO chat_room (id, channel_id, next_sequence, created_at)
+  return database
+    .transaction(() => {
+      database
+        .prepare(
+          `INSERT OR IGNORE INTO chat_room (id, channel_id, next_sequence, created_at)
          VALUES (?, ?, 1, ?)`,
-      )
-      .run(randomUUID(), channel.id, now.getTime())
-    const room = database
-      .prepare(
-        'SELECT id, next_sequence AS nextSequence FROM chat_room WHERE channel_id = ?',
-      )
-      .get(channel.id) as { id: string; nextSequence: number }
+        )
+        .run(randomUUID(), channel.id, now.getTime())
+      const room = database
+        .prepare(
+          'SELECT id, next_sequence AS nextSequence FROM chat_room WHERE channel_id = ?',
+        )
+        .get(channel.id) as { id: string; nextSequence: number }
 
-    let participantRow = database
-      .prepare(
-        `SELECT author_tag AS authorTag FROM chat_participant
+      const existing = database
+        .prepare(
+          `
+      SELECT id, room_sequence AS sequence, account_id AS accountId,
+             profile_name AS profileName, author_tag AS authorTag, content,
+             created_at AS createdAt, client_idempotency_key AS clientIdempotencyKey
+      FROM chat_message
+      WHERE room_id = ? AND account_id = ? AND client_idempotency_key = ?
+    `,
+        )
+        .get(room.id, participant.accountId, clientIdempotencyKey) as
+        ChatMessageRow | undefined
+      if (existing) {
+        if (existing.content !== content) {
+          throw new ChatMessageValidationError(
+            'Retry must use the original message.',
+          )
+        }
+        return toPublicMessage(existing, channel)
+      }
+
+      const rateState = database
+        .prepare(
+          `
+      SELECT next_send_time AS nextSendTime FROM chat_participant
+      WHERE room_id = ? AND account_id = ?
+    `,
+        )
+        .get(room.id, participant.accountId) as
+        { nextSendTime: number } | undefined
+      const recent = database
+        .prepare(
+          `
+      SELECT created_at AS createdAt FROM chat_message
+      WHERE room_id = ? AND account_id = ? ORDER BY created_at DESC LIMIT 5
+    `,
+        )
+        .all(room.id, participant.accountId) as Array<{ createdAt: number }>
+      const rate = decideChatSendRate(
+        now.getTime(),
+        rateState?.nextSendTime ?? 0,
+        recent.map(({ createdAt }) => createdAt),
+      )
+      if (!rate.allowed) throw new ChatRateLimitError(rate.retryAt)
+
+      let participantRow = database
+        .prepare(
+          `SELECT author_tag AS authorTag FROM chat_participant
          WHERE room_id = ? AND account_id = ?`,
-      )
-      .get(room.id, participant.accountId) as { authorTag: string } | undefined
-    if (!participantRow) {
-      const existingTags = new Set(
-        (
-          database
-            .prepare('SELECT author_tag AS authorTag FROM chat_participant WHERE room_id = ?')
-            .all(room.id) as Array<{ authorTag: string }>
-        ).map(({ authorTag }) => authorTag),
-      )
-      participantRow = {
-        authorTag: allocateChatAuthorTag(
-          createAuthorTagDigest(room.id, participant.accountId),
-          existingTags,
-        ),
+        )
+        .get(room.id, participant.accountId) as
+        { authorTag: string } | undefined
+      if (!participantRow) {
+        const existingTags = new Set(
+          (
+            database
+              .prepare(
+                'SELECT author_tag AS authorTag FROM chat_participant WHERE room_id = ?',
+              )
+              .all(room.id) as Array<{ authorTag: string }>
+          ).map(({ authorTag }) => authorTag),
+        )
+        participantRow = {
+          authorTag: allocateChatAuthorTag(
+            createAuthorTagDigest(room.id, participant.accountId),
+            existingTags,
+          ),
+        }
+        database
+          .prepare(
+            `INSERT INTO chat_participant
+            (room_id, account_id, author_tag, created_at)
+           VALUES (?, ?, ?, ?)`,
+          )
+          .run(
+            room.id,
+            participant.accountId,
+            participantRow.authorTag,
+            now.getTime(),
+          )
+      }
+
+      database
+        .prepare(
+          'UPDATE chat_participant SET next_send_time = ? WHERE room_id = ? AND account_id = ?',
+        )
+        .run(rate.nextSendTime, room.id, participant.accountId)
+
+      database
+        .prepare('UPDATE chat_room SET next_sequence = ? WHERE id = ?')
+        .run(room.nextSequence + 1, room.id)
+      database
+        .prepare(
+          `INSERT INTO chat_message (
+          id, room_id, room_sequence, account_id, profile_name,
+          author_tag, content, created_at, client_idempotency_key
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          messageId,
+          room.id,
+          room.nextSequence,
+          participant.accountId,
+          participant.profileName,
+          participantRow.authorTag,
+          content,
+          now.getTime(),
+          clientIdempotencyKey,
+        )
+
+      const row = {
+        clientIdempotencyKey,
+        id: messageId,
+        sequence: room.nextSequence,
+        accountId: participant.accountId,
+        profileName: participant.profileName,
+        authorTag: participantRow.authorTag,
+        content,
+        createdAt: now.getTime(),
+      }
+      const message = toPublicMessage(row, channel)
+      const eventId = createChatPublicationId()
+      const event: PublicChatMessageEvent = {
+        type: 'message',
+        eventId,
+        message,
       }
       database
         .prepare(
-          `INSERT INTO chat_participant
-            (room_id, account_id, author_tag, created_at)
-           VALUES (?, ?, ?, ?)`,
-        )
-        .run(
-          room.id,
-          participant.accountId,
-          participantRow.authorTag,
-          now.getTime(),
-        )
-    }
-
-    database
-      .prepare('UPDATE chat_room SET next_sequence = ? WHERE id = ?')
-      .run(room.nextSequence + 1, room.id)
-    database
-      .prepare(
-        `INSERT INTO chat_message (
-          id, room_id, room_sequence, account_id, profile_name,
-          author_tag, content, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        messageId,
-        room.id,
-        room.nextSequence,
-        participant.accountId,
-        participant.profileName,
-        participantRow.authorTag,
-        content,
-        now.getTime(),
-      )
-
-    const row = {
-      id: messageId,
-      sequence: room.nextSequence,
-      accountId: participant.accountId,
-      profileName: participant.profileName,
-      authorTag: participantRow.authorTag,
-      content,
-      createdAt: now.getTime(),
-    }
-    const message = toPublicMessage(row, channel)
-    const eventId = createChatPublicationId()
-    const event: PublicChatMessageEvent = {
-      type: 'message',
-      eventId,
-      message,
-    }
-    database
-      .prepare(
-        `INSERT INTO chat_outbox (
+          `INSERT INTO chat_outbox (
           id, message_id, channel_name, payload, next_attempt_at, created_at
         ) VALUES (?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        eventId,
-        messageId,
-        chatTranscriptChannel(channel.id),
-        JSON.stringify(event),
-        now.getTime(),
-        now.getTime(),
-      )
-    return message
-  })()
+        )
+        .run(
+          eventId,
+          messageId,
+          chatTranscriptChannel(channel.id),
+          JSON.stringify(event),
+          now.getTime(),
+          now.getTime(),
+        )
+      return message
+    })
+    .immediate()
 }
 
 const HISTORY_PAGE_SIZE = 100
@@ -252,7 +325,8 @@ function loadRetainedChatRows(
               message.account_id AS accountId,
               message.profile_name AS profileName,
               message.author_tag AS authorTag, message.content,
-              message.created_at AS createdAt
+              message.created_at AS createdAt,
+              message.client_idempotency_key AS clientIdempotencyKey
        FROM chat_message message
        JOIN chat_room room ON room.id = message.room_id
        WHERE room.channel_id = ?

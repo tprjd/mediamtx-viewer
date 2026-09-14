@@ -1,3 +1,4 @@
+import { webcrypto } from 'node:crypto'
 import {
   cleanup,
   fireEvent,
@@ -14,7 +15,10 @@ import {
 } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { PublicChatMessage, PublicChatMessageEvent } from '@/lib/chat-types'
+import type {
+  PublicChatMessage,
+  PublicChatMessageEvent,
+} from '@/lib/chat-types'
 
 const realtime = vi.hoisted(() => ({
   instances: [] as Array<{
@@ -168,6 +172,7 @@ function ChatReopenHarness() {
 beforeEach(() => {
   realtime.instances.length = 0
   vi.unstubAllGlobals()
+  vi.stubGlobal('crypto', webcrypto)
 })
 
 afterEach(cleanup)
@@ -317,11 +322,7 @@ describe('live Chat delivery', () => {
     await waitFor(() => expect(realtime.instances).toHaveLength(1))
 
     view.rerender(
-      <ChatPanel
-        channelSlug="live"
-        narrowLayout
-        onClose={() => undefined}
-      />,
+      <ChatPanel channelSlug="live" narrowLayout onClose={() => undefined} />,
     )
 
     await waitFor(() => {
@@ -335,7 +336,9 @@ describe('live Chat delivery', () => {
       ...message(`retained-${sequence}`, sequence),
       serverTimestamp: '2026-09-11T09:00:00.000Z',
     })
-    const latest = Array.from({ length: 100 }, (_, index) => retained(index + 101))
+    const latest = Array.from({ length: 100 }, (_, index) =>
+      retained(index + 101),
+    )
     const older = Array.from({ length: 100 }, (_, index) => retained(index + 1))
     const pages = new Map([
       [
@@ -360,7 +363,11 @@ describe('live Chat delivery', () => {
     )
 
     render(
-      <ChatPanel channelSlug="live" narrowLayout={false} onClose={() => undefined} />,
+      <ChatPanel
+        channelSlug="live"
+        narrowLayout={false}
+        onClose={() => undefined}
+      />,
     )
     await screen.findByRole('log')
     await screen.findByText('message 200')
@@ -374,7 +381,11 @@ describe('live Chat delivery', () => {
     await waitFor(() => {
       expect(requests.filter((url) => url.includes('before='))).toHaveLength(1)
     })
-    await waitFor(() => expect(screen.getByText('This is the start of the last seven days.')).toBeVisible())
+    await waitFor(() =>
+      expect(
+        screen.getByText('This is the start of the last seven days.'),
+      ).toBeVisible(),
+    )
     expect(within(log).getAllByRole('listitem').length).toBeLessThan(30)
   })
 
@@ -389,7 +400,11 @@ describe('live Chat delivery', () => {
     )
 
     render(
-      <ChatPanel channelSlug="live" narrowLayout={false} onClose={() => undefined} />,
+      <ChatPanel
+        channelSlug="live"
+        narrowLayout={false}
+        onClose={() => undefined}
+      />,
     )
 
     await screen.findByText('temporary failure')
@@ -411,7 +426,11 @@ describe('live Chat delivery', () => {
       ),
     )
     render(
-      <ChatPanel channelSlug="live" narrowLayout={false} onClose={() => undefined} />,
+      <ChatPanel
+        channelSlug="live"
+        narrowLayout={false}
+        onClose={() => undefined}
+      />,
     )
     await screen.findByRole('log')
     await screen.findByText('message 20')
@@ -474,7 +493,11 @@ describe('live Chat delivery', () => {
     )
 
     render(
-      <ChatPanel channelSlug="live" narrowLayout={false} onClose={() => undefined} />,
+      <ChatPanel
+        channelSlug="live"
+        narrowLayout={false}
+        onClose={() => undefined}
+      />,
     )
 
     await screen.findByLabelText('Sent 2026-09-11T10:00:00.000Z')
@@ -518,4 +541,165 @@ describe('live Chat delivery', () => {
     expect(screen.queryByRole('button', { name: 'New messages' })).toBeNull()
     expect(screen.getByRole('status')).toBeEmptyDOMElement()
   })
+})
+
+describe('Chat sending', () => {
+  it('shows the pending text immediately and retries a failed request with the same key', async () => {
+    const bodies: string[] = []
+    let resolveSend: (response: Response) => void = () => undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith('/token'))
+          return Response.json({ token: 'token' })
+        if (init?.method === 'POST') {
+          bodies.push(String(init.body))
+          return new Promise<Response>((resolve) => {
+            resolveSend = resolve
+          })
+        }
+        return Response.json({ messages: [] })
+      }),
+    )
+    render(
+      <ChatPanel
+        channelSlug="live"
+        narrowLayout={false}
+        onClose={() => undefined}
+      />,
+    )
+    const input = screen.getByRole('textbox', { name: 'Chat message' })
+    await waitFor(() => expect(input).toBeEnabled())
+    fireEvent.change(input, { target: { value: 'keep my submission' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(screen.getByRole('log')).toHaveTextContent('keep my submission')
+    expect(screen.getByRole('log')).toHaveTextContent('Sending')
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    resolveSend(Response.json({ error: 'Request failed.' }, { status: 502 }))
+    const retry = await screen.findByRole('button', { name: 'Retry' })
+    expect(input).toHaveValue('keep my submission')
+    fireEvent.click(retry)
+    await waitFor(() => expect(bodies).toHaveLength(2))
+    expect(JSON.parse(bodies[0]).clientIdempotencyKey).toBeTruthy()
+    expect(bodies[1]).toBe(bodies[0])
+    resolveSend(
+      Response.json(
+        {
+          message: { ...message('accepted', 1), content: 'keep my submission' },
+        },
+        { status: 201 },
+      ),
+    )
+    await waitFor(() => expect(input).toHaveValue(''))
+    expect(
+      within(screen.getByRole('log')).getAllByText('keep my submission'),
+    ).toHaveLength(1)
+  })
+})
+
+it('keeps loaded messages and disables the composer when the Chat database fails', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/token'))
+        return Response.json({ token: 'token' })
+      if (init?.method === 'POST')
+        return Response.json({ error: 'Chat is unavailable.' }, { status: 503 })
+      return Response.json({ messages: [message('loaded', 1)] })
+    }),
+  )
+  render(
+    <ChatPanel
+      channelSlug="live"
+      narrowLayout={false}
+      onClose={() => undefined}
+    />,
+  )
+  await screen.findByText('message 1')
+  const input = screen.getByRole('textbox', { name: 'Chat message' })
+  fireEvent.change(input, { target: { value: 'keep during outage' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+  await waitFor(() => expect(input).toBeDisabled())
+  expect(screen.getByRole('log')).toHaveTextContent('message 1')
+  expect(input).toHaveValue('keep during outage')
+  expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled()
+})
+
+it('keeps a draft across closing and opening but clears it on a Channel change', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith('/token')
+        ? Response.json({ token: 'token' })
+        : Response.json({ messages: [] }),
+    ),
+  )
+  const view = render(
+    <ChatPanel
+      channelSlug="live"
+      narrowLayout={false}
+      onClose={() => undefined}
+    />,
+  )
+  const input = screen.getByRole('textbox', { name: 'Chat message' })
+  await waitFor(() => expect(input).toBeEnabled())
+  expect(input).not.toHaveFocus()
+  fireEvent.change(input, { target: { value: 'in memory' } })
+  view.rerender(
+    <ChatPanel
+      channelSlug="live"
+      open={false}
+      narrowLayout={false}
+      onClose={() => undefined}
+    />,
+  )
+  view.rerender(
+    <ChatPanel
+      channelSlug="live"
+      focusComposer
+      narrowLayout={false}
+      onClose={() => undefined}
+    />,
+  )
+  await waitFor(() => expect(input).toHaveFocus())
+  expect(input).toHaveValue('in memory')
+  view.rerender(
+    <ChatPanel
+      channelSlug="other"
+      narrowLayout={false}
+      onClose={() => undefined}
+    />,
+  )
+  expect(screen.getByRole('textbox', { name: 'Chat message' })).toHaveValue('')
+})
+
+it('keeps a connected durable send successful while its publication is pending', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/token'))
+        return Response.json({ token: 'token' })
+      if (init?.method === 'POST')
+        return Response.json(
+          { message: message('accepted', 1) },
+          { status: 201 },
+        )
+      return Response.json({ messages: [] })
+    }),
+  )
+  render(
+    <ChatPanel
+      channelSlug="live"
+      narrowLayout={false}
+      onClose={() => undefined}
+    />,
+  )
+  const input = screen.getByRole('textbox', { name: 'Chat message' })
+  await waitFor(() => expect(input).toBeEnabled())
+  await waitFor(() => realtime.instances[0].emit('connected', {}))
+  fireEvent.change(input, { target: { value: 'hello' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+  await waitFor(() => expect(input).toHaveValue(''))
+  expect(screen.queryByText('Delayed', { exact: true })).toBeNull()
+  expect(screen.queryByText(/Reconnecting/)).toBeNull()
 })

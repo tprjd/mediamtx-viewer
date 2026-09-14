@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -61,11 +62,13 @@ const message = {
   serverTimestamp: '2026-09-11T10:00:00.000Z',
 }
 
+const submissionKey = randomUUID()
+
 function postRequest(content: unknown): Request {
   return new Request('https://example.test/api/channels/live/chat/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, clientIdempotencyKey: submissionKey }),
   })
 }
 
@@ -112,7 +115,10 @@ describe('/api/channels/[slug]/chat/messages', () => {
   it('rejects history and sends without an active account', async () => {
     mocks.getActiveSession.mockResolvedValue(null)
 
-    const historyResponse = await GET(new Request('https://example.test'), context)
+    const historyResponse = await GET(
+      new Request('https://example.test'),
+      context,
+    )
     const sendResponse = await POST(postRequest('hello'), context)
 
     expect(historyResponse.status).toBe(401)
@@ -126,7 +132,10 @@ describe('/api/channels/[slug]/chat/messages', () => {
       .mockResolvedValueOnce({ live: false, state: 'offline' })
       .mockResolvedValueOnce({ live: false, state: 'unavailable' })
 
-    const historyResponse = await GET(new Request('https://example.test'), context)
+    const historyResponse = await GET(
+      new Request('https://example.test'),
+      context,
+    )
     const sendResponse = await POST(postRequest('hello'), context)
 
     expect(historyResponse.status).toBe(409)
@@ -136,7 +145,10 @@ describe('/api/channels/[slug]/chat/messages', () => {
   })
 
   it('returns the latest messages and the committed send result', async () => {
-    const historyResponse = await GET(new Request('https://example.test'), context)
+    const historyResponse = await GET(
+      new Request('https://example.test'),
+      context,
+    )
     const sendResponse = await POST(postRequest(' hello '), context)
 
     expect(historyResponse.status).toBe(200)
@@ -155,15 +167,14 @@ describe('/api/channels/[slug]/chat/messages', () => {
         profileName: 'Viewer',
       },
       rawContent: ' hello ',
+      clientIdempotencyKey: submissionKey,
     })
     expect(mocks.requestChatOutboxDispatch).toHaveBeenCalledOnce()
   })
 
   it('returns retained history from the cursor and rejects an invalid cursor', async () => {
     const validResponse = await GET(
-      new Request(
-        'https://example.test?before=chat-history-v1%3A1',
-      ),
+      new Request('https://example.test?before=chat-history-v1%3A1'),
       context,
     )
 
@@ -182,7 +193,10 @@ describe('/api/channels/[slug]/chat/messages', () => {
     mocks.loadOlderChatMessages.mockImplementation(() => {
       throw new InvalidChatHistoryCursorError('Invalid Chat history cursor.')
     })
-    const invalidResponse = await GET(new Request('https://example.test?before=bad'), context)
+    const invalidResponse = await GET(
+      new Request('https://example.test?before=bad'),
+      context,
+    )
 
     expect(invalidResponse.status).toBe(400)
     expect(await invalidResponse.json()).toEqual({
@@ -200,6 +214,33 @@ describe('/api/channels/[slug]/chat/messages', () => {
     expect(await unavailableResponse.json()).toEqual({
       error: 'Chat is unavailable.',
     })
+  })
+
+  it('returns an absolute retry time and Retry-After for the shared account limit', async () => {
+    const { ChatRateLimitError } = await import('@/lib/chat-rules')
+    const retryAt = Date.now() + 2_000
+    mocks.sendChatMessage.mockImplementation(() => {
+      throw new ChatRateLimitError(retryAt)
+    })
+    const response = await POST(postRequest('keep this draft'), context)
+    expect(response.status).toBe(429)
+    expect(await response.json()).toEqual({
+      error: 'Chat sending limit reached.',
+      retryAt: new Date(retryAt).toISOString(),
+    })
+    expect(response.headers.get('Retry-After')).toBe('2')
+  })
+
+  it('requires a client idempotency key', async () => {
+    const response = await POST(
+      new Request('https://example.test', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content: 'hello' }),
+      }),
+      context,
+    )
+    expect(response.status).toBe(400)
   })
 
   it('returns a validation error without storing an invalid message', async () => {

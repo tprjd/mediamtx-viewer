@@ -9,7 +9,10 @@ import {
   sendChatMessage,
 } from '@/lib/chat'
 import { requestChatOutboxDispatch } from '@/lib/chat-outbox'
-import { ChatMessageValidationError } from '@/lib/chat-rules'
+import {
+  ChatMessageValidationError,
+  ChatRateLimitError,
+} from '@/lib/chat-rules'
 import { readUtf8BodyWithLimit } from '@/lib/http-body'
 
 export const dynamic = 'force-dynamic'
@@ -20,6 +23,7 @@ interface RouteContext {
 
 const requestSchema = z.object({
   content: z.string(),
+  clientIdempotencyKey: z.uuid(),
 })
 const responseHeaders = {
   'Cache-Control': 'private, no-store, max-age=0',
@@ -52,9 +56,12 @@ export async function GET(
           { status: 400, headers: responseHeaders },
         )
       }
-      return Response.json(loadChatMessagesAfter(access.channel, Number(after)), {
-        headers: responseHeaders,
-      })
+      return Response.json(
+        loadChatMessagesAfter(access.channel, Number(after)),
+        {
+          headers: responseHeaders,
+        },
+      )
     }
     const before = new URL(request.url).searchParams.get('before')
     if (before !== null) {
@@ -127,13 +134,28 @@ export async function POST(
         profileName: access.profileName,
       },
       rawContent: parsed.data.content,
+      clientIdempotencyKey: parsed.data.clientIdempotencyKey,
     })
     requestChatOutboxDispatch()
-    return Response.json(
-      { message },
-      { status: 201, headers: responseHeaders },
-    )
+    return Response.json({ message }, { status: 201, headers: responseHeaders })
   } catch (error) {
+    if (error instanceof ChatRateLimitError) {
+      return Response.json(
+        {
+          error: error.message,
+          retryAt: new Date(error.retryAt).toISOString(),
+        },
+        {
+          status: 429,
+          headers: {
+            ...responseHeaders,
+            'Retry-After': String(
+              Math.max(1, Math.ceil((error.retryAt - Date.now()) / 1_000)),
+            ),
+          },
+        },
+      )
+    }
     if (error instanceof ChatMessageValidationError) {
       return Response.json(
         { error: error.message },

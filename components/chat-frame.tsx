@@ -7,8 +7,11 @@ import { useId, useState, type ReactNode } from 'react'
 import styles from '@/components/channel-viewer.module.css'
 
 interface ChatFrameProps {
-  children: ReactNode | ((active: boolean) => ReactNode)
+  children:
+    ReactNode | ((active: boolean, explicitlyOpened: boolean) => ReactNode)
   closeButtonRef?: (element: HTMLButtonElement | null) => void
+  open?: boolean
+  focusComposer?: boolean
   label: string
   narrowLayout: boolean
   onClose: () => void
@@ -18,16 +21,39 @@ export function ChatFrame({
   children,
   closeButtonRef,
   label,
+  open = true,
+  focusComposer = false,
   narrowLayout,
   onClose,
 }: ChatFrameProps) {
-  const [mobileExpanded, setMobileExpanded] = useState(false)
+  const [mobileExpanded, setMobileExpanded] = useState(
+    focusComposer && narrowLayout,
+  )
+  const [explicitlyOpened, setExplicitlyOpened] = useState(false)
   const contentId = useId()
-  const active = !narrowLayout || mobileExpanded
+  const active = open && (!narrowLayout || mobileExpanded)
+
+  const [previousFocusRequest, setPreviousFocusRequest] =
+    useState(focusComposer)
+  if (previousFocusRequest !== focusComposer) {
+    setPreviousFocusRequest(focusComposer)
+    if (focusComposer) setMobileExpanded(narrowLayout)
+  }
 
   return (
-    <Collapsible.Root asChild open={active} onOpenChange={setMobileExpanded}>
-      <aside className={styles.chatPlaceholder} aria-label={label}>
+    <Collapsible.Root
+      asChild
+      open={active}
+      onOpenChange={(expanded) => {
+        setMobileExpanded(expanded)
+        setExplicitlyOpened(expanded)
+      }}
+    >
+      <aside
+        className={styles.chatPlaceholder}
+        aria-label={label}
+        hidden={!open}
+      >
         <div className={styles.chatHeading}>
           <div className={styles.chatTitle}>
             <MessageSquare aria-hidden="true" />
@@ -56,8 +82,15 @@ export function ChatFrame({
             </button>
           </div>
         </div>
-        <Collapsible.Content className={styles.chatContent} id={contentId}>
-          {typeof children === 'function' ? children(active) : children}
+        <Collapsible.Content
+          forceMount
+          hidden={!active}
+          className={styles.chatContent}
+          id={contentId}
+        >
+          {typeof children === 'function'
+            ? children(active, focusComposer || explicitlyOpened)
+            : children}
         </Collapsible.Content>
       </aside>
     </Collapsible.Root>

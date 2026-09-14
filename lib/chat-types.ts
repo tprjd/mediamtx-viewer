@@ -1,5 +1,6 @@
 export interface PublicChatMessage {
   id: string
+  submissionId?: string
   sequence: number
   content: string
   profileName: string

@@ -1,3 +1,4 @@
+import { webcrypto } from 'node:crypto'
 import {
   cleanup,
   fireEvent,
@@ -58,7 +59,9 @@ vi.mock('@/components/live-player', () => ({
         />
         {onTheaterModeChange && (
           <button
-            aria-label={theaterMode ? 'Exit theater mode' : 'Enter theater mode'}
+            aria-label={
+              theaterMode ? 'Exit theater mode' : 'Enter theater mode'
+            }
             onClick={() => onTheaterModeChange(!theaterMode)}
             type="button"
           />
@@ -155,6 +158,7 @@ const channel: PublicChannel = {
 
 describe('ChannelViewer', () => {
   beforeEach(() => {
+    vi.stubGlobal('crypto', webcrypto)
     mocks.useChannelEvents.mockReset()
     document.body.innerHTML =
       '<div id="channel-drawer-trigger"></div><div id="chat-restore-target"></div>'
@@ -186,16 +190,16 @@ describe('ChannelViewer', () => {
     render(<ChannelViewer channel={channel} />)
 
     expect(
-      within(screen.getByRole('region', { name: 'Channel information' })).getByText(
-        'Offline',
-      ),
+      within(
+        screen.getByRole('region', { name: 'Channel information' }),
+      ).getByText('Offline'),
     ).toBeInTheDocument()
     expect(screen.queryByText('Opus · AV1')).toBeNull()
     expect(screen.queryByText('Main channel')).toBeNull()
     expect(
-      within(screen.getByRole('region', { name: 'Channel information' })).getByText(
-        'David',
-      ),
+      within(
+        screen.getByRole('region', { name: 'Channel information' }),
+      ).getByText('David'),
     ).toBeInTheDocument()
     expect(screen.getByTestId('live-player')).toHaveAttribute(
       'data-status',
@@ -216,7 +220,9 @@ describe('ChannelViewer', () => {
       statusDelayed: false,
     })
 
-    render(<ChannelViewer channel={{ ...channel, poster: '/configured.jpg' }} />)
+    render(
+      <ChannelViewer channel={{ ...channel, poster: '/configured.jpg' }} />,
+    )
 
     expect(screen.getByTestId('live-player')).toHaveAttribute(
       'data-poster',
@@ -236,7 +242,9 @@ describe('ChannelViewer', () => {
       statusDelayed: false,
     })
 
-    render(<ChannelViewer channel={channel} channels={[channel, otherChannel]} />)
+    render(
+      <ChannelViewer channel={channel} channels={[channel, otherChannel]} />,
+    )
 
     expect(screen.getByTestId('live-player')).toHaveAttribute(
       'data-status',
@@ -258,11 +266,13 @@ describe('ChannelViewer', () => {
     render(<ChannelViewer channel={channel} />)
 
     expect(
-      within(screen.getByRole('region', { name: 'Channel information' })).getByLabelText(
-        '2 viewers',
-      ),
+      within(
+        screen.getByRole('region', { name: 'Channel information' }),
+      ).getByLabelText('2 viewers'),
     ).toHaveTextContent('2 viewers')
-    expect(screen.getByRole('complementary', { name: 'Chat placeholder' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('complementary', { name: 'Chat placeholder' }),
+    ).toBeInTheDocument()
     expect(screen.getByText('Chat is coming soon')).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeDisabled()
     expect(fetcher).not.toHaveBeenCalled()
@@ -321,9 +331,12 @@ describe('ChannelViewer', () => {
     ).toBeInTheDocument()
     expect(within(chat).queryByRole('link')).toBeNull()
 
-    fireEvent.change(within(chat).getByRole('textbox', { name: 'Chat message' }), {
-      target: { value: 'hello Chat' },
-    })
+    fireEvent.change(
+      within(chat).getByRole('textbox', { name: 'Chat message' }),
+      {
+        target: { value: 'hello Chat' },
+      },
+    )
     fireEvent.click(within(chat).getByRole('button', { name: 'Send' }))
 
     await waitFor(() => {
@@ -335,8 +348,37 @@ describe('ChannelViewer', () => {
       '/api/channels/live/chat/messages',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ content: 'hello Chat' }),
+        body: expect.stringContaining('"clientIdempotencyKey":'),
       }),
+    )
+  })
+
+  it('keeps the draft when the same Channel goes offline and returns', async () => {
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [channel],
+      statusDelayed: false,
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ messages: [] })),
+    )
+    const view = render(<ChannelViewer channel={channel} chatEnabled />)
+    const input = screen.getByRole('textbox', { name: 'Chat message' })
+    await waitFor(() => expect(input).toBeEnabled())
+    fireEvent.change(input, { target: { value: 'same Channel draft' } })
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [{ ...channel, status: offlineStatus }],
+      statusDelayed: false,
+    })
+    view.rerender(<ChannelViewer channel={channel} chatEnabled />)
+    expect(screen.queryByRole('textbox', { name: 'Chat message' })).toBeNull()
+    mocks.useChannelEvents.mockReturnValue({
+      channels: [channel],
+      statusDelayed: false,
+    })
+    view.rerender(<ChannelViewer channel={channel} chatEnabled />)
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toHaveValue(
+      'same Channel draft',
     )
   })
 
@@ -374,7 +416,9 @@ describe('ChannelViewer', () => {
 
     render(<ChannelViewer channel={channel} chatEnabled />)
 
-    expect(await screen.findByText('An active account is required.')).toBeVisible()
+    expect(
+      await screen.findByText('An active account is required.'),
+    ).toBeVisible()
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
   })
@@ -388,7 +432,9 @@ describe('ChannelViewer', () => {
     render(<ChannelViewer channel={channel} />)
 
     const details = screen.getByRole('region', { name: 'Channel information' })
-    expect(within(details).getByRole('heading', { name: channel.title })).toBeInTheDocument()
+    expect(
+      within(details).getByRole('heading', { name: channel.title }),
+    ).toBeInTheDocument()
     expect(within(details).getByText(channel.ownerName)).toBeInTheDocument()
     expect(within(details).getByLabelText('2 viewers')).toBeInTheDocument()
     expect(
@@ -444,11 +490,13 @@ describe('ChannelViewer', () => {
 
     render(<ChannelViewer channel={channel} />)
 
-    expect(screen.queryByRole('complementary', { name: 'Chat placeholder' })).toBeNull()
     expect(
-      within(screen.getByRole('region', { name: 'Channel information' })).getByText(
-        'Offline',
-      ),
+      screen.queryByRole('complementary', { name: 'Chat placeholder' }),
+    ).toBeNull()
+    expect(
+      within(
+        screen.getByRole('region', { name: 'Channel information' }),
+      ).getByText('Offline'),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Share this stream' }),
@@ -467,7 +515,9 @@ describe('ChannelViewer', () => {
 
     render(<ChannelViewer channel={channel} />)
 
-    expect(screen.queryByRole('complementary', { name: 'Chat placeholder' })).toBeNull()
+    expect(
+      screen.queryByRole('complementary', { name: 'Chat placeholder' }),
+    ).toBeNull()
     expect(screen.getByText('Unavailable')).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Show playback settings' }),
@@ -496,11 +546,19 @@ describe('ChannelViewer', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Close Chat' }))
 
-    expect(screen.queryByRole('complementary', { name: 'Chat placeholder' })).toBeNull()
-    expect(window.localStorage.getItem(CHAT_PREFERENCE_STORAGE_KEY)).toBe('closed')
+    expect(
+      screen.queryByRole('complementary', { name: 'Chat placeholder' }),
+    ).toBeNull()
+    expect(window.localStorage.getItem(CHAT_PREFERENCE_STORAGE_KEY)).toBe(
+      'closed',
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Open Chat' }))
-    expect(screen.getByRole('complementary', { name: 'Chat placeholder' })).toBeInTheDocument()
-    expect(window.localStorage.getItem(CHAT_PREFERENCE_STORAGE_KEY)).toBe('open')
+    expect(
+      screen.getByRole('complementary', { name: 'Chat placeholder' }),
+    ).toBeInTheDocument()
+    expect(window.localStorage.getItem(CHAT_PREFERENCE_STORAGE_KEY)).toBe(
+      'open',
+    )
   })
 
   it('starts the below-player Chat disclosure collapsed on a narrow layout', () => {
@@ -534,14 +592,21 @@ describe('ChannelViewer', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Enter theater mode' }))
 
-    expect(screen.getByRole('main')).toHaveAttribute('data-theater-mode', 'true')
-    expect(screen.getByRole('complementary', { name: 'Chat placeholder' })).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveAttribute(
+      'data-theater-mode',
+      'true',
+    )
+    expect(
+      screen.getByRole('complementary', { name: 'Chat placeholder' }),
+    ).toBeInTheDocument()
     expect(window.localStorage.getItem(CHAT_PREFERENCE_STORAGE_KEY)).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Exit theater mode' }))
 
     expect(screen.getByRole('main')).not.toHaveAttribute('data-theater-mode')
-    expect(screen.getByRole('complementary', { name: 'Chat placeholder' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('complementary', { name: 'Chat placeholder' }),
+    ).toBeInTheDocument()
   })
 
   it('restores closed theater chat from the player overlay and returns focus to chat controls', () => {
@@ -555,13 +620,17 @@ describe('ChannelViewer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enter theater mode' }))
     fireEvent.click(screen.getByRole('button', { name: 'Close Chat' }))
 
-    expect(screen.queryByRole('complementary', { name: 'Chat placeholder' })).toBeNull()
+    expect(
+      screen.queryByRole('complementary', { name: 'Chat placeholder' }),
+    ).toBeNull()
     expect(screen.getByTestId('theater-chat-restore')).toBeInTheDocument()
     expect(screen.getByTestId('theater-chat-restore')).toHaveFocus()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Chat' }))
 
-    expect(screen.getByRole('complementary', { name: 'Chat placeholder' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('complementary', { name: 'Chat placeholder' }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Close Chat' })).toHaveFocus()
   })
 })

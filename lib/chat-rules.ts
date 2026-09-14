@@ -36,3 +36,29 @@ export function allocateChatAuthorTag(
 
   throw new Error('Could not allocate a unique Chat author tag.')
 }
+
+export class ChatRateLimitError extends Error {
+  constructor(public readonly retryAt: number) {
+    super('Chat sending limit reached.')
+  }
+}
+
+// A three-message token bucket refills at five messages per ten seconds.
+// The rolling window also caps the initial burst at five accepted messages.
+export function decideChatSendRate(
+  now: number,
+  nextSendTime: number,
+  acceptedTimes: readonly number[],
+):
+  | { allowed: true; nextSendTime: number }
+  | { allowed: false; retryAt: number } {
+  const recent = acceptedTimes
+    .filter((time) => time > now - 10_000)
+    .toSorted((a, b) => b - a)
+  const retryAt = Math.max(
+    nextSendTime - 4_000,
+    recent.length >= 5 ? recent[4] + 10_000 : 0,
+  )
+  if (now < retryAt) return { allowed: false, retryAt }
+  return { allowed: true, nextSendTime: Math.max(now, nextSendTime) + 2_000 }
+}

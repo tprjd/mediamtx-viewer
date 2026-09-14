@@ -1,4 +1,10 @@
-import { expect, test, type Locator } from '@playwright/test'
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type BrowserContext,
+} from '@playwright/test'
 import Database from 'better-sqlite3'
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
@@ -10,6 +16,30 @@ const authDatabasePath = resolve('.data/e2e-chat-auth.sqlite')
 
 test.describe.configure({ mode: 'serial' })
 
+test.beforeEach(() => {
+  const database = new Database(chatDatabasePath)
+  database.pragma('foreign_keys = ON')
+  database.prepare('DELETE FROM chat_room').run()
+  database.close()
+})
+
+async function postChat(page: Page, content: string) {
+  const clientIdempotencyKey = randomUUID()
+  for (;;) {
+    const response = await page.request.post(
+      '/api/channels/live/chat/messages',
+      {
+        data: { content, clientIdempotencyKey },
+      },
+    )
+    if (response.status() !== 429) return response
+    const { retryAt } = await response.json()
+    await page.waitForTimeout(
+      Math.max(0, Date.parse(retryAt) - Date.now()) + 20,
+    )
+  }
+}
+
 function runDocker(...args: string[]): void {
   const result = spawnSync('docker', args, { encoding: 'utf8' })
   expect(result.status, result.stderr).toBe(0)
@@ -20,7 +50,7 @@ async function waitForCentrifugo(): Promise<void> {
     .poll(
       async () => {
         try {
-          return (await fetch('http://127.0.0.1:3800/health')).ok
+          return (await fetch('http://[::1]:3800/health')).ok
         } catch {
           return false
         }
@@ -32,7 +62,10 @@ async function waitForCentrifugo(): Promise<void> {
 
 async function scrollChatToTop(log: Locator): Promise<void> {
   await log.evaluate((element) => {
-    if (element.scrollTop === 0 && element.scrollHeight > element.clientHeight) {
+    if (
+      element.scrollTop === 0 &&
+      element.scrollHeight > element.clientHeight
+    ) {
       element.scrollTop = 1
       element.dispatchEvent(new Event('scroll'))
     }
@@ -105,19 +138,29 @@ function seedRetainedChatHistory(
         `${prefix} retained ${retainedNumber}`,
         includeDateBoundary && retainedNumber === 1
           ? previousLocalDay
-          : now,
+          : now - 60_000,
       )
     }
   })()
   chatDatabase.close()
 }
 
-async function signInAsAdministrator(page: import('@playwright/test').Page) {
+let administratorCookies:
+  Awaited<ReturnType<BrowserContext['cookies']>> | undefined
+
+async function signInAsAdministrator(page: Page) {
+  if (administratorCookies) {
+    await page.context().addCookies(administratorCookies)
+    await page.goto('/watch/live')
+    await expect(page).toHaveURL('/watch/live')
+    return
+  }
   await page.goto('/login?returnTo=/watch/live')
   await page.getByLabel('Username').fill('power')
   await page.getByLabel('Password').fill('e2e-administrator-password')
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL('/watch/live', { timeout: 15_000 })
+  administratorCookies = await page.context().cookies()
 }
 
 test('lets an active participant send and reload one Chat message', async ({
@@ -130,10 +173,18 @@ test('lets an active participant send and reload one Chat message', async ({
   await chat.getByRole('textbox', { name: 'Chat message' }).fill(content)
   await chat.getByRole('button', { name: 'Send' }).click()
 
-  const acceptedMessage = chat.getByRole('listitem').filter({ hasText: content })
-  await expect(acceptedMessage.getByText(content, { exact: true })).toBeVisible()
-  await expect(acceptedMessage.getByText('power', { exact: true })).toBeVisible()
-  await expect(acceptedMessage.getByText('Admin', { exact: true })).toBeVisible()
+  const acceptedMessage = chat
+    .getByRole('listitem')
+    .filter({ hasText: content })
+  await expect(
+    acceptedMessage.getByText(content, { exact: true }),
+  ).toBeVisible()
+  await expect(
+    acceptedMessage.getByText('power', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    acceptedMessage.getByText('Admin', { exact: true }),
+  ).toBeVisible()
 
   await page.reload()
 
@@ -231,9 +282,7 @@ test('browses retained Chat history without losing the reading position', async 
   )
   await scrollChatToTop(log)
   await finalPageRequested
-  const finalAnchor = chat.locator(
-    `[data-message-entry-id="${prefix}-6"]`,
-  )
+  const finalAnchor = chat.locator(`[data-message-entry-id="${prefix}-6"]`)
   await expect(finalAnchor).toBeVisible()
   const finalAnchorTopBefore = (await finalAnchor.boundingBox())!.y
   releaseFinalPage()
@@ -249,18 +298,23 @@ test('browses retained Chat history without losing the reading position', async 
   await expect(
     chat.getByText('This is the start of the last seven days.'),
   ).toBeVisible()
-  await expect(chat.getByText(`${prefix} retained 1`, { exact: true })).toBeVisible()
-  await expect(chat.getByText(`${prefix} expired`, { exact: true })).toHaveCount(0)
+  await expect(
+    chat.getByText(`${prefix} retained 1`, { exact: true }),
+  ).toBeVisible()
+  await expect(
+    chat.getByText(`${prefix} expired`, { exact: true }),
+  ).toHaveCount(0)
 
   const oldestMessage = chat.locator(`[data-message-id="${prefix}-1"]`)
   const oldestTopBefore = (await oldestMessage.boundingBox())!.y
-  const scrollPositionBefore = await log.evaluate((element) => element.scrollTop)
-  const scrollHeightBefore = await log.evaluate((element) => element.scrollHeight)
-  const incomingContent = `${prefix} incoming`
-  const sendResponse = await page.request.post(
-    '/api/channels/live/chat/messages',
-    { data: { content: incomingContent } },
+  const scrollPositionBefore = await log.evaluate(
+    (element) => element.scrollTop,
   )
+  const scrollHeightBefore = await log.evaluate(
+    (element) => element.scrollHeight,
+  )
+  const incomingContent = `${prefix} incoming`
+  const sendResponse = await postChat(page, incomingContent)
   expect(sendResponse.ok()).toBe(true)
   await expect
     .poll(() => log.evaluate((element) => element.scrollHeight))
@@ -284,9 +338,13 @@ test('browses retained Chat history without losing the reading position', async 
   await reopenedHistoryResponse
   const reopenedChat = page.getByRole('complementary', { name: 'Chat' })
   const reopenedLog = reopenedChat.getByRole('log', { name: 'Chat messages' })
-  await expect(reopenedChat.getByText(incomingContent, { exact: true })).toBeVisible()
+  await expect(
+    reopenedChat.getByText(incomingContent, { exact: true }),
+  ).toBeVisible()
   await expect(reopenedLog).toHaveAttribute('data-at-bottom', 'true')
-  await expect(reopenedChat.getByRole('button', { name: 'New messages' })).toHaveCount(0)
+  await expect(
+    reopenedChat.getByRole('button', { name: 'New messages' }),
+  ).toHaveCount(0)
   await expect(reopenedChat.getByRole('status')).toBeEmpty()
 
   const reopenedOlderPageResponse = page.waitForResponse((response) =>
@@ -295,28 +353,36 @@ test('browses retained Chat history without losing the reading position', async 
   await scrollChatToTop(reopenedLog)
   await reopenedOlderPageResponse
   const readingContent = `${prefix} arrived while reading reopened history`
-  const readingResponse = await page.request.post(
-    '/api/channels/live/chat/messages',
-    { data: { content: readingContent } },
-  )
+  const readingResponse = await postChat(page, readingContent)
   expect(readingResponse.ok()).toBe(true)
-  await expect(reopenedChat.getByRole('button', { name: 'New messages' })).toBeVisible()
+  await expect(
+    reopenedChat.getByRole('button', { name: 'New messages' }),
+  ).toBeVisible()
   await expect(reopenedChat.getByRole('status')).toBeEmpty()
-  await expect(reopenedChat.getByRole('status')).toHaveAttribute('aria-live', 'off')
+  await expect(reopenedChat.getByRole('status')).toHaveAttribute(
+    'aria-live',
+    'off',
+  )
 
   await reopenedChat.getByRole('button', { name: 'New messages' }).click()
-  await expect(reopenedChat.getByText(readingContent, { exact: true })).toBeVisible()
-  await expect.poll(() => reopenedLog.getAttribute('data-at-bottom')).toBe('true')
+  await expect(
+    reopenedChat.getByText(readingContent, { exact: true }),
+  ).toBeVisible()
+  await expect
+    .poll(() => reopenedLog.getAttribute('data-at-bottom'))
+    .toBe('true')
 
   const announcedContent = `${prefix} announced at the live end`
-  const announcedResponse = await page.request.post(
-    '/api/channels/live/chat/messages',
-    { data: { content: announcedContent } },
-  )
+  const announcedResponse = await postChat(page, announcedContent)
   expect(announcedResponse.ok()).toBe(true)
-  await expect(reopenedChat.getByText(announcedContent, { exact: true })).toBeVisible()
+  await expect(
+    reopenedChat.getByText(announcedContent, { exact: true }),
+  ).toBeVisible()
   await expect(reopenedChat.getByRole('status')).toContainText(announcedContent)
-  await expect(reopenedChat.getByRole('status')).toHaveAttribute('aria-live', 'polite')
+  await expect(reopenedChat.getByRole('status')).toHaveAttribute(
+    'aria-live',
+    'polite',
+  )
 
   await page.setViewportSize({ width: 760, height: 900 })
   const narrowToggle = reopenedChat.getByRole('button', {
@@ -330,10 +396,7 @@ test('browses retained Chat history without losing the reading position', async 
   await narrowToggle.click()
   await expect(reopenedLog).toBeHidden()
   const hiddenContent = `${prefix} arrived while Chat was hidden`
-  const hiddenResponse = await page.request.post(
-    '/api/channels/live/chat/messages',
-    { data: { content: hiddenContent } },
-  )
+  const hiddenResponse = await postChat(page, hiddenContent)
   expect(hiddenResponse.ok()).toBe(true)
   await narrowToggle.click()
   await expect(reopenedLog).toBeVisible()
@@ -342,30 +405,31 @@ test('browses retained Chat history without losing the reading position', async 
   ).toBeVisible()
   await expect(reopenedChat.getByRole('status')).toBeEmpty()
   const narrowLiveContent = `${prefix} arrived at narrow live end`
-  const narrowLiveResponse = await page.request.post(
-    '/api/channels/live/chat/messages',
-    { data: { content: narrowLiveContent } },
-  )
+  const narrowLiveResponse = await postChat(page, narrowLiveContent)
   expect(narrowLiveResponse.ok()).toBe(true)
   await expect(
     reopenedChat.getByText(narrowLiveContent, { exact: true }),
   ).toBeVisible()
-  await expect.poll(() => reopenedLog.getAttribute('data-at-bottom')).toBe('true')
+  await expect
+    .poll(() => reopenedLog.getAttribute('data-at-bottom'))
+    .toBe('true')
 
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.getByRole('button', { name: 'Enter theater mode' }).click()
   await expect(reopenedLog).toBeVisible()
-  await expect(page.getByRole('main')).toHaveAttribute('data-theater-mode', 'true')
-  const theaterLiveContent = `${prefix} arrived in theater mode`
-  const theaterLiveResponse = await page.request.post(
-    '/api/channels/live/chat/messages',
-    { data: { content: theaterLiveContent } },
+  await expect(page.getByRole('main')).toHaveAttribute(
+    'data-theater-mode',
+    'true',
   )
+  const theaterLiveContent = `${prefix} arrived in theater mode`
+  const theaterLiveResponse = await postChat(page, theaterLiveContent)
   expect(theaterLiveResponse.ok()).toBe(true)
   await expect(
     reopenedChat.getByText(theaterLiveContent, { exact: true }),
   ).toBeVisible()
-  await expect.poll(() => reopenedLog.getAttribute('data-at-bottom')).toBe('true')
+  await expect
+    .poll(() => reopenedLog.getAttribute('data-at-bottom'))
+    .toBe('true')
 })
 
 test('delivers one accepted Chat message to another active participant', async ({
@@ -402,7 +466,9 @@ test('delivers one accepted Chat message to another active participant', async (
     )
 
     const content = `live Chat message ${randomUUID()}`
-    await senderChat.getByRole('textbox', { name: 'Chat message' }).fill(content)
+    await senderChat
+      .getByRole('textbox', { name: 'Chat message' })
+      .fill(content)
     await senderChat.getByRole('button', { name: 'Send' }).click()
 
     await expect(receiverChat.getByText(content, { exact: true })).toBeVisible()
@@ -421,7 +487,9 @@ test('delivers one accepted Chat message to another active participant', async (
 
     runDocker('stop', '--time', '1', centrifugoContainer)
     await expect
-      .poll(() => receiverChat.getByRole('log').getAttribute('data-realtime-state'))
+      .poll(() =>
+        receiverChat.getByRole('log').getAttribute('data-realtime-state'),
+      )
       .not.toBe('connected')
 
     const reconciledContent = `reconciled Chat message ${randomUUID()}`
@@ -430,8 +498,18 @@ test('delivers one accepted Chat message to another active participant', async (
       .fill(reconciledContent)
     await senderChat.getByRole('button', { name: 'Send' }).click()
 
+    await expect(senderChat.getByText('Delayed', { exact: true })).toBeVisible()
+    await expect(
+      senderChat.getByText('Reconnecting. Message delivery is delayed.'),
+    ).toBeVisible()
     runDocker('start', centrifugoContainer)
     await waitForCentrifugo()
+    await expect(senderChat.getByText('Delayed', { exact: true })).toHaveCount(
+      0,
+    )
+    await expect(
+      senderChat.getByText(reconciledContent, { exact: true }),
+    ).toHaveCount(1)
     await expect(
       receiverChat.getByText(reconciledContent, { exact: true }),
     ).toBeVisible({ timeout: 5_000 })
@@ -448,4 +526,227 @@ test('delivers one accepted Chat message to another active participant', async (
     await senderContext.close()
     await receiverContext.close()
   }
+})
+
+test('shows Sending immediately and retries failed requests with one submission key', async ({
+  page,
+}) => {
+  await signInAsAdministrator(page)
+  const chat = page.getByRole('complementary', { name: 'Chat' })
+  const input = chat.getByRole('textbox', { name: 'Chat message' })
+  const content = `retry-${randomUUID()}`
+  const keys: string[] = []
+  let release: () => void = () => undefined
+  const released = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let first = true
+  await page.route('**/chat/messages', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue()
+    keys.push(route.request().postDataJSON().clientIdempotencyKey)
+    if (first) {
+      first = false
+      await released
+      await route.abort('failed')
+    } else if (keys.length === 2) {
+      await route.abort('failed')
+    } else {
+      await route.continue()
+    }
+  })
+  await input.fill(content)
+  await input.press('Enter')
+  await expect(
+    chat.getByRole('log').getByText(content, { exact: true }),
+  ).toBeVisible()
+  await expect(chat.getByText('Sending', { exact: true })).toBeVisible()
+  release()
+  await expect(chat.getByRole('button', { name: 'Retry' })).toBeVisible()
+  await expect(input).toHaveValue(content)
+  await chat.getByRole('button', { name: 'Retry' }).click()
+  await expect(chat.getByRole('button', { name: 'Retry' })).toBeEnabled()
+  await expect(input).toHaveValue(content)
+  await chat.getByRole('button', { name: 'Retry' }).click()
+  await expect(input).toHaveValue('')
+  await expect(
+    chat.getByRole('log').getByText(content, { exact: true }),
+  ).toHaveCount(1)
+  expect(keys).toHaveLength(3)
+  expect(new Set(keys).size).toBe(1)
+  const history = await (
+    await page.request.get('/api/channels/live/chat/messages')
+  ).json()
+  expect(
+    history.messages.filter(
+      (message: { content: string }) => message.content === content,
+    ),
+  ).toHaveLength(1)
+})
+
+test('enforces the account limit across tabs and requires a manual send after the countdown', async ({
+  page,
+  context,
+}) => {
+  await signInAsAdministrator(page)
+  const otherTab = await context.newPage()
+  await otherTab.goto('/watch/live')
+  for (let index = 0; index < 3; index += 1) {
+    expect(
+      (
+        await page.request.post('/api/channels/live/chat/messages', {
+          data: {
+            content: `burst ${index}`,
+            clientIdempotencyKey: randomUUID(),
+          },
+        })
+      ).status(),
+    ).toBe(201)
+  }
+  const chat = otherTab.getByRole('complementary', { name: 'Chat' })
+  const input = chat.getByRole('textbox', { name: 'Chat message' })
+  let sends = 0
+  otherTab.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/chat/messages'))
+      sends += 1
+  })
+  await input.fill('keep this rate-limited draft')
+  await input.press('Enter')
+  await expect(chat.getByText(/Try again in \d+ seconds/)).toBeVisible()
+  await expect(
+    chat.getByRole('button', { name: 'Send', exact: true }),
+  ).toBeDisabled()
+  await expect(input).toHaveValue('keep this rate-limited draft')
+  await expect(
+    chat.getByRole('button', { name: 'Send', exact: true }),
+  ).toBeEnabled({ timeout: 12_000 })
+  expect(sends).toBe(1)
+  await input.press('Enter')
+  await expect(input).toHaveValue('')
+  expect(sends).toBe(2)
+  await otherTab.close()
+})
+
+test('keeps drafts in memory and handles focus, player shortcuts, and input-method composition', async ({
+  page,
+}) => {
+  await signInAsAdministrator(page)
+  const chat = page.getByRole('complementary', { name: 'Chat' })
+  const input = chat.getByRole('textbox', { name: 'Chat message' })
+  await expect(input).toBeEnabled()
+  await expect(input).not.toBeFocused()
+  const draft = `memory-${randomUUID()}`
+  await input.fill(draft)
+  await chat.getByRole('button', { name: 'Close Chat' }).click()
+  const restore = page.getByRole('button', { name: 'Open Chat' })
+  await expect(restore).toBeFocused()
+  await restore.click()
+  await expect(input).toBeFocused()
+  await expect(input).toHaveValue(draft)
+  const video = page.locator('video')
+  const mediaBefore = await video.evaluate((element: HTMLVideoElement) => ({
+    muted: element.muted,
+    volume: element.volume,
+    paused: element.paused,
+  }))
+  await input.press('m')
+  await input.press('k')
+  await input.press('f')
+  await input.press('t')
+  await input.press('Space')
+  await input.press('ArrowUp')
+  expect(
+    await video.evaluate((element: HTMLVideoElement) => ({
+      muted: element.muted,
+      volume: element.volume,
+      paused: element.paused,
+    })),
+  ).toEqual(mediaBefore)
+  expect(await page.evaluate(() => document.fullscreenElement !== null)).toBe(
+    false,
+  )
+  await expect(page.getByRole('main')).not.toHaveAttribute(
+    'data-theater-mode',
+    'true',
+  )
+  let sends = 0
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/chat/messages'))
+      sends += 1
+  })
+  await input.dispatchEvent('compositionstart')
+  await input.press('Enter')
+  await input.dispatchEvent('compositionend')
+  expect(sends).toBe(0)
+  await input.press('Enter')
+  await expect(input).toHaveValue('')
+  expect(sends).toBe(1)
+  await input.fill(draft)
+  expect(
+    await page.evaluate(
+      (text) =>
+        JSON.stringify({ ...localStorage, ...sessionStorage }).includes(text),
+      draft,
+    ),
+  ).toBe(false)
+  await page.reload()
+  await expect(input).toHaveValue('')
+  await input.fill(draft)
+  await page.getByRole('link', { name: /Watch Alpha Channel/ }).click()
+  await expect(page).toHaveURL('/watch/alpha')
+  await page.getByRole('link', { name: /Watch Live stream/ }).click()
+  await expect(page).toHaveURL('/watch/live')
+  await expect(input).toHaveValue('')
+  await page.setViewportSize({ width: 760, height: 900 })
+  const toggle = chat.getByRole('button', { name: 'Chat', exact: true })
+  await toggle.click()
+  await expect(input).toBeFocused()
+  await input.fill(draft)
+  await toggle.click()
+  await toggle.click()
+  await expect(input).toHaveValue(draft)
+  await expect(input).toBeFocused()
+})
+
+test('reconciles a publication before a lost HTTP response without a duplicate or Retry', async ({
+  page,
+}) => {
+  await signInAsAdministrator(page)
+  const chat = page.getByRole('complementary', { name: 'Chat' })
+  await expect(chat.getByRole('log')).toHaveAttribute(
+    'data-realtime-state',
+    'connected',
+  )
+  const input = chat.getByRole('textbox', { name: 'Chat message' })
+  const content = `early-publication-${randomUUID()}`
+  let release: () => void = () => undefined
+  const released = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let committed: () => void = () => undefined
+  const commit = new Promise<void>((resolve) => {
+    committed = resolve
+  })
+  await page.route('**/chat/messages', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue()
+    expect((await route.fetch()).status()).toBe(201)
+    committed()
+    await released
+    await route.abort('failed')
+  })
+  await input.fill(content)
+  await input.press('Enter')
+  await commit
+  await expect(
+    chat.getByRole('log').getByText(content, { exact: true }),
+  ).toHaveCount(1)
+  await expect(chat.getByText('Sending', { exact: true })).toHaveCount(0)
+  await expect(input).toHaveValue('')
+  release()
+  await expect(
+    chat.getByRole('button', { name: 'Send', exact: true }),
+  ).toBeDisabled()
+  await expect(chat.getByRole('button', { name: 'Retry' })).toHaveCount(0)
+  await expect(
+    chat.getByRole('log').getByText(content, { exact: true }),
+  ).toHaveCount(1)
 })

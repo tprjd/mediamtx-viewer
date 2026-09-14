@@ -11,6 +11,7 @@ const chatMessageEventSchema = z.object({
   eventId: z.string(),
   message: z.object({
     id: z.string(),
+    submissionId: z.string().optional(),
     sequence: z.number().int().positive(),
     content: z.string(),
     profileName: z.string(),

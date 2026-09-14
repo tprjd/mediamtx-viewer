@@ -6,7 +6,9 @@ export function mergeChatMessages(
 ): PublicChatMessage[] {
   const byId = new Map(current.map((message) => [message.id, message]))
   for (const message of incoming) byId.set(message.id, message)
-  return [...byId.values()].sort((left, right) => left.sequence - right.sequence)
+  return [...byId.values()].sort(
+    (left, right) => left.sequence - right.sequence,
+  )
 }
 
 export function mergeChatHistoryPages(
@@ -32,4 +34,19 @@ export function firstChatSequenceGap(
     }
   }
   return null
+}
+
+export function chatRequestBlocksSending(status: number): boolean {
+  return [401, 403, 409, 503].includes(status)
+}
+
+// Publish a correlation value without publishing the client's Retry key.
+export async function createChatSubmissionId(key: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(key),
+  )
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('')
 }
