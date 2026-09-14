@@ -8,6 +8,12 @@ export interface PublicChatMessage {
   serverTimestamp: string
 }
 
+export interface ChatHistoryPage {
+  messages: PublicChatMessage[]
+  hasMore: boolean
+  cursor: string | null
+}
+
 export interface PublicChatMessageEvent {
   type: 'message'
   eventId: string

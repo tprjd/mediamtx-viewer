@@ -319,6 +319,7 @@
 }
 
 .chatContent {
+  position: relative;
   display: flex;
   min-height: 0;
   flex: 1;
@@ -342,22 +343,29 @@
 }
 
 .chatTranscript {
-  display: flex;
   min-height: 0;
   flex: 1;
-  flex-direction: column;
-  gap: 0.8rem;
   margin: 0;
-  padding: 1rem;
-  overflow-y: auto;
-  list-style: none;
+  overflow: hidden auto;
 }
 
 .chatNotice {
-  margin: auto;
+  padding: 1rem;
   color: var(--text-faint);
   font-size: 0.78rem;
   text-align: center;
+}
+
+.chatTranscriptItem {
+  padding: 0.4rem 1rem;
+}
+
+.chatDaySeparator {
+  margin-bottom: 0.5rem;
+  color: var(--text-faint);
+  font-size: 0.68rem;
+  font-weight: 620;
+  text-transform: uppercase;
 }
 
 .chatMessage {
@@ -419,6 +427,30 @@
   background: rgba(127, 29, 29, 0.25);
   color: #fecaca;
   font-size: 0.72rem;
+}
+
+.chatNewMessages {
+  position: absolute;
+  bottom: 4.6rem;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #09090b;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.chatAnnouncement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .chatComposer {

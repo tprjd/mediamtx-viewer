@@ -8,16 +8,18 @@ import {
   useState,
   type FormEvent,
 } from 'react'
+import type { VirtuosoHandle } from 'react-virtuoso'
 
 import { ChatFrame } from '@/components/chat-frame'
-import { ChatMessage } from '@/components/chat-message'
+import { ChatTranscript } from '@/components/chat-transcript'
 import { useChatRealtime } from '@/components/use-chat-realtime'
 import styles from '@/components/channel-viewer.module.css'
 import {
   firstChatSequenceGap,
+  mergeChatHistoryPages,
   mergeChatMessages,
 } from '@/lib/chat-client-state'
-import type { PublicChatMessage } from '@/lib/chat-types'
+import type { ChatHistoryPage, PublicChatMessage } from '@/lib/chat-types'
 
 interface ChatPanelProps {
   channelSlug: string
@@ -32,8 +34,7 @@ interface ChatPanelContentProps {
   endpoint: string
 }
 
-interface HistoryResponse {
-  messages?: PublicChatMessage[]
+interface HistoryResponse extends Partial<ChatHistoryPage> {
   error?: string
 }
 
@@ -41,6 +42,13 @@ interface SendResponse {
   message?: PublicChatMessage
   error?: string
 }
+
+interface ChatAnnouncement {
+  id: number
+  text: string
+}
+
+const INITIAL_FIRST_ITEM_INDEX = 1
 
 function ChatPanelContent({
   active,
@@ -51,68 +59,139 @@ function ChatPanelContent({
   const messagesRef = useRef<PublicChatMessage[]>([])
   const reconciliationRef = useRef<Promise<void> | null>(null)
   const pendingReconciliationRef = useRef<number | null>(null)
+  const sessionIdRef = useRef(0)
+  const activeSessionRef = useRef(active)
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [accessDenied, setAccessDenied] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [firstItemIndex, setFirstItemIndex] = useState(
+    INITIAL_FIRST_ITEM_INDEX,
+  )
+  const [atBottom, setAtBottom] = useState(true)
+  const atBottomRef = useRef(true)
+  const [hasOlderHistory, setHasOlderHistory] = useState(false)
+  const hasOlderHistoryRef = useRef(false)
+  const [loadingOlderHistory, setLoadingOlderHistory] = useState(false)
+  const loadingOlderHistoryRef = useRef(false)
+  const [announcement, setAnnouncement] =
+    useState<ChatAnnouncement | null>(null)
+  const announcementIdRef = useRef(0)
+  const historyCursorRef = useRef<string | null>(null)
+  const virtuosoRef = useRef<VirtuosoHandle | null>(null)
+
+  const resetVisibleSession = useCallback(() => {
+    sessionIdRef.current += 1
+    messagesRef.current = []
+    reconciliationRef.current = null
+    pendingReconciliationRef.current = null
+    historyCursorRef.current = null
+    loadingOlderHistoryRef.current = false
+    hasOlderHistoryRef.current = false
+    atBottomRef.current = true
+    setMessages([])
+    setLoading(true)
+    setSending(false)
+    setAccessDenied(false)
+    setError(null)
+    setFirstItemIndex(INITIAL_FIRST_ITEM_INDEX)
+    setAtBottom(true)
+    setHasOlderHistory(false)
+    setLoadingOlderHistory(false)
+    setAnnouncement(null)
+  }, [])
+
+  const announceMessage = useCallback((message: PublicChatMessage) => {
+    announcementIdRef.current += 1
+    setAnnouncement({
+      id: announcementIdRef.current,
+      text: `${message.profileName}: ${message.content}`,
+    })
+  }, [])
 
   const mergeMessages = useCallback((incoming: PublicChatMessage[]) => {
-    const merged = mergeChatMessages(messagesRef.current, incoming)
+    const previous = messagesRef.current
+    const knownIds = new Set(previous.map(({ id }) => id))
+    const merged = mergeChatMessages(previous, incoming)
     messagesRef.current = merged
     setMessages(merged)
+    return {
+      added: incoming.filter(({ id }) => !knownIds.has(id)),
+      merged,
+    }
+  }, [])
+
+  const mergeOlderPage = useCallback((older: PublicChatMessage[]) => {
+    const previous = messagesRef.current
+    const merged = mergeChatHistoryPages(previous, older)
+    const addedCount = merged.length - previous.length
+    messagesRef.current = merged
+    setMessages(merged)
+    if (addedCount > 0) {
+      setFirstItemIndex((current) => current - addedCount)
+    }
     return merged
   }, [])
 
-  const reconcile = useCallback((afterSequence?: number) => {
-    const requestedAfter =
-      afterSequence ?? messagesRef.current.at(-1)?.sequence ?? 0
-    pendingReconciliationRef.current =
-      pendingReconciliationRef.current === null
-        ? requestedAfter
-        : Math.min(pendingReconciliationRef.current, requestedAfter)
-    if (reconciliationRef.current) return
-    const work = (async () => {
-      while (pendingReconciliationRef.current !== null) {
-        let after = pendingReconciliationRef.current
-        pendingReconciliationRef.current = null
-        let hasMore = true
-        while (hasMore) {
-          const response = await fetch(`${endpoint}?after=${after}`, {
-            cache: 'no-store',
-          })
-          const result = (await response.json()) as HistoryResponse & {
-            hasMore?: boolean
+  const reconcile = useCallback(
+    (afterSequence?: number) => {
+      const requestedAfter =
+        afterSequence ?? messagesRef.current.at(-1)?.sequence ?? 0
+      pendingReconciliationRef.current =
+        pendingReconciliationRef.current === null
+          ? requestedAfter
+          : Math.min(pendingReconciliationRef.current, requestedAfter)
+      if (reconciliationRef.current) return
+      const sessionId = sessionIdRef.current
+      const work = (async () => {
+        while (pendingReconciliationRef.current !== null) {
+          let after = pendingReconciliationRef.current
+          pendingReconciliationRef.current = null
+          let hasMore = true
+          while (hasMore) {
+            if (sessionId !== sessionIdRef.current) return
+            const response = await fetch(`${endpoint}?after=${after}`, {
+              cache: 'no-store',
+            })
+            const result = (await response.json()) as HistoryResponse
+            if (sessionId !== sessionIdRef.current) return
+            if (!response.ok) {
+              throw new Error(result.error ?? 'Could not reconcile Chat.')
+            }
+            const incoming = result.messages ?? []
+            mergeMessages(incoming)
+            after = incoming.at(-1)?.sequence ?? after
+            hasMore = result.hasMore === true && incoming.length > 0
           }
-          if (!response.ok) {
-            throw new Error(result.error ?? 'Could not reconcile Chat.')
-          }
-          const incoming = result.messages ?? []
-          mergeMessages(incoming)
-          after = incoming.at(-1)?.sequence ?? after
-          hasMore = result.hasMore === true && incoming.length > 0
         }
-        const remainingGap = firstChatSequenceGap(messagesRef.current)
-        if (remainingGap !== null) pendingReconciliationRef.current = remainingGap
-      }
-    })()
-      .catch((reconcileError: unknown) => {
-        setError(
-          reconcileError instanceof Error
-            ? reconcileError.message
-            : 'Could not reconcile Chat.',
-        )
-      })
-      .finally(() => {
-        reconciliationRef.current = null
-      })
-    reconciliationRef.current = work
-  }, [endpoint, mergeMessages])
+      })()
+        .catch((reconcileError: unknown) => {
+          if (sessionId !== sessionIdRef.current) return
+          setError(
+            reconcileError instanceof Error
+              ? reconcileError.message
+              : 'Could not reconcile Chat.',
+          )
+        })
+        .finally(() => {
+          if (sessionId === sessionIdRef.current) {
+            reconciliationRef.current = null
+          }
+        })
+      reconciliationRef.current = work
+    },
+    [endpoint, mergeMessages],
+  )
 
   const receiveMessage = useCallback(
     (message: PublicChatMessage) => {
+      if (!active) return
       const lastSequence = messagesRef.current.at(-1)?.sequence
-      mergeMessages([message])
+      const { added } = mergeMessages([message])
+      if (active && atBottomRef.current && added.length > 0) {
+        announceMessage(message)
+      }
       if (
         lastSequence !== undefined &&
         message.sequence > lastSequence + 1
@@ -120,8 +199,78 @@ function ChatPanelContent({
         reconcile(lastSequence)
       }
     },
-    [mergeMessages, reconcile],
+    [active, announceMessage, mergeMessages, reconcile],
   )
+
+  const loadOlderHistory = useCallback(async () => {
+    const cursor = historyCursorRef.current
+    if (
+      !cursor ||
+      !hasOlderHistoryRef.current ||
+      loadingOlderHistoryRef.current
+    ) {
+      return
+    }
+    const sessionId = sessionIdRef.current
+    loadingOlderHistoryRef.current = true
+    setLoadingOlderHistory(true)
+    setError(null)
+    try {
+      const response = await fetch(
+        `${endpoint}?before=${encodeURIComponent(cursor)}`,
+        { cache: 'no-store' },
+      )
+      const result = (await response.json()) as HistoryResponse
+      if (sessionId !== sessionIdRef.current) return
+      if (!response.ok) {
+        throw new Error(result.error ?? 'Could not load Chat history.')
+      }
+      mergeOlderPage(result.messages ?? [])
+      const hasMore = result.hasMore === true
+      hasOlderHistoryRef.current = hasMore
+      setHasOlderHistory(hasMore)
+      historyCursorRef.current = hasMore ? (result.cursor ?? null) : null
+    } catch (historyError: unknown) {
+      if (sessionId !== sessionIdRef.current) return
+      setError(
+        historyError instanceof Error
+          ? historyError.message
+          : 'Could not load Chat history.',
+      )
+    } finally {
+      if (sessionId !== sessionIdRef.current) return
+      loadingOlderHistoryRef.current = false
+      setLoadingOlderHistory(false)
+    }
+  }, [endpoint, mergeOlderPage])
+
+  const handleAtBottomChange = useCallback((nextAtBottom: boolean) => {
+    atBottomRef.current = nextAtBottom
+    setAtBottom(nextAtBottom)
+    if (!nextAtBottom) setAnnouncement(null)
+  }, [])
+
+  const startLiveMode = useCallback(() => {
+    atBottomRef.current = true
+    setAtBottom(true)
+    virtuosoRef.current?.scrollToIndex({ align: 'end', index: 'LAST' })
+  }, [])
+
+  useEffect(() => {
+    if (!active) {
+      if (activeSessionRef.current) {
+        activeSessionRef.current = false
+        sessionIdRef.current += 1
+        reconciliationRef.current = null
+        pendingReconciliationRef.current = null
+        setAnnouncement(null)
+      }
+      return
+    }
+    if (activeSessionRef.current) return
+    activeSessionRef.current = true
+    resetVisibleSession()
+  }, [active, resetVisibleSession])
 
   const realtimeState = useChatRealtime({
     active,
@@ -133,6 +282,7 @@ function ChatPanelContent({
   useEffect(() => {
     if (!active) return
 
+    const sessionId = sessionIdRef.current
     const controller = new AbortController()
     void fetch(endpoint, {
       cache: 'no-store',
@@ -140,22 +290,37 @@ function ChatPanelContent({
     })
       .then(async (response) => {
         const result = (await response.json()) as HistoryResponse
+        if (sessionId !== sessionIdRef.current) return
         if (response.status === 401 || response.status === 403) {
           setAccessDenied(true)
         }
         if (!response.ok) throw new Error(result.error ?? 'Could not load Chat.')
-        const merged = mergeMessages(result.messages ?? [])
+        const { merged } = mergeMessages(result.messages ?? [])
+        setFirstItemIndex(merged[0]?.sequence ?? INITIAL_FIRST_ITEM_INDEX)
+        const hasMore = result.hasMore === true
+        historyCursorRef.current = hasMore ? (result.cursor ?? null) : null
+        hasOlderHistoryRef.current = hasMore
+        setHasOlderHistory(hasMore)
         const gap = firstChatSequenceGap(merged)
         if (gap !== null) reconcile(gap)
       })
       .catch((loadError: unknown) => {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || sessionId !== sessionIdRef.current) {
+          return
+        }
         setError(
-          loadError instanceof Error ? loadError.message : 'Could not load Chat.',
+          loadError instanceof Error
+            ? loadError.message
+            : 'Could not load Chat.',
         )
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
+        if (
+          !controller.signal.aborted &&
+          sessionId === sessionIdRef.current
+        ) {
+          setLoading(false)
+        }
       })
 
     return () => controller.abort()
@@ -165,6 +330,7 @@ function ChatPanelContent({
     event.preventDefault()
     if (!draft.trim() || sending) return
 
+    const sessionId = sessionIdRef.current
     setSending(true)
     setError(null)
     try {
@@ -174,43 +340,73 @@ function ChatPanelContent({
         body: JSON.stringify({ content: draft }),
       })
       const result = (await response.json()) as SendResponse
+      if (sessionId !== sessionIdRef.current) return
       if (response.status === 401 || response.status === 403) {
         setAccessDenied(true)
       }
       if (!response.ok || !result.message) {
         throw new Error(result.error ?? 'Could not send the message.')
       }
-      const acceptedMessage = result.message
-      mergeMessages([acceptedMessage])
+      const { added } = mergeMessages([result.message])
+      if (active && atBottomRef.current && added.length > 0) {
+        announceMessage(result.message)
+      }
       setDraft('')
     } catch (sendError) {
+      if (sessionId !== sessionIdRef.current) return
       setError(
         sendError instanceof Error
           ? sendError.message
           : 'Could not send the message.',
       )
     } finally {
-      setSending(false)
+      if (sessionId === sessionIdRef.current) setSending(false)
     }
   }
 
   return (
     <>
-      <ol
-        aria-label="Chat messages"
-        className={styles.chatTranscript}
-        data-realtime-state={realtimeState}
-        role="log"
+      {loading ? (
+        <div
+          aria-busy="true"
+          aria-label="Chat messages"
+          className={styles.chatTranscript}
+          role="log"
+        >
+          <div className={styles.chatNotice}>Loading Chat...</div>
+        </div>
+      ) : (
+        <ChatTranscript
+          atBottom={atBottom}
+          firstItemIndex={firstItemIndex}
+          hasOlderHistory={hasOlderHistory}
+          loadingOlderHistory={loadingOlderHistory}
+          messages={messages}
+          onAtBottomChange={handleAtBottomChange}
+          onLoadOlder={() => void loadOlderHistory()}
+          realtimeState={realtimeState}
+          virtuosoRef={virtuosoRef}
+        />
+      )}
+      <p
+        key={announcement?.id ?? 'empty'}
+        aria-atomic="true"
+        aria-live={active && atBottom ? 'polite' : 'off'}
+        className={styles.chatAnnouncement}
+        role="status"
       >
-        {loading && <li className={styles.chatNotice}>Loading Chat...</li>}
-        {!loading && messages.length === 0 && !error && (
-          <li className={styles.chatNotice}>No messages yet.</li>
-        )}
-        {messages.map((message) => (
-          <ChatMessage key={message.id} message={message} />
-        ))}
-      </ol>
+        {announcement?.text}
+      </p>
       {error && <p className={styles.chatError}>{error}</p>}
+      {!atBottom && messages.length > 0 && (
+        <button
+          className={styles.chatNewMessages}
+          onClick={startLiveMode}
+          type="button"
+        >
+          New messages
+        </button>
+      )}
       <form className={styles.chatComposer} onSubmit={sendMessage}>
         <input
           aria-label="Chat message"

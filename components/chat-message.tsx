@@ -8,9 +8,13 @@ function localTime(timestamp: string): string {
   }).format(new Date(timestamp))
 }
 
-export function ChatMessage({ message }: { message: PublicChatMessage }) {
+export function ChatMessageContent({
+  message,
+}: {
+  message: PublicChatMessage
+}) {
   return (
-    <li className={styles.chatMessage}>
+    <div className={styles.chatMessage} data-message-id={message.id}>
       <div className={styles.chatMessageHeader}>
         <strong>{message.profileName}</strong>
         <span className={styles.chatAuthorTag}>#{message.authorTag}</span>
@@ -27,6 +31,14 @@ export function ChatMessage({ message }: { message: PublicChatMessage }) {
         </time>
       </div>
       <p>{message.content}</p>
+    </div>
+  )
+}
+
+export function ChatMessage({ message }: { message: PublicChatMessage }) {
+  return (
+    <li>
+      <ChatMessageContent message={message} />
     </li>
   )
 }

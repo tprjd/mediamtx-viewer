@@ -6,8 +6,11 @@ import { getDatabase } from '@/lib/auth/database'
 import { getChatDatabase } from '@/lib/chat-database'
 import { chatEnvironment } from '@/lib/chat-environment'
 import { allocateChatAuthorTag, normalizeChatMessage } from '@/lib/chat-rules'
-import type { PublicChatMessage } from '@/lib/chat-types'
-import type { PublicChatMessageEvent } from '@/lib/chat-types'
+import type {
+  ChatHistoryPage,
+  PublicChatMessage,
+  PublicChatMessageEvent,
+} from '@/lib/chat-types'
 import {
   chatTranscriptChannel,
   createChatPublicationId,
@@ -195,9 +198,31 @@ export function sendChatMessage({
   })()
 }
 
-export function loadLatestChatMessages(
+const HISTORY_PAGE_SIZE = 100
+const HISTORY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
+const HISTORY_CURSOR_PREFIX = 'chat-history-v1:'
+const HISTORY_CURSOR_PATTERN = /^\d+$/
+
+export class InvalidChatHistoryCursorError extends Error {}
+
+function encodeChatHistoryCursor(sequence: number): string {
+  return `${HISTORY_CURSOR_PREFIX}${sequence}`
+}
+
+function decodeChatHistoryCursor(cursor: string): number | null {
+  if (!cursor.startsWith(HISTORY_CURSOR_PREFIX)) return null
+  const rawSequence = cursor.slice(HISTORY_CURSOR_PREFIX.length)
+  if (!HISTORY_CURSOR_PATTERN.test(rawSequence)) return null
+  const sequence = Number(rawSequence)
+  if (!Number.isSafeInteger(sequence) || sequence < 1) return null
+  return sequence
+}
+
+export function loadLatestChatHistory(
   channel: ChatChannelReference,
-): PublicChatMessage[] {
+  now = new Date(),
+): ChatHistoryPage {
+  const cutoff = now.getTime() - HISTORY_RETENTION_MS
   const rows = getChatDatabase()
     .prepare(
       `SELECT * FROM (
@@ -208,14 +233,20 @@ export function loadLatestChatMessages(
                 message.created_at AS createdAt
          FROM chat_message message
          JOIN chat_room room ON room.id = message.room_id
-         WHERE room.channel_id = ?
+         WHERE room.channel_id = ? AND message.created_at >= ?
          ORDER BY message.room_sequence DESC
-         LIMIT 100
+         LIMIT ?
        ) ORDER BY sequence ASC`,
     )
-    .all(channel.id) as ChatMessageRow[]
+    .all(channel.id, cutoff, HISTORY_PAGE_SIZE + 1) as ChatMessageRow[]
 
-  return rows.map((row) => toPublicMessage(row, channel))
+  const hasMore = rows.length > HISTORY_PAGE_SIZE
+  const selectedRows = hasMore ? rows.slice(1) : rows
+  return {
+    messages: selectedRows.map((row) => toPublicMessage(row, channel)),
+    hasMore,
+    cursor: hasMore ? encodeChatHistoryCursor(selectedRows[0].sequence) : null,
+  }
 }
 
 const GAP_REPAIR_PAGE_SIZE = 300
@@ -223,7 +254,9 @@ const GAP_REPAIR_PAGE_SIZE = 300
 export function loadChatMessagesAfter(
   channel: ChatChannelReference,
   afterSequence: number,
+  now = new Date(),
 ): { messages: PublicChatMessage[]; hasMore: boolean } {
+  const cutoff = now.getTime() - HISTORY_RETENTION_MS
   const rows = getChatDatabase()
     .prepare(
       `SELECT message.id, message.room_sequence AS sequence,
@@ -233,16 +266,69 @@ export function loadChatMessagesAfter(
               message.created_at AS createdAt
        FROM chat_message message
        JOIN chat_room room ON room.id = message.room_id
-       WHERE room.channel_id = ? AND message.room_sequence > ?
+       WHERE room.channel_id = ?
+         AND message.room_sequence > ?
+         AND message.created_at >= ?
        ORDER BY message.room_sequence ASC
        LIMIT ?`,
     )
-    .all(channel.id, afterSequence, GAP_REPAIR_PAGE_SIZE + 1) as ChatMessageRow[]
+    .all(
+      channel.id,
+      afterSequence,
+      cutoff,
+      GAP_REPAIR_PAGE_SIZE + 1,
+    ) as ChatMessageRow[]
   const hasMore = rows.length > GAP_REPAIR_PAGE_SIZE
   return {
     messages: rows
       .slice(0, GAP_REPAIR_PAGE_SIZE)
       .map((row) => toPublicMessage(row, channel)),
     hasMore,
+  }
+}
+
+export function loadOlderChatMessages(
+  channel: ChatChannelReference,
+  cursor: string,
+  now = new Date(),
+): ChatHistoryPage {
+  const beforeSequence = decodeChatHistoryCursor(cursor)
+  if (beforeSequence === null) {
+    throw new InvalidChatHistoryCursorError('Invalid Chat history cursor.')
+  }
+  const cutoff = now.getTime() - HISTORY_RETENTION_MS
+  const rows = getChatDatabase()
+    .prepare(
+      `SELECT message.id, message.room_sequence AS sequence,
+              message.account_id AS accountId,
+              message.profile_name AS profileName,
+              message.author_tag AS authorTag, message.content,
+              message.created_at AS createdAt
+       FROM chat_message message
+       JOIN chat_room room ON room.id = message.room_id
+       WHERE room.channel_id = ?
+         AND message.created_at >= ?
+         AND message.room_sequence < ?
+       ORDER BY message.room_sequence DESC
+       LIMIT ?`,
+    )
+    .all(
+      channel.id,
+      cutoff,
+      beforeSequence,
+      HISTORY_PAGE_SIZE + 1,
+    ) as ChatMessageRow[]
+
+  const selectedRows = rows.slice(0, HISTORY_PAGE_SIZE)
+  const lastRow = selectedRows.at(-1)
+  return {
+    messages: selectedRows
+      .toReversed()
+      .map((row) => toPublicMessage(row, channel)),
+    hasMore: rows.length > HISTORY_PAGE_SIZE,
+    cursor:
+      lastRow === undefined || rows.length <= HISTORY_PAGE_SIZE
+        ? null
+        : encodeChatHistoryCursor(lastRow.sequence),
   }
 }

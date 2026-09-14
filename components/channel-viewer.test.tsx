@@ -8,6 +8,7 @@ import {
 } from '@testing-library/react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
+import { VirtuosoMockContext } from 'react-virtuoso'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChannelViewer } from '@/components/channel-viewer'
@@ -306,10 +307,18 @@ describe('ChannelViewer', () => {
       )
     vi.stubGlobal('fetch', fetcher)
 
-    render(<ChannelViewer channel={channel} chatEnabled />)
+    render(
+      <VirtuosoMockContext.Provider
+        value={{ itemHeight: 68, viewportHeight: 272 }}
+      >
+        <ChannelViewer channel={channel} chatEnabled />
+      </VirtuosoMockContext.Provider>,
+    )
 
     const chat = await screen.findByRole('complementary', { name: 'Chat' })
-    expect(within(chat).getByText('read https://example.test')).toBeInTheDocument()
+    expect(
+      await within(chat).findByText('read https://example.test'),
+    ).toBeInTheDocument()
     expect(within(chat).queryByRole('link')).toBeNull()
 
     fireEvent.change(within(chat).getByRole('textbox', { name: 'Chat message' }), {

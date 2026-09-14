@@ -117,7 +117,7 @@ describe('durable Chat messages', () => {
   })
 
   it('commits a message and reloads its safe public representation', async () => {
-    const { sendChatMessage, loadLatestChatMessages } = await import('@/lib/chat')
+    const { sendChatMessage, loadLatestChatHistory } = await import('@/lib/chat')
     const { getChatDatabase } = await import('@/lib/chat-database')
     const channel = {
       id: 'stable-channel-id',
@@ -146,17 +146,23 @@ describe('durable Chat messages', () => {
       .prepare("UPDATE user SET name = 'Renamed Viewer', role = 'admin' WHERE id = 'viewer-id'")
       .run()
 
-    expect(loadLatestChatMessages(channel)).toEqual([
-      {
-        id: accepted.id,
-        sequence: 1,
-        content: 'hello https://example.test',
-        profileName: 'Original Name',
-        authorTag: accepted.authorTag,
-        badges: ['admin'],
-        serverTimestamp: '2026-09-11T10:00:00.000Z',
-      },
-    ])
+    expect(
+      loadLatestChatHistory(channel, new Date('2026-09-11T10:00:00.000Z')),
+    ).toEqual({
+      messages: [
+        {
+          id: accepted.id,
+          sequence: 1,
+          content: 'hello https://example.test',
+          profileName: 'Original Name',
+          authorTag: accepted.authorTag,
+          badges: ['admin'],
+          serverTimestamp: '2026-09-11T10:00:00.000Z',
+        },
+      ],
+      hasMore: false,
+      cursor: null,
+    })
 
     expect(
       getChatDatabase()
@@ -249,7 +255,7 @@ describe('durable Chat messages', () => {
   })
 
   it('keeps one room across publishing restarts and returns only the latest 100', async () => {
-    const { sendChatMessage, loadLatestChatMessages } = await import('@/lib/chat')
+    const { sendChatMessage, loadLatestChatHistory } = await import('@/lib/chat')
     const { getChatDatabase } = await import('@/lib/chat-database')
     const channel = {
       id: 'stable-channel-id',
@@ -275,17 +281,100 @@ describe('durable Chat messages', () => {
         .get(channel.id),
     ).toEqual({ count: 1 })
 
-    const messages = loadLatestChatMessages(channel)
-    expect(messages).toHaveLength(100)
-    expect(messages[0]).toMatchObject({
+    const page = loadLatestChatHistory(channel, new Date(1_800_000_000_100))
+    expect(page.messages).toHaveLength(100)
+    expect(page.messages[0]).toMatchObject({
       sequence: 3,
       content: 'message 1',
       profileName: 'Channel Owner',
       badges: ['owner'],
     })
-    expect(messages.at(-1)).toMatchObject({
+    expect(page.messages.at(-1)).toMatchObject({
       sequence: 102,
       content: 'message 100',
+    })
+    expect(page.hasMore).toBe(true)
+    expect(page.cursor).toBe('chat-history-v1:3')
+  })
+
+  it('pages tied timestamps and a content-free tombstone through a stable cursor while new messages arrive', async () => {
+    const {
+      loadLatestChatHistory,
+      loadOlderChatMessages,
+      sendChatMessage,
+    } = await import('@/lib/chat')
+    const { getChatDatabase } = await import('@/lib/chat-database')
+    const channel = { id: 'history-channel-id', ownerUserId: 'owner-id' }
+    const baseTime = 1_800_000_000_000
+    const retentionCutoff = baseTime - 7 * 24 * 60 * 60 * 1000
+    const expired = sendChatMessage({
+      channel,
+      participant: { accountId: 'viewer-id', profileName: 'Original Name' },
+      rawContent: 'expired history',
+      now: new Date(retentionCutoff - 1),
+      messageId: randomUUID(),
+    })
+    const retained = Array.from({ length: 205 }, (_, index) =>
+      sendChatMessage({
+        channel,
+        participant: { accountId: 'viewer-id', profileName: 'Original Name' },
+        rawContent: `history message ${index + 1}`,
+        now: new Date(baseTime),
+        messageId: randomUUID(),
+      }),
+    )
+    const tombstoneId = retained[1].id
+    getChatDatabase()
+      .prepare(
+        `UPDATE chat_message
+         SET profile_name = '', author_tag = '', content = ''
+         WHERE id = ?`,
+      )
+      .run(tombstoneId)
+
+    const latest = loadLatestChatHistory(channel, new Date(baseTime))
+    expect(latest.messages.map(({ sequence }) => sequence)).toEqual(
+      Array.from({ length: 100 }, (_, index) => index + 107),
+    )
+    expect(latest).toMatchObject({
+      hasMore: true,
+      cursor: 'chat-history-v1:107',
+    })
+
+    const concurrent = sendChatMessage({
+      channel,
+      participant: { accountId: 'viewer-id', profileName: 'Original Name' },
+      rawContent: 'concurrent new message',
+      now: new Date(baseTime + 1),
+      messageId: randomUUID(),
+    })
+    const older = loadOlderChatMessages(channel, latest.cursor!, new Date(baseTime))
+    expect(older.messages.map(({ sequence }) => sequence)).toEqual(
+      Array.from({ length: 100 }, (_, index) => index + 7),
+    )
+    expect(older).toMatchObject({
+      hasMore: true,
+      cursor: 'chat-history-v1:7',
+    })
+
+    const oldest = loadOlderChatMessages(channel, older.cursor!, new Date(baseTime))
+    expect(oldest.messages.map(({ sequence }) => sequence)).toEqual([2, 3, 4, 5, 6])
+    expect(oldest.hasMore).toBe(false)
+    expect(oldest.cursor).toBeNull()
+
+    const returnedMessages = [
+      ...oldest.messages,
+      ...older.messages,
+      ...latest.messages,
+    ]
+    const returnedIds = returnedMessages.map(({ id }) => id)
+    expect(returnedIds).not.toContain(expired.id)
+    expect(returnedIds).not.toContain(concurrent.id)
+    expect(returnedIds).toEqual(retained.map(({ id }) => id))
+    expect(returnedMessages.find(({ id }) => id === tombstoneId)).toMatchObject({
+      content: '',
+      profileName: '',
+      authorTag: '',
     })
   })
 

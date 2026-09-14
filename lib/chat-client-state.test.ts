@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   firstChatSequenceGap,
   mergeChatMessages,
+  mergeChatHistoryPages,
 } from '@/lib/chat-client-state'
 import type { PublicChatMessage } from '@/lib/chat-types'
 
@@ -37,5 +38,16 @@ describe('Chat transcript merging', () => {
         message('nine', 9),
       ]),
     ).toBe(5)
+  })
+
+  it('keeps pages independent while merging an older cursor page', () => {
+    const current = [message('three', 3), message('four', 4)]
+    const older = [message('one', 1), message('three', 3)]
+
+    expect(mergeChatHistoryPages(current, older)).toEqual([
+      message('one', 1),
+      current[0],
+      message('four', 4),
+    ])
   })
 })

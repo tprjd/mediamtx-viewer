@@ -2,8 +2,10 @@ import { z } from 'zod'
 
 import { authorizeLiveChat } from '@/lib/chat-access'
 import {
+  InvalidChatHistoryCursorError,
   loadChatMessagesAfter,
-  loadLatestChatMessages,
+  loadLatestChatHistory,
+  loadOlderChatMessages,
   sendChatMessage,
 } from '@/lib/chat'
 import { requestChatOutboxDispatch } from '@/lib/chat-outbox'
@@ -54,10 +56,23 @@ export async function GET(
         headers: responseHeaders,
       })
     }
-    return Response.json(
-      { messages: loadLatestChatMessages(access.channel) },
-      { headers: responseHeaders },
-    )
+    const before = new URL(request.url).searchParams.get('before')
+    if (before !== null) {
+      try {
+        return Response.json(loadOlderChatMessages(access.channel, before), {
+          headers: responseHeaders,
+        })
+      } catch (error) {
+        if (!(error instanceof InvalidChatHistoryCursorError)) throw error
+        return Response.json(
+          { error: 'Invalid Chat history cursor.' },
+          { status: 400, headers: responseHeaders },
+        )
+      }
+    }
+    return Response.json(loadLatestChatHistory(access.channel), {
+      headers: responseHeaders,
+    })
   } catch {
     return Response.json(
       { error: 'Chat is unavailable.' },

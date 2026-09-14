@@ -7,7 +7,8 @@ const mocks = vi.hoisted(() => ({
   getChatChannel: vi.fn(),
   getChannelStatus: vi.fn(),
   getUserById: vi.fn(),
-  loadLatestChatMessages: vi.fn(),
+  loadOlderChatMessages: vi.fn(),
+  loadLatestChatHistory: vi.fn(),
   requestChatOutboxDispatch: vi.fn(),
   sendChatMessage: vi.fn(),
 }))
@@ -28,10 +29,13 @@ vi.mock('@/lib/mediamtx', () => ({
 }))
 vi.mock('@/lib/chat', async () => {
   const { ChatMessageValidationError } = await import('@/lib/chat-rules')
+  class InvalidChatHistoryCursorError extends Error {}
   return {
     ChatMessageValidationError,
-    loadLatestChatMessages: mocks.loadLatestChatMessages,
+    InvalidChatHistoryCursorError,
+    loadLatestChatHistory: mocks.loadLatestChatHistory,
     loadChatMessagesAfter: vi.fn(),
+    loadOlderChatMessages: mocks.loadOlderChatMessages,
     sendChatMessage: mocks.sendChatMessage,
   }
 })
@@ -75,7 +79,16 @@ beforeEach(() => {
     name: 'Viewer',
     activationStatus: 'active',
   })
-  mocks.loadLatestChatMessages.mockReturnValue([message])
+  mocks.loadLatestChatHistory.mockReturnValue({
+    messages: [message],
+    hasMore: false,
+    cursor: null,
+  })
+  mocks.loadOlderChatMessages.mockReturnValue({
+    messages: [],
+    hasMore: false,
+    cursor: null,
+  })
   mocks.sendChatMessage.mockReturnValue(message)
 })
 
@@ -93,7 +106,7 @@ describe('/api/channels/[slug]/chat/messages', () => {
     expect(response.status).toBe(404)
     expect(mocks.getActiveSession).not.toHaveBeenCalled()
     expect(mocks.getChannelStatus).not.toHaveBeenCalled()
-    expect(mocks.loadLatestChatMessages).not.toHaveBeenCalled()
+    expect(mocks.loadLatestChatHistory).not.toHaveBeenCalled()
   })
 
   it('rejects history and sends without an active account', async () => {
@@ -104,7 +117,7 @@ describe('/api/channels/[slug]/chat/messages', () => {
 
     expect(historyResponse.status).toBe(401)
     expect(sendResponse.status).toBe(401)
-    expect(mocks.loadLatestChatMessages).not.toHaveBeenCalled()
+    expect(mocks.loadLatestChatHistory).not.toHaveBeenCalled()
     expect(mocks.sendChatMessage).not.toHaveBeenCalled()
   })
 
@@ -118,7 +131,7 @@ describe('/api/channels/[slug]/chat/messages', () => {
 
     expect(historyResponse.status).toBe(409)
     expect(sendResponse.status).toBe(409)
-    expect(mocks.loadLatestChatMessages).not.toHaveBeenCalled()
+    expect(mocks.loadLatestChatHistory).not.toHaveBeenCalled()
     expect(mocks.sendChatMessage).not.toHaveBeenCalled()
   })
 
@@ -127,8 +140,12 @@ describe('/api/channels/[slug]/chat/messages', () => {
     const sendResponse = await POST(postRequest(' hello '), context)
 
     expect(historyResponse.status).toBe(200)
-    expect(await historyResponse.json()).toEqual({ messages: [message] })
-    expect(mocks.loadLatestChatMessages).toHaveBeenCalledWith(channel)
+    expect(await historyResponse.json()).toEqual({
+      messages: [message],
+      hasMore: false,
+      cursor: null,
+    })
+    expect(mocks.loadLatestChatHistory).toHaveBeenCalledWith(channel)
     expect(sendResponse.status).toBe(201)
     expect(await sendResponse.json()).toEqual({ message })
     expect(mocks.sendChatMessage).toHaveBeenCalledWith({
@@ -140,6 +157,49 @@ describe('/api/channels/[slug]/chat/messages', () => {
       rawContent: ' hello ',
     })
     expect(mocks.requestChatOutboxDispatch).toHaveBeenCalledOnce()
+  })
+
+  it('returns retained history from the cursor and rejects an invalid cursor', async () => {
+    const validResponse = await GET(
+      new Request(
+        'https://example.test?before=chat-history-v1%3A1',
+      ),
+      context,
+    )
+
+    expect(validResponse.status).toBe(200)
+    expect(await validResponse.json()).toEqual({
+      messages: [],
+      hasMore: false,
+      cursor: null,
+    })
+    expect(mocks.loadOlderChatMessages).toHaveBeenCalledWith(
+      channel,
+      'chat-history-v1:1',
+    )
+
+    const { InvalidChatHistoryCursorError } = await import('@/lib/chat')
+    mocks.loadOlderChatMessages.mockImplementation(() => {
+      throw new InvalidChatHistoryCursorError('Invalid Chat history cursor.')
+    })
+    const invalidResponse = await GET(new Request('https://example.test?before=bad'), context)
+
+    expect(invalidResponse.status).toBe(400)
+    expect(await invalidResponse.json()).toEqual({
+      error: 'Invalid Chat history cursor.',
+    })
+
+    mocks.loadOlderChatMessages.mockImplementation(() => {
+      throw new Error('database failed')
+    })
+    const unavailableResponse = await GET(
+      new Request('https://example.test?before=chat-history-v1%3A1'),
+      context,
+    )
+    expect(unavailableResponse.status).toBe(503)
+    expect(await unavailableResponse.json()).toEqual({
+      error: 'Chat is unavailable.',
+    })
   })
 
   it('returns a validation error without storing an invalid message', async () => {

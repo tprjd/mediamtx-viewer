@@ -9,6 +9,20 @@ export function mergeChatMessages(
   return [...byId.values()].sort((left, right) => left.sequence - right.sequence)
 }
 
+export function mergeChatHistoryPages(
+  current: PublicChatMessage[],
+  older: PublicChatMessage[],
+): PublicChatMessage[] {
+  if (current.length === 0 || older.length === 0) {
+    return mergeChatMessages(current, older)
+  }
+  const newestVisible = current[0]
+  return mergeChatMessages(
+    older.filter((message) => message.sequence < newestVisible.sequence),
+    current,
+  )
+}
+
 export function firstChatSequenceGap(
   messages: PublicChatMessage[],
 ): number | null {
