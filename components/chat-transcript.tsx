@@ -27,26 +27,55 @@ function localDayKey(timestamp: string): string {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
 }
 
-interface ChatTranscriptEntry {
+interface ChatMessageEntry {
+  kind: 'message'
   message: PublicChatMessage
-  startsLocalDay: boolean
 }
 
-interface ChatTranscriptContext {
-  hasOlderHistory: boolean
+interface ChatDaySeparatorEntry {
+  dayKey: string
+  kind: 'day-separator'
+  serverTimestamp: string
 }
 
-function TranscriptHeader({
-  context,
-}: {
-  context: ChatTranscriptContext
-}) {
-  if (context.hasOlderHistory) return null
-  return (
-    <div className={styles.chatNotice}>
-      This is the start of the last seven days.
-    </div>
-  )
+interface HistoryBoundaryEntry {
+  kind: 'history-boundary'
+}
+
+type ChatTranscriptEntry =
+  | ChatDaySeparatorEntry
+  | ChatMessageEntry
+  | HistoryBoundaryEntry
+
+function buildChatTranscriptEntries(
+  messages: PublicChatMessage[],
+  historyExhausted: boolean,
+): ChatTranscriptEntry[] {
+  const entries: ChatTranscriptEntry[] = []
+  if (historyExhausted && messages.length > 0) {
+    entries.push({ kind: 'history-boundary' })
+  }
+  let previousDay: string | null = null
+  for (const message of messages) {
+    const dayKey = localDayKey(message.serverTimestamp)
+    if (dayKey !== previousDay) {
+      entries.push({
+        dayKey,
+        kind: 'day-separator',
+        serverTimestamp: message.serverTimestamp,
+      })
+    }
+    entries.push({ kind: 'message', message })
+    previousDay = dayKey
+  }
+  return entries
+}
+
+export function chatTranscriptEntryCount(
+  messages: PublicChatMessage[],
+  historyExhausted: boolean,
+): number {
+  return buildChatTranscriptEntries(messages, historyExhausted).length
 }
 
 function EmptyTranscript() {
@@ -63,19 +92,15 @@ const TranscriptList = forwardRef<HTMLDivElement, ListProps>(
   },
 )
 
-const transcriptComponents: Components<
-  ChatTranscriptEntry,
-  ChatTranscriptContext
-> = {
+const transcriptComponents: Components<ChatTranscriptEntry> = {
   EmptyPlaceholder: EmptyTranscript,
-  Header: TranscriptHeader,
   List: TranscriptList,
 }
 
 interface ChatTranscriptProps {
   atBottom: boolean
   firstItemIndex: number
-  hasOlderHistory: boolean
+  historyExhausted: boolean
   loadingOlderHistory: boolean
   messages: PublicChatMessage[]
   onAtBottomChange: (atBottom: boolean) => void
@@ -86,7 +111,7 @@ interface ChatTranscriptProps {
 export function ChatTranscript({
   atBottom,
   firstItemIndex,
-  hasOlderHistory,
+  historyExhausted,
   loadingOlderHistory,
   messages,
   onAtBottomChange,
@@ -96,22 +121,9 @@ export function ChatTranscript({
   const initialPositionSetRef = useRef(false)
   const atBottomRef = useRef(atBottom)
   const virtuosoRef = useRef<VirtuosoHandle | null>(null)
-  const entries = useMemo(
-    () =>
-      messages.map((message, index) => ({
-        message,
-        startsLocalDay:
-          index === 0 ||
-          localDayKey(messages[index - 1].serverTimestamp) !==
-            localDayKey(message.serverTimestamp),
-      })),
-    [messages],
-  )
-  const context = useMemo(
-    () => ({
-      hasOlderHistory,
-    }),
-    [hasOlderHistory],
+  const entries = useMemo<ChatTranscriptEntry[]>(
+    () => buildChatTranscriptEntries(messages, historyExhausted),
+    [historyExhausted, messages],
   )
   const handleStartReached = useCallback(() => {
     if (initialPositionSetRef.current && !atBottomRef.current) onLoadOlder()
@@ -148,31 +160,48 @@ export function ChatTranscript({
         atBottomThreshold={2}
         className={styles.chatTranscript}
         components={transcriptComponents}
-        computeItemKey={(_index, entry) => entry.message.id}
-        context={context}
+        computeItemKey={(_index, entry) => {
+          if (entry.kind === 'history-boundary') return 'history-boundary'
+          if (entry.kind === 'day-separator') {
+            return `day-separator:${entry.dayKey}`
+          }
+          return entry.message.id
+        }}
         data={entries}
         data-at-bottom={atBottom ? 'true' : 'false'}
         data-realtime-state={realtimeState}
         defaultItemHeight={68}
         firstItemIndex={firstItemIndex}
         followOutput="auto"
-        itemContent={(_index, entry) => (
-          <div
-            className={styles.chatTranscriptItem}
-            role="listitem"
-          >
-            {entry.startsLocalDay && (
-              <div className={styles.chatDaySeparator} role="separator">
-                <time dateTime={entry.message.serverTimestamp}>
-                  {localDayFormatter.format(
-                    new Date(entry.message.serverTimestamp),
-                  )}
-                </time>
+        itemContent={(_index, entry) => {
+          if (entry.kind === 'history-boundary') {
+            return (
+              <div className={styles.chatNotice} role="listitem">
+                This is the start of the last seven days.
               </div>
-            )}
-            <ChatMessage message={entry.message} />
-          </div>
-        )}
+            )
+          }
+          if (entry.kind === 'day-separator') {
+            return (
+              <div className={styles.chatTranscriptItem} role="listitem">
+                <div className={styles.chatDaySeparator} role="separator">
+                  <time dateTime={entry.serverTimestamp}>
+                    {localDayFormatter.format(new Date(entry.serverTimestamp))}
+                  </time>
+                </div>
+              </div>
+            )
+          }
+          return (
+            <div
+              className={styles.chatTranscriptItem}
+              data-message-entry-id={entry.message.id}
+              role="listitem"
+            >
+              <ChatMessage message={entry.message} />
+            </div>
+          )
+        }}
         minOverscanItemCount={{ bottom: 4, top: 4 }}
         ref={virtuosoRef}
         role="log"

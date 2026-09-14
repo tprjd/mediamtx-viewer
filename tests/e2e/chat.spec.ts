@@ -179,19 +179,30 @@ test('browses retained Chat history without losing the reading position', async 
   )
 
   let releaseFirstPage: () => void = () => undefined
+  let releaseFinalPage: () => void = () => undefined
   let markFirstPageRequested: () => void = () => undefined
+  let markFinalPageRequested: () => void = () => undefined
   const firstPageRequested = new Promise<void>((resolveRequest) => {
     markFirstPageRequested = resolveRequest
+  })
+  const finalPageRequested = new Promise<void>((resolveRequest) => {
+    markFinalPageRequested = resolveRequest
   })
   const firstPageRelease = new Promise<void>((resolveRelease) => {
     releaseFirstPage = resolveRelease
   })
-  let delayedFirstPage = true
+  const finalPageRelease = new Promise<void>((resolveRelease) => {
+    releaseFinalPage = resolveRelease
+  })
+  let historyPageNumber = 0
   await page.route('**/chat/messages?before=*', async (route) => {
-    if (delayedFirstPage) {
-      delayedFirstPage = false
+    historyPageNumber += 1
+    if (historyPageNumber === 1) {
       markFirstPageRequested()
       await firstPageRelease
+    } else if (historyPageNumber === 2) {
+      markFinalPageRequested()
+      await finalPageRelease
     }
     await route.continue()
   })
@@ -207,15 +218,33 @@ test('browses retained Chat history without losing the reading position', async 
   releaseFirstPage()
   await firstPageResponse
   await expect(chat.locator('[data-index="100"]')).toBeVisible()
-  const anchorTopAfter = (await anchor.boundingBox())!.y
-  expect(Math.abs(anchorTopAfter - anchorTopBefore)).toBeLessThan(12)
+  await expect
+    .poll(async () => {
+      const anchorTopAfter = (await anchor.boundingBox())!.y
+      return Math.abs(anchorTopAfter - anchorTopBefore)
+    })
+    .toBeLessThan(12)
   expect(await chat.getByRole('listitem').count()).toBeLessThan(30)
 
   const finalPageResponse = page.waitForResponse((response) =>
     response.url().includes('/chat/messages?before='),
   )
   await scrollChatToTop(log)
+  await finalPageRequested
+  const finalAnchor = chat.locator(
+    `[data-message-entry-id="${prefix}-6"]`,
+  )
+  await expect(finalAnchor).toBeVisible()
+  const finalAnchorTopBefore = (await finalAnchor.boundingBox())!.y
+  releaseFinalPage()
   await finalPageResponse
+  await expect(finalAnchor).toBeVisible()
+  await expect
+    .poll(async () => {
+      const finalAnchorTopAfter = (await finalAnchor.boundingBox())!.y
+      return Math.abs(finalAnchorTopAfter - finalAnchorTopBefore)
+    })
+    .toBeLessThan(12)
   await scrollChatToTop(log)
   await expect(
     chat.getByText('This is the start of the last seven days.'),
@@ -245,9 +274,39 @@ test('browses retained Chat history without losing the reading position', async 
   await expect(chat.getByRole('status')).toHaveAttribute('aria-live', 'off')
   await expect(chat.getByRole('separator')).toHaveCount(2)
 
-  await chat.getByRole('button', { name: 'New messages' }).click()
-  await expect(chat.getByText(incomingContent, { exact: true })).toBeVisible()
-  await expect.poll(() => log.getAttribute('data-at-bottom')).toBe('true')
+  const reopenedHistoryResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'GET' &&
+      response.url().endsWith('/api/channels/live/chat/messages'),
+  )
+  await chat.getByRole('button', { name: 'Close Chat' }).click()
+  await page.getByRole('button', { name: 'Open Chat' }).click()
+  await reopenedHistoryResponse
+  const reopenedChat = page.getByRole('complementary', { name: 'Chat' })
+  const reopenedLog = reopenedChat.getByRole('log', { name: 'Chat messages' })
+  await expect(reopenedChat.getByText(incomingContent, { exact: true })).toBeVisible()
+  await expect(reopenedLog).toHaveAttribute('data-at-bottom', 'true')
+  await expect(reopenedChat.getByRole('button', { name: 'New messages' })).toHaveCount(0)
+  await expect(reopenedChat.getByRole('status')).toBeEmpty()
+
+  const reopenedOlderPageResponse = page.waitForResponse((response) =>
+    response.url().includes('/chat/messages?before='),
+  )
+  await scrollChatToTop(reopenedLog)
+  await reopenedOlderPageResponse
+  const readingContent = `${prefix} arrived while reading reopened history`
+  const readingResponse = await page.request.post(
+    '/api/channels/live/chat/messages',
+    { data: { content: readingContent } },
+  )
+  expect(readingResponse.ok()).toBe(true)
+  await expect(reopenedChat.getByRole('button', { name: 'New messages' })).toBeVisible()
+  await expect(reopenedChat.getByRole('status')).toBeEmpty()
+  await expect(reopenedChat.getByRole('status')).toHaveAttribute('aria-live', 'off')
+
+  await reopenedChat.getByRole('button', { name: 'New messages' }).click()
+  await expect(reopenedChat.getByText(readingContent, { exact: true })).toBeVisible()
+  await expect.poll(() => reopenedLog.getAttribute('data-at-bottom')).toBe('true')
 
   const announcedContent = `${prefix} announced at the live end`
   const announcedResponse = await page.request.post(
@@ -255,18 +314,9 @@ test('browses retained Chat history without losing the reading position', async 
     { data: { content: announcedContent } },
   )
   expect(announcedResponse.ok()).toBe(true)
-  await expect(chat.getByText(announcedContent, { exact: true })).toBeVisible()
-  await expect(chat.getByRole('status')).toContainText(announcedContent)
-  await expect(chat.getByRole('status')).toHaveAttribute('aria-live', 'polite')
-
-  await chat.getByRole('button', { name: 'Close Chat' }).click()
-  await page.getByRole('button', { name: 'Open Chat' }).click()
-  const reopenedChat = page.getByRole('complementary', { name: 'Chat' })
-  const reopenedLog = reopenedChat.getByRole('log', { name: 'Chat messages' })
-  await expect(reopenedChat.getByText(incomingContent, { exact: true })).toBeVisible()
-  await expect(reopenedLog).toHaveAttribute('data-at-bottom', 'true')
-  await expect(reopenedChat.getByRole('button', { name: 'New messages' })).toHaveCount(0)
-  await expect(reopenedChat.getByRole('status')).toBeEmpty()
+  await expect(reopenedChat.getByText(announcedContent, { exact: true })).toBeVisible()
+  await expect(reopenedChat.getByRole('status')).toContainText(announcedContent)
+  await expect(reopenedChat.getByRole('status')).toHaveAttribute('aria-live', 'polite')
 
   await page.setViewportSize({ width: 760, height: 900 })
   const narrowToggle = reopenedChat.getByRole('button', {

@@ -10,7 +10,10 @@ import {
 } from 'react'
 
 import { ChatFrame } from '@/components/chat-frame'
-import { ChatTranscript } from '@/components/chat-transcript'
+import {
+  ChatTranscript,
+  chatTranscriptEntryCount,
+} from '@/components/chat-transcript'
 import { useChatRealtime } from '@/components/use-chat-realtime'
 import styles from '@/components/channel-viewer.module.css'
 import {
@@ -47,7 +50,7 @@ interface ChatAnnouncement {
   text: string
 }
 
-const INITIAL_FIRST_ITEM_INDEX = 1
+const INITIAL_FIRST_ITEM_INDEX = 1_000_000_000
 
 function ChatPanelContent({
   channelSlug,
@@ -70,8 +73,8 @@ function ChatPanelContent({
   )
   const [atBottom, setAtBottom] = useState(true)
   const atBottomRef = useRef(true)
-  const [hasOlderHistory, setHasOlderHistory] = useState(false)
   const hasOlderHistoryRef = useRef(false)
+  const [historyExhausted, setHistoryExhausted] = useState(false)
   const [loadingOlderHistory, setLoadingOlderHistory] = useState(false)
   const loadingOlderHistoryRef = useRef(false)
   const [announcement, setAnnouncement] = useState<ChatAnnouncement | null>(
@@ -88,7 +91,6 @@ function ChatPanelContent({
 
   const updateHistoryAvailability = useCallback((hasMore: boolean) => {
     hasOlderHistoryRef.current = hasMore
-    setHasOlderHistory(hasMore)
   }, [])
 
   const updateOlderHistoryLoading = useCallback((isLoading: boolean) => {
@@ -102,6 +104,7 @@ function ChatPanelContent({
       const cursor = hasMore ? (page.cursor ?? null) : null
       historyCursorRef.current = cursor
       updateHistoryAvailability(hasMore)
+      setHistoryExhausted(!hasMore)
     },
     [updateHistoryAvailability],
   )
@@ -114,6 +117,7 @@ function ChatPanelContent({
     historyCursorRef.current = null
     updateOlderHistoryLoading(false)
     updateHistoryAvailability(false)
+    setHistoryExhausted(false)
     updateAtBottomState(true)
     setMessages([])
     setLoading(true)
@@ -144,17 +148,33 @@ function ChatPanelContent({
     }
   }, [])
 
-  const mergeOlderPage = useCallback((older: PublicChatMessage[]) => {
-    const previous = messagesRef.current
-    const merged = mergeChatHistoryPages(previous, older)
-    const addedCount = merged.length - previous.length
-    messagesRef.current = merged
-    setMessages(merged)
-    if (addedCount > 0) {
-      setFirstItemIndex((current) => current - addedCount)
-    }
-    return merged
-  }, [])
+  const mergeAndAnnounceMessage = useCallback(
+    (message: PublicChatMessage) => {
+      const { added } = mergeMessages([message])
+      if (isChatVisible && atBottomRef.current && added.length > 0) {
+        announceMessage(message)
+      }
+      return added
+    },
+    [announceMessage, isChatVisible, mergeMessages],
+  )
+
+  const mergeOlderPage = useCallback(
+    (older: PublicChatMessage[], historyEnds: boolean) => {
+      const previous = messagesRef.current
+      const merged = mergeChatHistoryPages(previous, older)
+      const previousEntryCount = chatTranscriptEntryCount(previous, false)
+      const nextEntryCount = chatTranscriptEntryCount(merged, historyEnds)
+      const addedEntryCount = nextEntryCount - previousEntryCount
+      messagesRef.current = merged
+      setMessages(merged)
+      if (addedEntryCount > 0) {
+        setFirstItemIndex((current) => current - addedEntryCount)
+      }
+      return merged
+    },
+    [],
+  )
 
   const reconcile = useCallback(
     (afterSequence?: number) => {
@@ -210,10 +230,7 @@ function ChatPanelContent({
     (message: PublicChatMessage) => {
       if (!isChatVisible) return
       const lastSequence = messagesRef.current.at(-1)?.sequence
-      const { added } = mergeMessages([message])
-      if (isChatVisible && atBottomRef.current && added.length > 0) {
-        announceMessage(message)
-      }
+      mergeAndAnnounceMessage(message)
       if (
         lastSequence !== undefined &&
         message.sequence > lastSequence + 1
@@ -221,7 +238,7 @@ function ChatPanelContent({
         reconcile(lastSequence)
       }
     },
-    [announceMessage, isChatVisible, mergeMessages, reconcile],
+    [isChatVisible, mergeAndAnnounceMessage, reconcile],
   )
 
   const loadOlderHistory = useCallback(async () => {
@@ -246,7 +263,7 @@ function ChatPanelContent({
       if (!response.ok) {
         throw new Error(result.error ?? 'Could not load Chat history.')
       }
-      mergeOlderPage(result.messages ?? [])
+      mergeOlderPage(result.messages ?? [], result.hasMore !== true)
       applyHistoryPageMetadata(result)
     } catch (historyError: unknown) {
       if (requestGeneration !== requestGenerationRef.current) return
@@ -306,7 +323,6 @@ function ChatPanelContent({
         }
         if (!response.ok) throw new Error(result.error ?? 'Could not load Chat.')
         const { merged } = mergeMessages(result.messages ?? [])
-        setFirstItemIndex(merged[0]?.sequence ?? INITIAL_FIRST_ITEM_INDEX)
         applyHistoryPageMetadata(result)
         const gap = firstChatSequenceGap(merged)
         if (gap !== null) reconcile(gap)
@@ -357,10 +373,7 @@ function ChatPanelContent({
       if (!response.ok || !result.message) {
         throw new Error(result.error ?? 'Could not send the message.')
       }
-      const { added } = mergeMessages([result.message])
-      if (isChatVisible && atBottomRef.current && added.length > 0) {
-        announceMessage(result.message)
-      }
+      mergeAndAnnounceMessage(result.message)
       setDraft('')
     } catch (sendError) {
       if (requestGeneration !== requestGenerationRef.current) return
@@ -389,7 +402,7 @@ function ChatPanelContent({
         <ChatTranscript
           atBottom={atBottom}
           firstItemIndex={firstItemIndex}
-          hasOlderHistory={hasOlderHistory}
+          historyExhausted={historyExhausted}
           loadingOlderHistory={loadingOlderHistory}
           messages={messages}
           onAtBottomChange={updateAtBottomState}

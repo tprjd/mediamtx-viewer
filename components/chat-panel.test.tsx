@@ -280,6 +280,7 @@ describe('live Chat delivery', () => {
     expect(
       within(screen.getByRole('log'))
         .getAllByRole('listitem')
+        .filter((item) => item.hasAttribute('data-message-entry-id'))
         .map((item) => item.textContent),
     ).toEqual([
       expect.stringContaining('message 1'),
@@ -377,6 +378,26 @@ describe('live Chat delivery', () => {
     expect(within(log).getAllByRole('listitem').length).toBeLessThan(30)
   })
 
+  it('does not show the retention boundary after the initial history load fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input).endsWith('/token')
+          ? Response.json({ token: 'token' })
+          : Response.json({ error: 'temporary failure' }, { status: 503 }),
+      ),
+    )
+
+    render(
+      <ChatPanel channelSlug="live" narrowLayout={false} onClose={() => undefined} />,
+    )
+
+    await screen.findByText('temporary failure')
+    expect(
+      screen.queryByText('This is the start of the last seven days.'),
+    ).toBeNull()
+  })
+
   it('announces a realtime message only while live at the bottom', async () => {
     const initial = Array.from({ length: 20 }, (_, index) =>
       message(`initial-${index + 1}`, index + 1),
@@ -393,7 +414,7 @@ describe('live Chat delivery', () => {
       <ChatPanel channelSlug="live" narrowLayout={false} onClose={() => undefined} />,
     )
     await screen.findByRole('log')
-    await screen.findByText('This is the start of the last seven days.')
+    await screen.findByText('message 20')
     const log = screen.getByRole('log')
     const getStatus = () => screen.getByRole('status')
     expect(getStatus()).toBeEmptyDOMElement()
