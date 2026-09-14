@@ -8,7 +8,6 @@ import {
   useState,
   type FormEvent,
 } from 'react'
-import type { VirtuosoHandle } from 'react-virtuoso'
 
 import { ChatFrame } from '@/components/chat-frame'
 import { ChatTranscript } from '@/components/chat-transcript'
@@ -29,7 +28,7 @@ interface ChatPanelProps {
 }
 
 interface ChatPanelContentProps {
-  active: boolean
+  isChatVisible: boolean
   channelSlug: string
   endpoint: string
 }
@@ -43,19 +42,24 @@ interface SendResponse {
   error?: string
 }
 
+interface ChatAnnouncement {
+  id: number
+  text: string
+}
+
 const INITIAL_FIRST_ITEM_INDEX = 1
 
 function ChatPanelContent({
-  active,
   channelSlug,
   endpoint,
+  isChatVisible,
 }: ChatPanelContentProps) {
   const [messages, setMessages] = useState<PublicChatMessage[]>([])
   const messagesRef = useRef<PublicChatMessage[]>([])
   const reconciliationRef = useRef<Promise<void> | null>(null)
   const pendingReconciliationRef = useRef<number | null>(null)
   const requestGenerationRef = useRef(0)
-  const wasActiveRef = useRef(active)
+  const wasChatVisibleRef = useRef(isChatVisible)
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
@@ -70,19 +74,36 @@ function ChatPanelContent({
   const hasOlderHistoryRef = useRef(false)
   const [loadingOlderHistory, setLoadingOlderHistory] = useState(false)
   const loadingOlderHistoryRef = useRef(false)
-  const [announcement, setAnnouncement] = useState<string | null>(null)
+  const [announcement, setAnnouncement] = useState<ChatAnnouncement | null>(
+    null,
+  )
+  const announcementIdRef = useRef(0)
   const historyCursorRef = useRef<string | null>(null)
-  const virtuosoRef = useRef<VirtuosoHandle | null>(null)
+
+  const updateAtBottomState = useCallback((nextAtBottom: boolean) => {
+    atBottomRef.current = nextAtBottom
+    setAtBottom(nextAtBottom)
+    if (!nextAtBottom) setAnnouncement(null)
+  }, [])
+
+  const updateHistoryAvailability = useCallback((hasMore: boolean) => {
+    hasOlderHistoryRef.current = hasMore
+    setHasOlderHistory(hasMore)
+  }, [])
+
+  const updateOlderHistoryLoading = useCallback((isLoading: boolean) => {
+    loadingOlderHistoryRef.current = isLoading
+    setLoadingOlderHistory(isLoading)
+  }, [])
 
   const applyHistoryPageMetadata = useCallback(
     (page: Pick<HistoryResponse, 'hasMore' | 'cursor'>) => {
       const hasMore = page.hasMore === true
       const cursor = hasMore ? (page.cursor ?? null) : null
       historyCursorRef.current = cursor
-      hasOlderHistoryRef.current = hasMore
-      setHasOlderHistory(hasMore)
+      updateHistoryAvailability(hasMore)
     },
-    [],
+    [updateHistoryAvailability],
   )
 
   const resetChatPanelState = useCallback(() => {
@@ -91,23 +112,24 @@ function ChatPanelContent({
     reconciliationRef.current = null
     pendingReconciliationRef.current = null
     historyCursorRef.current = null
-    loadingOlderHistoryRef.current = false
-    hasOlderHistoryRef.current = false
-    atBottomRef.current = true
+    updateOlderHistoryLoading(false)
+    updateHistoryAvailability(false)
+    updateAtBottomState(true)
     setMessages([])
     setLoading(true)
     setSending(false)
     setAccessDenied(false)
     setError(null)
     setFirstItemIndex(INITIAL_FIRST_ITEM_INDEX)
-    setAtBottom(true)
-    setHasOlderHistory(false)
-    setLoadingOlderHistory(false)
     setAnnouncement(null)
-  }, [])
+  }, [updateAtBottomState, updateHistoryAvailability, updateOlderHistoryLoading])
 
   const announceMessage = useCallback((message: PublicChatMessage) => {
-    setAnnouncement(`${message.profileName}: ${message.content}`)
+    announcementIdRef.current += 1
+    setAnnouncement({
+      id: announcementIdRef.current,
+      text: `${message.profileName}: ${message.content}`,
+    })
   }, [])
 
   const mergeMessages = useCallback((incoming: PublicChatMessage[]) => {
@@ -186,10 +208,10 @@ function ChatPanelContent({
 
   const receiveMessage = useCallback(
     (message: PublicChatMessage) => {
-      if (!active) return
+      if (!isChatVisible) return
       const lastSequence = messagesRef.current.at(-1)?.sequence
       const { added } = mergeMessages([message])
-      if (active && atBottomRef.current && added.length > 0) {
+      if (isChatVisible && atBottomRef.current && added.length > 0) {
         announceMessage(message)
       }
       if (
@@ -199,7 +221,7 @@ function ChatPanelContent({
         reconcile(lastSequence)
       }
     },
-    [active, announceMessage, mergeMessages, reconcile],
+    [announceMessage, isChatVisible, mergeMessages, reconcile],
   )
 
   const loadOlderHistory = useCallback(async () => {
@@ -212,8 +234,7 @@ function ChatPanelContent({
       return
     }
     const requestGeneration = requestGenerationRef.current
-    loadingOlderHistoryRef.current = true
-    setLoadingOlderHistory(true)
+    updateOlderHistoryLoading(true)
     setError(null)
     try {
       const response = await fetch(
@@ -236,27 +257,19 @@ function ChatPanelContent({
       )
     } finally {
       if (requestGeneration !== requestGenerationRef.current) return
-      loadingOlderHistoryRef.current = false
-      setLoadingOlderHistory(false)
+      updateOlderHistoryLoading(false)
     }
-  }, [applyHistoryPageMetadata, endpoint, mergeOlderPage])
-
-  const handleAtBottomChange = useCallback((nextAtBottom: boolean) => {
-    atBottomRef.current = nextAtBottom
-    setAtBottom(nextAtBottom)
-    if (!nextAtBottom) setAnnouncement(null)
-  }, [])
-
-  const startLiveMode = useCallback(() => {
-    atBottomRef.current = true
-    setAtBottom(true)
-    virtuosoRef.current?.scrollToIndex({ align: 'end', index: 'LAST' })
-  }, [])
+  }, [
+    applyHistoryPageMetadata,
+    endpoint,
+    mergeOlderPage,
+    updateOlderHistoryLoading,
+  ])
 
   useEffect(() => {
-    if (!active) {
-      if (wasActiveRef.current) {
-        wasActiveRef.current = false
+    if (!isChatVisible) {
+      if (wasChatVisibleRef.current) {
+        wasChatVisibleRef.current = false
         requestGenerationRef.current += 1
         reconciliationRef.current = null
         pendingReconciliationRef.current = null
@@ -264,20 +277,20 @@ function ChatPanelContent({
       }
       return
     }
-    if (wasActiveRef.current) return
-    wasActiveRef.current = true
+    if (wasChatVisibleRef.current) return
+    wasChatVisibleRef.current = true
     resetChatPanelState()
-  }, [active, resetChatPanelState])
+  }, [isChatVisible, resetChatPanelState])
 
   const realtimeState = useChatRealtime({
-    active,
+    active: isChatVisible,
     channelSlug,
     onMessage: receiveMessage,
     onRecoveryFailed: reconcile,
   })
 
   useEffect(() => {
-    if (!active) return
+    if (!isChatVisible) return
 
     const requestGeneration = requestGenerationRef.current
     const controller = new AbortController()
@@ -321,7 +334,7 @@ function ChatPanelContent({
       })
 
     return () => controller.abort()
-  }, [active, applyHistoryPageMetadata, endpoint, mergeMessages, reconcile])
+  }, [applyHistoryPageMetadata, endpoint, isChatVisible, mergeMessages, reconcile])
 
   async function sendMessage(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
@@ -345,7 +358,7 @@ function ChatPanelContent({
         throw new Error(result.error ?? 'Could not send the message.')
       }
       const { added } = mergeMessages([result.message])
-      if (active && atBottomRef.current && added.length > 0) {
+      if (isChatVisible && atBottomRef.current && added.length > 0) {
         announceMessage(result.message)
       }
       setDraft('')
@@ -379,30 +392,22 @@ function ChatPanelContent({
           hasOlderHistory={hasOlderHistory}
           loadingOlderHistory={loadingOlderHistory}
           messages={messages}
-          onAtBottomChange={handleAtBottomChange}
+          onAtBottomChange={updateAtBottomState}
           onLoadOlder={() => void loadOlderHistory()}
           realtimeState={realtimeState}
-          virtuosoRef={virtuosoRef}
         />
       )}
       <p
         aria-atomic="true"
-        aria-live={active && atBottom ? 'polite' : 'off'}
+        aria-live={isChatVisible && atBottom ? 'polite' : 'off'}
         className={styles.chatAnnouncement}
         role="status"
       >
-        {announcement}
+        {announcement && (
+          <span key={announcement.id}>{announcement.text}</span>
+        )}
       </p>
       {error && <p className={styles.chatError}>{error}</p>}
-      {!atBottom && messages.length > 0 && (
-        <button
-          className={styles.chatNewMessages}
-          onClick={startLiveMode}
-          type="button"
-        >
-          New messages
-        </button>
-      )}
       <form className={styles.chatComposer} onSubmit={sendMessage}>
         <input
           aria-label="Chat message"
@@ -439,11 +444,11 @@ export function ChatPanel({
       narrowLayout={narrowLayout}
       onClose={onClose}
     >
-      {(active) => (
+      {(isChatVisible) => (
         <ChatPanelContent
-          active={active}
           channelSlug={channelSlug}
           endpoint={endpoint}
+          isChatVisible={isChatVisible}
           key={channelSlug}
         />
       )}

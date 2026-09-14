@@ -232,13 +232,20 @@ function loadRetainedChatRows(
   now: Date,
   options: RetainedChatRowsOptions,
 ): ChatMessageRow[] {
-  const cutoff = now.getTime() - HISTORY_RETENTION_MS
+  const currentTime = now.getTime()
+  const cutoff = currentTime - HISTORY_RETENTION_MS
   const sequencePredicate = options.sequence
     ? `AND message.room_sequence ${options.sequence.operator} ?`
     : ''
   const parameters = options.sequence
-    ? [channel.id, cutoff, options.sequence.value, options.pageSize + 1]
-    : [channel.id, cutoff, options.pageSize + 1]
+    ? [
+        channel.id,
+        cutoff,
+        currentTime,
+        options.sequence.value,
+        options.pageSize + 1,
+      ]
+    : [channel.id, cutoff, currentTime, options.pageSize + 1]
   return getChatDatabase()
     .prepare(
       `SELECT message.id, message.room_sequence AS sequence,
@@ -250,6 +257,7 @@ function loadRetainedChatRows(
        JOIN chat_room room ON room.id = message.room_id
        WHERE room.channel_id = ?
          AND message.created_at >= ?
+         AND message.created_at <= ?
          ${sequencePredicate}
        ORDER BY message.room_sequence ${options.order}
        LIMIT ?`,

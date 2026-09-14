@@ -6,7 +6,6 @@ import {
   useEffect,
   useMemo,
   useRef,
-  type RefObject,
 } from 'react'
 import {
   Virtuoso,
@@ -82,7 +81,6 @@ interface ChatTranscriptProps {
   onAtBottomChange: (atBottom: boolean) => void
   onLoadOlder: () => void
   realtimeState: 'connected' | 'connecting' | 'disconnected'
-  virtuosoRef: RefObject<VirtuosoHandle | null>
 }
 
 export function ChatTranscript({
@@ -94,10 +92,10 @@ export function ChatTranscript({
   onAtBottomChange,
   onLoadOlder,
   realtimeState,
-  virtuosoRef,
 }: ChatTranscriptProps) {
   const initialPositionSetRef = useRef(false)
   const atBottomRef = useRef(atBottom)
+  const virtuosoRef = useRef<VirtuosoHandle | null>(null)
   const entries = useMemo(
     () =>
       messages.map((message, index) => ({
@@ -125,6 +123,10 @@ export function ChatTranscript({
     },
     [onAtBottomChange],
   )
+  const scrollToLiveEnd = useCallback(() => {
+    handleAtBottomChange(true)
+    virtuosoRef.current?.scrollToIndex({ align: 'end', index: 'LAST' })
+  }, [handleAtBottomChange])
 
   useEffect(() => {
     if (initialPositionSetRef.current || entries.length === 0) return
@@ -133,48 +135,58 @@ export function ChatTranscript({
       initialPositionSetRef.current = true
     })
     return () => cancelAnimationFrame(frame)
-  }, [entries.length, virtuosoRef])
+  }, [entries.length])
 
   return (
-    <Virtuoso
-      alignToBottom
-      aria-busy={loadingOlderHistory}
-      aria-label="Chat messages"
-      aria-live="off"
-      atBottomStateChange={handleAtBottomChange}
-      atBottomThreshold={64}
-      className={styles.chatTranscript}
-      components={transcriptComponents}
-      computeItemKey={(_index, entry) => entry.message.id}
-      context={context}
-      data={entries}
-      data-at-bottom={atBottom ? 'true' : 'false'}
-      data-realtime-state={realtimeState}
-      defaultItemHeight={68}
-      firstItemIndex={firstItemIndex}
-      followOutput="auto"
-      itemContent={(index, entry) => (
-        <div
-          className={styles.chatTranscriptItem}
-          data-chat-item-index={index}
-          role="listitem"
+    <>
+      <Virtuoso
+        alignToBottom
+        aria-busy={loadingOlderHistory}
+        aria-label="Chat messages"
+        aria-live="off"
+        atBottomStateChange={handleAtBottomChange}
+        atBottomThreshold={2}
+        className={styles.chatTranscript}
+        components={transcriptComponents}
+        computeItemKey={(_index, entry) => entry.message.id}
+        context={context}
+        data={entries}
+        data-at-bottom={atBottom ? 'true' : 'false'}
+        data-realtime-state={realtimeState}
+        defaultItemHeight={68}
+        firstItemIndex={firstItemIndex}
+        followOutput="auto"
+        itemContent={(_index, entry) => (
+          <div
+            className={styles.chatTranscriptItem}
+            role="listitem"
+          >
+            {entry.startsLocalDay && (
+              <div className={styles.chatDaySeparator} role="separator">
+                <time dateTime={entry.message.serverTimestamp}>
+                  {localDayFormatter.format(
+                    new Date(entry.message.serverTimestamp),
+                  )}
+                </time>
+              </div>
+            )}
+            <ChatMessage message={entry.message} />
+          </div>
+        )}
+        minOverscanItemCount={{ bottom: 4, top: 4 }}
+        ref={virtuosoRef}
+        role="log"
+        startReached={handleStartReached}
+      />
+      {!atBottom && messages.length > 0 && (
+        <button
+          className={styles.chatNewMessages}
+          onClick={scrollToLiveEnd}
+          type="button"
         >
-          {entry.startsLocalDay && (
-            <div className={styles.chatDaySeparator} role="separator">
-              <time dateTime={entry.message.serverTimestamp}>
-                {localDayFormatter.format(
-                  new Date(entry.message.serverTimestamp),
-                )}
-              </time>
-            </div>
-          )}
-          <ChatMessage message={entry.message} />
-        </div>
+          New messages
+        </button>
       )}
-      minOverscanItemCount={{ bottom: 4, top: 4 }}
-      ref={virtuosoRef}
-      role="log"
-      startReached={handleStartReached}
-    />
+    </>
   )
 }

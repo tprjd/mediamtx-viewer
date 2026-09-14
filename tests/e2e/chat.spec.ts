@@ -32,6 +32,10 @@ async function waitForCentrifugo(): Promise<void> {
 
 async function scrollChatToTop(log: Locator): Promise<void> {
   await log.evaluate((element) => {
+    if (element.scrollTop === 0 && element.scrollHeight > element.clientHeight) {
+      element.scrollTop = 1
+      element.dispatchEvent(new Event('scroll'))
+    }
     element.scrollTop = 0
     element.dispatchEvent(new Event('scroll'))
   })
@@ -202,7 +206,7 @@ test('browses retained Chat history without losing the reading position', async 
   )
   releaseFirstPage()
   await firstPageResponse
-  await expect(chat.locator('[data-chat-item-index="100"]')).toBeVisible()
+  await expect(chat.locator('[data-index="100"]')).toBeVisible()
   const anchorTopAfter = (await anchor.boundingBox())!.y
   expect(Math.abs(anchorTopAfter - anchorTopBefore)).toBeLessThan(12)
   expect(await chat.getByRole('listitem').count()).toBeLessThan(30)
@@ -287,11 +291,31 @@ test('browses retained Chat history without losing the reading position', async 
     reopenedChat.getByText(hiddenContent, { exact: true }),
   ).toBeVisible()
   await expect(reopenedChat.getByRole('status')).toBeEmpty()
+  const narrowLiveContent = `${prefix} arrived at narrow live end`
+  const narrowLiveResponse = await page.request.post(
+    '/api/channels/live/chat/messages',
+    { data: { content: narrowLiveContent } },
+  )
+  expect(narrowLiveResponse.ok()).toBe(true)
+  await expect(
+    reopenedChat.getByText(narrowLiveContent, { exact: true }),
+  ).toBeVisible()
+  await expect.poll(() => reopenedLog.getAttribute('data-at-bottom')).toBe('true')
 
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.getByRole('button', { name: 'Enter theater mode' }).click()
   await expect(reopenedLog).toBeVisible()
   await expect(page.getByRole('main')).toHaveAttribute('data-theater-mode', 'true')
+  const theaterLiveContent = `${prefix} arrived in theater mode`
+  const theaterLiveResponse = await page.request.post(
+    '/api/channels/live/chat/messages',
+    { data: { content: theaterLiveContent } },
+  )
+  expect(theaterLiveResponse.ok()).toBe(true)
+  await expect(
+    reopenedChat.getByText(theaterLiveContent, { exact: true }),
+  ).toBeVisible()
+  await expect.poll(() => reopenedLog.getAttribute('data-at-bottom')).toBe('true')
 })
 
 test('delivers one accepted Chat message to another active participant', async ({

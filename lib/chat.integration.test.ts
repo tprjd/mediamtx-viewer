@@ -332,6 +332,14 @@ describe('durable Chat messages', () => {
       )
       .run(tombstoneId)
 
+    const future = sendChatMessage({
+      channel,
+      participant: { accountId: 'viewer-id', profileName: 'Original Name' },
+      rawContent: 'future history',
+      now: new Date(baseTime + 1),
+      messageId: randomUUID(),
+    })
+
     const latest = loadLatestChatHistory(channel, new Date(baseTime))
     expect(latest.messages.map(({ sequence }) => sequence)).toEqual(
       Array.from({ length: 100 }, (_, index) => index + 107),
@@ -369,6 +377,7 @@ describe('durable Chat messages', () => {
     ]
     const returnedIds = returnedMessages.map(({ id }) => id)
     expect(returnedIds).not.toContain(expired.id)
+    expect(returnedIds).not.toContain(future.id)
     expect(returnedIds).not.toContain(concurrent.id)
     expect(returnedIds).toEqual(retained.map(({ id }) => id))
     expect(returnedMessages.find(({ id }) => id === tombstoneId)).toMatchObject({
