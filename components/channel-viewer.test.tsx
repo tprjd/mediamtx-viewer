@@ -315,7 +315,18 @@ describe('ChannelViewer', () => {
           headers: { 'content-type': 'application/json' },
         }),
       )
-    vi.stubGlobal('fetch', fetcher)
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/state'))
+        return Promise.resolve(
+          Response.json({
+            channelId: 'live-channel',
+            restriction: null,
+            moderatorRole: null,
+            serverTime: new Date().toISOString(),
+          }),
+        )
+      return fetcher(input, init)
+    })
 
     render(
       <VirtuosoMockContext.Provider
@@ -330,6 +341,11 @@ describe('ChannelViewer', () => {
       await within(chat).findByText('read https://example.test'),
     ).toBeInTheDocument()
     expect(within(chat).queryByRole('link')).toBeNull()
+    await waitFor(() =>
+      expect(
+        within(chat).getByRole('textbox', { name: 'Chat message' }),
+      ).toBeEnabled(),
+    )
 
     fireEvent.change(
       within(chat).getByRole('textbox', { name: 'Chat message' }),
@@ -360,7 +376,18 @@ describe('ChannelViewer', () => {
     })
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => Response.json({ messages: [] })),
+      vi.fn(async (input: RequestInfo | URL) =>
+        Response.json(
+          String(input).endsWith('/state')
+            ? {
+                channelId: 'live-channel',
+                restriction: null,
+                moderatorRole: null,
+                serverTime: new Date().toISOString(),
+              }
+            : { messages: [] },
+        ),
+      ),
     )
     const view = render(<ChannelViewer channel={channel} chatEnabled />)
     const input = screen.getByRole('textbox', { name: 'Chat message' })

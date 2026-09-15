@@ -6,6 +6,10 @@ import { getDatabase } from '@/lib/auth/database'
 import { getChatDatabase } from '@/lib/chat-database'
 import { chatEnvironment } from '@/lib/chat-environment'
 import {
+  ChatRestrictionError,
+  getChatRestriction,
+} from '@/lib/chat-restrictions'
+import {
   allocateChatAuthorTag,
   normalizeChatMessage,
   decideChatSendRate,
@@ -131,6 +135,13 @@ export function sendChatMessage({
 
   return database
     .transaction(() => {
+      // Serialize this check with moderation writes, including idempotent retries.
+      const restriction = getChatRestriction(
+        channel.id,
+        participant.accountId,
+        now,
+      )
+      if (restriction) throw new ChatRestrictionError(restriction)
       database
         .prepare(
           `INSERT OR IGNORE INTO chat_room (id, channel_id, next_sequence, created_at)

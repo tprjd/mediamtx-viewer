@@ -29,9 +29,13 @@ export function ChatMessageActions({
   const [actions, setActions] = useState<{
     canRemove: boolean
     canInspect: boolean
+    canTimeout: boolean
   } | null>(null)
   const [menuError, setMenuError] = useState<string | null>(null)
-  const [dialog, setDialog] = useState<'remove' | 'inspect' | null>(null)
+  const [dialog, setDialog] = useState<'remove' | 'timeout' | 'inspect' | null>(
+    null,
+  )
+  const [durationMinutes, setDurationMinutes] = useState('10')
   const [category, setCategory] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -74,19 +78,41 @@ export function ChatMessageActions({
     }
   }
 
-  async function remove() {
+  function openAction(action: 'remove' | 'timeout') {
+    setCategory('')
+    setNote('')
+    setDurationMinutes('10')
+    setError(null)
+    setDialog(action)
+  }
+
+  async function moderate() {
     setBusy(true)
     setError(null)
     try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ category, note }),
-      })
+      const response = await fetch(
+        dialog === 'timeout'
+          ? endpoint.replace(/\/removal$/, '/timeout')
+          : endpoint,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            category,
+            note,
+            ...(dialog === 'timeout'
+              ? { durationMinutes: Number(durationMinutes) }
+              : {}),
+          }),
+        },
+      )
       const result = await response.json()
       if (!response.ok)
-        throw new Error(result.error ?? 'Could not remove the message.')
-      onRemoved(result.message)
+        throw new Error(
+          result.error ?? 'Could not apply the Chat moderation action.',
+        )
+      if (dialog === 'timeout') result.messages.forEach(onRemoved)
+      else onRemoved(result.message)
       setDialog(null)
       setNote('')
     } catch (error) {
@@ -126,29 +152,40 @@ export function ChatMessageActions({
               <DropdownMenu.Item disabled>{menuError}</DropdownMenu.Item>
             ) : !actions ? (
               <DropdownMenu.Item disabled>Loading actions...</DropdownMenu.Item>
-            ) : actions.canInspect ? (
-              <DropdownMenu.Item
-                className={styles.item}
-                onSelect={() => void inspect()}
-              >
-                Inspect removed message
-              </DropdownMenu.Item>
-            ) : actions.canRemove ? (
-              <DropdownMenu.Item
-                className={styles.item}
-                onSelect={() => {
-                  setCategory('')
-                  setNote('')
-                  setError(null)
-                  setDialog('remove')
-                }}
-              >
-                Remove message
-              </DropdownMenu.Item>
             ) : (
-              <DropdownMenu.Item disabled>
-                No actions available.
-              </DropdownMenu.Item>
+              <>
+                {actions.canInspect && (
+                  <DropdownMenu.Item
+                    className={styles.item}
+                    onSelect={() => void inspect()}
+                  >
+                    Inspect removed message
+                  </DropdownMenu.Item>
+                )}
+                {actions.canRemove && (
+                  <DropdownMenu.Item
+                    className={styles.item}
+                    onSelect={() => openAction('remove')}
+                  >
+                    Remove message
+                  </DropdownMenu.Item>
+                )}
+                {actions.canTimeout && (
+                  <DropdownMenu.Item
+                    className={styles.item}
+                    onSelect={() => openAction('timeout')}
+                  >
+                    Apply Chat timeout
+                  </DropdownMenu.Item>
+                )}
+                {!actions.canInspect &&
+                  !actions.canRemove &&
+                  !actions.canTimeout && (
+                    <DropdownMenu.Item disabled>
+                      No actions available.
+                    </DropdownMenu.Item>
+                  )}
+              </>
             )}
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
@@ -173,20 +210,42 @@ export function ChatMessageActions({
             }}
           >
             <Dialog.Title>
-              {dialog === 'remove' ? 'Remove message' : 'Removed message'}
+              {dialog === 'timeout'
+                ? 'Apply Chat timeout'
+                : dialog === 'remove'
+                  ? 'Remove message'
+                  : 'Removed message'}
             </Dialog.Title>
             <Dialog.Description>
-              {dialog === 'remove'
-                ? 'Replace this message with a tombstone for everyone in this Chat room.'
-                : 'Only current Chat moderators can inspect this retained content.'}
+              {dialog === 'timeout'
+                ? 'Stop this participant from sending and remove their messages from the previous ten minutes. They can still read Chat and watch the Channel.'
+                : dialog === 'remove'
+                  ? 'Replace this message with a tombstone for everyone in this Chat room.'
+                  : 'Only current Chat moderators can inspect this retained content.'}
             </Dialog.Description>
-            {dialog === 'remove' ? (
+            {dialog === 'remove' || dialog === 'timeout' ? (
               <form
                 onSubmit={(event) => {
                   event.preventDefault()
-                  void remove()
+                  void moderate()
                 }}
               >
+                {dialog === 'timeout' && (
+                  <label>
+                    Duration
+                    <select
+                      value={durationMinutes}
+                      onChange={(event) =>
+                        setDurationMinutes(event.target.value)
+                      }
+                      disabled={busy}
+                    >
+                      <option value="10">10 minutes</option>
+                      <option value="60">1 hour</option>
+                      <option value="1440">24 hours</option>
+                    </select>
+                  </label>
+                )}
                 <label>
                   Category
                   <select
@@ -224,7 +283,11 @@ export function ChatMessageActions({
                     busy || !category || (category === 'Other' && !note.trim())
                   }
                 >
-                  {busy ? 'Removing...' : 'Confirm removal'}
+                  {busy
+                    ? 'Applying...'
+                    : dialog === 'timeout'
+                      ? 'Confirm timeout'
+                      : 'Confirm removal'}
                 </button>
               </form>
             ) : busy ? (
@@ -242,7 +305,9 @@ export function ChatMessageActions({
             {error && <p role="alert">{error}</p>}
             <Dialog.Close asChild>
               <button type="button">
-                {dialog === 'remove' ? 'Cancel' : 'Close'}
+                {dialog === 'remove' || dialog === 'timeout'
+                  ? 'Cancel'
+                  : 'Close'}
               </button>
             </Dialog.Close>
           </Dialog.Content>

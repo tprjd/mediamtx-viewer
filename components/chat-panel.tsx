@@ -10,6 +10,7 @@ import {
 } from '@/components/chat-transcript'
 import { useChatSending } from '@/components/use-chat-sending'
 import { useChatRealtime } from '@/components/use-chat-realtime'
+import { useChatRestriction } from '@/components/use-chat-restriction'
 import styles from '@/components/channel-viewer.module.css'
 import {
   chatRequestBlocksSending,
@@ -59,7 +60,7 @@ function ChatPanelContent({
   isChatVisible,
   focusComposer,
 }: ChatPanelContentProps) {
-  const [moderatorRole, setModeratorRole] = useState<ChatModeratorRole>(null)
+  const timeout = useChatRestriction(channelSlug, isChatVisible)
   const [messages, setMessages] = useState<PublicChatMessage[]>([])
   const messagesRef = useRef<PublicChatMessage[]>([])
   const reconciliationRef = useRef<Promise<void> | null>(null)
@@ -339,6 +340,7 @@ function ChatPanelContent({
     channelSlug,
     onMessage: receiveMessage,
     onRecoveryFailed: reconcile,
+    onRestrictionChanged: timeout.refresh,
   })
 
   useEffect(() => {
@@ -361,7 +363,6 @@ function ChatPanelContent({
         }
         if (!response.ok)
           throw new Error(result.error ?? 'Could not load Chat.')
-        setModeratorRole(result.moderatorRole ?? null)
         const incoming = result.messages ?? []
         // Reopening starts with the latest page. Keep loaded history until it succeeds.
         messagesRef.current = messagesRef.current.filter(
@@ -415,8 +416,9 @@ function ChatPanelContent({
     endpoint,
     connected: realtimeState === 'connected',
     confirmedIds,
-    unavailable: unavailable || accessDenied || loading,
+    unavailable: unavailable || accessDenied || loading || timeout.blocked,
     onUnavailable: () => setUnavailable(true),
+    onRestricted: () => void timeout.refresh(),
     onAccepted: mergeAndAnnounceMessage,
   })
   const delayed = sending.submissions.some((entry) => entry.state === 'delayed')
@@ -444,15 +446,22 @@ function ChatPanelContent({
   }, [isChatVisible, unavailable, reconcile])
 
   useEffect(() => {
-    if (isChatVisible && focusComposer && !loading && !unavailable)
+    if (
+      isChatVisible &&
+      focusComposer &&
+      !loading &&
+      !unavailable &&
+      !timeout.blocked
+    )
       composerRef.current?.focus()
-  }, [focusComposer, isChatVisible, loading, unavailable])
+  }, [focusComposer, isChatVisible, loading, unavailable, timeout.blocked])
 
   const sendDisabled =
     loading ||
     sending.sending ||
     accessDenied ||
     unavailable ||
+    timeout.blocked ||
     sending.remainingSeconds > 0
 
   return (
@@ -470,7 +479,9 @@ function ChatPanelContent({
         <ChatTranscript
           key={transcriptVisit}
           channelSlug={channelSlug}
-          moderatorRole={unavailable || accessDenied ? null : moderatorRole}
+          moderatorRole={
+            unavailable || accessDenied ? null : timeout.moderatorRole
+          }
           onRemoved={receiveMessage}
           atBottom={atBottom}
           firstItemIndex={firstItemIndex}
@@ -512,6 +523,24 @@ function ChatPanelContent({
           <p>Try again in {sending.remainingSeconds} seconds.</p>
         )}
       </div>
+      {timeout.restriction && (
+        <p
+          role="status"
+          aria-label="Chat timeout"
+          aria-live="off"
+          className={styles.chatError}
+        >
+          Chat timeout: {timeout.restriction.category}.{' '}
+          {Math.floor(timeout.remainingSeconds / 3600)}h{' '}
+          {Math.floor((timeout.remainingSeconds % 3600) / 60)}m{' '}
+          {timeout.remainingSeconds % 60}s remaining.
+        </p>
+      )}
+      {timeout.failed && (
+        <p role="alert" className={styles.chatError}>
+          Could not check Chat sending access. Retrying...
+        </p>
+      )}
       <form
         className={styles.chatComposer}
         onSubmit={(event) => {
@@ -523,7 +552,7 @@ function ChatPanelContent({
           aria-label="Chat message"
           autoComplete="off"
           ref={composerRef}
-          disabled={loading || accessDenied || unavailable}
+          disabled={loading || accessDenied || unavailable || timeout.blocked}
           onChange={(event) => sending.setDraft(event.target.value)}
           onCompositionStart={() => {
             composingRef.current = true

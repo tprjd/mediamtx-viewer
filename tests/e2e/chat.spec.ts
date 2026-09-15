@@ -845,3 +845,106 @@ test('removes a message through its menu and replaces it for another connected p
     await otherContext.close()
   }
 })
+
+for (const preset of [
+  { minutes: 10, label: '10 minutes', category: 'Spam' },
+  { minutes: 60, label: '1 hour', category: 'Harassment' },
+  { minutes: 1440, label: '24 hours', category: 'Other' },
+]) {
+  test(`applies a ${preset.label} Chat timeout with private feedback and restores sending at expiry`, async ({
+    page,
+    browser,
+  }) => {
+    await signInAsAdministrator(page)
+    const otherContext = await browser.newContext()
+    const other = await otherContext.newPage()
+    try {
+      await other.goto('/login?returnTo=/watch/live')
+      await other.getByLabel('Username').fill('chat_friend')
+      await other.getByLabel('Password').fill('e2e-participant-password')
+      await other.getByRole('button', { name: 'Sign in' }).click()
+      await expect(other).toHaveURL('/watch/live')
+      const log = other.getByRole('log', { name: 'Chat messages' })
+      await expect(log).toHaveAttribute('data-realtime-state', 'connected')
+      const { message: older } = await (
+        await postChat(other, 'Older retained message')
+      ).json()
+      const database = new Database(chatDatabasePath)
+      database
+        .prepare('UPDATE chat_message SET created_at = ? WHERE id = ?')
+        .run(Date.now() - 601_000, older.id)
+      database.close()
+      const { message } = await (
+        await postChat(other, 'Recent disruptive message')
+      ).json()
+      await page
+        .locator(`[data-message-id="${message.id}"]`)
+        .getByRole('button', { name: 'Message actions' })
+        .click()
+      await page.getByRole('menuitem', { name: 'Apply Chat timeout' }).click()
+      const dialog = page.getByRole('dialog', { name: 'Apply Chat timeout' })
+      await dialog.getByLabel('Duration').selectOption(String(preset.minutes))
+      await dialog.getByLabel('Category').selectOption(preset.category)
+      if (preset.category === 'Other') {
+        await expect(
+          dialog.getByRole('button', { name: 'Confirm timeout' }),
+        ).toBeDisabled()
+      }
+      await dialog.getByLabel('Private note').fill('Private timeout evidence')
+      await dialog.getByRole('button', { name: 'Confirm timeout' }).click()
+      await expect(dialog).not.toBeVisible()
+      const composer = other.getByRole('textbox', { name: 'Chat message' })
+      await expect(composer).toBeDisabled()
+      const feedback = other.getByRole('status', { name: 'Chat timeout' })
+      await expect(feedback).toContainText(preset.category)
+      await expect(feedback).toContainText('remaining')
+      await expect(feedback).not.toContainText(/power|Private timeout evidence/)
+      await expect(
+        page.getByRole('status', { name: 'Chat timeout' }),
+      ).toHaveCount(0)
+      await expect(log).toHaveAttribute('data-realtime-state', 'connected')
+      await expect(
+        other.locator(`[data-message-id="${message.id}"]`),
+      ).toContainText('Message removed')
+      await expect(
+        other.locator(`[data-message-id="${older.id}"]`),
+      ).toContainText('Older retained message')
+      const state = await (
+        await other.request.get('/api/channels/live/chat/state')
+      ).json()
+      expect(
+        Date.parse(state.restriction.expiresAt) - Date.parse(state.serverTime),
+      ).toBeGreaterThan(preset.minutes * 60_000 - 15_000)
+      expect((await postChat(other, 'Direct request bypass')).status()).toBe(
+        403,
+      )
+      await postChat(page, 'Reading is still available')
+      await expect(log).toContainText('Reading is still available')
+      await other.reload()
+      await expect(composer).toBeDisabled()
+      await expect(feedback).toContainText(preset.category)
+      // Shorten only the fixture's expiry, then reconnect to load its current state.
+      await otherContext.setOffline(true)
+      await expect(log).not.toHaveAttribute('data-realtime-state', 'connected')
+      const expiryDatabase = new Database(chatDatabasePath)
+      expiryDatabase
+        .prepare(
+          `UPDATE chat_moderation_record SET expires_at = ? WHERE id IN (SELECT record_id FROM chat_restriction WHERE account_id = 'e2e-chat-participant')`,
+        )
+        .run(Date.now() + 4_000)
+      expiryDatabase.close()
+      await otherContext.setOffline(false)
+      await expect(log).toHaveAttribute('data-realtime-state', 'connected')
+      await expect(feedback).toContainText(preset.category)
+      await expect(composer).toBeEnabled({ timeout: 10_000 })
+      await expect(feedback).toHaveCount(0)
+      await composer.fill('Sending restored after expiry')
+      await other.getByRole('button', { name: 'Send', exact: true }).click()
+      await expect(
+        page.getByRole('log', { name: 'Chat messages' }),
+      ).toContainText('Sending restored after expiry')
+    } finally {
+      await otherContext.close()
+    }
+  })
+}

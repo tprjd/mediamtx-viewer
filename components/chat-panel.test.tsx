@@ -169,6 +169,21 @@ function ChatReopenHarness() {
   )
 }
 
+function stubChatFetch(fetcher: typeof fetch) {
+  vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).endsWith('/state'))
+      return Promise.resolve(
+        Response.json({
+          channelId: 'live-channel',
+          restriction: null,
+          moderatorRole: null,
+          serverTime: new Date().toISOString(),
+        }),
+      )
+    return fetcher(input, init)
+  })
+}
+
 beforeEach(() => {
   realtime.instances.length = 0
   vi.unstubAllGlobals()
@@ -180,8 +195,7 @@ afterEach(cleanup)
 describe('live Chat delivery', () => {
   it('gets a new token when Centrifuge requests a token refresh', async () => {
     let tokenNumber = 0
-    vi.stubGlobal(
-      'fetch',
+    stubChatFetch(
       vi.fn(async (input: RequestInfo | URL) => {
         if (String(input).endsWith('/token')) {
           tokenNumber += 1
@@ -204,8 +218,7 @@ describe('live Chat delivery', () => {
   })
 
   it('replaces the transcript and connection when the visible Channel changes', async () => {
-    vi.stubGlobal(
-      'fetch',
+    stubChatFetch(
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input)
         if (url.endsWith('/token')) return Response.json({ token: 'token' })
@@ -250,8 +263,7 @@ describe('live Chat delivery', () => {
 
   it('merges a publication once and repairs a room-sequence gap from SQLite', async () => {
     const requests: string[] = []
-    vi.stubGlobal(
-      'fetch',
+    stubChatFetch(
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input)
         requests.push(url)
@@ -304,8 +316,7 @@ describe('live Chat delivery', () => {
   })
 
   it('disconnects when a narrow Chat is collapsed', async () => {
-    vi.stubGlobal(
-      'fetch',
+    stubChatFetch(
       vi.fn(async (input: RequestInfo | URL) =>
         String(input).endsWith('/token')
           ? Response.json({ token: 'token' })
@@ -350,8 +361,7 @@ describe('live Chat delivery', () => {
         { messages: older, hasMore: false, cursor: null },
       ],
     ])
-    vi.stubGlobal(
-      'fetch',
+    stubChatFetch(
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input).replace('http://localhost', '')
         requests.push(url)
@@ -390,8 +400,7 @@ describe('live Chat delivery', () => {
   })
 
   it('does not show the retention boundary after the initial history load fails', async () => {
-    vi.stubGlobal(
-      'fetch',
+    stubChatFetch(
       vi.fn(async (input: RequestInfo | URL) =>
         String(input).endsWith('/token')
           ? Response.json({ token: 'token' })
@@ -417,8 +426,7 @@ describe('live Chat delivery', () => {
     const initial = Array.from({ length: 20 }, (_, index) =>
       message(`initial-${index + 1}`, index + 1),
     )
-    vi.stubGlobal(
-      'fetch',
+    stubChatFetch(
       vi.fn(async (input: RequestInfo | URL) =>
         String(input).endsWith('/token')
           ? Response.json({ token: 'token' })
@@ -470,8 +478,7 @@ describe('live Chat delivery', () => {
   })
 
   it('shows local day separators and keeps exact server timestamps accessible', async () => {
-    vi.stubGlobal(
-      'fetch',
+    stubChatFetch(
       vi.fn(async (input: RequestInfo | URL) =>
         String(input).endsWith('/token')
           ? Response.json({ token: 'token' })
@@ -513,8 +520,7 @@ describe('live Chat delivery', () => {
 
   it('fetches current history and starts at the bottom after Chat reopens', async () => {
     let historyRequest = 0
-    vi.stubGlobal(
-      'fetch',
+    stubChatFetch(
       vi.fn(async (input: RequestInfo | URL) => {
         if (String(input).endsWith('/token')) {
           return Response.json({ token: 'token' })
@@ -547,8 +553,7 @@ describe('Chat sending', () => {
   it('shows the pending text immediately and retries a failed request with the same key', async () => {
     const bodies: string[] = []
     let resolveSend: (response: Response) => void = () => undefined
-    vi.stubGlobal(
-      'fetch',
+    stubChatFetch(
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         if (String(input).endsWith('/token'))
           return Response.json({ token: 'token' })
@@ -598,8 +603,7 @@ describe('Chat sending', () => {
 })
 
 it('keeps loaded messages and disables the composer when the Chat database fails', async () => {
-  vi.stubGlobal(
-    'fetch',
+  stubChatFetch(
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).endsWith('/token'))
         return Response.json({ token: 'token' })
@@ -626,8 +630,7 @@ it('keeps loaded messages and disables the composer when the Chat database fails
 })
 
 it('keeps a draft across closing and opening but clears it on a Channel change', async () => {
-  vi.stubGlobal(
-    'fetch',
+  stubChatFetch(
     vi.fn(async (input: RequestInfo | URL) =>
       String(input).endsWith('/token')
         ? Response.json({ token: 'token' })
@@ -674,8 +677,7 @@ it('keeps a draft across closing and opening but clears it on a Channel change',
 })
 
 it('keeps a connected durable send successful while its publication is pending', async () => {
-  vi.stubGlobal(
-    'fetch',
+  stubChatFetch(
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).endsWith('/token'))
         return Response.json({ token: 'token' })
@@ -714,8 +716,7 @@ it('clears original author and content from the live region when SQLite repairs 
     removed: true,
   }
   let repair = false
-  vi.stubGlobal(
-    'fetch',
+  stubChatFetch(
     vi.fn(async (url) => {
       if (String(url).endsWith('/token'))
         return Response.json({ token: 'token' })

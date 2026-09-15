@@ -24,6 +24,7 @@ interface ChatSendingInput {
   unavailable: boolean
   onUnavailable: () => void
   onAccepted: (message: PublicChatMessage) => void
+  onRestricted: () => void
 }
 
 export function useChatSending({
@@ -33,6 +34,7 @@ export function useChatSending({
   unavailable,
   onUnavailable,
   onAccepted,
+  onRestricted,
 }: ChatSendingInput) {
   const [draft, setDraft] = useState('')
   const [submissions, setSubmissions] = useState<ChatSubmission[]>([])
@@ -128,6 +130,7 @@ export function useChatSending({
       })
       // A storage failure must disable sends even if a proxy replaced the JSON body.
       if (chatRequestBlocksSending(response.status)) onUnavailable()
+      if (response.status === 403) onRestricted()
       const result = (await response.json()) as {
         message?: PublicChatMessage
         error?: string

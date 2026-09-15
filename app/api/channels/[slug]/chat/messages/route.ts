@@ -15,6 +15,7 @@ import {
   ChatRateLimitError,
 } from '@/lib/chat-rules'
 import { readUtf8BodyWithLimit } from '@/lib/http-body'
+import { ChatRestrictionError } from '@/lib/chat-restrictions'
 
 export const dynamic = 'force-dynamic'
 
@@ -146,6 +147,12 @@ export async function POST(
     requestChatOutboxDispatch()
     return Response.json({ message }, { status: 201, headers: responseHeaders })
   } catch (error) {
+    if (error instanceof ChatRestrictionError) {
+      return Response.json(
+        { error: error.message, restriction: error.restriction },
+        { status: 403, headers: responseHeaders },
+      )
+    }
     if (error instanceof ChatRateLimitError) {
       return Response.json(
         {

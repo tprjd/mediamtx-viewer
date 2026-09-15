@@ -112,6 +112,7 @@ describe('durable Chat messages', () => {
       { name: 'chat_moderation_record' },
       { name: 'chat_outbox' },
       { name: 'chat_participant' },
+      { name: 'chat_restriction' },
       { name: 'chat_room' },
     ])
 

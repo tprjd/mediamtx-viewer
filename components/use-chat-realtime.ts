@@ -35,6 +35,7 @@ interface UseChatRealtimeInput {
   channelSlug: string
   onMessage: (message: PublicChatMessage) => void
   onRecoveryFailed: () => void
+  onRestrictionChanged: (channelId?: string) => void
 }
 
 function chatWebSocketUrl(): string {
@@ -49,12 +50,14 @@ export function useChatRealtime({
   channelSlug,
   onMessage,
   onRecoveryFailed,
+  onRestrictionChanged,
 }: UseChatRealtimeInput): 'connected' | 'connecting' | 'disconnected' {
   const [state, setState] = useState<
     'connected' | 'connecting' | 'disconnected'
   >(active ? 'connecting' : 'disconnected')
   const handleMessage = useEffectEvent(onMessage)
   const handleRecoveryFailed = useEffectEvent(onRecoveryFailed)
+  const handleRestrictionChanged = useEffectEvent(onRestrictionChanged)
 
   useEffect(() => {
     if (!active) return
@@ -79,6 +82,13 @@ export function useChatRealtime({
       },
     })
     client.on('publication', (context) => {
+      if (context.channel.startsWith('control:')) {
+        const event = z
+          .object({ type: z.literal('restriction'), channelId: z.string() })
+          .safeParse(context.data)
+        if (event.success) handleRestrictionChanged(event.data.channelId)
+        return
+      }
       if (!context.channel.startsWith('chat:')) return
       const event = chatMessageEventSchema.safeParse(context.data)
       if (event.success) handleMessage(event.data.message)
@@ -87,6 +97,8 @@ export function useChatRealtime({
     client.on('connecting', () => setState('connecting'))
     client.on('disconnected', () => setState('disconnected'))
     client.on('subscribed', (context) => {
+      // Control channels have no recovery history. Read current state after each subscription.
+      if (context.channel.startsWith('control:')) handleRestrictionChanged()
       if (
         context.channel.startsWith('chat:') &&
         context.wasRecovering &&

@@ -38,3 +38,15 @@ export interface PublicChatMessageEvent {
 
 export type PublicChatMessage = ChatContentMessage | ChatTombstone
 export type ChatModeratorRole = 'admin' | 'owner' | null
+
+export interface ChatRestriction {
+  category: 'Spam' | 'Harassment' | 'Other'
+  expiresAt: string
+}
+
+export interface ChatParticipantState {
+  channelId: string
+  restriction: ChatRestriction | null
+  moderatorRole: ChatModeratorRole
+  serverTime: string
+}

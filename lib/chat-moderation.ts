@@ -6,11 +6,16 @@ import { getDatabase } from '@/lib/auth/database'
 import { getChatDatabase } from '@/lib/chat-database'
 import { createChatTombstone, type ChatChannelReference } from '@/lib/chat'
 import type {
+  ChatParticipantState,
   ChatModeratorRole,
   ChatTombstone,
   PublicChatMessageEvent,
 } from '@/lib/chat-types'
-import { chatTranscriptChannel } from '@/lib/chat-realtime'
+import { chatControlChannel, chatTranscriptChannel } from '@/lib/chat-realtime'
+import {
+  getActiveChatRestriction,
+  getChatRestriction,
+} from '@/lib/chat-restrictions'
 
 export class ChatModerationError extends Error {
   constructor(
@@ -30,6 +35,10 @@ export const chatRemovalSchema = z
     message: 'Other requires a private note.',
   })
 
+export const chatTimeoutSchema = chatRemovalSchema.safeExtend({
+  durationMinutes: z.union([z.literal(10), z.literal(60), z.literal(1440)]),
+})
+
 function activeRole(accountId: string): string | null {
   const account = getDatabase()
     .prepare(
@@ -42,10 +51,16 @@ function activeRole(accountId: string): string | null {
 export function getChatModeratorRole(
   channel: ChatChannelReference,
   accountId: string,
+  now = new Date(),
 ): ChatModeratorRole {
   const role = activeRole(accountId)
   if (role === 'admin') return 'admin'
-  return role && channel.ownerUserId === accountId ? 'owner' : null
+  if (!role || channel.ownerUserId !== accountId) return null
+  if (
+    getActiveChatRestriction(channel.id, accountId, now)?.actorRole === 'admin'
+  )
+    return null
+  return 'owner'
 }
 
 interface ModerationMessage {
@@ -63,8 +78,9 @@ interface ModerationMessage {
 function requireModerator(
   channel: ChatChannelReference,
   actorId: string,
+  now = new Date(),
 ): Exclude<ChatModeratorRole, null> {
-  const role = getChatModeratorRole(channel, actorId)
+  const role = getChatModeratorRole(channel, actorId, now)
   if (!role) throw new ChatModerationError('Not authorized.', 403)
   return role
 }
@@ -115,6 +131,11 @@ export function getChatMessageActions(
   return {
     canRemove: !message.removedSequence && mayRemoveMessage(role, message),
     canInspect: Boolean(message.removedSequence),
+    canTimeout:
+      mayRemoveMessage(role, message) &&
+      (role === 'admin' ||
+        getActiveChatRestriction(channel.id, message.accountId)?.actorRole !==
+          'admin'),
   }
 }
 
@@ -144,7 +165,7 @@ export function removeChatMessage({
   const database = getChatDatabase()
   return database
     .transaction(() => {
-      const role = requireModerator(channel, actorId)
+      const role = requireModerator(channel, actorId, now)
       const message = retainedMessage(channel, messageId, now)
       if (!mayRemoveMessage(role, message)) {
         throw new ChatModerationError('Not authorized.', 403)
@@ -220,7 +241,7 @@ export function inspectRemovedChatMessage(
   messageId: string,
   now = new Date(),
 ) {
-  requireModerator(channel, actorId)
+  requireModerator(channel, actorId, now)
   const message = retainedMessage(channel, messageId, now)
   if (!message.removedSequence)
     throw new ChatModerationError('Removed message not found.', 404)
@@ -240,4 +261,116 @@ export function inspectRemovedChatMessage(
     authorTag: message.authorTag,
     ...record,
   }
+}
+
+export function getChatParticipantState(
+  channel: ChatChannelReference,
+  accountId: string,
+  now = new Date(),
+): ChatParticipantState {
+  return getChatDatabase().transaction(() => ({
+    channelId: channel.id,
+    restriction: getChatRestriction(channel.id, accountId, now),
+    moderatorRole: getChatModeratorRole(channel, accountId, now),
+    serverTime: now.toISOString(),
+  }))()
+}
+
+export function applyChatTimeout({
+  channel,
+  actorId,
+  messageId,
+  durationMinutes,
+  category,
+  note,
+  now = new Date(),
+}: RemoveChatMessageInput & { durationMinutes: number }) {
+  const parsed = chatTimeoutSchema.safeParse({
+    durationMinutes,
+    category,
+    note,
+  })
+  if (!parsed.success)
+    throw new ChatModerationError(
+      'Select a timeout and category. Other requires a private note of at most 2000 characters.',
+      400,
+    )
+  const database = getChatDatabase()
+  return database
+    .transaction(() => {
+      const role = requireModerator(channel, actorId, now)
+      const target = retainedMessage(channel, messageId, now)
+      if (
+        !mayRemoveMessage(role, target) ||
+        (role === 'owner' &&
+          getActiveChatRestriction(channel.id, target.accountId, now)
+            ?.actorRole === 'admin')
+      ) {
+        throw new ChatModerationError('Not authorized.', 403)
+      }
+      const recordId = randomUUID()
+      const expiresAt = now.getTime() + parsed.data.durationMinutes * 60_000
+      database
+        .prepare(
+          `INSERT INTO chat_moderation_record
+      (id, action, category, actor_account_id, target_account_id, room_id, private_note, created_at, expires_at, actor_role)
+      VALUES (?, 'timeout', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          recordId,
+          parsed.data.category,
+          actorId,
+          target.accountId,
+          target.roomId,
+          parsed.data.note || null,
+          now.getTime(),
+          expiresAt,
+          role,
+        )
+
+      const affected = database
+        .prepare(
+          `SELECT id FROM chat_message
+      WHERE room_id = ? AND account_id = ? AND created_at BETWEEN ? AND ? AND removed_sequence IS NULL
+      ORDER BY room_sequence`,
+        )
+        .all(
+          target.roomId,
+          target.accountId,
+          now.getTime() - 600_000,
+          now.getTime(),
+        ) as Array<{ id: string }>
+      const messages = affected.map(({ id }) =>
+        removeChatMessage({
+          channel,
+          actorId,
+          messageId: id,
+          category: parsed.data.category,
+          note: parsed.data.note,
+          now,
+        }),
+      )
+      database
+        .prepare(
+          `INSERT INTO chat_restriction (room_id, account_id, record_id) VALUES (?, ?, ?)
+      ON CONFLICT (room_id, account_id) DO UPDATE SET record_id = excluded.record_id`,
+        )
+        .run(target.roomId, target.accountId, recordId)
+      // The event asks this participant's clients to load the current private state.
+      // It does not announce the restriction to the room.
+      database
+        .prepare(
+          `INSERT INTO chat_outbox (id, channel_name, payload, next_attempt_at, created_at)
+      VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(
+          randomUUID(),
+          chatControlChannel(target.accountId),
+          JSON.stringify({ type: 'restriction', channelId: channel.id }),
+          now.getTime(),
+          now.getTime(),
+        )
+      return { messages }
+    })
+    .immediate()
 }
