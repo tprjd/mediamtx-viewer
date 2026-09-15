@@ -11,7 +11,7 @@ import {
 import type { ChatSubmission } from '@/components/use-chat-sending'
 import { ChatMessage } from '@/components/chat-message'
 import styles from '@/components/channel-viewer.module.css'
-import type { PublicChatMessage } from '@/lib/chat-types'
+import type { PublicChatMessage, ChatModeratorRole } from '@/lib/chat-types'
 
 const localDayFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'full',
@@ -94,6 +94,9 @@ const transcriptComponents: Components<ChatTranscriptEntry> = {
 }
 
 interface ChatTranscriptProps {
+  channelSlug?: string
+  moderatorRole?: ChatModeratorRole
+  onRemoved?: (message: PublicChatMessage) => void
   atBottom: boolean
   firstItemIndex: number
   historyExhausted: boolean
@@ -108,6 +111,9 @@ interface ChatTranscriptProps {
 }
 
 export function ChatTranscript({
+  channelSlug,
+  moderatorRole,
+  onRemoved,
   atBottom,
   firstItemIndex,
   historyExhausted,
@@ -178,7 +184,7 @@ export function ChatTranscript({
         data={entries}
         data-at-bottom={atBottom ? 'true' : 'false'}
         data-realtime-state={realtimeState}
-        defaultItemHeight={68}
+        defaultItemHeight={72}
         firstItemIndex={firstItemIndex}
         followOutput="auto"
         itemContent={(_index, entry) => {
@@ -227,7 +233,12 @@ export function ChatTranscript({
               data-message-entry-id={entry.message.id}
               role="listitem"
             >
-              <ChatMessage message={entry.message} />
+              <ChatMessage
+                message={entry.message}
+                channelSlug={channelSlug}
+                moderatorRole={moderatorRole}
+                onRemoved={onRemoved}
+              />
               {submissions.some(
                 (submission) =>
                   submission.state === 'delayed' &&

@@ -30,7 +30,9 @@ describe('Chat transcript merging', () => {
   })
 
   it('finds the first missing room sequence without treating a history prefix as a gap', () => {
-    expect(firstChatSequenceGap([message('five', 5), message('six', 6)])).toBeNull()
+    expect(
+      firstChatSequenceGap([message('five', 5), message('six', 6)]),
+    ).toBeNull()
     expect(
       firstChatSequenceGap([
         message('five', 5),
@@ -50,4 +52,24 @@ describe('Chat transcript merging', () => {
       message('four', 4),
     ])
   })
+})
+
+it('keeps tombstones in place and rejects stale content from history or delayed delivery', () => {
+  const removed: PublicChatMessage = {
+    id: 'one',
+    sequence: 1,
+    revisionSequence: 4,
+    serverTimestamp: '2026-09-11T10:00:00.000Z',
+    removed: true,
+  }
+  const transcript = mergeChatMessages(
+    [message('one', 1), message('two', 2), message('three', 3)],
+    [removed],
+  )
+  expect(transcript).toEqual([removed, message('two', 2), message('three', 3)])
+  expect(mergeChatMessages(transcript, [message('one', 1)])).toEqual(transcript)
+  expect(mergeChatHistoryPages(transcript, [message('one', 1)])).toEqual(
+    transcript,
+  )
+  expect(firstChatSequenceGap([...transcript, message('five', 5)])).toBeNull()
 })

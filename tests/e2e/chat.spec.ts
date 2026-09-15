@@ -50,7 +50,7 @@ async function waitForCentrifugo(): Promise<void> {
     .poll(
       async () => {
         try {
-          return (await fetch('http://[::1]:3800/health')).ok
+          return (await fetch('http://127.0.0.1:3800/health')).ok
         } catch {
           return false
         }
@@ -749,4 +749,99 @@ test('reconciles a publication before a lost HTTP response without a duplicate o
   await expect(
     chat.getByRole('log').getByText(content, { exact: true }),
   ).toHaveCount(1)
+})
+
+test('removes a message through its menu and replaces it for another connected participant', async ({
+  page,
+  browser,
+}) => {
+  await signInAsAdministrator(page)
+  const otherContext = await browser.newContext()
+  const other = await otherContext.newPage()
+  try {
+    await other.goto('/login?returnTo=/watch/live')
+    await other.getByLabel('Username').fill('chat_friend')
+    await other.getByLabel('Password').fill('e2e-participant-password')
+    await other.getByRole('button', { name: 'Sign in' }).click()
+    await expect(other).toHaveURL('/watch/live')
+    await expect(
+      page.getByRole('log', { name: 'Chat messages' }),
+    ).toHaveAttribute('data-realtime-state', 'connected')
+    await expect(
+      other.getByRole('log', { name: 'Chat messages' }),
+    ).toHaveAttribute('data-realtime-state', 'connected')
+    const response = await postChat(page, 'Message to remove')
+    expect(response.status()).toBe(201)
+    const { message } = await response.json()
+    const row = page.locator(`[data-message-id="${message.id}"]`)
+    const otherRow = other.locator(`[data-message-id="${message.id}"]`)
+    await expect(otherRow).toContainText('Message to remove')
+    const action = row.getByRole('button', { name: 'Message actions' })
+    await action.click()
+    await expect(
+      page.getByRole('menuitem', { name: 'Remove message' }),
+    ).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(action).toBeFocused()
+    await action.click()
+    await page.getByRole('menuitem', { name: 'Remove message' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Remove message' })
+    await dialog.getByLabel('Category').selectOption('Other')
+    await expect(
+      dialog.getByRole('button', { name: 'Confirm removal' }),
+    ).toBeDisabled()
+    await dialog
+      .getByLabel('Private note')
+      .fill('Reason visible only to moderators')
+    await dialog.getByRole('button', { name: 'Confirm removal' }).click()
+    await expect(dialog).not.toBeVisible()
+    await expect(row).toContainText('Message removed')
+    await expect(otherRow).toContainText('Message removed')
+    await expect(otherRow).not.toContainText('Message to remove')
+    const { token } = await (
+      await page.request.get('/api/channels/live/chat/token')
+    ).json()
+    const { channels } = JSON.parse(
+      Buffer.from(token.split('.')[1], 'base64url').toString(),
+    ) as { channels: string[] }
+    const cachedHistory = await fetch('http://127.0.0.1:3800/api/history', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': 'e2e-centrifugo-api-key-that-is-at-least-32-characters',
+      },
+      body: JSON.stringify({
+        channel: channels.find((value) => value.startsWith('chat:')),
+        limit: 300,
+      }),
+    })
+    const cached = await cachedHistory.text()
+    expect(cached).not.toContain('Message to remove')
+    expect(cached).toContain('"removed":true')
+
+    await expect(
+      otherRow.getByRole('button', { name: 'Message actions' }),
+    ).toHaveCount(0)
+    expect(
+      (
+        await other.request.get(
+          `/api/channels/live/chat/messages/${message.id}/removal`,
+        )
+      ).status(),
+    ).toBe(403)
+    await expect(action).toBeFocused()
+    await action.click()
+    await page
+      .getByRole('menuitem', { name: 'Inspect removed message' })
+      .click()
+    const evidence = page.getByRole('dialog', { name: 'Removed message' })
+    await expect(evidence).toContainText('Message to remove')
+    await expect(evidence).toContainText('Reason visible only to moderators')
+    await evidence.getByRole('button', { name: 'Close' }).click()
+    await other.reload()
+    await expect(otherRow).toContainText('Message removed')
+    await expect(otherRow).not.toContainText('Message to remove')
+  } finally {
+    await otherContext.close()
+  }
 })

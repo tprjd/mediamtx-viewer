@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { getChatModeratorRole } from '@/lib/chat-moderation'
 import { authorizeLiveChat } from '@/lib/chat-access'
 import {
   InvalidChatHistoryCursorError,
@@ -77,9 +78,15 @@ export async function GET(
         )
       }
     }
-    return Response.json(loadLatestChatHistory(access.channel), {
-      headers: responseHeaders,
-    })
+    return Response.json(
+      {
+        ...loadLatestChatHistory(access.channel),
+        moderatorRole: getChatModeratorRole(access.channel, access.accountId),
+      },
+      {
+        headers: responseHeaders,
+      },
+    )
   } catch {
     return Response.json(
       { error: 'Chat is unavailable.' },

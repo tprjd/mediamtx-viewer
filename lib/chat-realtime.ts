@@ -59,7 +59,7 @@ export function createChatConnectionToken({
 }
 
 async function callCentrifugoApi(
-  method: 'disconnect' | 'publish',
+  method: 'disconnect' | 'publish' | 'history_remove',
   body: Record<string, unknown>,
   fetcher: typeof fetch,
 ): Promise<void> {
@@ -115,4 +115,9 @@ export async function disconnectChatParticipant(
 
 export function createChatPublicationId(): string {
   return randomUUID()
+}
+
+// Recovery must not expose content that has since been removed.
+export async function clearChatRecoveryHistory(channel: string, fetcher: typeof fetch = fetch): Promise<void> {
+  await callCentrifugoApi('history_remove', { channel }, fetcher)
 }

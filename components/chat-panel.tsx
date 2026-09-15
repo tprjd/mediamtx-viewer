@@ -13,11 +13,17 @@ import { useChatRealtime } from '@/components/use-chat-realtime'
 import styles from '@/components/channel-viewer.module.css'
 import {
   chatRequestBlocksSending,
+  chatMessageRevision,
+  latestChatSequence,
   firstChatSequenceGap,
   mergeChatHistoryPages,
   mergeChatMessages,
 } from '@/lib/chat-client-state'
-import type { ChatHistoryPage, PublicChatMessage } from '@/lib/chat-types'
+import type {
+  ChatHistoryPage,
+  ChatModeratorRole,
+  PublicChatMessage,
+} from '@/lib/chat-types'
 
 interface ChatPanelProps {
   channelSlug: string
@@ -36,6 +42,7 @@ interface ChatPanelContentProps {
 }
 
 interface HistoryResponse extends Partial<ChatHistoryPage> {
+  moderatorRole?: ChatModeratorRole
   error?: string
 }
 
@@ -52,6 +59,7 @@ function ChatPanelContent({
   isChatVisible,
   focusComposer,
 }: ChatPanelContentProps) {
+  const [moderatorRole, setModeratorRole] = useState<ChatModeratorRole>(null)
   const [messages, setMessages] = useState<PublicChatMessage[]>([])
   const messagesRef = useRef<PublicChatMessage[]>([])
   const reconciliationRef = useRef<Promise<void> | null>(null)
@@ -128,6 +136,7 @@ function ChatPanelContent({
   ])
 
   const announceMessage = useCallback((message: PublicChatMessage) => {
+    if (message.removed) return
     announcementIdRef.current += 1
     setAnnouncement({
       id: announcementIdRef.current,
@@ -153,6 +162,7 @@ function ChatPanelContent({
   }, [])
 
   const mergeMessages = useCallback((incoming: PublicChatMessage[]) => {
+    if (incoming.some((message) => message.removed)) setAnnouncement(null)
     const previous = messagesRef.current
     const knownIds = new Set(previous.map(({ id }) => id))
     const merged = mergeChatMessages(previous, incoming)
@@ -177,6 +187,7 @@ function ChatPanelContent({
 
   const mergeOlderPage = useCallback(
     (older: PublicChatMessage[], historyEnds: boolean) => {
+      if (older.some((message) => message.removed)) setAnnouncement(null)
       const previous = messagesRef.current
       const merged = mergeChatHistoryPages(previous, older)
       const previousEntryCount = chatTranscriptEntryCount(previous, false)
@@ -195,7 +206,7 @@ function ChatPanelContent({
   const reconcile = useCallback(
     (afterSequence?: number) => {
       const requestedAfter =
-        afterSequence ?? messagesRef.current.at(-1)?.sequence ?? 0
+        afterSequence ?? latestChatSequence(messagesRef.current)
       pendingReconciliationRef.current =
         pendingReconciliationRef.current === null
           ? requestedAfter
@@ -223,7 +234,7 @@ function ChatPanelContent({
             setError(null)
             mergeMessages(incoming)
             confirmMessages(incoming)
-            after = incoming.at(-1)?.sequence ?? after
+            after = Math.max(after, latestChatSequence(incoming))
             hasMore = result.hasMore === true && incoming.length > 0
           }
         }
@@ -249,10 +260,13 @@ function ChatPanelContent({
   const receiveMessage = useCallback(
     (message: PublicChatMessage) => {
       if (!isChatVisible) return
-      const lastSequence = messagesRef.current.at(-1)?.sequence
+      const lastSequence = latestChatSequence(messagesRef.current)
       mergeAndAnnounceMessage(message)
       confirmMessages([message])
-      if (lastSequence !== undefined && message.sequence > lastSequence + 1) {
+      if (
+        lastSequence !== undefined &&
+        chatMessageRevision(message) > lastSequence + 1
+      ) {
         reconcile(lastSequence)
       }
     },
@@ -332,7 +346,7 @@ function ChatPanelContent({
 
     const requestGeneration = requestGenerationRef.current
     const controller = new AbortController()
-    const latestRequestSequence = messagesRef.current.at(-1)?.sequence ?? 0
+    const latestRequestSequence = latestChatSequence(messagesRef.current)
     void fetch(endpoint, {
       cache: 'no-store',
       signal: controller.signal,
@@ -347,12 +361,14 @@ function ChatPanelContent({
         }
         if (!response.ok)
           throw new Error(result.error ?? 'Could not load Chat.')
+        setModeratorRole(result.moderatorRole ?? null)
         const incoming = result.messages ?? []
         // Reopening starts with the latest page. Keep loaded history until it succeeds.
         messagesRef.current = messagesRef.current.filter(
           (message) =>
-            message.sequence >
-            Math.max(latestRequestSequence, incoming.at(-1)?.sequence ?? 0),
+            (message.removed && incoming.some(({ id }) => id === message.id)) ||
+            chatMessageRevision(message) >
+              Math.max(latestRequestSequence, latestChatSequence(incoming)),
         )
         const { merged } = mergeMessages(incoming)
         confirmMessages(incoming)
@@ -416,9 +432,7 @@ function ChatPanelContent({
       previousRealtimeState.current !== 'connected'
     ) {
       // Include accepted sends whose publications were lost during the outage.
-      reconcile(
-        Math.min(delayedAfter, messagesRef.current.at(-1)?.sequence ?? 0),
-      )
+      reconcile(Math.min(delayedAfter, latestChatSequence(messagesRef.current)))
     }
     previousRealtimeState.current = realtimeState
   }, [delayedAfter, realtimeState, reconcile])
@@ -455,6 +469,9 @@ function ChatPanelContent({
       ) : (
         <ChatTranscript
           key={transcriptVisit}
+          channelSlug={channelSlug}
+          moderatorRole={unavailable || accessDenied ? null : moderatorRole}
+          onRemoved={receiveMessage}
           atBottom={atBottom}
           firstItemIndex={firstItemIndex}
           historyExhausted={historyExhausted}

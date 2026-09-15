@@ -1,12 +1,27 @@
-export interface PublicChatMessage {
+interface ChatMessageIdentity {
   id: string
-  submissionId?: string
   sequence: number
+  serverTimestamp: string
+  revisionSequence?: number
+}
+
+export interface ChatTombstone extends ChatMessageIdentity {
+  removed: true
+  revisionSequence: number
+  submissionId?: never
+  content?: never
+  profileName?: never
+  authorTag?: never
+  badges?: never
+}
+
+export interface ChatContentMessage extends ChatMessageIdentity {
+  removed?: false
+  submissionId?: string
   content: string
   profileName: string
   authorTag: string
   badges: Array<'admin' | 'owner'>
-  serverTimestamp: string
 }
 
 export interface ChatHistoryPage {
@@ -20,3 +35,6 @@ export interface PublicChatMessageEvent {
   eventId: string
   message: PublicChatMessage
 }
+
+export type PublicChatMessage = ChatContentMessage | ChatTombstone
+export type ChatModeratorRole = 'admin' | 'owner' | null

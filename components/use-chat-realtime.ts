@@ -9,16 +9,25 @@ import type { PublicChatMessage } from '@/lib/chat-types'
 const chatMessageEventSchema = z.object({
   type: z.literal('message'),
   eventId: z.string(),
-  message: z.object({
-    id: z.string(),
-    submissionId: z.string().optional(),
-    sequence: z.number().int().positive(),
-    content: z.string(),
-    profileName: z.string(),
-    authorTag: z.string(),
-    badges: z.array(z.enum(['admin', 'owner'])),
-    serverTimestamp: z.string(),
-  }),
+  message: z.union([
+    z.object({
+      id: z.string(),
+      submissionId: z.string().optional(),
+      sequence: z.number().int().positive(),
+      content: z.string(),
+      profileName: z.string(),
+      authorTag: z.string(),
+      badges: z.array(z.enum(['admin', 'owner'])),
+      serverTimestamp: z.string(),
+    }),
+    z.object({
+      id: z.string(),
+      sequence: z.number().int().positive(),
+      revisionSequence: z.number().int().positive(),
+      serverTimestamp: z.string(),
+      removed: z.literal(true),
+    }),
+  ]),
 })
 
 interface UseChatRealtimeInput {

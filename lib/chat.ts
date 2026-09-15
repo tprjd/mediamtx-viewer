@@ -14,6 +14,7 @@ import {
 } from '@/lib/chat-rules'
 import type {
   ChatHistoryPage,
+  ChatTombstone,
   PublicChatMessage,
   PublicChatMessageEvent,
 } from '@/lib/chat-types'
@@ -35,6 +36,7 @@ export interface ChatParticipantReference {
 }
 
 interface ChatMessageRow {
+  removedSequence?: number | null
   clientIdempotencyKey?: string | null
   id: string
   sequence: number
@@ -78,10 +80,26 @@ function currentBadges(
   return badges
 }
 
+export function createChatTombstone(
+  message: { id: string; sequence: number; createdAt: number },
+  revisionSequence: number,
+): ChatTombstone {
+  return {
+    id: message.id,
+    sequence: message.sequence,
+    revisionSequence,
+    serverTimestamp: new Date(message.createdAt).toISOString(),
+    removed: true,
+  }
+}
+
 function toPublicMessage(
   row: ChatMessageRow,
   channel: ChatChannelReference,
 ): PublicChatMessage {
+  if (row.removedSequence) {
+    return createChatTombstone(row, row.removedSequence)
+  }
   return {
     id: row.id,
     ...(row.clientIdempotencyKey
@@ -130,7 +148,8 @@ export function sendChatMessage({
           `
       SELECT id, room_sequence AS sequence, account_id AS accountId,
              profile_name AS profileName, author_tag AS authorTag, content,
-             created_at AS createdAt, client_idempotency_key AS clientIdempotencyKey
+             created_at AS createdAt, client_idempotency_key AS clientIdempotencyKey,
+             removed_sequence AS removedSequence
       FROM chat_message
       WHERE room_id = ? AND account_id = ? AND client_idempotency_key = ?
     `,
@@ -293,6 +312,7 @@ function decodeChatHistoryCursor(cursor: string): number | null {
 
 interface RetainedChatRowsOptions {
   order: 'ASC' | 'DESC'
+  revisions?: boolean
   pageSize: number
   sequence?: {
     operator: '>' | '<'
@@ -307,8 +327,11 @@ function loadRetainedChatRows(
 ): ChatMessageRow[] {
   const currentTime = now.getTime()
   const cutoff = currentTime - HISTORY_RETENTION_MS
+  const sequenceColumn = options.revisions
+    ? 'COALESCE(message.removed_sequence, message.room_sequence)'
+    : 'message.room_sequence'
   const sequencePredicate = options.sequence
-    ? `AND message.room_sequence ${options.sequence.operator} ?`
+    ? `AND ${sequenceColumn} ${options.sequence.operator} ?`
     : ''
   const parameters = options.sequence
     ? [
@@ -326,14 +349,15 @@ function loadRetainedChatRows(
               message.profile_name AS profileName,
               message.author_tag AS authorTag, message.content,
               message.created_at AS createdAt,
-              message.client_idempotency_key AS clientIdempotencyKey
+              message.client_idempotency_key AS clientIdempotencyKey,
+              message.removed_sequence AS removedSequence
        FROM chat_message message
        JOIN chat_room room ON room.id = message.room_id
        WHERE room.channel_id = ?
          AND message.created_at >= ?
          AND message.created_at <= ?
          ${sequencePredicate}
-       ORDER BY message.room_sequence ${options.order}
+       ORDER BY ${sequenceColumn} ${options.order}
        LIMIT ?`,
     )
     .all(...parameters) as ChatMessageRow[]
@@ -377,6 +401,7 @@ export function loadChatMessagesAfter(
 ): { messages: PublicChatMessage[]; hasMore: boolean } {
   const rows = loadRetainedChatRows(channel, now, {
     order: 'ASC',
+    revisions: true,
     pageSize: GAP_REPAIR_PAGE_SIZE,
     sequence: { operator: '>', value: afterSequence },
   })

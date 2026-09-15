@@ -153,6 +153,7 @@ describe('/api/channels/[slug]/chat/messages', () => {
 
     expect(historyResponse.status).toBe(200)
     expect(await historyResponse.json()).toEqual({
+      moderatorRole: null,
       messages: [message],
       hasMore: false,
       cursor: null,

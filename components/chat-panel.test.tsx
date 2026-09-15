@@ -703,3 +703,57 @@ it('keeps a connected durable send successful while its publication is pending',
   expect(screen.queryByText('Delayed', { exact: true })).toBeNull()
   expect(screen.queryByText(/Reconnecting/)).toBeNull()
 })
+
+it('clears original author and content from the live region when SQLite repairs a removal', async () => {
+  const original = message('removed-after-outage', 1)
+  const removed: PublicChatMessage = {
+    id: original.id,
+    sequence: 1,
+    revisionSequence: 2,
+    serverTimestamp: original.serverTimestamp,
+    removed: true,
+  }
+  let repair = false
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      if (String(url).endsWith('/token'))
+        return Response.json({ token: 'token' })
+      return Response.json({
+        messages: repair ? [removed] : [],
+        hasMore: false,
+        cursor: null,
+      })
+    }),
+  )
+  render(
+    <ChatPanel
+      channelSlug="live"
+      narrowLayout={false}
+      onClose={() => undefined}
+    />,
+  )
+  await waitFor(() =>
+    expect(screen.queryByText('Loading Chat...')).not.toBeInTheDocument(),
+  )
+  realtime.instances[0].emit('publication', {
+    channel: 'chat:channel-id',
+    data: publication(original),
+  })
+  await waitFor(() =>
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Participant: message 1',
+    ),
+  )
+  repair = true
+  realtime.instances[0].emit('subscribed', {
+    channel: 'chat:channel-id',
+    wasRecovering: true,
+    recovered: false,
+  })
+  await waitFor(() =>
+    expect(screen.getByText('Message removed')).toBeInTheDocument(),
+  )
+  expect(screen.getByRole('status')).toBeEmptyDOMElement()
+  expect(screen.queryByText('message 1')).not.toBeInTheDocument()
+})

@@ -1,8 +1,11 @@
 import 'server-only'
 
 import { getChatDatabase } from '@/lib/chat-database'
-import { getChatRuntimeConfigurationErrors, isChatEnabled } from '@/lib/chat-environment'
-import { publishChatEvent } from '@/lib/chat-realtime'
+import {
+  getChatRuntimeConfigurationErrors,
+  isChatEnabled,
+} from '@/lib/chat-environment'
+import { clearChatRecoveryHistory, publishChatEvent } from '@/lib/chat-realtime'
 
 interface ChatOutboxRow {
   id: string
@@ -12,6 +15,7 @@ interface ChatOutboxRow {
 }
 
 const globalDispatcher = globalThis as typeof globalThis & {
+  chatOutboxDispatchTail?: Promise<unknown>
   chatOutboxDispatcherStarted?: boolean
   chatOutboxDispatchQueued?: boolean
 }
@@ -20,7 +24,21 @@ function retryDelayMilliseconds(attemptCount: number): number {
   return Math.min(30_000, 500 * 2 ** Math.min(attemptCount, 6))
 }
 
-export async function dispatchNextChatOutboxEvent(
+export function dispatchNextChatOutboxEvent(
+  fetcher: typeof fetch = fetch,
+  now: Date = new Date(),
+): Promise<boolean> {
+  // Serialize publication and cache removal across the timer and HTTP dispatches.
+  const dispatch = (
+    globalDispatcher.chatOutboxDispatchTail ?? Promise.resolve()
+  )
+    .catch(() => undefined)
+    .then(() => dispatchNextEvent(fetcher, now))
+  globalDispatcher.chatOutboxDispatchTail = dispatch
+  return dispatch
+}
+
+async function dispatchNextEvent(
   fetcher: typeof fetch = fetch,
   now: Date = new Date(),
 ): Promise<boolean> {
@@ -38,12 +56,11 @@ export async function dispatchNextChatOutboxEvent(
   if (!row) return false
 
   try {
-    await publishChatEvent(
-      row.channelName,
-      JSON.parse(row.payload) as unknown,
-      row.id,
-      fetcher,
-    )
+    const event = JSON.parse(row.payload)
+    if (event.message?.removed === true) {
+      await clearChatRecoveryHistory(row.channelName, fetcher)
+    }
+    await publishChatEvent(row.channelName, event, row.id, fetcher)
     database.prepare('DELETE FROM chat_outbox WHERE id = ?').run(row.id)
     return true
   } catch {
