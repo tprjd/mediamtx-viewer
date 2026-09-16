@@ -7,7 +7,7 @@ import { useCallback, useEffect, type ReactNode } from 'react'
 import styles from './chat-design-prototype.module.css'
 
 export const chatPrototypeVariants = [
-  { key: 'A', name: 'Compact feed', description: 'Continuous messages · top header · inline Send' },
+  { key: 'A', name: 'Compact feed', description: 'Selected design · Chat settings + moderation' },
   { key: 'B', name: 'Time groups', description: 'Minute sections · room summary · full-width input' },
   { key: 'C', name: 'Tools rail', description: 'Side controls · open transcript · bottom room bar' },
 ]

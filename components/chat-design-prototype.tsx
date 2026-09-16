@@ -6,12 +6,13 @@
 
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { ArrowDown, Check, ChevronDown, Crown, History, Maximize2, MessageSquare, Minimize2, MoreHorizontal, Send, ShieldCheck, Users, X } from 'lucide-react'
+import { ArrowDown, Ban, Check, ChevronDown, Eye, History, Maximize2, MessageSquare, Minimize2, MoreHorizontal, Send, Timer, Trash2, Users, X } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { ChannelNavigation } from '@/components/channel-navigation'
 import { PrototypeSwitcher } from '@/components/prototype-switcher'
+import { PrototypeChatSettings, PrototypeModerationDialog, PrototypeRestrictionsDialog, PrototypeRoleBadge, type ModerationAction, type ModerationDetails, type ModerationTarget, type PrototypeRestriction } from '@/components/chat-design-prototype-controls'
 import { useLiveRailPreference } from '@/components/use-live-rail-preference'
 import type { PublicChannel } from '@/lib/types'
 import styles from './chat-design-prototype.module.css'
@@ -29,7 +30,7 @@ const samples: Message[] = [
   { id: 8, name: 'orbit', tag: 'h6d4', role: 'admin', text: 'Keep it friendly, everyone.', time: '21:06' },
   { id: 9, name: 'pixelpilot', tag: 'm9v1', text: 'I tried this route yesterday. If you wait for the second platform, you can get all the way across without taking damage.', time: '21:06' },
   { id: 10, name: 'someone_with_a_very_long_display_name', tag: 's3e7', text: 'checking in from my phone', time: '21:06' },
-  { id: 11, name: 'nori', tag: 'n2b5', text: '', time: '21:06', removed: true },
+  { id: 11, name: 'nori', tag: 'n2b5', text: 'Repeated promotional message.', time: '21:06', removed: true },
   { id: 12, name: 'David', tag: 'a7k2', role: 'owner', text: 'okay, I see it now', time: '21:07' },
   { id: 13, name: 'mira', tag: 'c3p8', text: 'this is the run', time: '21:07' },
   { id: 14, name: 'Alex', tag: 'f4q6', text: 'no pressure 😂', time: '21:07' },
@@ -41,69 +42,58 @@ const samples: Message[] = [
 const colors = ['#a5b4fc', '#f9a8d4', '#67e8f9', '#fde68a', '#86efac', '#fdba74']
 function authorColor(tag: string) { return colors[Array.from(tag).reduce((sum, c) => sum + c.charCodeAt(0), 0) % colors.length] }
 
-function MessageRow({ message, moderator, onRemove, onRestrict }: {
-  message: Message; moderator: boolean; onRemove: (id: number) => void; onRestrict: (name: string) => void
+function MessageRow({ message, moderator, timestamps, onModerate }: {
+  message: Message; moderator: boolean; timestamps: boolean; onModerate: (target: ModerationTarget) => void
 }) {
-  const [timestampOpen, setTimestampOpen] = useState(false)
-  const touchPointer = useRef(false)
-  const openAtPointerDown = useRef(false)
-  return (
-    <Tooltip.Root open={timestampOpen} onOpenChange={setTimestampOpen}>
-      <Tooltip.Trigger asChild>
-        <div className={styles.message} tabIndex={0} data-message-id={message.id}
-          onPointerDown={(event) => { touchPointer.current = event.pointerType === 'touch'; openAtPointerDown.current = timestampOpen }}
-          onClick={(event) => {
-            if (!touchPointer.current || (event.target instanceof Element && event.target.closest('button'))) return
-            // Radix closes a tooltip on click by default. A touch tap toggles it instead.
-            event.preventDefault()
-            if (!window.getSelection()?.toString()) setTimestampOpen(!openAtPointerDown.current)
-          }}>
-          {message.removed ? <span className={styles.removed}>Message removed</span> : <>
-            {message.role && <span className={`${styles.badge} ${styles[message.role]}`} aria-label={message.role === 'owner' ? 'Channel owner' : 'Administrator'}>
-              {message.role === 'owner' ? <Crown size={12} /> : <ShieldCheck size={12} />}
-            </span>}
-            <strong className={styles.author} style={{ color: authorColor(message.tag) }}>{message.name}</strong>
-            <span className={styles.tag}> #{message.tag}</span><span className={styles.colon}>: </span>
-            <span>{message.text}</span>
-          </>}
-          {moderator && <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-              <button className={styles.messageActions} aria-label={`Actions for message ${message.id}`}><MoreHorizontal size={16} /></button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Portal><DropdownMenu.Content className={styles.menu} sideOffset={4} align="end">
-              <DropdownMenu.Label>Sample moderation</DropdownMenu.Label>
-              <DropdownMenu.Item disabled={message.removed} onSelect={() => onRemove(message.id)}>Remove message</DropdownMenu.Item>
-              <DropdownMenu.Item onSelect={() => onRestrict(message.name)}>Timeout for 10 minutes</DropdownMenu.Item>
-            </DropdownMenu.Content></DropdownMenu.Portal>
-          </DropdownMenu.Root>}
-        </div>
-      </Tooltip.Trigger>
-      <Tooltip.Portal><Tooltip.Content className={styles.timestamp} side="top" sideOffset={4}>
-        Sent at {message.time}<Tooltip.Arrow />
-      </Tooltip.Content></Tooltip.Portal>
-    </Tooltip.Root>
-  )
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const openingDialog = useRef(false)
+  const openAction = (action: ModerationAction) => {
+    openingDialog.current = true
+    onModerate({ action, message, trigger: triggerRef.current })
+  }
+  return <div className={styles.message} data-message-id={message.id}>
+    {timestamps && <time className={styles.inlineTimestamp} dateTime={message.time}>{message.time}</time>}
+    {message.removed ? <span className={styles.removed}>Message removed</span> : <>
+      {message.role && <PrototypeRoleBadge role={message.role} />}
+      <strong className={styles.author} style={{ color: authorColor(message.tag) }}>{message.name}</strong>
+      <span className={styles.tag}> #{message.tag}</span><span className={styles.colon}>: </span>
+      <span>{message.text}</span>
+    </>}
+    {moderator && <DropdownMenu.Root onOpenChange={(open) => { if (open) openingDialog.current = false }}>
+      <DropdownMenu.Trigger asChild><button ref={triggerRef} className={styles.messageActions} aria-label={`Actions for message ${message.id}`}><MoreHorizontal size={16} /></button></DropdownMenu.Trigger>
+      <DropdownMenu.Portal><DropdownMenu.Content className={`${styles.menu} ${styles.actionMenu}`} sideOffset={4} align="end" collisionPadding={10}
+        onCloseAutoFocus={(event) => { if (openingDialog.current) event.preventDefault() }}>
+        <DropdownMenu.Label>{message.name} <span>#{message.tag}</span></DropdownMenu.Label>
+        {message.removed && <DropdownMenu.Item onSelect={() => openAction('inspect')}><Eye size={15} />Inspect removed message</DropdownMenu.Item>}
+        {message.role === 'admin' ? <div className={styles.menuHint}>Only administrators can moderate this participant.</div> : <>
+          {!message.removed && <DropdownMenu.Item onSelect={() => openAction('remove')}><Trash2 size={15} />Remove message</DropdownMenu.Item>}
+          <DropdownMenu.Item onSelect={() => openAction('timeout')}><Timer size={15} />Apply timeout…</DropdownMenu.Item>
+          <DropdownMenu.Item className={styles.dangerItem} onSelect={() => openAction('ban')}><Ban size={15} />Ban from Chat…</DropdownMenu.Item>
+        </>}
+      </DropdownMenu.Content></DropdownMenu.Portal>
+    </DropdownMenu.Root>}
+  </div>
 }
 
-type PanelParts = { transcript: ReactNode; composer: ReactNode; notice: ReactNode; onClose: () => void; onHistory: () => void; moderator: boolean }
+type PanelParts = { transcript: ReactNode; composer: ReactNode; notice: ReactNode; onClose: () => void; onHistory: () => void; moderator: boolean; settings: ReactNode; moderationControl: ReactNode }
 
-export function VariantA({ transcript, composer, notice, onClose }: PanelParts) {
+export function VariantA({ transcript, composer, notice, onClose, settings, moderationControl }: PanelParts) {
   return <aside className={`${styles.chat} ${styles.variantA}`} aria-label="Chat preview">
-    <header className={styles.chatHeader}><span className={styles.headerTitle}><MessageSquare size={17} /><strong>Channel chat</strong></span><button onClick={onClose} aria-label="Hide Chat"><X size={17} /></button></header>
+    <header className={styles.chatHeader}><span className={styles.headerTitle}><MessageSquare size={17} /><strong>Channel chat</strong></span><div className={styles.headerControls}>{moderationControl}{settings}<button onClick={onClose} aria-label="Hide Chat"><X size={17} /></button></div></header>
     {transcript}{notice}{composer}
   </aside>
 }
 
-export function VariantB({ transcript, composer, notice, onClose, moderator }: PanelParts) {
+export function VariantB({ transcript, composer, notice, onClose, moderator, settings, moderationControl }: PanelParts) {
   return <aside className={`${styles.chat} ${styles.variantB}`} aria-label="Chat preview">
-    <header className={styles.roomSummary}><div><span className={styles.eyebrow}>THE CONVERSATION</span><h2>Channel chat<span className={styles.liveDot} /></h2><span className={styles.roomSubtitle}><Users size={13} /> {moderator ? 'Moderator preview' : 'Make yourself at home'}</span></div><button onClick={onClose} aria-label="Hide Chat"><X size={17} /></button></header>
+    <header className={styles.roomSummary}><div><span className={styles.eyebrow}>THE CONVERSATION</span><h2>Channel chat<span className={styles.liveDot} /></h2><span className={styles.roomSubtitle}><Users size={13} /> {moderator ? 'Moderator preview' : 'Make yourself at home'}</span></div><div className={styles.headerControls}>{moderationControl}{settings}<button onClick={onClose} aria-label="Hide Chat"><X size={17} /></button></div></header>
     {transcript}{notice}{composer}
   </aside>
 }
 
-export function VariantC({ transcript, composer, notice, onClose, onHistory, moderator }: PanelParts) {
+export function VariantC({ transcript, composer, notice, onClose, onHistory, settings, moderationControl }: PanelParts) {
   return <aside className={`${styles.chat} ${styles.variantC}`} aria-label="Chat preview">
-    <div className={styles.toolsRail}><MessageSquare size={18} /><button onClick={onHistory} aria-label="Load older messages"><History size={18} /></button><span className={styles.railSpacer} />{moderator && <ShieldCheck size={18} aria-label="Moderator preview" />}<button onClick={onClose} aria-label="Hide Chat"><X size={18} /></button></div>
+    <div className={styles.toolsRail}><MessageSquare size={18} /><button onClick={onHistory} aria-label="Load older messages"><History size={18} /></button><span className={styles.railSpacer} />{moderationControl}{settings}<button onClick={onClose} aria-label="Hide Chat"><X size={18} /></button></div>
     <div className={styles.railBody}>{transcript}{notice}<footer className={styles.bottomRoomBar}><span className={styles.liveDot} /><strong>Channel chat</strong><span>Live conversation</span></footer>{composer}</div>
   </aside>
 }
@@ -116,6 +106,12 @@ export function ChatDesignPrototype({ channel, channels }: { channel: PublicChan
   const [messages, setMessages] = useState(samples)
   const [draft, setDraft] = useState('')
   const [moderator, setModerator] = useState(false)
+  const [timestamps, setTimestamps] = useState(false)
+  const [moderationTarget, setModerationTarget] = useState<ModerationTarget | null>(null)
+  const [restrictions, setRestrictions] = useState<PrototypeRestriction[]>([
+    { name: 'quietfox', tag: 'q2f8', action: 'timeout', category: 'Spam', note: 'Repeated the same message.', duration: 10 },
+    { name: 'nightowl', tag: 'n7w3', action: 'ban', category: 'Harassment', note: '', duration: 0 },
+  ])
   const [chatOpen, setChatOpen] = useState(true)
   const [theater, setTheater] = useState(false)
   const [atBottom, setAtBottom] = useState(true)
@@ -131,7 +127,7 @@ export function ChatDesignPrototype({ channel, channels }: { channel: PublicChan
 
   useEffect(() => {
     if (atBottom) transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight })
-  }, [messages, scenario, variant, chatOpen, atBottom])
+  }, [messages, scenario, variant, chatOpen, atBottom, timestamps])
 
   const loadOlder = () => {
     if (olderLoaded) { transcriptRef.current?.scrollTo({ top: 0 }); return }
@@ -141,7 +137,21 @@ export function ChatDesignPrototype({ channel, channels }: { channel: PublicChan
     requestAnimationFrame(() => transcriptRef.current?.scrollTo({ top: 0 }))
   }
   const closeChat = () => { setChatOpen(false); requestAnimationFrame(() => restoreRef.current?.focus()) }
-  const removeMessage = (id: number) => setMessages((current) => current.map((message) => message.id === id ? { ...message, removed: true } : message))
+  const applyModeration = (details: ModerationDetails) => {
+    if (!moderationTarget) return
+    const { action, message: target } = moderationTarget
+    if (action === 'inspect') return
+    setMessages((current) => current.map((message) =>
+      (action === 'remove' ? message.id === target.id : message.tag === target.tag)
+        ? { ...message, removed: true } : message))
+    if (action !== 'remove') {
+      setRestrictions((current) => [...current.filter(({ tag }) => tag !== target.tag), {
+        name: target.name, tag: target.tag, action, ...details,
+      }])
+    }
+    setModerationNotice(action === 'remove' ? 'Message removed.' : `${target.name} #${target.tag}: Chat ${action} applied.`)
+    setModerationTarget(null)
+  }
 
   const transcript = <div className={styles.transcriptWrap}>
     <div className={styles.transcript} ref={transcriptRef} aria-label="Sample Chat messages" onScroll={(event) => {
@@ -153,9 +163,9 @@ export function ChatDesignPrototype({ channel, channels }: { channel: PublicChan
         <div className={styles.dayDivider}><span>Today</span></div>
         {shownMessages.map((message, index) => <div key={message.id}>
           {variant === 'B' && shownMessages[index - 1]?.time !== message.time && <div className={styles.timeGroup}><span>{message.time}</span><i /></div>}
-          <MessageRow message={message} moderator={moderator} onRemove={removeMessage} onRestrict={(name) => setModerationNotice(`${name} has a 10-minute Chat timeout in this preview.`)} />
+          <MessageRow message={message} moderator={moderator} timestamps={timestamps} onModerate={setModerationTarget} />
         </div>)}
-        {scenario === 'failed' && <div className={styles.failedMessage}><span><strong>You:</strong> that was a great run</span><small>{retried ? <><Check size={12} /> Sent in preview</> : <>Not sent <button onClick={() => setRetried(true)}>Retry</button></>}</small></div>}
+        {scenario === 'failed' && <div className={styles.failedMessage}><span>{timestamps && <time className={styles.inlineTimestamp} dateTime="21:09">21:09</time>}<strong>You:</strong> that was a great run</span><small>{retried ? <><Check size={12} /> Sent in preview</> : <>Not sent <button onClick={() => setRetried(true)}>Retry</button></>}</small></div>}
       </> : <div className={styles.empty}><MessageSquare size={28} /><strong>A quiet moment.</strong><p>Be the first to say hello.</p></div>}
     </div>
     {!atBottom && shownMessages.length > 0 && <button className={styles.jump} onClick={() => setAtBottom(true)}><ArrowDown size={14} /> Back to latest messages</button>}
@@ -183,7 +193,12 @@ export function ChatDesignPrototype({ channel, channels }: { channel: PublicChan
     </div>
     {variant === 'B' && <div className={styles.composerFooter}><span>Be kind. Enjoy the channel.</span><button className={styles.send} disabled={blocked || !draft.trim()}>Chat <Send size={14} /></button></div>}
   </form>
-  const parts: PanelParts = { transcript, composer, notice, onClose: closeChat, onHistory: loadOlder, moderator }
+  const settings = <PrototypeChatSettings timestamps={timestamps} onTimestampsChange={setTimestamps} />
+  const moderationControl = moderator ? <PrototypeRestrictionsDialog restrictions={restrictions} onLift={(tag) => {
+    setRestrictions((current) => current.filter((restriction) => restriction.tag !== tag))
+    setModerationNotice(`Chat restriction lifted for #${tag}.`)
+  }} /> : null
+  const parts: PanelParts = { transcript, composer, notice, onClose: closeChat, onHistory: loadOlder, moderator, settings, moderationControl }
 
   return <Tooltip.Provider delayDuration={300}>
     <main className={`${styles.prototype} ${theater ? styles.theater : ''}`} data-chat-design-prototype>
@@ -203,13 +218,14 @@ export function ChatDesignPrototype({ channel, channels }: { channel: PublicChan
         </section>
         {chatOpen && (variant === 'B' ? <VariantB {...parts} /> : variant === 'C' ? <VariantC {...parts} /> : <VariantA {...parts} />)}
       </div>
+      {moderationTarget && <PrototypeModerationDialog key={`${moderationTarget.message.id}-${moderationTarget.action}`} target={moderationTarget} onClose={() => setModerationTarget(null)} onConfirm={applyModeration} />}
       <PrototypeSwitcher>
         <label>State <select aria-label="Preview state" value={scenario} onChange={(event) => { setScenario(event.target.value as Scenario); setRetried(false); setModerationNotice(''); setAtBottom(true) }}>
           <option value="conversation">Conversation</option><option value="empty">Empty room</option><option value="reconnecting">Reconnecting</option><option value="failed">Failed send</option><option value="timeout">Chat timeout</option><option value="ban">Chat ban</option><option value="unavailable">Unavailable</option><option value="limited">Storage limit</option>
         </select><ChevronDown size={12} /></label>
         <label><input type="checkbox" checked={moderator} onChange={(event) => setModerator(event.target.checked)} /> Moderator</label>
         <button onClick={() => { setMessages((current) => [...current, { id: sequence.current++, name: 'mira', tag: 'c3p8', text: 'okay, one more!', time: '21:09' }]); if (scenario === 'empty') setScenario('conversation') }}>+ Message</button>
-        <output>{shownMessages.length} messages · {chatOpen ? 'open' : 'hidden'} · {theater ? 'theater' : 'normal'}</output>
+        <output>{timestamps ? 'Times on' : 'Times off'} · {moderator ? `${restrictions.length} restrictions` : `${shownMessages.length} messages`} · {chatOpen ? 'open' : 'hidden'}</output>
       </PrototypeSwitcher>
     </main>
   </Tooltip.Provider>
