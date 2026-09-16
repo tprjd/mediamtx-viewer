@@ -4,14 +4,14 @@ import {
   ChatModerationError,
   chatRemovalSchema,
 } from '@/lib/chat-moderation'
+import {
+  chatModerationFailure,
+  chatModerationHeaders as headers,
+  readChatModerationBody,
+} from '@/lib/chat-moderation-http'
 import { requestChatOutboxDispatch } from '@/lib/chat-outbox'
-import { readUtf8BodyWithLimit } from '@/lib/http-body'
 
 export const dynamic = 'force-dynamic'
-const headers = {
-  'Cache-Control': 'private, no-store, max-age=0',
-  Pragma: 'no-cache',
-}
 
 export async function POST(
   request: Request,
@@ -25,26 +25,9 @@ export async function POST(
         { error: access.error },
         { status: access.status, headers },
       )
-    if (
-      !request.headers
-        .get('content-type')
-        ?.toLowerCase()
-        .startsWith('application/json')
-    ) {
-      throw new ChatModerationError(
-        'Content-Type must be application/json.',
-        415,
-      )
-    }
-    const body = await readUtf8BodyWithLimit(request, 8192)
-    if (body === null) throw new ChatModerationError('Invalid request.', 413)
-    let value: unknown
-    try {
-      value = JSON.parse(body)
-    } catch {
-      throw new ChatModerationError('Invalid request.', 400)
-    }
-    const parsed = chatRemovalSchema.safeParse(value)
+    const parsed = chatRemovalSchema.safeParse(
+      await readChatModerationBody(request),
+    )
     if (!parsed.success)
       throw new ChatModerationError(
         'Select a category. Other requires a private note of at most 2000 characters.',
@@ -59,17 +42,6 @@ export async function POST(
     requestChatOutboxDispatch()
     return Response.json(result, { headers })
   } catch (error) {
-    return Response.json(
-      {
-        error:
-          error instanceof ChatModerationError
-            ? error.message
-            : 'Chat is unavailable.',
-      },
-      {
-        status: error instanceof ChatModerationError ? error.status : 503,
-        headers,
-      },
-    )
+    return chatModerationFailure(error)
   }
 }
