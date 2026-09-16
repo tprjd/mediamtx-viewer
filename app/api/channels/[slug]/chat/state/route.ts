@@ -1,3 +1,5 @@
+import { getChatDatabase } from '@/lib/chat-database'
+import { inspectChatStorage } from '@/lib/chat-storage'
 import { authorizeLiveChat } from '@/lib/chat-access'
 import { getChatParticipantState } from '@/lib/chat-moderation'
 
@@ -19,10 +21,18 @@ export async function GET(
         { error: access.error },
         { status: access.status, headers },
       )
-    return Response.json(
-      getChatParticipantState(access.channel, access.accountId),
-      { headers },
-    )
+    const database = getChatDatabase()
+    const state = database
+      .transaction(() => {
+        const storage = inspectChatStorage(database)
+        return {
+          ...getChatParticipantState(access.channel, access.accountId),
+          storageLimited:
+            storage.databaseLimitReached || storage.diskLimitReached,
+        }
+      })
+      .immediate()
+    return Response.json(state, { headers })
   } catch {
     return Response.json(
       { error: 'Chat is unavailable.' },

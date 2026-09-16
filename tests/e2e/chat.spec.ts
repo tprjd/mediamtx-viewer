@@ -9,6 +9,7 @@ import Database from 'better-sqlite3'
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
 
 const centrifugoContainer = 'mediamtx-viewer-e2e-centrifugo'
 const chatDatabasePath = resolve('.data/e2e-chat.sqlite')
@@ -23,6 +24,101 @@ test.beforeEach(() => {
   database.prepare('DELETE FROM chat_moderation_record').run()
   database.close()
 })
+
+async function prepareChatPlayback(page: Page) {
+  await page.addInitScript(() =>
+    sessionStorage.setItem('mediamtx-viewer:playback-mode', 'smooth'),
+  )
+  const playlist = readFileSync(
+    resolve('tests/e2e/fixtures/chat-playback/index.m3u8'),
+    'utf8',
+  )
+    .replace('#EXT-X-PLAYLIST-TYPE:VOD\n', '')
+    .replace('#EXT-X-ENDLIST\n', '')
+    .split('#EXTINF:')
+  let startedAt = 0
+  const media = readFileSync(
+    resolve('tests/e2e/fixtures/chat-playback/media.mp4'),
+  )
+  await page.route('**/media/hls/live/**', async (route) => {
+    if (new URL(route.request().url()).pathname.endsWith('.m3u8')) {
+      startedAt ||= Date.now()
+      const available = 10 + Math.floor((Date.now() - startedAt) / 2000)
+      const body =
+        playlist[0] +
+        playlist
+          .slice(1, available + 1)
+          .map((segment) => `#EXTINF:${segment}`)
+          .join('')
+      return route.fulfill({
+        contentType: 'application/vnd.apple.mpegurl',
+        body,
+      })
+    }
+    const range = /^bytes=(\d+)-(\d+)$/.exec(
+      route.request().headers().range ?? '',
+    )
+    const start = range ? Number(range[1]) : 0
+    const end = range ? Number(range[2]) : media.length - 1
+    await route.fulfill({
+      status: range ? 206 : 200,
+      contentType: 'video/mp4',
+      body: media.subarray(start, end + 1),
+      headers: range
+        ? { 'content-range': `bytes ${start}-${end}/${media.length}` }
+        : {},
+    })
+  })
+}
+
+async function observePlayback(page: Page) {
+  const video = page.locator('video')
+  await expect
+    .poll(() =>
+      video.evaluate(
+        (element: HTMLVideoElement) =>
+          !element.paused && element.currentTime > 1,
+      ),
+    )
+    .toBe(true)
+  const handle = await video.elementHandle()
+  if (!handle) throw new Error('Player video is missing')
+  const initial = await handle.evaluate((element) => {
+    const video = element as HTMLVideoElement
+    video.dataset.chatInterruptions = '0'
+    for (const event of ['pause', 'emptied', 'abort'])
+      video.addEventListener(event, () => {
+        video.dataset.chatInterruptions = String(
+          Number(video.dataset.chatInterruptions) + 1,
+        )
+      })
+    return { time: video.currentTime, source: video.currentSrc }
+  })
+  return async () => {
+    const current = await handle.evaluate((element) => {
+      const video = element as HTMLVideoElement
+      return {
+        connected: video.isConnected,
+        paused: video.paused,
+        time: video.currentTime,
+        source: video.currentSrc,
+        interruptions: video.dataset.chatInterruptions,
+      }
+    })
+    expect(current, JSON.stringify({ initial, current })).toMatchObject({
+      connected: true,
+      paused: false,
+      source: initial.source,
+      interruptions: '0',
+    })
+    expect(current.time).toBeGreaterThan(initial.time + 0.5)
+    expect(
+      await page.evaluate(() =>
+        sessionStorage.getItem('mediamtx-viewer:playback-mode'),
+      ),
+    ).toBe('smooth')
+  }
+}
 
 async function postChat(page: Page, content: string) {
   const clientIdempotencyKey = randomUUID()
@@ -442,12 +538,10 @@ test('delivers one accepted Chat message to another active participant', async (
   const receiverContext = await browser.newContext()
   const sender = await senderContext.newPage()
   const receiver = await receiverContext.newPage()
+  await prepareChatPlayback(sender)
+  await prepareChatPlayback(receiver)
   try {
-    await sender.goto('/login?returnTo=/watch/live')
-    await sender.getByLabel('Username').fill('power')
-    await sender.getByLabel('Password').fill('e2e-administrator-password')
-    await sender.getByRole('button', { name: 'Sign in' }).click()
-    await expect(sender).toHaveURL('/watch/live')
+    await signInAsAdministrator(sender)
 
     await receiver.goto('/login?returnTo=/watch/live')
     await receiver.getByLabel('Username').fill('chat_friend')
@@ -483,8 +577,7 @@ test('delivers one accepted Chat message to another active participant', async (
     await receiver.evaluate(() => {
       window.name = 'watch-page-not-reloaded'
     })
-    const video = await receiver.locator('video').elementHandle()
-    expect(video).not.toBeNull()
+    const assertPlaybackContinues = await observePlayback(receiver)
 
     runDocker('stop', '--time', '1', centrifugoContainer)
     await expect
@@ -492,6 +585,12 @@ test('delivers one accepted Chat message to another active participant', async (
         receiverChat.getByRole('log').getAttribute('data-realtime-state'),
       )
       .not.toBe('connected')
+
+    const health = await receiver.request.get('/api/health')
+    expect(health.status()).toBe(200)
+    expect(await health.json()).toMatchObject({ chat: { status: 'degraded', faults: expect.arrayContaining(['centrifugo']) } })
+    expect((await receiver.request.get('/api/channels/live/status')).status()).toBe(200)
+    await expect(receiverChat.getByText(content, { exact: true })).toBeVisible()
 
     const reconciledContent = `reconciled Chat message ${randomUUID()}`
     await senderChat
@@ -522,11 +621,121 @@ test('delivers one accepted Chat message to another active participant', async (
     expect(await receiver.evaluate(() => window.name)).toBe(
       'watch-page-not-reloaded',
     )
-    expect(await video?.evaluate((element) => element.isConnected)).toBe(true)
+    await assertPlaybackContinues()
   } finally {
+    runDocker('start', centrifugoContainer)
     await senderContext.close()
     await receiverContext.close()
   }
+})
+
+test('keeps the player and loaded history when the Chat database cannot accept commands', async ({
+  page,
+}) => {
+  await prepareChatPlayback(page)
+  await signInAsAdministrator(page)
+  const chat = page.getByRole('complementary', { name: 'Chat' })
+  const content = `history during database failure ${randomUUID()}`
+  const sent = await postChat(page, content)
+  expect(sent.status()).toBe(201)
+  const { message } = await sent.json()
+  await expect(chat.getByText(content, { exact: true })).toBeVisible()
+  await expect(
+    chat.getByRole('button', { name: 'Active Chat restrictions' }),
+  ).toBeVisible()
+  const assertPlaybackContinues = await observePlayback(page)
+  const database = new Database(chatDatabasePath)
+  database.exec('ALTER TABLE chat_room RENAME TO unavailable_chat_room')
+  try {
+    await expect(
+      chat.getByRole('textbox', { name: 'Chat message' }),
+    ).toBeDisabled({ timeout: 10_000 })
+    await expect(
+      chat.getByRole('button', { name: 'Active Chat restrictions' }),
+    ).toHaveCount(0)
+    await expect(chat.getByText(content, { exact: true })).toBeVisible()
+    expect((await postChat(page, 'cannot be stored')).status()).toBe(503)
+    expect(
+      (await page.request.get('/api/channels/live/chat/messages')).status(),
+    ).toBe(503)
+    expect(
+      (
+        await page.request.post(
+          `/api/channels/live/chat/messages/${message.id}/removal`,
+          { data: { category: 'Spam' } },
+        )
+      ).status(),
+    ).toBe(503)
+    const health = await page.request.get('/api/health')
+    expect(health.status()).toBe(200)
+    expect(await health.json()).toMatchObject({
+      status: 'ok',
+      chat: { status: 'unavailable' },
+    })
+    const status = await page.request.get('/api/channels/live/status')
+    expect(status.status()).toBe(200)
+    expect(await status.json()).toMatchObject({ status: { live: true } })
+    await assertPlaybackContinues()
+    await expect(page).toHaveURL('/watch/live')
+    const statistics = await page.context().newPage()
+    await statistics.goto('/statistics')
+    await expect(
+      statistics.getByRole('region', { name: 'Chat health' }),
+    ).toContainText('Chat database is unavailable')
+    await statistics.close()
+  } finally {
+    database.exec('ALTER TABLE unavailable_chat_room RENAME TO chat_room')
+    database.close()
+  }
+  await expect(chat.getByRole('textbox', { name: 'Chat message' })).toBeEnabled(
+    { timeout: 10_000 },
+  )
+  await assertPlaybackContinues()
+})
+
+test('keeps history, Channel status, and the player at the Chat storage limit', async ({
+  page,
+}) => {
+  await prepareChatPlayback(page)
+  await signInAsAdministrator(page)
+  const chat = page.getByRole('complementary', { name: 'Chat' })
+  const content = `history during storage limit ${randomUUID()}`
+  expect((await postChat(page, content)).status()).toBe(201)
+  await expect(chat.getByText(content, { exact: true })).toBeVisible()
+  const assertPlaybackContinues = await observePlayback(page)
+  const database = new Database(chatDatabasePath)
+  try {
+    database.exec(
+      'CREATE TABLE capacity_probe (payload BLOB); INSERT INTO capacity_probe VALUES (zeroblob(34603008))',
+    )
+    await expect(
+      chat.getByRole('textbox', { name: 'Chat message' }),
+    ).toBeDisabled({ timeout: 10_000 })
+    await expect(
+      chat.getByText('Chat storage limit reached. Sending is paused.'),
+    ).toBeVisible()
+    const rejected = await postChat(page, 'blocked by capacity')
+    expect(rejected.status()).toBe(503)
+    expect(await rejected.json()).toMatchObject({
+      error: 'Chat storage limit reached.',
+    })
+    const history = await page.request.get('/api/channels/live/chat/messages')
+    expect(history.status()).toBe(200)
+    expect(JSON.stringify(await history.json())).toContain(content)
+    expect((await page.request.get('/api/channels/live/status')).status()).toBe(
+      200,
+    )
+    expect((await page.request.get('/api/health')).status()).toBe(200)
+    await expect(chat.getByText(content, { exact: true })).toBeVisible()
+    await assertPlaybackContinues()
+  } finally {
+    database.exec('DROP TABLE IF EXISTS capacity_probe; VACUUM')
+    database.pragma('wal_checkpoint(TRUNCATE)')
+    database.close()
+  }
+  await expect(chat.getByRole('textbox', { name: 'Chat message' })).toBeEnabled(
+    { timeout: 10_000 },
+  )
 })
 
 test('shows Sending immediately and retries failed requests with one submission key', async ({

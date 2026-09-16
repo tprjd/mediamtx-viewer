@@ -1,3 +1,4 @@
+import { ChatStorageLimitError } from '@/lib/chat-storage'
 import { z } from 'zod'
 
 import { getChatModeratorRole } from '@/lib/chat-moderation'
@@ -147,6 +148,12 @@ export async function POST(
     requestChatOutboxDispatch()
     return Response.json({ message }, { status: 201, headers: responseHeaders })
   } catch (error) {
+    if (error instanceof ChatStorageLimitError) {
+      return Response.json(
+        { error: error.message },
+        { status: 503, headers: responseHeaders },
+      )
+    }
     if (error instanceof ChatRestrictionError) {
       return Response.json(
         { error: error.message, restriction: error.restriction },

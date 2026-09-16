@@ -561,6 +561,9 @@ function ChatPanelContent({
           )}
         </p>
       )}
+      {timeout.storageLimited && (
+        <p role="status" className={styles.chatError}>Chat storage limit reached. Sending is paused.</p>
+      )}
       {timeout.failed && (
         <p role="alert" className={styles.chatError}>
           Could not check Chat sending access. Retrying...

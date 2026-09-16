@@ -3,6 +3,7 @@ import 'server-only'
 import { createHash, createHmac, randomUUID } from 'node:crypto'
 
 import { getDatabase } from '@/lib/auth/database'
+import { assertChatMessageStorage } from '@/lib/chat-storage'
 import { getChatDatabase } from '@/lib/chat-database'
 import { chatEnvironment } from '@/lib/chat-environment'
 import {
@@ -184,6 +185,8 @@ export function sendChatMessage({
         }
         return toPublicMessage(existing, channel, now)
       }
+
+      assertChatMessageStorage(database)
 
       const rateState = database
         .prepare(

@@ -12,10 +12,9 @@ const globalDatabase = globalThis as typeof globalThis & {
 
 function createChatDatabase(): Database.Database {
   mkdirSync(dirname(chatEnvironment.databasePath), { recursive: true })
-  const database = new Database(chatEnvironment.databasePath)
+  const database = new Database(chatEnvironment.databasePath, { timeout: 100 })
   database.pragma('journal_mode = WAL')
   database.pragma('foreign_keys = ON')
-  database.pragma('busy_timeout = 5000')
   return database
 }
 

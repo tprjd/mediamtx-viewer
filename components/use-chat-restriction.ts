@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { z } from 'zod'
 
 const participantStateSchema = z.object({
+  storageLimited: z.boolean().optional(),
   channelId: z.string(),
   restriction: z
     .object({
@@ -111,7 +112,8 @@ export function useChatRestriction(channelSlug: string, active: boolean) {
     restriction: state?.restriction ?? null,
     authorities: state?.authorities,
     moderatorRole: !failed ? (state?.moderatorRole ?? null) : null,
-    blocked: !state || checking || failed || Boolean(state.restriction),
+    storageLimited: state?.storageLimited === true,
+    blocked: !state || checking || failed || Boolean(state.restriction) || state.storageLimited === true,
     failed,
     remainingSeconds,
     refresh,

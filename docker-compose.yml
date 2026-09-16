@@ -12,6 +12,8 @@ services:
       AUTH_DB_PATH: /data/auth.sqlite
       AUTH_BACKUP_DIR: /data/backups
       CHAT_DB_PATH: /data/chat.sqlite
+      CHAT_DATABASE_LIMIT_BYTES: ${CHAT_DATABASE_LIMIT_BYTES:-2147483648}
+      CHAT_MINIMUM_FREE_BYTES: ${CHAT_MINIMUM_FREE_BYTES:-10737418240}
       CHAT_ENABLED: ${CHAT_ENABLED:-false}
       CHAT_TAG_HMAC_SECRET: ${CHAT_TAG_HMAC_SECRET:-}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-development-only-secret-change-before-production}

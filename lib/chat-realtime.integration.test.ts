@@ -104,6 +104,8 @@ describe('Centrifugo Chat delivery', () => {
         '--env',
         'CENTRIFUGO_HEALTH_ENABLED=true',
         '--env',
+        'CENTRIFUGO_LOG_LEVEL=warn',
+        '--env',
         'CENTRIFUGO_CHANNEL_NAMESPACES=[{"name":"chat","history_size":300,"history_ttl":"30s","force_recovery":true,"force_positioning":true,"allow_subscribe_for_client":false,"allow_publish_for_client":false,"allow_publish_for_subscriber":false},{"name":"control","allow_subscribe_for_client":false,"allow_publish_for_client":false,"allow_publish_for_subscriber":false}]',
         CENTRIFUGO_IMAGE,
       ],
@@ -227,6 +229,81 @@ describe('Centrifugo Chat delivery', () => {
     expect(tokenRequests).toBe(2)
     client.disconnect()
   }, 10_000)
+
+  it('keeps participant content and secrets out of application and Centrifugo logs', async () => {
+    const { publishChatEvent, createChatConnectionToken } = await import(
+      '@/lib/chat-realtime'
+    )
+    const secrets = [
+      'log-test-message-content',
+      'log-test-profile-name',
+      'log-test-private-note',
+      'log-test-cookie',
+      'log-test-client-key',
+    ]
+    const logs = [
+      vi.spyOn(console, 'log'),
+      vi.spyOn(console, 'info'),
+      vi.spyOn(console, 'warn'),
+      vi.spyOn(console, 'error'),
+    ]
+    const token = createChatConnectionToken({
+      accountId: 'log-participant',
+      channelId: 'log-room',
+    })
+    const client = new Centrifuge(
+      `ws://127.0.0.1:${port}/connection/websocket`,
+      { token, websocket: WebSocket },
+    )
+    try {
+      const connected = nextEvent(client, 'connected')
+      client.connect()
+      await connected
+      await publishChatEvent(
+        'chat:log-room',
+        { content: secrets[0], profileName: secrets[1] },
+        'opaque-publication-id',
+      )
+      // Rejected requests must not turn their body, credentials, or private fields into logs.
+      await fetch(`http://127.0.0.1:${port}/api/publish`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': 'log-test-invalid-token',
+          cookie: secrets[3],
+        },
+        body: JSON.stringify({
+          channel: 'chat:log-room',
+          data: secrets,
+          idempotency_key: secrets[4],
+        }),
+      })
+      await expect(
+        publishChatEvent('chat:log-room', secrets, secrets[4], async () => {
+          throw new Error(secrets.join(' '))
+        }),
+      ).rejects.toThrow()
+      const output = spawnSync('docker', ['logs', containerName], {
+        encoding: 'utf8',
+      })
+      expect(output.status).toBe(0)
+      const captured =
+        output.stdout +
+        output.stderr +
+        JSON.stringify(logs.flatMap((log) => log.mock.calls))
+      for (const secret of [
+        ...secrets,
+        token,
+        apiKey,
+        tokenSecret,
+        'log-test-invalid-token',
+      ])
+        expect(captured).not.toContain(secret)
+    } finally {
+      client.disconnect()
+      for (const log of logs) log.mockRestore()
+    }
+  })
 
   it('keeps no more than 300 room publications in memory', async () => {
     const { publishChatEvent } = await import('@/lib/chat-realtime')

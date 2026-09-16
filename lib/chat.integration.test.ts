@@ -120,6 +120,46 @@ describe('durable Chat messages', () => {
     chatDatabase.close()
   })
 
+  it('stops new messages at each disk threshold while retaining history and retry results', async () => {
+    const { sendChatMessage, loadLatestChatHistory } = await import(
+      '@/lib/chat'
+    )
+    const input = {
+      channel: { id: 'stable-channel-id', ownerUserId: 'owner-id' },
+      participant: {
+        accountId: 'viewer-id',
+        profileName: 'Threshold participant',
+      },
+      rawContent: 'Retain this message',
+      clientIdempotencyKey: randomUUID(),
+      now: new Date('2026-09-10T10:00:00Z'),
+    }
+    const message = sendChatMessage(input)
+    try {
+      process.env.CHAT_DATABASE_LIMIT_BYTES = '1'
+      expect(() =>
+        sendChatMessage({ ...input, clientIdempotencyKey: randomUUID() }),
+      ).toThrow('Chat storage limit reached.')
+      expect(sendChatMessage(input).id).toBe(message.id)
+      expect(
+        loadLatestChatHistory(input.channel, input.now).messages,
+      ).toContainEqual(message)
+      delete process.env.CHAT_DATABASE_LIMIT_BYTES
+      process.env.CHAT_MINIMUM_FREE_BYTES = String(Number.MAX_SAFE_INTEGER)
+      expect(() =>
+        sendChatMessage({ ...input, clientIdempotencyKey: randomUUID() }),
+      ).toThrow('Chat storage limit reached.')
+      expect(
+        loadLatestChatHistory(input.channel, input.now).messages,
+      ).toContainEqual(message)
+    } finally {
+      delete process.env.CHAT_DATABASE_LIMIT_BYTES
+      delete process.env.CHAT_MINIMUM_FREE_BYTES
+      const { getChatDatabase } = await import('@/lib/chat-database')
+      getChatDatabase().prepare('DELETE FROM chat_room').run()
+    }
+  })
+
   it('commits a message and reloads its safe public representation', async () => {
     const { sendChatMessage, loadLatestChatHistory } =
       await import('@/lib/chat')

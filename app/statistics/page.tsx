@@ -15,6 +15,7 @@ import {
 import Link from 'next/link'
 import styles from './statistics.module.css'
 
+import { getChatHealth, type ChatFault } from '@/lib/chat-health'
 import { buttonVariants } from '@/components/ui/button'
 import { requireActiveSession } from '@/lib/auth/session'
 import { quotaRatio } from '@/lib/oracle-statistics-status'
@@ -30,6 +31,16 @@ export const dynamic = 'force-dynamic'
 
 interface StatisticsPageProps {
   searchParams: Promise<{ range?: string; refresh?: string }>
+}
+
+const chatFaultLabels: Record<ChatFault, string> = {
+  configuration: 'Chat configuration is invalid',
+  database: 'Chat database is unavailable',
+  centrifugo: 'Centrifugo is unavailable',
+  outbox: 'Chat delivery backlog',
+  'database-limit': 'Chat database limit reached, sending paused',
+  'disk-limit': 'Filesystem free space below limit, sending paused',
+  'disk-check': 'Cannot check Chat storage, sending paused',
 }
 
 const statusLabels: Record<OracleOverallStatus, string> = {
@@ -154,7 +165,8 @@ function OverallIcon({ status }: { status: OracleOverallStatus }) {
 }
 
 export default async function StatisticsPage({ searchParams }: StatisticsPageProps) {
-  await requireActiveSession()
+  const session = await requireActiveSession()
+  const chat = session.user.role === 'admin' ? await getChatHealth() : null
   const params = await searchParams
   const range = parseRange(params.range)
   const statistics = await getOracleStatistics({
@@ -204,6 +216,37 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
         </div>
         <small>Checked {formatDate(statistics.generatedAt)}</small>
       </section>
+
+      {chat && (
+        <section className={styles.oraclePanel} aria-label="Chat health">
+          <h2>Chat health: {chat.status}</h2>
+          <p>
+            Pending deliveries: {formatNumber(chat.outboxDepth, 0)}. Oldest
+            pending delivery: {formatNumber(chat.oldestOutboxAgeSeconds, 0)}{' '}
+            seconds.
+          </p>
+          <p>
+            Chat storage: {formatBytes(chat.databaseBytes)} /{' '}
+            {formatBytes(chat.databaseLimitBytes)}. Filesystem free:{' '}
+            {formatBytes(chat.freeBytes)}. Minimum free:{' '}
+            {formatBytes(chat.minimumFreeBytes)}.
+          </p>
+          {chat.faultDetails.length > 0 && (
+            <ul>
+              {chat.faultDetails.map((fault) => (
+                <li key={fault.code}>
+                  {chatFaultLabels[fault.code]} since {formatDate(fault.since)}
+                  {!fault.checked
+                    ? '. Current check unavailable.'
+                    : fault.sustained
+                      ? '. Active for at least five minutes.'
+                      : '.'}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {!statistics.enabled && (
         <p className={`${styles.oracleSetupNotice}`}>

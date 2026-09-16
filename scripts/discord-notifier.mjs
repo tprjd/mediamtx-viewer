@@ -1,3 +1,4 @@
+import { startChatAlerts } from './chat-alerts.mjs'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
@@ -205,4 +206,5 @@ async function main() {
   }
 }
 
+void startChatAlerts({ viewerUrl, webhookUrl, stateFile: `${stateFile}.chat` })
 void main()

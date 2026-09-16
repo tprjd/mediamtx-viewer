@@ -15,8 +15,6 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      centrifugo:
-        condition: service_healthy
       mediamtx:
         condition: service_started
       mediamtx-health:
@@ -149,6 +147,7 @@ services:
       COOLDOWN_MS: "900000"
     volumes:
       - ../../scripts/discord-notifier.mjs:/app/discord-notifier.mjs:ro
+      - ../../scripts/chat-alerts.mjs:/app/chat-alerts.mjs:ro
       - discord_notifier_state:/state
     depends_on:
       viewer:
@@ -175,6 +174,8 @@ services:
       AUTH_DB_PATH: /data/auth.sqlite
       AUTH_BACKUP_DIR: /data/backups
       CHAT_DB_PATH: /data/chat.sqlite
+      CHAT_DATABASE_LIMIT_BYTES: ${CHAT_DATABASE_LIMIT_BYTES:-2147483648}
+      CHAT_MINIMUM_FREE_BYTES: ${CHAT_MINIMUM_FREE_BYTES:-10737418240}
       CHAT_ENABLED: ${CHAT_ENABLED:-false}
       CHAT_TAG_HMAC_SECRET: ${CHAT_TAG_HMAC_SECRET:-}
       CENTRIFUGO_API_KEY: ${CENTRIFUGO_API_KEY:?Set CENTRIFUGO_API_KEY in caddy.env}
