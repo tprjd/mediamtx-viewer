@@ -9,6 +9,7 @@ export default defineConfig([
     '.next/**',
     '.next-e2e/**',
     '.next-e2e-chat/**',
+    '.next-chat-prototype/**',
     'coverage/**',
     'playwright-report/**',
     'test-results/**',

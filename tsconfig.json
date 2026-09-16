@@ -37,7 +37,9 @@
     ".next-e2e/types/**/*.ts",
     ".next-e2e/dev/types/**/*.ts",
     ".next-e2e-chat/types/**/*.ts",
-    ".next-e2e-chat/dev/types/**/*.ts"
+    ".next-e2e-chat/dev/types/**/*.ts",
+    ".next-chat-prototype/types/**/*.ts",
+    ".next-chat-prototype/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

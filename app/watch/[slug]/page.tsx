@@ -14,6 +14,7 @@ export const dynamic = 'force-dynamic'
 
 interface WatchPageProps {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ variant?: string }>
 }
 
 export async function generateMetadata({ params }: WatchPageProps): Promise<Metadata> {
@@ -34,7 +35,7 @@ export async function generateMetadata({ params }: WatchPageProps): Promise<Meta
   }
 }
 
-export default async function WatchPage({ params }: WatchPageProps) {
+export default async function WatchPage({ params, searchParams }: WatchPageProps) {
   const { slug } = await params
   const channel = getChannel(slug)
 
@@ -51,6 +52,13 @@ export default async function WatchPage({ params }: WatchPageProps) {
   const watchedChannel = channels.find((item) => item.slug === channel.slug)
 
   if (!watchedChannel) notFound()
+
+  // Throwaway Chat design comparison. Keep the normal route's data and auth.
+  const { variant } = await searchParams
+  if (process.env.NODE_ENV !== 'production' && ['A', 'B', 'C'].includes(variant ?? '')) {
+    const { ChatDesignPrototype } = await import('@/components/chat-design-prototype')
+    return <ChatDesignPrototype channel={watchedChannel} channels={channels} />
+  }
 
   return (
     <ChannelViewer
