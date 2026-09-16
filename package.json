@@ -20,7 +20,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "chat:capacity": "node scripts/chat-capacity/run.mjs",
+    "chat:rollout-checks": "node scripts/chat-capacity/checks.mjs",
+    "validate:chat-deployment": "node scripts/validate-chat-deployment.mjs"
   },
   "dependencies": {
     "@better-auth/utils": "0.4.2",
@@ -64,6 +67,7 @@
     "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "ws": "^8.21.3"
   }
 }

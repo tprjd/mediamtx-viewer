@@ -10,6 +10,9 @@ if (process.env.E2E_FIXTURES !== '1') {
 const databasePath = resolve(process.env.AUTH_DB_PATH ?? '.data/e2e-auth.sqlite')
 const database = new Database(databasePath)
 database.pragma('foreign_keys = ON')
+// Each browser run starts with a fresh sign-in allowance. Keep rate limits
+// active within the run, including the participant's cross-tab Chat limit.
+database.prepare('DELETE FROM rateLimit').run()
 
 const admin = database
   .prepare(

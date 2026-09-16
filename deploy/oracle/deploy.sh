@@ -10,6 +10,7 @@ fi
 deploy_target=$1
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 project_dir=$(CDPATH= cd -- "$script_dir/../.." && pwd)
+source_fingerprint=$(cd "$project_dir" && node scripts/chat-capacity/source.mjs)
 remote_dir=/home/ubuntu/mediamtx-viewer
 plaintext_dir=$(mktemp -d)
 trap 'rm -rf "$plaintext_dir"' EXIT
@@ -42,6 +43,8 @@ rsync -az --inplace \
   --exclude .git \
   --exclude node_modules \
   --exclude .next \
+  --exclude '.next-*' \
+  --exclude .scratch \
   --exclude .data \
   --exclude coverage \
   --exclude playwright-report \
@@ -54,6 +57,15 @@ rsync -az --inplace \
   --exclude deploy/oracle/terraform/terraform.tfvars \
   --exclude 'deploy/oracle/terraform/tfplan*' \
   "$project_dir/" "$deploy_target:$remote_dir/"
+
+# Match the verified source exactly. Limit deletion to application source
+# directories so deployment secrets, state and operational files stay intact.
+for source_dir in app components hooks lib scripts config migrations chat-migrations tests public; do
+  if [ -d "$project_dir/$source_dir" ]; then
+    rsync -az --inplace --delete "$project_dir/$source_dir/" \
+      "$deploy_target:$remote_dir/$source_dir/"
+  fi
+done
 
 rsync -az --inplace \
   --exclude mediamtx.yml \
@@ -89,16 +101,16 @@ REMOTE_SCRIPT
 ssh "$deploy_target" "sudo ufw allow 443/udp && sudo ufw allow 8189/tcp && sudo ufw allow 1935/tcp"
 ssh "$deploy_target" "cd '$remote_dir' && sudo install -m 644 deploy/oracle/90-mediamtx.conf /etc/sysctl.d/90-mediamtx.conf && sudo sysctl --system >/dev/null"
 
-ssh "$deploy_target" "cd '$remote_dir' && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml config --quiet && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml up -d --build --wait"
+ssh "$deploy_target" "cd '$remote_dir' && export SOURCE_FINGERPRINT='$source_fingerprint' CHAT_ENABLED=false && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml config --quiet && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml up -d --build --wait"
 
 if [ "$mediamtx_config_changed" = true ]; then
   echo "MediaMTX configuration changed; restarting MediaMTX"
-  ssh "$deploy_target" "cd '$remote_dir' && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml restart mediamtx && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml up -d --wait"
+  ssh "$deploy_target" "cd '$remote_dir' && export SOURCE_FINGERPRINT='$source_fingerprint' CHAT_ENABLED=false && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml restart mediamtx && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml up -d --wait"
 fi
 
 ssh "$deploy_target" "cd '$remote_dir' && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile"
 
-ssh "$deploy_target" "cd '$remote_dir' && sh deploy/oracle/bootstrap-admin.sh"
+ssh "$deploy_target" "cd '$remote_dir' && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml stop centrifugo && sh deploy/oracle/bootstrap-admin.sh"
 
 echo "Deployment complete. Inspect it with:"
 echo "ssh $deploy_target \"cd '$remote_dir' && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml ps\""

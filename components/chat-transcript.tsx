@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, useCallback, useEffect, useMemo, useRef } from 'react'
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import {
   Virtuoso,
   type Components,
@@ -127,8 +127,9 @@ export function ChatTranscript({
   retryDisabled = false,
 }: ChatTranscriptProps) {
   const initialPositionSetRef = useRef(false)
-  const atBottomRef = useRef(atBottom)
   const virtuosoRef = useRef<VirtuosoHandle | null>(null)
+  const scrollerRef = useRef<HTMLElement | null>(null)
+  const historyAnchorRef = useRef<{ id: string; top: number } | null>(null)
   const entries = useMemo<ChatTranscriptEntry[]>(
     () => [
       ...buildChatTranscriptEntries(messages, historyExhausted),
@@ -139,19 +140,65 @@ export function ChatTranscript({
     [historyExhausted, messages, submissions],
   )
   const handleStartReached = useCallback(() => {
-    if (initialPositionSetRef.current && !atBottomRef.current) onLoadOlder()
+    const scroller = scrollerRef.current
+    if (initialPositionSetRef.current && scroller &&
+      scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 2) {
+      const top = scroller?.getBoundingClientRect().top ?? 0
+      const anchor = scroller && Array.from(
+        scroller.querySelectorAll<HTMLElement>('[data-message-entry-id]'),
+      ).find(element => element.getBoundingClientRect().bottom > top)
+      if (anchor) historyAnchorRef.current = {
+        id: anchor.dataset.messageEntryId!,
+        top: anchor.getBoundingClientRect().top - top,
+      }
+      onLoadOlder()
+    }
   }, [onLoadOlder])
+
+  useLayoutEffect(() => {
+    const anchor = historyAnchorRef.current
+    if (!anchor) return
+    historyAnchorRef.current = null
+    // Prepending can move the first day separator. Virtuoso preserves item indexes,
+    // but the moved separator also changes the height before the visible message.
+    let frame = 0
+    let attempts = 0
+    let previousScrollTop = 0
+    const scroller = scrollerRef.current
+    let cancelled = false
+    const cancel = () => { cancelled = true }
+    const inputEvents = ['wheel', 'touchstart', 'pointerdown', 'keydown']
+    for (const event of inputEvents) scroller?.addEventListener(event, cancel)
+    const restore = () => {
+      // Stop if the reader returns to the start while measurements settle.
+      if (cancelled || (previousScrollTop > 0 && scroller?.scrollTop === 0)) return
+      const element = scroller && Array.from(
+        scroller.querySelectorAll<HTMLElement>('[data-message-entry-id]'),
+      ).find(element => element.dataset.messageEntryId === anchor.id)
+      if (scroller && element) {
+        scroller.scrollTop += element.getBoundingClientRect().top -
+          scroller.getBoundingClientRect().top - anchor.top
+        previousScrollTop = scroller.scrollTop
+      }
+      if (++attempts < 8) frame = requestAnimationFrame(restore)
+    }
+    frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(restore)
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+      for (const event of inputEvents) scroller?.removeEventListener(event, cancel)
+    }
+  }, [firstItemIndex])
   const handleAtBottomChange = useCallback(
     (nextAtBottom: boolean) => {
-      atBottomRef.current = nextAtBottom
       onAtBottomChange(nextAtBottom)
     },
     [onAtBottomChange],
   )
   const scrollToLiveEnd = useCallback(() => {
-    handleAtBottomChange(true)
     virtuosoRef.current?.scrollToIndex({ align: 'end', index: 'LAST' })
-  }, [handleAtBottomChange])
+  }, [])
 
   useEffect(() => {
     if (initialPositionSetRef.current || entries.length === 0) return
@@ -249,6 +296,9 @@ export function ChatTranscript({
         }}
         minOverscanItemCount={{ bottom: 4, top: 4 }}
         ref={virtuosoRef}
+        scrollerRef={element => {
+          scrollerRef.current = element instanceof HTMLElement ? element : null
+        }}
         role="log"
         startReached={handleStartReached}
       />

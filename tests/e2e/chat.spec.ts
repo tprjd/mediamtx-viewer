@@ -97,6 +97,9 @@ async function observePlayback(page: Page) {
     return { time: video.currentTime, source: video.currentSrc }
   })
   return async () => {
+    await expect.poll(() => handle.evaluate((element) =>
+      (element as HTMLVideoElement).currentTime,
+    )).toBeGreaterThan(initial.time + 0.5)
     const current = await handle.evaluate((element) => {
       const video = element as HTMLVideoElement
       return {
@@ -160,7 +163,10 @@ async function waitForCentrifugo(): Promise<void> {
 }
 
 async function scrollChatToTop(log: Locator): Promise<void> {
+  await expect(log).toHaveAttribute('aria-busy', 'false')
   await log.evaluate((element) => {
+    // Match a reader's scroll input so pending prepend corrections stop.
+    element.dispatchEvent(new WheelEvent('wheel', { deltaY: -1000 }))
     if (
       element.scrollTop === 0 &&
       element.scrollHeight > element.clientHeight
@@ -304,7 +310,40 @@ test('browses retained Chat history without losing the reading position', async 
   const prefix = `retained-${randomUUID()}`
   seedRetainedChatHistory(prefix, true)
   await page.setViewportSize({ width: 1440, height: 900 })
+  let releaseInitialHistory: () => void = () => undefined
+  const initialHistoryRelease = new Promise<void>(resolve => { releaseInitialHistory = resolve })
+  const prematureReconciliation: string[] = []
+  await page.route('**/chat/messages', async route => {
+    await initialHistoryRelease
+    await route.continue()
+  })
+  page.on('request', request => {
+    if (request.url().includes('/chat/messages?after=0')) prematureReconciliation.push(request.url())
+  })
+  const connected = new Promise<void>(resolve => {
+    page.on('websocket', socket => {
+      if (!socket.url().includes('/connection/websocket')) return
+      socket.on('framereceived', ({payload}) => {
+        for (const frame of payload.toString().split('\n')) {
+          if (frame && JSON.parse(frame).connect?.client) resolve()
+        }
+      })
+    })
+  })
   await signInAsAdministrator(page)
+  await connected
+  const initialPage = await (await page.request.get('/api/channels/live/chat/messages')).json()
+  const token = await (await page.request.get('/api/channels/live/chat/token')).json()
+  const claims = JSON.parse(Buffer.from(token.token.split('.')[1], 'base64url').toString())
+  const publication = await page.request.post('http://127.0.0.1:3800/api/publish', {
+    headers: { 'X-API-Key': 'e2e-centrifugo-api-key-that-is-at-least-32-characters' },
+    data: {channel: claims.channels.find((name: string) => name.startsWith('chat:')),
+      data: {type: 'message', eventId: randomUUID(), message: initialPage.messages[0]}},
+  })
+  expect(publication.ok()).toBe(true)
+  await page.waitForTimeout(100)
+  expect(prematureReconciliation).toEqual([])
+  releaseInitialHistory()
 
   const chat = page.getByRole('complementary', { name: 'Chat' })
   const log = chat.getByRole('log', { name: 'Chat messages' })
@@ -1541,4 +1580,30 @@ test('restore drill keeps authentication and playback available during an indepe
     if (paused) runDocker('unpause', centrifugoContainer)
     rmSync(backupDirectory, { recursive: true, force: true })
   }
+})
+
+test('global Chat rollback closes the connection and keeps playback and retained history', async ({ page }) => {
+  await prepareChatPlayback(page)
+  await signInAsAdministrator(page)
+  const assertPlaybackContinues = await observePlayback(page)
+  const response = await postChat(page, 'Retained through rollout')
+  expect(response.ok()).toBe(true)
+  let enabled = false
+  await page.route('**/api/chat/config', route => route.fulfill({json: {enabled}}))
+  const socketClosed = new Promise<void>(resolve => {
+    page.on('websocket', socket => socket.on('close', () => resolve()))
+  })
+  // First close the existing connection, then observe the new connection after re-enable.
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(page.getByText('Chat is coming soon')).toBeVisible()
+  enabled = true
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(page.getByRole('log').getByText('Retained through rollout')).toBeVisible()
+  enabled = false
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(page.getByText('Chat is coming soon')).toBeVisible()
+  await Promise.race([socketClosed, new Promise((_, reject) => setTimeout(() => reject(new Error('Chat socket stayed open')), 5000))])
+  const history = await page.request.get('/api/channels/live/chat/messages')
+  expect((await history.json()).messages.some((message: {content?: string}) => message.content === 'Retained through rollout')).toBe(true)
+  await assertPlaybackContinues()
 })

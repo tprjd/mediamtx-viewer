@@ -1,5 +1,8 @@
 node_modules
 .next
+.next-e2e
+.next-e2e-chat
+.scratch
 .data
 coverage
 playwright-report

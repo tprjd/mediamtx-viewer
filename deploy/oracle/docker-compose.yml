@@ -165,6 +165,7 @@ services:
       context: ../..
       dockerfile: Dockerfile
       args:
+        SOURCE_FINGERPRINT: ${SOURCE_FINGERPRINT:-unverified}
         MEDIAMTX_HLS_URL: http://mediamtx:8888
         MEDIAMTX_WEBRTC_URL: http://mediamtx:8889
     restart: unless-stopped

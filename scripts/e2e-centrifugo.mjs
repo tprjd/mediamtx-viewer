@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process'
+import { setTimeout as delay } from 'node:timers/promises'
 
 const containerName = 'mediamtx-viewer-e2e-centrifugo'
 const image =
@@ -65,3 +66,21 @@ function stop() {
 process.once('SIGINT', stop)
 process.once('SIGTERM', stop)
 process.once('exit', removeContainer)
+
+// Start Docker before probing its port. Some hosts leave a removed container's
+// port in a timeout state instead of rejecting the initial connection.
+const deadline = Date.now() + 30_000
+for (;;) {
+  try {
+    const response = await fetch('http://127.0.0.1:3800/health', {
+      signal: AbortSignal.timeout(1_000),
+    })
+    if (response.ok) break
+  } catch { /* Wait for the container's listener. */ }
+  if (Date.now() >= deadline) {
+    console.error('Centrifugo health check failed')
+    process.exit(1)
+  }
+  await delay(100)
+}
+console.log('Centrifugo health check passed')

@@ -290,13 +290,14 @@ function ChatPanelContent({
       mergeAndAnnounceMessage(message)
       confirmMessages([message])
       if (
+        !loading &&
         lastSequence !== undefined &&
         chatMessageRevision(message) > lastSequence + 1
       ) {
         reconcile(lastSequence)
       }
     },
-    [confirmMessages, isChatVisible, mergeAndAnnounceMessage, reconcile],
+    [confirmMessages, isChatVisible, loading, mergeAndAnnounceMessage, reconcile],
   )
 
   const loadOlderHistory = useCallback(async () => {
@@ -472,6 +473,9 @@ function ChatPanelContent({
     ),
   )
   useEffect(() => {
+    // A connection can complete before the initial history request. Wait for its
+    // cursor so the first connection does not fetch the entire retained room.
+    if (loading) return
     if (
       realtimeState === 'connected' &&
       previousRealtimeState.current !== 'connected'
@@ -480,7 +484,7 @@ function ChatPanelContent({
       reconcile(Math.min(delayedAfter, latestChatSequence(messagesRef.current)))
     }
     previousRealtimeState.current = realtimeState
-  }, [delayedAfter, realtimeState, reconcile])
+  }, [delayedAfter, loading, realtimeState, reconcile])
 
   useEffect(() => {
     if (!isChatVisible || !unavailable) return

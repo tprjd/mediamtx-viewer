@@ -1,0 +1,3 @@
+Production Compose validates with Chat disabled, enabled, and disabled by default.
+Production Chat proxy authenticates WebSocket upgrades and rejects inactive sessions.
+Production proxy avoids expired upstream connections for submissions.

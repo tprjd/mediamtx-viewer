@@ -1,0 +1,9 @@
+{
+  "startedAt": "2026-09-16T16:50:04.961Z",
+  "passed": false,
+  "retainedMessages": 2009,
+  "databaseAndSchemaUnchanged": true,
+  "closedSockets": 5,
+  "error": "expect(received).toMatchObject(expected)",
+  "finishedAt": "2026-09-16T16:51:14.408Z"
+}

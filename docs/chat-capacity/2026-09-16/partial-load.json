@@ -1,0 +1,3774 @@
+{
+  "version": 1,
+  "origin": "https://frankerzspam.duckdns.org",
+  "channel": "live",
+  "stage": "LOAD",
+  "startedAt": "2026-09-16T16:36:57.369Z",
+  "durationSeconds": 0,
+  "connections": 100,
+  "accepted": 2009,
+  "rejected": 35,
+  "lateSubmissions": 0,
+  "deliveryCount": 200400,
+  "expectedDeliveryCount": 0,
+  "historyPages": 19,
+  "reconnectMs": [],
+  "playbackSamples": 205,
+  "playbackFailures": 0,
+  "statusSamples": 101,
+  "statusFailures": 0,
+  "statusMaxAgeMs": 1095,
+  "heartbeats": 11,
+  "heartbeatMaxGapMs": 20145,
+  "hostSamples": 21,
+  "hostFailures": 0,
+  "hosts": [
+    {
+      "cpuPercent": 26.74418604651163,
+      "at": 1789576636340.0042,
+      "architecture": "aarch64",
+      "cpuTotal": 153003440,
+      "cpuIdle": 142125301,
+      "memoryAvailableBytes": 3755069440,
+      "memoryTotalBytes": 6190288896,
+      "load1": 0.8974609375,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "0.02%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.51%",
+          "MemUsage": "29.84MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "6.98kB / 25.9kB",
+          "PIDs": "6"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "0.07%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "1.00%",
+          "MemUsage": "58.98MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "70.9kB / 31.9kB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 126976,
+        "authBytes": 315392,
+        "freeBytes": 31963213824,
+        "outboxDepth": 0,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "before"
+    },
+    {
+      "cpuPercent": 56.402164111812446,
+      "at": 1789576659564.9812,
+      "architecture": "aarch64",
+      "cpuTotal": 153005658,
+      "cpuIdle": 142126268,
+      "memoryAvailableBytes": 3547590656,
+      "memoryTotalBytes": 6190288896,
+      "load1": 0.58984375,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "3.56%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.62%",
+          "MemUsage": "36.39MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "432kB / 2.11MB",
+          "PIDs": "7"
+        },
+        {
+          "BlockIO": "5.42MB / 73.7kB",
+          "CPUPerc": "53.31%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "3.96%",
+          "MemUsage": "233.8MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "1.58MB / 1.31MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 3464208,
+        "authBytes": 315392,
+        "freeBytes": 31959437312,
+        "outboxDepth": 1,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 74.97348886532343,
+      "at": 1789576669092.9487,
+      "architecture": "aarch64",
+      "cpuTotal": 153006601,
+      "cpuIdle": 142126504,
+      "memoryAvailableBytes": 3505549312,
+      "memoryTotalBytes": 6190288896,
+      "load1": 1.54052734375,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "4.50%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.63%",
+          "MemUsage": "36.97MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "1.16MB / 7.08MB",
+          "PIDs": "8"
+        },
+        {
+          "BlockIO": "5.42MB / 8.34MB",
+          "CPUPerc": "41.55%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "4.61%",
+          "MemUsage": "271.9MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "2.43MB / 1.8MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 4378200,
+        "authBytes": 315392,
+        "freeBytes": 31958450176,
+        "outboxDepth": 0,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 94.08224674022067,
+      "at": 1789576679032.6748,
+      "architecture": "aarch64",
+      "cpuTotal": 153007598,
+      "cpuIdle": 142126563,
+      "memoryAvailableBytes": 3480059904,
+      "memoryTotalBytes": 6190288896,
+      "load1": 1.61181640625,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "5.51%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.64%",
+          "MemUsage": "37.72MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "1.85MB / 11.8MB",
+          "PIDs": "8"
+        },
+        {
+          "BlockIO": "5.42MB / 17.6MB",
+          "CPUPerc": "57.22%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "5.06%",
+          "MemUsage": "298.7MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "3.56MB / 2.4MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 4472576,
+        "authBytes": 315392,
+        "freeBytes": 31958355968,
+        "outboxDepth": 1,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 94.92537313432837,
+      "at": 1789576688885.969,
+      "architecture": "aarch64",
+      "cpuTotal": 153008603,
+      "cpuIdle": 142126614,
+      "memoryAvailableBytes": 3610656768,
+      "memoryTotalBytes": 6190288896,
+      "load1": 1.89306640625,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "5.12%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.65%",
+          "MemUsage": "38.38MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "2.68MB / 17.5MB",
+          "PIDs": "8"
+        },
+        {
+          "BlockIO": "5.42MB / 26.3MB",
+          "CPUPerc": "45.65%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "5.06%",
+          "MemUsage": "298.9MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "4.71MB / 3.05MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 4538112,
+        "authBytes": 315392,
+        "freeBytes": 31958286336,
+        "outboxDepth": 1,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 82.49496981891348,
+      "at": 1789576698914.501,
+      "architecture": "aarch64",
+      "cpuTotal": 153009597,
+      "cpuIdle": 142126788,
+      "memoryAvailableBytes": 3591127040,
+      "memoryTotalBytes": 6190288896,
+      "load1": 1.92236328125,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "6.28%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.66%",
+          "MemUsage": "38.84MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "3.36MB / 22.2MB",
+          "PIDs": "8"
+        },
+        {
+          "BlockIO": "5.42MB / 35MB",
+          "CPUPerc": "37.25%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "5.12%",
+          "MemUsage": "302.3MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "5.93MB / 3.69MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 4607744,
+        "authBytes": 315392,
+        "freeBytes": 31958212608,
+        "outboxDepth": 0,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 85.2035749751738,
+      "at": 1789576708993.4446,
+      "architecture": "aarch64",
+      "cpuTotal": 153010604,
+      "cpuIdle": 142126937,
+      "memoryAvailableBytes": 3532673024,
+      "memoryTotalBytes": 6190288896,
+      "load1": 1.947265625,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "6.70%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.69%",
+          "MemUsage": "40.56MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "4.13MB / 27.5MB",
+          "PIDs": "8"
+        },
+        {
+          "BlockIO": "5.42MB / 43.9MB",
+          "CPUPerc": "39.83%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "5.82%",
+          "MemUsage": "343.5MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "7.08MB / 4.32MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 4681472,
+        "authBytes": 315392,
+        "freeBytes": 31958138880,
+        "outboxDepth": 1,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 82.2110552763819,
+      "at": 1789576719215.4385,
+      "architecture": "aarch64",
+      "cpuTotal": 153011599,
+      "cpuIdle": 142127114,
+      "memoryAvailableBytes": 3507810304,
+      "memoryTotalBytes": 6190288896,
+      "load1": 2.66357421875,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "2.84%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.69%",
+          "MemUsage": "40.82MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "4.79MB / 32.1MB",
+          "PIDs": "8"
+        },
+        {
+          "BlockIO": "5.42MB / 52.8MB",
+          "CPUPerc": "49.60%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.50%",
+          "MemUsage": "383.6MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "8.2MB / 4.91MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 4759320,
+        "authBytes": 315392,
+        "freeBytes": 31958052864,
+        "outboxDepth": 0,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 90.86345381526104,
+      "at": 1789576728855.4546,
+      "architecture": "aarch64",
+      "cpuTotal": 153012595,
+      "cpuIdle": 142127205,
+      "memoryAvailableBytes": 3489447936,
+      "memoryTotalBytes": 6190288896,
+      "load1": 2.57470703125,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "6.52%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.69%",
+          "MemUsage": "40.86MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "5.65MB / 38MB",
+          "PIDs": "8"
+        },
+        {
+          "BlockIO": "5.42MB / 61.7MB",
+          "CPUPerc": "37.21%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.48%",
+          "MemUsage": "382.4MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "9.31MB / 5.52MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 4837144,
+        "authBytes": 315392,
+        "freeBytes": 31957975040,
+        "outboxDepth": 0,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 83.91959798994975,
+      "at": 1789576738830.9949,
+      "architecture": "aarch64",
+      "cpuTotal": 153013590,
+      "cpuIdle": 142127365,
+      "memoryAvailableBytes": 3459145728,
+      "memoryTotalBytes": 6190288896,
+      "load1": 2.94775390625,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "4.98%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.69%",
+          "MemUsage": "40.61MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "6.48MB / 43.7MB",
+          "PIDs": "8"
+        },
+        {
+          "BlockIO": "5.42MB / 70.6MB",
+          "CPUPerc": "54.66%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.48%",
+          "MemUsage": "382.3MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "10.3MB / 6.06MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 4923232,
+        "authBytes": 315392,
+        "freeBytes": 31957880832,
+        "outboxDepth": 0,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 85.42713567839196,
+      "at": 1789576749061.4412,
+      "architecture": "aarch64",
+      "cpuTotal": 153014585,
+      "cpuIdle": 142127510,
+      "memoryAvailableBytes": 3512086528,
+      "memoryTotalBytes": 6190288896,
+      "load1": 2.81494140625,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "5.63%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.69%",
+          "MemUsage": "40.9MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "7.18MB / 48.5MB",
+          "PIDs": "9"
+        },
+        {
+          "BlockIO": "5.42MB / 80.7MB",
+          "CPUPerc": "39.83%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.50%",
+          "MemUsage": "383.6MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "11.6MB / 6.74MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 4996960,
+        "authBytes": 315392,
+        "freeBytes": 31957807104,
+        "outboxDepth": 0,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 85.87064676616916,
+      "at": 1789576758848.6506,
+      "architecture": "aarch64",
+      "cpuTotal": 153015590,
+      "cpuIdle": 142127652,
+      "memoryAvailableBytes": 3492581376,
+      "memoryTotalBytes": 6190288896,
+      "load1": 2.8564453125,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "3.42%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.69%",
+          "MemUsage": "40.9MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "8.01MB / 54.3MB",
+          "PIDs": "9"
+        },
+        {
+          "BlockIO": "5.42MB / 88.7MB",
+          "CPUPerc": "46.04%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.50%",
+          "MemUsage": "383.5MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "12.6MB / 7.29MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 5091240,
+        "authBytes": 315392,
+        "freeBytes": 31957708800,
+        "outboxDepth": 0,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 84.99005964214712,
+      "at": 1789576769199.3604,
+      "architecture": "aarch64",
+      "cpuTotal": 153016596,
+      "cpuIdle": 142127803,
+      "memoryAvailableBytes": 3456274432,
+      "memoryTotalBytes": 6190288896,
+      "load1": 3.29833984375,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "5.78%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.69%",
+          "MemUsage": "40.7MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "8.77MB / 59.6MB",
+          "PIDs": "9"
+        },
+        {
+          "BlockIO": "5.42MB / 97.8MB",
+          "CPUPerc": "63.33%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.65%",
+          "MemUsage": "392.5MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "13.8MB / 7.88MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 5156776,
+        "authBytes": 315392,
+        "freeBytes": 31957643264,
+        "outboxDepth": 0,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 96.28886659979939,
+      "at": 1789576779095.7537,
+      "architecture": "aarch64",
+      "cpuTotal": 153017593,
+      "cpuIdle": 142127840,
+      "memoryAvailableBytes": 3498303488,
+      "memoryTotalBytes": 6190288896,
+      "load1": 3.720703125,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "3.23%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.70%",
+          "MemUsage": "41.24MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "9.54MB / 64.9MB",
+          "PIDs": "9"
+        },
+        {
+          "BlockIO": "5.42MB / 107MB",
+          "CPUPerc": "43.16%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.64%",
+          "MemUsage": "392.2MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "15MB / 8.51MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 5230504,
+        "authBytes": 315392,
+        "freeBytes": 31957561344,
+        "outboxDepth": 0,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 82.31155778894473,
+      "at": 1789576788851.0854,
+      "architecture": "aarch64",
+      "cpuTotal": 153018588,
+      "cpuIdle": 142128016,
+      "memoryAvailableBytes": 3477147648,
+      "memoryTotalBytes": 6190288896,
+      "load1": 3.609375,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "6.59%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.70%",
+          "MemUsage": "41.05MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "10.2MB / 69.7MB",
+          "PIDs": "9"
+        },
+        {
+          "BlockIO": "5.42MB / 116MB",
+          "CPUPerc": "40.16%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.65%",
+          "MemUsage": "392.9MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "16.2MB / 9.18MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 5296040,
+        "authBytes": 315392,
+        "freeBytes": 31957499904,
+        "outboxDepth": 0,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 88.91129032258065,
+      "at": 1789576799115.6301,
+      "architecture": "aarch64",
+      "cpuTotal": 153019580,
+      "cpuIdle": 142128126,
+      "memoryAvailableBytes": 3490619392,
+      "memoryTotalBytes": 6190288896,
+      "load1": 3.92919921875,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "6.30%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.70%",
+          "MemUsage": "41.06MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "11MB / 74.8MB",
+          "PIDs": "9"
+        },
+        {
+          "BlockIO": "5.42MB / 125MB",
+          "CPUPerc": "49.74%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.69%",
+          "MemUsage": "394.7MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "17.3MB / 9.79MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 5377960,
+        "authBytes": 315392,
+        "freeBytes": 31957417984,
+        "outboxDepth": 0,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 83.8,
+      "at": 1789576808937.3037,
+      "architecture": "aarch64",
+      "cpuTotal": 153020580,
+      "cpuIdle": 142128288,
+      "memoryAvailableBytes": 3530760192,
+      "memoryTotalBytes": 6190288896,
+      "load1": 4.2666015625,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "2.89%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.70%",
+          "MemUsage": "41.05MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "11.8MB / 80.7MB",
+          "PIDs": "9"
+        },
+        {
+          "BlockIO": "5.42MB / 134MB",
+          "CPUPerc": "44.29%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.68%",
+          "MemUsage": "394.4MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "18.4MB / 10.3MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 5451688,
+        "authBytes": 315392,
+        "freeBytes": 31957336064,
+        "outboxDepth": 1,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 83.31678252234359,
+      "at": 1789576819046.59,
+      "architecture": "aarch64",
+      "cpuTotal": 153021587,
+      "cpuIdle": 142128456,
+      "memoryAvailableBytes": 3509776384,
+      "memoryTotalBytes": 6190288896,
+      "load1": 4.1650390625,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "5.35%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.69%",
+          "MemUsage": "41.03MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "12.6MB / 86.2MB",
+          "PIDs": "9"
+        },
+        {
+          "BlockIO": "5.42MB / 144MB",
+          "CPUPerc": "59.67%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.69%",
+          "MemUsage": "394.9MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "19.5MB / 10.9MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 5537704,
+        "authBytes": 315392,
+        "freeBytes": 31957245952,
+        "outboxDepth": 1,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 82.35294117647058,
+      "at": 1789576828956.9475,
+      "architecture": "aarch64",
+      "cpuTotal": 153022590,
+      "cpuIdle": 142128633,
+      "memoryAvailableBytes": 3485589504,
+      "memoryTotalBytes": 6190288896,
+      "load1": 4.5400390625,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "6.20%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.70%",
+          "MemUsage": "41.2MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "13.3MB / 91.3MB",
+          "PIDs": "9"
+        },
+        {
+          "BlockIO": "5.42MB / 153MB",
+          "CPUPerc": "49.07%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.67%",
+          "MemUsage": "393.5MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "20.6MB / 11.5MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 5623720,
+        "authBytes": 315392,
+        "freeBytes": 31957155840,
+        "outboxDepth": 1,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 83.29979879275655,
+      "at": 1789576838804.7825,
+      "architecture": "aarch64",
+      "cpuTotal": 153023584,
+      "cpuIdle": 142128799,
+      "memoryAvailableBytes": 3538653184,
+      "memoryTotalBytes": 6190288896,
+      "load1": 4.25634765625,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "5.90%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.70%",
+          "MemUsage": "41.2MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "14MB / 96.1MB",
+          "PIDs": "9"
+        },
+        {
+          "BlockIO": "5.42MB / 162MB",
+          "CPUPerc": "39.34%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.68%",
+          "MemUsage": "394.4MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "21.8MB / 12.2MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 5689256,
+        "authBytes": 315392,
+        "freeBytes": 31957086208,
+        "outboxDepth": 0,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 80.44132397191575,
+      "at": 1789576849054.5857,
+      "architecture": "aarch64",
+      "cpuTotal": 153024581,
+      "cpuIdle": 142128994,
+      "memoryAvailableBytes": 3512721408,
+      "memoryTotalBytes": 6190288896,
+      "load1": 4.7109375,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "1.12MB / 0B",
+          "CPUPerc": "4.39%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.70%",
+          "MemUsage": "41.2MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "14.9MB / 102MB",
+          "PIDs": "9"
+        },
+        {
+          "BlockIO": "5.42MB / 171MB",
+          "CPUPerc": "46.92%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.68%",
+          "MemUsage": "394.2MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "22.9MB / 12.8MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 5762984,
+        "authBytes": 315392,
+        "freeBytes": 31957008384,
+        "outboxDepth": 0,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    },
+    {
+      "cpuPercent": 83.24924318869829,
+      "at": 1789576859778.4932,
+      "architecture": "aarch64",
+      "cpuTotal": 153025572,
+      "cpuIdle": 142129160,
+      "memoryAvailableBytes": 3527737344,
+      "memoryTotalBytes": 6190288896,
+      "load1": 4.53466796875,
+      "containers": [
+        {
+          "service": "centrifugo",
+          "imageId": "sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "sourceFingerprint": null,
+          "image": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        },
+        {
+          "service": "viewer",
+          "imageId": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+          "sourceFingerprint": "5d39b934f39793f7d3d1fd1f432b8ee54cc291be4e245d6b2928ced3eadb3bfb",
+          "image": "mediamtx-viewer-viewer",
+          "architecture": "arm64",
+          "health": "healthy",
+          "running": true,
+          "restarts": 0
+        }
+      ],
+      "stats": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "0.00%",
+          "Container": "4bb18afd63cbc94a23fdec5273ce43e900e81a580d99831888b258f54a53af00",
+          "ID": "4bb18afd63cb",
+          "MemPerc": "0.00%",
+          "MemUsage": "0B / 0B",
+          "Name": "mediamtx-viewer-centrifugo-1",
+          "NetIO": "0B / 0B",
+          "PIDs": "0"
+        },
+        {
+          "BlockIO": "5.42MB / 180MB",
+          "CPUPerc": "14.61%",
+          "Container": "ade25fcbebfb8ce784e75032a9e13a66c2d40c8489edeec6cc68ed704087ba47",
+          "ID": "ade25fcbebfb",
+          "MemPerc": "6.66%",
+          "MemUsage": "393.5MiB / 5.765GiB",
+          "Name": "mediamtx-viewer-viewer-1",
+          "NetIO": "23.9MB / 13.3MB",
+          "PIDs": "11"
+        }
+      ],
+      "database": {
+        "integrity": "ok",
+        "databaseBytes": 5795752,
+        "authBytes": 315392,
+        "freeBytes": 31956729856,
+        "outboxDepth": 5,
+        "minimumFreeBytes": 10737418240,
+        "databaseLimitBytes": 2147483648
+      },
+      "phase": "load"
+    }
+  ],
+  "playback": [
+    {
+      "at": 1789576656056,
+      "time": 45.300252,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 972,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576657030,
+      "time": 46.304669,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1032,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576658029,
+      "time": 47.334266,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1094,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576659029,
+      "time": 48.362701,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1156,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576660027,
+      "time": 49.392233,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1217,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576661026,
+      "time": 50.420821,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1279,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576662026,
+      "time": 51.450993,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1341,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576663026,
+      "time": 52.480746,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1403,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576664025,
+      "time": 53.509488,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1465,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576665024,
+      "time": 54.539123,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1526,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576666023,
+      "time": 55.5678,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1588,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576667023,
+      "time": 56.597386,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1650,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576668022,
+      "time": 57.626699,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1712,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576669021,
+      "time": 58.656266,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1774,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576670021,
+      "time": 59.685764,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1835,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576671021,
+      "time": 60.715363,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1897,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576672020,
+      "time": 61.713313,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 1957,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576673020,
+      "time": 62.696238,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2016,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576674018,
+      "time": 63.724951,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2078,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576675019,
+      "time": 64.68765,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2136,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576676018,
+      "time": 65.716452,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2197,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576677017,
+      "time": 66.712879,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2257,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576678016,
+      "time": 67.694888,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2316,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576679015,
+      "time": 68.720955,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2377,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576680016,
+      "time": 69.709473,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2436,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576681015,
+      "time": 70.709121,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2496,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576682015,
+      "time": 71.710272,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2556,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576683014,
+      "time": 72.712763,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2616,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576684014,
+      "time": 73.732728,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2678,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576685014,
+      "time": 74.732546,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2738,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576686013,
+      "time": 75.732089,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2798,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576687013,
+      "time": 76.732054,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2858,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576688013,
+      "time": 77.731925,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2918,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576689012,
+      "time": 78.731654,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 2978,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576690013,
+      "time": 79.732005,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3038,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576691012,
+      "time": 80.73156,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3098,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576692012,
+      "time": 81.731667,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3158,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576693013,
+      "time": 82.732228,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3218,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576694012,
+      "time": 83.731391,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3278,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576695012,
+      "time": 84.730914,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3338,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576696012,
+      "time": 85.731158,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3398,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576697011,
+      "time": 86.730234,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3458,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576698010,
+      "time": 87.728848,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3518,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576699010,
+      "time": 88.728525,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3578,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576700009,
+      "time": 89.727339,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3638,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576701008,
+      "time": 90.726921,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3698,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576702007,
+      "time": 91.725956,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3758,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576703006,
+      "time": 92.725552,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3818,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576704006,
+      "time": 93.725359,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3878,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576705005,
+      "time": 94.724455,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3938,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576706004,
+      "time": 95.723537,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 3998,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576707004,
+      "time": 96.723086,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4058,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576708004,
+      "time": 97.699492,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4117,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576709004,
+      "time": 98.702028,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4176,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576710004,
+      "time": 99.7169,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4237,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576711003,
+      "time": 100.694117,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4296,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576712002,
+      "time": 101.717945,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4357,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576713003,
+      "time": 102.692623,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4416,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576714002,
+      "time": 103.720032,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4477,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576715000,
+      "time": 104.718461,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4537,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576716002,
+      "time": 105.720082,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4597,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576717001,
+      "time": 106.719242,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4657,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576718000,
+      "time": 107.718293,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4717,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576719000,
+      "time": 108.718263,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4777,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576719998,
+      "time": 109.716305,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4837,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576720998,
+      "time": 110.715007,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4896,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576721997,
+      "time": 111.71591,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 4957,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576722998,
+      "time": 112.716027,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5017,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576723998,
+      "time": 113.716214,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5077,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576724997,
+      "time": 114.714833,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5136,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576725996,
+      "time": 115.714245,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5196,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576726994,
+      "time": 116.71279,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5256,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576727994,
+      "time": 117.712396,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5316,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576728993,
+      "time": 118.711283,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5376,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576729992,
+      "time": 119.711059,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5436,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576730992,
+      "time": 120.71034,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5496,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576731992,
+      "time": 121.710615,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5556,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576732992,
+      "time": 122.710671,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5616,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576733991,
+      "time": 123.709488,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5676,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576734992,
+      "time": 124.710372,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5736,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576735990,
+      "time": 125.708423,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5796,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576736989,
+      "time": 126.707902,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5856,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576737989,
+      "time": 127.707562,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5916,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576738989,
+      "time": 128.707622,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 5976,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576739987,
+      "time": 129.70598,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6036,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576740987,
+      "time": 130.705091,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6096,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576741987,
+      "time": 131.705593,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6156,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576742986,
+      "time": 132.705149,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6216,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576743987,
+      "time": 133.705416,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6276,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576744987,
+      "time": 134.705863,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6336,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576745986,
+      "time": 135.705252,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6396,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576746986,
+      "time": 136.705083,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6456,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576747986,
+      "time": 137.704821,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6516,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576748986,
+      "time": 138.704348,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6576,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576749986,
+      "time": 139.704733,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6636,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576750986,
+      "time": 140.704963,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6696,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576751986,
+      "time": 141.704635,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6756,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576752985,
+      "time": 142.703228,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6816,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576753985,
+      "time": 143.70371,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6876,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576754984,
+      "time": 144.702316,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6936,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576755983,
+      "time": 145.701445,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 6996,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576756983,
+      "time": 146.701881,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7056,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576757983,
+      "time": 147.70143,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7116,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576758983,
+      "time": 148.702137,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7176,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576759984,
+      "time": 149.702797,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7236,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576760984,
+      "time": 150.702735,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7296,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576761985,
+      "time": 151.702604,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7356,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576762984,
+      "time": 152.702381,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7416,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576763983,
+      "time": 153.701804,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7476,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576764983,
+      "time": 154.701429,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7536,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576765983,
+      "time": 155.701488,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7596,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576766983,
+      "time": 156.701769,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7656,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576767982,
+      "time": 157.701045,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7716,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576768981,
+      "time": 158.700036,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7776,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576769981,
+      "time": 159.699358,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7836,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576770980,
+      "time": 160.698827,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7896,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576771980,
+      "time": 161.699065,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 7956,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576772978,
+      "time": 162.696269,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8015,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576773977,
+      "time": 163.695609,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8075,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576774976,
+      "time": 164.694548,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8135,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576775975,
+      "time": 165.694076,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8195,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576776975,
+      "time": 166.693606,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8255,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576777976,
+      "time": 167.694111,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8315,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576778975,
+      "time": 168.693961,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8375,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576779975,
+      "time": 169.693207,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8435,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576780975,
+      "time": 170.693482,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8495,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576781975,
+      "time": 171.693912,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8555,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576782975,
+      "time": 172.691375,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8615,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576783975,
+      "time": 173.691441,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8675,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576784975,
+      "time": 174.691483,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8735,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576785974,
+      "time": 175.691224,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8795,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576786974,
+      "time": 176.690833,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8855,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576787974,
+      "time": 177.690601,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8915,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576788974,
+      "time": 178.690759,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 8975,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576789974,
+      "time": 179.690568,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9035,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576790974,
+      "time": 180.671975,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9094,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576791973,
+      "time": 181.670575,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9154,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576792973,
+      "time": 182.666848,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9214,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576793972,
+      "time": 183.668943,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9274,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576794971,
+      "time": 184.662494,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9334,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576795970,
+      "time": 185.661127,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9394,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576796970,
+      "time": 186.677756,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9455,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576797971,
+      "time": 187.678204,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9515,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576798970,
+      "time": 188.675753,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9575,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576799970,
+      "time": 189.686807,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9635,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576800971,
+      "time": 190.687172,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9695,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576801971,
+      "time": 191.687446,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9755,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576802971,
+      "time": 192.687193,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9815,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576803970,
+      "time": 193.686554,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9875,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576804970,
+      "time": 194.686388,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9935,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576805971,
+      "time": 195.68679,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 9995,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576806969,
+      "time": 196.685821,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10055,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576807970,
+      "time": 197.685754,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10115,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576808967,
+      "time": 198.682923,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10175,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576809966,
+      "time": 199.682983,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10235,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576810966,
+      "time": 200.682748,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10295,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576811964,
+      "time": 201.681091,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10355,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576812964,
+      "time": 202.680337,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10415,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576813963,
+      "time": 203.680166,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10475,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576814964,
+      "time": 204.680833,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10535,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576815964,
+      "time": 205.681261,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10595,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576816963,
+      "time": 206.680404,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10655,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576817964,
+      "time": 207.681128,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10715,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576818964,
+      "time": 208.681057,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10775,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576819964,
+      "time": 209.680731,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10835,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576820964,
+      "time": 210.68079,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10895,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576821963,
+      "time": 211.680616,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 10955,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576822963,
+      "time": 212.680453,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11015,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576823963,
+      "time": 213.679672,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11075,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576824962,
+      "time": 214.67963,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11135,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576825963,
+      "time": 215.680168,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11195,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576826963,
+      "time": 216.679715,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11255,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576827962,
+      "time": 217.67956,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11315,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576828962,
+      "time": 218.678896,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11375,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576829961,
+      "time": 219.678687,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11435,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576830961,
+      "time": 220.67824,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11495,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576831960,
+      "time": 221.677609,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11555,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576832960,
+      "time": 222.677589,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11615,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576833960,
+      "time": 223.677153,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11675,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576834959,
+      "time": 224.677059,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11735,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576835959,
+      "time": 225.676505,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11795,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576836957,
+      "time": 226.674999,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11854,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576837957,
+      "time": 227.674234,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11914,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576838957,
+      "time": 228.67428,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 11974,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576839957,
+      "time": 229.674297,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12034,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576840956,
+      "time": 230.673615,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12094,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576841955,
+      "time": 231.673109,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12154,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576842956,
+      "time": 232.673121,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12214,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576843955,
+      "time": 233.673012,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12274,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576844955,
+      "time": 234.67265,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12334,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576845955,
+      "time": 235.673171,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12394,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576846955,
+      "time": 236.6728,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12454,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576847955,
+      "time": 237.67228,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12514,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576848955,
+      "time": 238.673233,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12574,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576849956,
+      "time": 239.673335,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12634,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576850955,
+      "time": 240.673133,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12694,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576851956,
+      "time": 241.673692,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12754,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576852956,
+      "time": 242.673197,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12814,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576853955,
+      "time": 243.673002,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12874,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576854955,
+      "time": 244.672186,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12934,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576855955,
+      "time": 245.672765,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 12994,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576856956,
+      "time": 246.672894,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 13054,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576857954,
+      "time": 247.671985,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 13114,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576858955,
+      "time": 248.670987,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 13174,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    },
+    {
+      "at": 1789576859953,
+      "time": 249.669949,
+      "source": "blob:https://frankerzspam.duckdns.org/1a875e7a-06ee-4d54-8919-fc1bd08ff5d4",
+      "connected": true,
+      "paused": false,
+      "frames": 13234,
+      "interruptions": 0,
+      "mode": "balanced",
+      "recovery": false
+    }
+  ],
+  "errors": [
+    "OBSERVATION_FAILED",
+    "OBSERVATION_FAILED",
+    "OBSERVATION_FAILED",
+    "ROLLBACK_FAILED"
+  ],
+  "steadyState": false,
+  "storage": {
+    "dailyMessages": 100000,
+    "retainedMessages": 700000,
+    "contentBytes": 500,
+    "databaseBytes": 664821760,
+    "chatBackupBytes": 644317184,
+    "requiredChatBytes": 7107993600,
+    "measuredAt": "2026-09-16T16:37:13.289Z"
+  },
+  "viewerImage": "sha256:b49de965046d72e5ee3cb446bd2e8ea4384860420e0f6b3f942e3621b2287d1e",
+  "centrifugoImage": "centrifugo/centrifugo:v6.9.3@sha256:017d0a3d39757f94a09efa657b6ad7e68222564dd9ba7dd7193981d75cd8a025",
+  "submissionP95Ms": 1047.2602709999992,
+  "deliveryP95Ms": 1043.3516439999948,
+  "historyP95Ms": 1202.8110410000008,
+  "statusP95Ms": 955.5522479999927,
+  "finishedAt": "2026-09-16T16:41:06.083Z",
+  "failures": [
+    "load-duration-and-connections",
+    "accepted-rate",
+    "complete-delivery",
+    "submission-latency",
+    "delivery-latency",
+    "history-latency",
+    "reconnect-and-reconciliation",
+    "playback",
+    "channel-status",
+    "host-health",
+    "driver-errors"
+  ],
+  "passed": false,
+  "rollbackSucceeded": false
+}

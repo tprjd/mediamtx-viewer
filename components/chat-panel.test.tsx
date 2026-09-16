@@ -108,6 +108,7 @@ vi.mock('react-virtuoso', async (importOriginal) => {
           className: props.className,
           'data-at-bottom': props['data-at-bottom'],
           'data-realtime-state': props['data-realtime-state'],
+          ref: props.scrollerRef as (element: HTMLDivElement | null) => void,
           onScroll(event: UIEvent<HTMLDivElement>) {
             const nextAtBottom = event.currentTarget.scrollTop > 0
             setAtBottom(nextAtBottom)
@@ -387,6 +388,10 @@ describe('live Chat delivery', () => {
     expect(requests.filter((url) => url.includes('before='))).toHaveLength(0)
     await nextAnimationFrame()
 
+    Object.defineProperties(log, {
+      clientHeight: { configurable: true, value: 200 },
+      scrollHeight: { configurable: true, value: 800 },
+    })
     fireEvent.scroll(log, { target: { scrollTop: 0 } })
 
     await waitFor(() => {

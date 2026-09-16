@@ -1,0 +1,16 @@
+{
+  "recordedAt": "2026-09-16T16:58:51.727573+00:00",
+  "capacityAcceptedByOwner": true,
+  "originalCapacityThresholdsProven": false,
+  "furtherLoadDeclined": true,
+  "partialReportSha256": "8122bf62c5c82c0ce0159d74284cb37c0434f5f82d416c15a63be1925d4baa81",
+  "verificationSourceFingerprint": "91d69def998af3ada4a4c80cd4998184a5b81a26e7b0dab503296ca626260fe4",
+  "viewerImage": "sha256:2bfaba1bc0a889d30357d03a589d5ca23ddfb9732fea70c67d74ef8d29a6456c",
+  "chatEnabled": true,
+  "rollbackTimerCancelled": true,
+  "temporaryAccountsDisabled": 100,
+  "temporarySessionsRemaining": 0,
+  "testMessagesDeleted": 2009,
+  "testMessagesRemaining": 0,
+  "standardCapacityGatesUnchanged": true
+}

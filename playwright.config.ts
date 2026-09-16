@@ -33,7 +33,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'node scripts/e2e-centrifugo.mjs',
-      url: 'http://127.0.0.1:3800/health',
+      wait: { stdout: /Centrifugo health check passed/ },
       reuseExistingServer: false,
       timeout: 120_000,
     },

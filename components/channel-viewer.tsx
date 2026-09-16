@@ -16,6 +16,7 @@ import styles from './channel-viewer.module.css'
 import { ChannelNavigation } from '@/components/channel-navigation'
 import { ChatPlaceholder } from '@/components/chat-frame'
 import { ChatPanel } from '@/components/chat-panel'
+import { useChatEnabled } from '@/components/use-chat-enabled'
 import { LivePlayer } from '@/components/live-player'
 import { ShareButton } from '@/components/share-button'
 import { StatusBadge } from '@/components/status-badge'
@@ -136,9 +137,10 @@ function PlaybackSettings({
 export function ChannelViewer({
   channel,
   channels = [channel],
-  chatEnabled = false,
+  chatEnabled: initialChatEnabled = false,
   viewerId,
 }: ChannelViewerProps) {
+  const chatEnabled = useChatEnabled(initialChatEnabled)
   const [playbackControlsTarget, setPlaybackControlsTarget] =
     useState<HTMLDivElement | null>(null)
   const [playbackStatsTarget, setPlaybackStatsTarget] =

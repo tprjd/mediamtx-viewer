@@ -12,9 +12,11 @@ ENV MEDIAMTX_HLS_URL=$MEDIAMTX_HLS_URL
 ENV MEDIAMTX_WEBRTC_URL=$MEDIAMTX_WEBRTC_URL
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+RUN npm run build -- --webpack
 
 FROM node:24-alpine AS runner
+ARG SOURCE_FINGERPRINT=unverified
+LABEL org.frankerzspam.source=$SOURCE_FINGERPRINT
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

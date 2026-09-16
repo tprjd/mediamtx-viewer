@@ -157,6 +157,29 @@ const channel: PublicChannel = {
 }
 
 describe('ChannelViewer', () => {
+  it('applies global Chat changes to an open watch page without replacing the player', async () => {
+    mocks.useChannelEvents.mockReturnValue({ channels: [channel], statusDelayed: false })
+    let enabled = false
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) =>
+      Response.json(String(input) === '/api/chat/config'
+        ? { enabled }
+        : String(input).endsWith('/state')
+          ? { channelId: 'live-channel', restriction: null, moderatorRole: null, serverTime: new Date().toISOString() }
+          : { messages: [] }),
+    ))
+    render(<ChannelViewer channel={channel} />)
+    const player = screen.getByTestId('live-player')
+    expect(screen.getByText('Chat is coming soon')).toBeInTheDocument()
+    enabled = true
+    fireEvent.focus(window)
+    await screen.findByRole('complementary', { name: 'Chat' })
+    enabled = false
+    fireEvent.focus(window)
+    await screen.findByText('Chat is coming soon')
+    expect(screen.queryByRole('complementary', { name: 'Chat' })).toBeNull()
+    expect(screen.getByTestId('live-player')).toBe(player)
+  })
+
   beforeEach(() => {
     vi.stubGlobal('crypto', webcrypto)
     mocks.useChannelEvents.mockReset()
