@@ -1,12 +1,12 @@
 .trigger {
   position: absolute;
-  top: -5px;
+  top: 0;
   right: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 28px;
-  min-height: 28px;
+  min-width: 24px;
+  min-height: 24px;
   border: 0;
   border-radius: 4px;
   color: var(--muted-foreground, #aaa);
@@ -19,77 +19,378 @@
   background: #303037;
 }
 .menu {
-  z-index: 100;
-  padding: 4px;
-  border: 1px solid #45454d;
-  border-radius: 6px;
-  background: #202024;
-  color: #f4f4f5;
-  box-shadow: 0 8px 24px #0008;
+  z-index: 110;
+  min-width: 190px;
+  padding: 5px;
+  border: 1px solid #ffffff12;
+  border-radius: 9px;
+  background: #1c1c22;
+  color: #e4e4eb;
+  box-shadow:
+    0 12px 35px #0008,
+    0 2px 6px #0005;
+  font-size: 12px;
 }
-.item {
-  padding: 8px 12px;
-  border-radius: 3px;
-  cursor: pointer;
+.menu [role='menuitem'],
+.menu [role='menuitemcheckbox'] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 5px;
   outline: none;
+  cursor: pointer;
 }
-.item[data-highlighted] {
-  background: #45454d;
+.menu [role='menuitem'][data-highlighted],
+.menu [role='menuitemcheckbox'][data-highlighted] {
+  background: #ffffff07;
+}
+.menu [role='menuitem'] > svg {
+  color: #91919e;
+  stroke-width: 1.7;
+}
+.menu [role='menuitem'][data-disabled] {
+  opacity: 0.4;
+}
+.menuLabel {
+  color: #9c9ca8;
+  padding: 8px 10px;
+  font-size: 11px;
+}
+.settingsMenu {
+  width: 270px;
+}
+.settingsMenu strong {
+  font-weight: 550;
+}
+.settingsMenu small {
+  display: block;
+  margin-top: 4px;
+  color: #9999a7;
+  font-size: 10px;
+}
+.checkBox {
+  display: flex;
+  align-items: center;
+  width: 28px;
+  height: 16px;
+  padding: 2px;
+  flex: none;
+  margin-left: auto;
+  border: 1px solid #ffffff0a;
+  border-radius: 12px;
+  background: #42424b;
+}
+.checkBox > span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e4e4eb;
+}
+.settingsMenu [data-state='checked'] .checkBox {
+  border-color: transparent;
+  background: #b72f6c;
+  justify-content: flex-end;
+}
+.actionMenu {
+  width: 250px;
+}
+.actionMenu > div:first-child {
+  overflow-wrap: anywhere;
+  color: #d4d4dd;
+  font-weight: 550;
+  border-bottom: 1px solid #ffffff08;
+  margin-bottom: 4px;
+  padding-bottom: 12px;
+}
+.actionMenu > div:first-child > span {
+  font-weight: 400;
+  color: #a1a1aa;
+  font-size: 10px;
+}
+.menuSeparator {
+  height: 1px;
+  margin: 5px 8px;
+  background: #ffffff09;
+}
+.dangerItem,
+.menu .dangerItem > svg {
+  color: #e99da8;
 }
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 110;
+  z-index: 120;
   background: #0009;
+  backdrop-filter: blur(2px);
 }
 .dialog {
   position: fixed;
+  z-index: 121;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  z-index: 111;
-  width: min(440px, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
+  width: min(420px, calc(100vw - 28px));
+  max-height: calc(100dvh - 28px);
   overflow-y: auto;
-  overflow-wrap: anywhere;
-  padding: 24px;
-  border: 1px solid #45454d;
-  border-radius: 8px;
-  background: #202024;
-  color: #f4f4f5;
+  padding: 20px;
+  border: 1px solid #ffffff12;
+  border-radius: 10px;
+  background: #18181e;
+  color: #e9e9ef;
+  box-shadow:
+    0 24px 80px #0008,
+    0 2px 8px #0006;
+}
+.dialogHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.dialogContext {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #92929f;
+  font-size: 11px;
+}
+.dialogContext svg {
+  color: #b5a0ad;
+}
+.dialogHeading button {
+  display: grid;
+  place-items: center;
+  padding: 5px;
+  border-radius: 5px;
+  color: #92929f;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.dialogHeading button:hover {
+  background: #ffffff08;
+  color: white;
 }
 .dialog h2 {
-  font-size: 1.15rem;
+  margin: 12px 0 7px;
+  font-size: 19px;
   font-weight: 600;
+  letter-spacing: -0.025em;
 }
-.dialog p {
-  margin: 12px 0;
+.dialog > p:not([role='alert']) {
+  margin: 0;
+  color: #a3a3b1;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.targetMessage {
+  margin: 16px 0;
+  padding: 10px 12px;
+  border: 1px solid #ffffff08;
+  border-radius: 6px;
+  background: #ffffff03;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.targetMessage strong {
+  color: #d6bfd0;
+  font-weight: 550;
+}
+.targetMessage strong span {
+  margin-left: 4px;
+  color: #9696a4;
+  font-weight: 400;
+  font-size: 10px;
+}
+.targetMessage p {
+  margin: 5px 0 0;
+  color: #bdbdc9;
+  line-height: 1.5;
+}
+.dialog form {
+  display: grid;
+  gap: 14px;
 }
 .dialog label {
   display: grid;
-  gap: 6px;
-  margin: 16px 0;
+  gap: 7px;
+  color: #c8c8d2;
+  font-size: 11px;
+}
+.fieldRow {
+  display: flex;
+  gap: 12px;
+}
+.fieldRow label {
+  flex: 1;
+  min-width: 0;
+}
+.fieldLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.fieldLabel small {
+  color: #9494a2;
+  font-size: 10px;
 }
 .dialog select,
 .dialog textarea {
   width: 100%;
-  padding: 8px;
-  border: 1px solid #777;
-  border-radius: 4px;
-  background: #161619;
-  color: inherit;
+  padding: 9px 10px;
+  border: 1px solid #ffffff12;
+  border-radius: 5px;
+  background: #111115;
+  color: #dddde6;
+  font: inherit;
+  font-size: 12px;
 }
 .dialog textarea {
-  min-height: 90px;
+  min-height: 64px;
+  resize: vertical;
 }
-.dialog button {
+.dialog textarea::placeholder {
+  color: #7e7e8c;
+}
+.dialog button:focus-visible,
+.dialog select:focus-visible,
+.dialog textarea:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 3px;
+}
+.dialogButtons {
+  display: flex;
+  justify-content: end;
+  gap: 8px;
+  margin-top: 2px;
+  padding-top: 14px;
+  border-top: 1px solid #ffffff08;
+}
+.dialogButtons button {
+  min-height: 34px;
   padding: 8px 12px;
-  margin-top: 8px;
-  border: 1px solid #777;
-  border-radius: 4px;
+  border: 1px solid #ffffff0c;
+  border-radius: 5px;
+  background: #ffffff04;
+  color: #d4d4de;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 550;
   cursor: pointer;
 }
-.dialog button:disabled {
-  opacity: 0.5;
+.dialogButtons button.confirmAction {
+  background: #b52a66;
+  border-color: #ffffff08;
+  color: #fff;
+}
+.dialog[data-action='ban'] .confirmAction {
+  background: #ad3a4a;
+}
+.dialogButtons button:disabled {
+  opacity: 0.4;
   cursor: default;
+}
+.restrictionList {
+  display: grid;
+  margin-top: 16px;
+}
+.restrictionItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid #ffffff09;
+}
+.restrictionBody {
+  flex: 1;
+  min-width: 0;
+}
+.restrictionIdentity {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #c8b28a;
+}
+.restrictionItem[data-action='ban'] .restrictionIdentity {
+  color: #d9929d;
+}
+.restrictionIdentity > svg {
+  flex: none;
+  width: 14px;
+}
+.restrictionIdentity strong {
+  color: #dddde6;
+  font-size: 12px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.restrictionIdentity span {
+  margin-left: 3px;
+  color: #9393a1;
+  font-size: 10px;
+  font-weight: 400;
+}
+.restrictionItem p {
+  margin: 7px 0 0 21px;
+  color: #b2b2bf;
+  font-size: 10px;
+}
+.restrictionItem small {
+  display: block;
+  margin: 6px 0 0 21px;
+  color: #9494a2;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+.restrictionItem button {
+  flex: none;
+  padding: 7px 9px;
+  border: 1px solid #ffffff13;
+  border-radius: 5px;
+  background: #ffffff04;
+  color: #d4d4df;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.headerButton {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.headerButton:hover {
+  background: #ffffff08;
+  color: var(--text);
+}
+.headerButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.dialog {
+  overflow-wrap: anywhere;
+}
+.dialog button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.dialogError {
+  margin-block: 12px;
+  color: #fca5a5;
+  font-size: 12px;
+}
+.inspectedMessage {
+  margin-top: 16px;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.restrictionList {
+  list-style: none;
+  padding: 0;
 }

@@ -94,6 +94,7 @@ const transcriptComponents: Components<ChatTranscriptEntry> = {
 }
 
 interface ChatTranscriptProps {
+  showTimestamps?: boolean
   channelSlug?: string
   moderatorRole?: ChatModeratorRole
   onRemoved?: (message: PublicChatMessage) => void
@@ -111,6 +112,7 @@ interface ChatTranscriptProps {
 }
 
 export function ChatTranscript({
+  showTimestamps = false,
   channelSlug,
   moderatorRole,
   onRemoved,
@@ -210,7 +212,7 @@ export function ChatTranscript({
   }, [entries.length])
 
   return (
-    <>
+    <div className={styles.chatTranscriptRegion}>
       <Virtuoso
         alignToBottom
         aria-busy={loadingOlderHistory}
@@ -281,6 +283,7 @@ export function ChatTranscript({
               role="listitem"
             >
               <ChatMessage
+                showTimestamps={showTimestamps}
                 message={entry.message}
                 channelSlug={channelSlug}
                 moderatorRole={moderatorRole}
@@ -311,6 +314,6 @@ export function ChatTranscript({
           New messages
         </button>
       )}
-    </>
+    </div>
   )
 }

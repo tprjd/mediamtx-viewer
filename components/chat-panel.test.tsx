@@ -192,9 +192,28 @@ beforeEach(() => {
   vi.stubGlobal('crypto', webcrypto)
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  window.localStorage.removeItem('home-stream.chat-timestamps')
+})
 
 describe('live Chat delivery', () => {
+  it('applies the saved timestamp setting to the real transcript', async () => {
+    window.localStorage.setItem('home-stream.chat-timestamps', 'true')
+    stubChatFetch(vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith('/token')
+        ? Response.json({ token: 'token' })
+        : Response.json({ messages: [message('timestamp', 1)] }),
+    ))
+    try {
+      render(<ChatPanel channelSlug="live" narrowLayout={false} onClose={() => undefined} />)
+      expect(await screen.findByLabelText(/^Sent /)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Chat settings' })).toBeInTheDocument()
+    } finally {
+      window.localStorage.removeItem('home-stream.chat-timestamps')
+    }
+  })
+
   it('gets a new token when Centrifuge requests a token refresh', async () => {
     let tokenNumber = 0
     stubChatFetch(
@@ -483,7 +502,8 @@ describe('live Chat delivery', () => {
     })
   })
 
-  it('shows local day separators and keeps exact server timestamps accessible', async () => {
+  it('shows local day separators and keeps enabled timestamps accessible', async () => {
+    window.localStorage.setItem('home-stream.chat-timestamps', 'true')
     stubChatFetch(
       vi.fn(async (input: RequestInfo | URL) =>
         String(input).endsWith('/token')

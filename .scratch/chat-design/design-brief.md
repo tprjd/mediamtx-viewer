@@ -1,6 +1,6 @@
 # Chat design brief
 
-Status: Variant A functionality accepted. Menu and moderation design refinement available for review.
+Status: Variant A implemented and verified, including menus and moderation.
 
 ## Goal
 
@@ -32,9 +32,9 @@ Keyboard access, focus behavior, and text selection remain part of the interacti
 
 ## Visual prototype
 
-The browser prototype is on branch `prototype/chat-design`.
+The browser prototype is on branch `prototype/chat-design-reference`.
 The implementation issue is [01: Implement the selected Chat design](issues/01-implement-selected-chat-design.md).
-Exact spacing, font sizes, colors, badge appearance, and responsive dimensions remain subject to prototype feedback.
+The user approved the refined spacing, menu appearance, moderation dialogs, and responsive layouts.
 
 The prototype has three variants on the existing watch route:
 
@@ -68,7 +68,9 @@ The prototype review covers these cases:
 The user accepted all recommendations in interview questions 4 through 7.
 The user then selected A and requested a timestamp setting, badge explanations, and a moderation mockup.
 The timestamp setting replaces the earlier proposal to show each message's time on hover.
-These additions are available in the local prototype. Production Chat remains unchanged.
+These additions define the production implementation.
 The user accepted the functionality and requested further visual refinement focused on menus and moderation.
 The latest pass uses softer menu borders, a timestamp switch, smaller moderation headings, and aligned duration and category fields.
 Active restrictions use compact rows with actions beside each participant.
+
+The user accepted the final design and invoked `implement`. In production, the timestamp preference persists in browser storage.

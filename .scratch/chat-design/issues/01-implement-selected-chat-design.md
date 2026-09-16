@@ -1,13 +1,12 @@
 # 01: Implement the selected Chat design
 
-Status: needs-info
-Blocked by: Review of the selected variant's menu and moderation visual refinement.
+Status: resolved
 
 ## Design sources
 
 - [Accepted design brief](../design-brief.md)
 - [Local preview instructions](../preview.md)
-- Prototype branch: `prototype/chat-design`
+- Prototype branch: `prototype/chat-design-reference` at `23f73b5`
 - Prototype components: `components/chat-design-prototype.tsx`, `components/chat-design-prototype-controls.tsx`, `components/prototype-switcher.tsx`, and `components/chat-design-prototype.module.css`
 - Host route: `/watch/[slug]?variant=A`, `B`, or `C`
 
@@ -19,7 +18,7 @@ The user accepted compact messages, visible author tags, small role badges, opti
 The prototype compares a continuous feed, groups by minute, and a separate tools rail.
 The user selected A, the compact feed.
 The user requested a Chat settings menu that toggles timestamps before messages, role badge explanations, and a moderation mockup.
-The refined prototype includes those additions. Production implementation remains pending.
+The refined prototype includes those additions. The user approved its design and requested production implementation.
 The user accepted the functionality, then requested visual refinement focused on menus and moderation.
 The latest prototype reduces dialog height, aligns related fields, separates ban actions, and uses compact restriction rows.
 
@@ -44,3 +43,29 @@ Browser checks also confirm focus recovery, administrator protection in the Chan
 The prototype makes no Chat mutation requests.
 
 Lint and TypeScript checks pass. Screenshots are local artifacts under `.data/chat-prototype-*`.
+
+## Implementation decisions
+
+The production timestamp setting starts off and persists in browser storage across reloads and Channels.
+The prototype keeps its original in-memory setting on the reference branch.
+The real moderation forms require a category selection, as before. Other also requires a private note.
+The header shield uses the existing restriction list and reversal API.
+The prototype route, sample components, and launcher are removed from the implementation branch.
+
+## Comments
+
+The user approved the menu and moderation design, then invoked `implement`.
+
+## Production verification
+
+- `npm run lint` and `npm run typecheck` pass.
+- `npm test` passes all 339 tests in 52 files.
+- The Chat browser suite and six affected watch-page checks pass, 23 tests total.
+- The final layout check also passes at 768×390, including access to the Channel drawer. At 844×390, the Channel rail remains visible.
+- Browser checks cover saved timestamps, keyboard and touch badge explanations, dialog validation, focus recovery, history position, live delivery, IME input, real moderation, and playback during Chat failures.
+- Screenshots under `.data/chat-implementation-*` were inspected at desktop, portrait, landscape, and portrait theater sizes.
+- `npm run build -- --webpack` passes. The default Turbopack build fails in this environment when its CSS worker tries to bind a port.
+- Standards review: no remaining findings. Its browser-storage fallback finding was reproduced, fixed, and covered by a test.
+- Spec review: no findings.
+
+The current branch has no configured upstream. Delivery is a local commit; no push is attempted.

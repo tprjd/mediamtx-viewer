@@ -381,7 +381,7 @@ describe('ChannelViewer', () => {
     await waitFor(() => {
       expect(within(chat).getByText('hello Chat')).toBeInTheDocument()
     })
-    expect(within(chat).getByText('Admin')).toBeInTheDocument()
+    expect(within(chat).getByRole('button', { name: 'Administrator' })).toBeInTheDocument()
     expect(fetcher).toHaveBeenNthCalledWith(
       2,
       '/api/channels/live/chat/messages',

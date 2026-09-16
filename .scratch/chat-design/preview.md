@@ -1,6 +1,9 @@
-# Preview the Chat designs
+# Preview the archived Chat designs
 
-Run this command from the repository root on branch `prototype/chat-design`:
+The accepted prototype is preserved at commit `23f73b5` on the reference branch.
+The implementation branch uses real Chat and no longer has the prototype launcher.
+
+Run this command from the repository root on branch `prototype/chat-design-reference`:
 
 ```sh
 npm run prototype:chat

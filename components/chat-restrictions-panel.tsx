@@ -1,6 +1,7 @@
 'use client'
 
 import * as Dialog from '@radix-ui/react-dialog'
+import { Ban, ShieldCheck, Timer, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import type { listActiveChatRestrictions } from '@/lib/chat-moderation'
 import styles from '@/components/chat-message-actions.module.css'
@@ -68,11 +69,28 @@ export function ChatRestrictionsPanel({
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
-        <button type="button">Active Chat restrictions</button>
+        <button
+          className={styles.headerButton}
+          type="button"
+          aria-label="Active Chat restrictions"
+        >
+          <ShieldCheck size={17} aria-hidden="true" />
+        </button>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className={styles.overlay} />
         <Dialog.Content className={styles.dialog}>
+          <div className={styles.dialogHeading}>
+            <span className={styles.dialogContext}>
+              <ShieldCheck size={14} aria-hidden="true" />
+              Moderation
+            </span>
+            <Dialog.Close asChild>
+              <button type="button" aria-label="Dismiss restrictions">
+                <X size={18} aria-hidden="true" />
+              </button>
+            </Dialog.Close>
+          </div>
           <Dialog.Title>Active Chat restrictions</Dialog.Title>
           <Dialog.Description>
             Review Chat timeouts and Chat bans in this room. Lifting a
@@ -82,26 +100,44 @@ export function ChatRestrictionsPanel({
           {!error && restrictions.length === 0 && (
             <p>No active Chat restrictions.</p>
           )}
-          <ul>
+          <ul className={styles.restrictionList}>
             {restrictions.map((restriction) => (
-              <li key={restriction.id}>
-                <p>
-                  {restriction.target} #{restriction.authorTag}
-                </p>
-                <p>
-                  Chat {restriction.action}: {restriction.category}.{' '}
-                  {restriction.expiresAt ? (
-                    <>
-                      Expires{' '}
-                      <time dateTime={restriction.expiresAt}>
-                        {new Date(restriction.expiresAt).toLocaleString()}
-                      </time>
-                      .
-                    </>
-                  ) : (
-                    'Indefinite.'
+              <li
+                className={styles.restrictionItem}
+                key={restriction.id}
+                data-action={restriction.action}
+              >
+                <div className={styles.restrictionBody}>
+                  <div className={styles.restrictionIdentity}>
+                    {restriction.action === 'ban' ? (
+                      <Ban size={17} aria-hidden="true" />
+                    ) : (
+                      <Timer size={17} aria-hidden="true" />
+                    )}
+                    <strong>
+                      {restriction.target} <span>#{restriction.authorTag}</span>
+                    </strong>
+                  </div>
+                  <p>
+                    Chat {restriction.action}: {restriction.category}.{' '}
+                    {restriction.expiresAt ? (
+                      <>
+                        Expires{' '}
+                        <time dateTime={restriction.expiresAt}>
+                          {new Date(restriction.expiresAt).toLocaleString()}
+                        </time>
+                        .
+                      </>
+                    ) : (
+                      'Indefinite.'
+                    )}
+                  </p>
+                  {!restriction.canReverse && (
+                    <small>
+                      Only an administrator can lift this restriction.
+                    </small>
                   )}
-                </p>
+                </div>
                 <button
                   type="button"
                   disabled={
@@ -111,15 +147,14 @@ export function ChatRestrictionsPanel({
                 >
                   {busy === restriction.id ? 'Lifting...' : 'Lift restriction'}
                 </button>
-                {!restriction.canReverse && (
-                  <p>Only an administrator can lift this restriction.</p>
-                )}
               </li>
             ))}
           </ul>
-          <Dialog.Close asChild>
-            <button type="button">Close</button>
-          </Dialog.Close>
+          <div className={styles.dialogButtons}>
+            <Dialog.Close asChild>
+              <button type="button">Close</button>
+            </Dialog.Close>
+          </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

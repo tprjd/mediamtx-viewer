@@ -2,9 +2,11 @@
 
 import { Send } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { ChatRestrictionsPanel } from '@/components/chat-restrictions-panel'
 import { ChatFrame } from '@/components/chat-frame'
+import { ChatSettings, useChatTimestamps } from '@/components/chat-settings'
 import {
   ChatTranscript,
   chatTranscriptEntryCount,
@@ -37,6 +39,8 @@ interface ChatPanelProps {
 }
 
 interface ChatPanelContentProps {
+  showTimestamps: boolean
+  moderationTarget: HTMLDivElement | null
   isChatVisible: boolean
   channelSlug: string
   endpoint: string
@@ -57,6 +61,8 @@ interface ChatAnnouncement {
 const INITIAL_FIRST_ITEM_INDEX = 1_000_000_000
 
 function ChatPanelContent({
+  showTimestamps,
+  moderationTarget,
   channelSlug,
   endpoint,
   isChatVisible,
@@ -513,9 +519,14 @@ function ChatPanelContent({
 
   return (
     <>
-      {timeout.moderatorRole && !unavailable && !accessDenied && (
-        <ChatRestrictionsPanel channelSlug={channelSlug} />
-      )}
+      {timeout.moderatorRole &&
+        !unavailable &&
+        !accessDenied &&
+        moderationTarget &&
+        createPortal(
+          <ChatRestrictionsPanel channelSlug={channelSlug} />,
+          moderationTarget,
+        )}
       {loading ? (
         <div
           aria-busy="true"
@@ -527,6 +538,7 @@ function ChatPanelContent({
         </div>
       ) : (
         <ChatTranscript
+          showTimestamps={showTimestamps}
           key={transcriptVisit}
           channelSlug={channelSlug}
           moderatorRole={
@@ -622,39 +634,41 @@ function ChatPanelContent({
           if (!composingRef.current) void sending.send()
         }}
       >
-        <input
-          aria-label="Chat message"
-          autoComplete="off"
-          ref={composerRef}
-          disabled={loading || accessDenied || unavailable || timeout.blocked}
-          onChange={(event) => sending.setDraft(event.target.value)}
-          onCompositionStart={() => {
-            composingRef.current = true
-          }}
-          onCompositionEnd={() => {
-            composingRef.current = false
-          }}
-          onKeyDown={(event) => {
-            event.stopPropagation()
-            if (
-              event.key === 'Enter' &&
-              (composingRef.current ||
-                event.nativeEvent.isComposing ||
-                event.keyCode === 229)
-            )
-              event.preventDefault()
-          }}
-          onKeyUp={(event) => event.stopPropagation()}
-          placeholder="Send a message"
-          value={sending.draft}
-        />
-        <button
-          aria-label="Send"
-          disabled={sendDisabled || !sending.draft.trim()}
-          type="submit"
-        >
-          <Send aria-hidden="true" />
-        </button>
+        <div className={styles.chatInputRow}>
+          <input
+            aria-label="Chat message"
+            autoComplete="off"
+            ref={composerRef}
+            disabled={loading || accessDenied || unavailable || timeout.blocked}
+            onChange={(event) => sending.setDraft(event.target.value)}
+            onCompositionStart={() => {
+              composingRef.current = true
+            }}
+            onCompositionEnd={() => {
+              composingRef.current = false
+            }}
+            onKeyDown={(event) => {
+              event.stopPropagation()
+              if (
+                event.key === 'Enter' &&
+                (composingRef.current ||
+                  event.nativeEvent.isComposing ||
+                  event.keyCode === 229)
+              )
+                event.preventDefault()
+            }}
+            onKeyUp={(event) => event.stopPropagation()}
+            placeholder="Send a message"
+            value={sending.draft}
+          />
+          <button
+            aria-label="Send"
+            disabled={sendDisabled || !sending.draft.trim()}
+            type="submit"
+          >
+            <Send aria-hidden="true" />
+          </button>
+        </div>
       </form>
     </>
   )
@@ -668,10 +682,15 @@ export function ChatPanel({
   narrowLayout,
   onClose,
 }: ChatPanelProps) {
+  const showTimestamps = useChatTimestamps()
+  const [moderationTarget, setModerationTarget] =
+    useState<HTMLDivElement | null>(null)
   const endpoint = `/api/channels/${encodeURIComponent(channelSlug)}/chat/messages`
 
   return (
     <ChatFrame
+      headerActions={<ChatSettings showTimestamps={showTimestamps} />}
+      moderationTargetRef={setModerationTarget}
       closeButtonRef={closeButtonRef}
       label="Chat"
       open={open}
@@ -681,6 +700,8 @@ export function ChatPanel({
     >
       {(isChatVisible, explicitlyOpened) => (
         <ChatPanelContent
+          showTimestamps={showTimestamps}
+          moderationTarget={moderationTarget}
           channelSlug={channelSlug}
           endpoint={endpoint}
           isChatVisible={isChatVisible}

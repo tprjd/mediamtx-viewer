@@ -2,7 +2,15 @@
 
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { MoreHorizontal } from 'lucide-react'
+import {
+  Ban,
+  Eye,
+  MoreHorizontal,
+  ShieldCheck,
+  Timer,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { useRef, useState } from 'react'
 
 import type { PublicChatMessage } from '@/lib/chat-types'
@@ -142,13 +150,18 @@ export function ChatMessageActions({
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content
-            className={styles.menu}
+            className={`${styles.menu} ${styles.actionMenu}`}
             align="end"
             sideOffset={4}
             onCloseAutoFocus={(event) => {
               if (dialog) event.preventDefault()
             }}
           >
+            {!message.removed && (
+              <DropdownMenu.Label className={styles.menuLabel}>
+                {message.profileName} <span>#{message.authorTag}</span>
+              </DropdownMenu.Label>
+            )}
             {menuError ? (
               <DropdownMenu.Item disabled>{menuError}</DropdownMenu.Item>
             ) : !actions ? (
@@ -156,36 +169,34 @@ export function ChatMessageActions({
             ) : (
               <>
                 {actions.canInspect && (
-                  <DropdownMenu.Item
-                    className={styles.item}
-                    onSelect={() => void inspect()}
-                  >
+                  <DropdownMenu.Item onSelect={() => void inspect()}>
+                    <Eye size={15} aria-hidden="true" />
                     Inspect removed message
                   </DropdownMenu.Item>
                 )}
                 {actions.canRemove && (
-                  <DropdownMenu.Item
-                    className={styles.item}
-                    onSelect={() => openAction('remove')}
-                  >
+                  <DropdownMenu.Item onSelect={() => openAction('remove')}>
+                    <Trash2 size={15} aria-hidden="true" />
                     Remove message
                   </DropdownMenu.Item>
                 )}
                 {actions.canTimeout && (
-                  <DropdownMenu.Item
-                    className={styles.item}
-                    onSelect={() => openAction('timeout')}
-                  >
+                  <DropdownMenu.Item onSelect={() => openAction('timeout')}>
+                    <Timer size={15} aria-hidden="true" />
                     Apply Chat timeout
                   </DropdownMenu.Item>
                 )}
                 {actions.canTimeout && (
-                  <DropdownMenu.Item
-                    className={styles.item}
-                    onSelect={() => openAction('ban')}
-                  >
-                    Apply Chat ban
-                  </DropdownMenu.Item>
+                  <>
+                    <DropdownMenu.Separator className={styles.menuSeparator} />
+                    <DropdownMenu.Item
+                      className={styles.dangerItem}
+                      onSelect={() => openAction('ban')}
+                    >
+                      <Ban size={15} aria-hidden="true" />
+                      Apply Chat ban
+                    </DropdownMenu.Item>
+                  </>
                 )}
                 {!actions.canInspect &&
                   !actions.canRemove &&
@@ -213,11 +224,23 @@ export function ChatMessageActions({
           <Dialog.Overlay className={styles.overlay} />
           <Dialog.Content
             className={styles.dialog}
+            data-action={dialog}
             onCloseAutoFocus={(event) => {
               event.preventDefault()
               triggerRef.current?.focus()
             }}
           >
+            <div className={styles.dialogHeading}>
+              <span className={styles.dialogContext}>
+                <ShieldCheck size={14} aria-hidden="true" />
+                Moderation
+              </span>
+              <Dialog.Close asChild>
+                <button type="button" aria-label="Dismiss moderation dialog">
+                  <X size={18} aria-hidden="true" />
+                </button>
+              </Dialog.Close>
+            </div>
             <Dialog.Title>
               {dialog === 'ban'
                 ? 'Apply Chat ban'
@@ -231,9 +254,17 @@ export function ChatMessageActions({
               {dialog === 'timeout' || dialog === 'ban'
                 ? 'Stop this participant from sending and remove their messages from the previous ten minutes. They can still read Chat and watch the Channel.'
                 : dialog === 'remove'
-                  ? 'Replace this message with a tombstone for everyone in this Chat room.'
+                  ? 'Replace this message with “Message removed” for everyone in this Chat room.'
                   : 'Only current Chat moderators can inspect this retained content.'}
             </Dialog.Description>
+            {!message.removed && (
+              <div className={styles.targetMessage}>
+                <strong>
+                  {message.profileName} <span>#{message.authorTag}</span>
+                </strong>
+                <p>{message.content}</p>
+              </div>
+            )}
             {dialog === 'remove' || dialog === 'timeout' || dialog === 'ban' ? (
               <form
                 onSubmit={(event) => {
@@ -241,41 +272,50 @@ export function ChatMessageActions({
                   void moderate()
                 }}
               >
-                {dialog === 'timeout' && (
+                <div className={styles.fieldRow}>
+                  {dialog === 'timeout' && (
+                    <label>
+                      Duration
+                      <select
+                        value={durationMinutes}
+                        onChange={(event) =>
+                          setDurationMinutes(event.target.value)
+                        }
+                        disabled={busy}
+                      >
+                        <option value="10">10 minutes</option>
+                        <option value="60">1 hour</option>
+                        <option value="1440">24 hours</option>
+                      </select>
+                    </label>
+                  )}
                   <label>
-                    Duration
+                    Category
                     <select
-                      value={durationMinutes}
-                      onChange={(event) =>
-                        setDurationMinutes(event.target.value)
-                      }
+                      value={category}
+                      onChange={(event) => setCategory(event.target.value)}
+                      required
                       disabled={busy}
                     >
-                      <option value="10">10 minutes</option>
-                      <option value="60">1 hour</option>
-                      <option value="1440">24 hours</option>
+                      <option value="" disabled>
+                        Select a category
+                      </option>
+                      <option>Spam</option>
+                      <option>Harassment</option>
+                      <option>Other</option>
                     </select>
                   </label>
-                )}
+                </div>
                 <label>
-                  Category
-                  <select
-                    value={category}
-                    onChange={(event) => setCategory(event.target.value)}
-                    required
-                    disabled={busy}
-                  >
-                    <option value="" disabled>
-                      Select a category
-                    </option>
-                    <option>Spam</option>
-                    <option>Harassment</option>
-                    <option>Other</option>
-                  </select>
-                </label>
-                <label>
-                  Private note
+                  <span className={styles.fieldLabel}>
+                    Private note{' '}
+                    <small>
+                      {category === 'Other' ? 'Required for Other' : 'Optional'}
+                    </small>
+                  </span>
                   <textarea
+                    aria-label="Private note"
+                    placeholder="Context for other moderators"
                     value={note}
                     onChange={(event) => setNote(event.target.value)}
                     maxLength={2000}
@@ -283,30 +323,38 @@ export function ChatMessageActions({
                     disabled={busy}
                   />
                 </label>
-                <p>
-                  {category === 'Other'
-                    ? 'Other requires a private note.'
-                    : 'A private note is optional.'}
-                </p>
-                <button
-                  type="submit"
-                  disabled={
-                    busy || !category || (category === 'Other' && !note.trim())
-                  }
-                >
-                  {busy
-                    ? 'Applying...'
-                    : dialog === 'ban'
-                      ? 'Confirm ban'
-                      : dialog === 'timeout'
-                        ? 'Confirm timeout'
-                        : 'Confirm removal'}
-                </button>
+                {error && (
+                  <p className={styles.dialogError} role="alert">
+                    {error}
+                  </p>
+                )}
+                <div className={styles.dialogButtons}>
+                  <Dialog.Close asChild>
+                    <button type="button">Cancel</button>
+                  </Dialog.Close>
+                  <button
+                    className={styles.confirmAction}
+                    type="submit"
+                    disabled={
+                      busy ||
+                      !category ||
+                      (category === 'Other' && !note.trim())
+                    }
+                  >
+                    {busy
+                      ? 'Applying...'
+                      : dialog === 'ban'
+                        ? 'Confirm ban'
+                        : dialog === 'timeout'
+                          ? 'Confirm timeout'
+                          : 'Confirm removal'}
+                  </button>
+                </div>
               </form>
             ) : busy ? (
               <p role="status">Loading removed message...</p>
             ) : details ? (
-              <div>
+              <div className={styles.inspectedMessage}>
                 <p>
                   {details.profileName} #{details.authorTag}
                 </p>
@@ -315,14 +363,20 @@ export function ChatMessageActions({
                 {details.note && <p>Private note: {details.note}</p>}
               </div>
             ) : null}
-            {error && <p role="alert">{error}</p>}
-            <Dialog.Close asChild>
-              <button type="button">
-                {dialog === 'remove' || dialog === 'timeout' || dialog === 'ban'
-                  ? 'Cancel'
-                  : 'Close'}
-              </button>
-            </Dialog.Close>
+            {dialog === 'inspect' && (
+              <>
+                {error && (
+                  <p className={styles.dialogError} role="alert">
+                    {error}
+                  </p>
+                )}
+                <div className={styles.dialogButtons}>
+                  <Dialog.Close asChild>
+                    <button type="button">Close</button>
+                  </Dialog.Close>
+                </div>
+              </>
+            )}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

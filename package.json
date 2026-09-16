@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "next dev",
     "dev:local": "node scripts/dev-local.mjs",
-    "prototype:chat": "node scripts/prototype-chat.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

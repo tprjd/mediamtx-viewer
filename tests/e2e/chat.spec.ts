@@ -289,7 +289,7 @@ test('lets an active participant send and reload one Chat message', async ({
     acceptedMessage.getByText('power', { exact: true }),
   ).toBeVisible()
   await expect(
-    acceptedMessage.getByText('Admin', { exact: true }),
+    acceptedMessage.getByRole('button', { name: 'Administrator', exact: true }),
   ).toBeVisible()
 
   await page.reload()
@@ -299,6 +299,110 @@ test('lets an active participant send and reload one Chat message', async ({
       .getByRole('complementary', { name: 'Chat' })
       .getByText(content, { exact: true }),
   ).toBeVisible()
+})
+
+test('uses Chat settings and badge explanations across desktop and mobile layouts', async ({ page, browser }) => {
+  test.setTimeout(60_000)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await prepareChatPlayback(page)
+  await signInAsAdministrator(page)
+  const response = await postChat(page, 'A compact message with a visible role badge')
+  expect(response.status()).toBe(201)
+  const { message } = await response.json()
+  const chat = page.getByRole('complementary', { name: 'Chat', exact: true })
+  const row = chat.locator(`[data-message-id="${message.id}"]`)
+  const badge = row.getByRole('button', { name: 'Administrator', exact: true })
+  await expect(badge).toBeVisible()
+  await expect(row.locator('time')).toHaveCount(0)
+  await badge.hover()
+  await expect(page.getByRole('tooltip')).toContainText('Moderates Chat across all channels.')
+  await page.mouse.move(0, 0)
+  await badge.focus()
+  await expect(page.getByRole('tooltip')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('tooltip')).toHaveCount(0)
+
+  const settings = chat.getByRole('button', { name: 'Chat settings' })
+  await settings.focus()
+  await page.keyboard.press('Enter')
+  const timestampSetting = page.getByRole('menuitemcheckbox', { name: /Show timestamps/ })
+  await timestampSetting.focus()
+  await page.keyboard.press('Space')
+  await expect(timestampSetting).toBeChecked()
+  await expect(row.locator('time')).toBeVisible()
+  expect(await row.locator('time').evaluate(element => element === element.parentElement?.firstElementChild)).toBe(true)
+  await page.screenshot({ path: '.data/chat-implementation-settings.png' })
+  await page.keyboard.press('Escape')
+  await expect(settings).toBeFocused()
+  await page.reload()
+  await expect(row.locator('time')).toBeVisible()
+
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 844, height: 390 }, { width: 768, height: 390 }]) {
+    await page.setViewportSize(viewport)
+    const toggle = chat.getByRole('button', { name: 'Chat', exact: true })
+    if (viewport.height > viewport.width) {
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await toggle.click()
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    }
+    await expect(row).toBeVisible()
+    if (viewport.width <= 800) await expect(page.getByRole('button', { name: 'Open Channel drawer' })).toBeVisible()
+    else await expect(page.getByRole('complementary', { name: 'Channels', exact: true })).toBeVisible()
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }))
+    const player = page.locator('.player-shell')
+    const chatBox = (await chat.boundingBox())!
+    const playerBox = (await player.boundingBox())!
+    if (viewport.height > viewport.width) expect(chatBox.y).toBeGreaterThanOrEqual(playerBox.y + playerBox.height)
+    else expect(chatBox.x).toBeGreaterThanOrEqual(playerBox.x + playerBox.width - 1)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `.data/chat-implementation-${viewport.width}.png`, fullPage: true })
+    await row.getByRole('button', { name: 'Message actions' }).click()
+    await page.getByRole('menuitem', { name: 'Apply Chat timeout' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Apply Chat timeout' })
+    await expect(dialog).toContainText(`#${message.authorTag}`)
+    await expect(dialog.getByRole('button', { name: 'Confirm timeout' })).toBeDisabled()
+    await dialog.getByLabel('Category').selectOption('Other')
+    await expect(dialog.getByRole('button', { name: 'Confirm timeout' })).toBeDisabled()
+    await dialog.getByLabel('Private note').fill('Context for the moderation check')
+    await expect(dialog.getByRole('button', { name: 'Confirm timeout' })).toBeEnabled()
+    const box = (await dialog.boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.y).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width)
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height)
+    await page.screenshot({ path: `.data/chat-implementation-moderation-${viewport.width}.png` })
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(row.getByRole('button', { name: 'Message actions' })).toBeFocused()
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: 'Enter theater mode' }).click()
+  await expect(page.getByRole('main')).toHaveAttribute('data-theater-mode', 'true')
+  const theaterChat = (await chat.boundingBox())!
+  const theaterPlayer = (await page.locator('.player-shell').boundingBox())!
+  expect(theaterChat.y).toBeGreaterThanOrEqual(theaterPlayer.y + theaterPlayer.height - 1)
+  await expect(row).toBeVisible()
+  await page.screenshot({ path: '.data/chat-implementation-theater-portrait.png' })
+
+  const touchContext = await browser.newContext({
+    hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 },
+    storageState: await page.context().storageState(),
+  })
+  try {
+    const touch = await touchContext.newPage()
+    await touch.goto('http://localhost:3299/watch/live')
+    await touch.getByRole('button', { name: 'Chat', exact: true }).tap()
+    const touchBadge = touch.getByRole('button', { name: 'Administrator', exact: true })
+    await touchBadge.tap()
+    await expect(touch.getByRole('tooltip')).toContainText('Moderates Chat across all channels.')
+    await touchBadge.tap()
+    await expect(touch.getByRole('tooltip')).toHaveCount(0)
+    await touch.getByRole('button', { name: 'Chat settings' }).tap()
+    await touch.getByRole('menuitemcheckbox', { name: /Show timestamps/ }).tap()
+    await expect(touch.locator(`[data-message-id="${message.id}"] time`)).toHaveCount(0)
+  } finally {
+    await touchContext.close()
+  }
 })
 
 test('browses retained Chat history without losing the reading position', async ({
@@ -1248,7 +1352,7 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
       .run(Date.now() - 601_000, older.id)
     database.close()
     const oldRow = page.locator(`[data-message-id="${older.id}"]`)
-    await expect(oldRow.getByText('Owner', { exact: true })).toBeVisible({
+    await expect(oldRow.getByRole('button', { name: 'Channel owner', exact: true })).toBeVisible({
       timeout: 10_000,
     })
     const roles = new Database(authDatabasePath)
@@ -1257,7 +1361,7 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
         "UPDATE user SET role = 'admin' WHERE id = 'e2e-chat-participant'",
       )
       .run()
-    await expect(oldRow.getByText('Admin', { exact: true })).toBeVisible({
+    await expect(oldRow.getByRole('button', { name: 'Administrator', exact: true })).toBeVisible({
       timeout: 10_000,
     })
     roles
@@ -1266,7 +1370,7 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
       )
       .run()
     roles.close()
-    await expect(oldRow.getByText('Admin', { exact: true })).toHaveCount(0, {
+    await expect(oldRow.getByRole('button', { name: 'Administrator', exact: true })).toHaveCount(0, {
       timeout: 10_000,
     })
 
@@ -1370,7 +1474,7 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
         exact: true,
       }),
     ).toHaveCount(0)
-    await expect(oldRow.getByText('Owner', { exact: true })).toHaveCount(0, {
+    await expect(oldRow.getByRole('button', { name: 'Channel owner', exact: true })).toHaveCount(0, {
       timeout: 10_000,
     })
     await page
@@ -1389,7 +1493,7 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
         exact: true,
       }),
     ).toBeVisible()
-    await expect(oldRow.getByText('Owner', { exact: true })).toBeVisible({
+    await expect(oldRow.getByRole('button', { name: 'Channel owner', exact: true })).toBeVisible({
       timeout: 10_000,
     })
     await composer.fill('Sending restored by reversal')

@@ -25,3 +25,15 @@ export function useNarrowWatchLayout(): boolean {
     () => false,
   )
 }
+
+function getIsPortraitChatSnapshot(): boolean {
+  return getIsNarrowSnapshot() && window.innerHeight >= window.innerWidth
+}
+
+export function usePortraitChatLayout(): boolean {
+  return useSyncExternalStore(
+    subscribeToViewport,
+    getIsPortraitChatSnapshot,
+    () => false,
+  )
+}

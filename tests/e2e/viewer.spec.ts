@@ -418,7 +418,8 @@ test('keeps theater mode inside a narrow viewport', async ({ page }) => {
   expect(chatBox).not.toBeNull()
   expect(playerBox).not.toBeNull()
   expect(chatBox!.x + chatBox!.width).toBe(320)
-  expect(playerBox!.width + chatBox!.width).toBe(320)
+  expect(playerBox!.width).toBe(320)
+  expect(chatBox!.y).toBeGreaterThanOrEqual(playerBox!.y + playerBox!.height - 1)
 
   await page.getByRole('button', { name: 'Exit theater mode' }).click()
   const drawerTrigger = page.getByRole('button', {

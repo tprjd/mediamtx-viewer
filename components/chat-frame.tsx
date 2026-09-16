@@ -8,8 +8,11 @@ import styles from '@/components/channel-viewer.module.css'
 
 interface ChatFrameProps {
   children:
-    ReactNode | ((active: boolean, explicitlyOpened: boolean) => ReactNode)
+    | ReactNode
+    | ((active: boolean, explicitlyOpened: boolean) => ReactNode)
   closeButtonRef?: (element: HTMLButtonElement | null) => void
+  headerActions?: ReactNode
+  moderationTargetRef?: (element: HTMLDivElement | null) => void
   open?: boolean
   focusComposer?: boolean
   label: string
@@ -20,6 +23,8 @@ interface ChatFrameProps {
 export function ChatFrame({
   children,
   closeButtonRef,
+  headerActions,
+  moderationTargetRef,
   label,
   open = true,
   focusComposer = false,
@@ -59,17 +64,20 @@ export function ChatFrame({
             <MessageSquare aria-hidden="true" />
             <strong>Chat</strong>
           </div>
+          <Collapsible.Trigger
+            asChild
+            aria-controls={contentId}
+            className={styles.chatToggle}
+          >
+            <button type="button">
+              <MessageSquare aria-hidden="true" />
+              <span>Chat</span>
+            </button>
+          </Collapsible.Trigger>
           <div className={styles.chatActions}>
-            <Collapsible.Trigger
-              asChild
-              aria-controls={contentId}
-              className={styles.chatToggle}
-            >
-              <button type="button">
-                <MessageSquare aria-hidden="true" />
-                <span>Chat</span>
-              </button>
-            </Collapsible.Trigger>
+            {moderationTargetRef && <div ref={moderationTargetRef} />}
+            {headerActions}
+
             <button
               aria-label="Close Chat"
               className={styles.chatClose}
@@ -117,6 +125,7 @@ export function ChatPlaceholder({
       <input
         aria-label="Chat message"
         disabled
+        className={styles.chatPlaceholderInput}
         placeholder="Chat is unavailable"
       />
     </ChatFrame>

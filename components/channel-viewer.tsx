@@ -22,7 +22,7 @@ import { ShareButton } from '@/components/share-button'
 import { StatusBadge } from '@/components/status-badge'
 import { useChatPreference } from '@/components/use-chat-preference'
 import { useLiveRailPreference } from '@/components/use-live-rail-preference'
-import { useNarrowWatchLayout } from '@/components/use-narrow-watch-layout'
+import { usePortraitChatLayout } from '@/components/use-narrow-watch-layout'
 import { ViewerCount } from '@/components/viewer-count'
 import { useChannelEvents } from '@/hooks/use-channel-events'
 import type { PublicChannel } from '@/lib/types'
@@ -161,7 +161,7 @@ export function ChannelViewer({
   const { effectivePreference } = useLiveRailPreference()
   const { preference: chatPreference, setPreference: setChatPreference } =
     useChatPreference()
-  const narrowLayout = useNarrowWatchLayout()
+  const portraitChatLayout = usePortraitChatLayout()
   const { channels: eventChannels } = useChannelEvents(channels)
   const currentChannel =
     eventChannels.find((item) => item.slug === channel.slug) ?? channel
@@ -294,7 +294,7 @@ export function ChannelViewer({
                 closeButtonRef={(element) => {
                   theaterChatCloseRef.current = element
                 }}
-                narrowLayout={narrowLayout && !theaterMode}
+                narrowLayout={portraitChatLayout && !theaterMode}
                 onClose={() => { setChatFocusRequest(null); setChatPreference('closed') }}
               />
             ) : chatOpen ? (
@@ -302,7 +302,7 @@ export function ChannelViewer({
                 closeButtonRef={(element) => {
                   theaterChatCloseRef.current = element
                 }}
-                narrowLayout={narrowLayout && !theaterMode}
+                narrowLayout={portraitChatLayout && !theaterMode}
                 onClose={() => setChatPreference('closed')}
               />
             ) : null
