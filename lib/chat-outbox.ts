@@ -130,3 +130,7 @@ export function requestChatOutboxDispatch(): void {
     }
   })
 }
+
+export async function drainChatOutboxDispatch(): Promise<void> {
+  await globalDispatcher.chatOutboxDispatchTail?.catch(() => undefined)
+}

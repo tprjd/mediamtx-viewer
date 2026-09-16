@@ -44,6 +44,7 @@ interface ChatPanelContentProps {
 }
 
 interface HistoryResponse extends Partial<ChatHistoryPage> {
+  restoreGeneration?: string
   moderatorRole?: ChatModeratorRole
   error?: string
 }
@@ -136,6 +137,15 @@ function ChatPanelContent({
     updateHistoryAvailability,
     updateOlderHistoryLoading,
   ])
+
+  const restoreGenerationRef = useRef<string | undefined>(undefined)
+  const [restoreRevision, setRestoreRevision] = useState(0)
+  const replaceHistoryRef = useRef(false)
+  const reloadHistory = useCallback(() => {
+    replaceHistoryRef.current = true
+    resetChatPanelState()
+    setRestoreRevision((value) => value + 1)
+  }, [resetChatPanelState])
 
   const announceMessage = useCallback((message: PublicChatMessage) => {
     if (message.removed) return
@@ -232,6 +242,14 @@ function ChatPanelContent({
             if (!response.ok) {
               throw new Error(result.error ?? 'Could not reconcile Chat.')
             }
+            if (
+              restoreGenerationRef.current &&
+              result.restoreGeneration &&
+              result.restoreGeneration !== restoreGenerationRef.current
+            ) {
+              reloadHistory()
+              return
+            }
             const incoming = result.messages ?? []
             setError(null)
             mergeMessages(incoming)
@@ -256,7 +274,13 @@ function ChatPanelContent({
         })
       reconciliationRef.current = work
     },
-    [checkAvailability, confirmMessages, endpoint, mergeMessages],
+    [
+      checkAvailability,
+      confirmMessages,
+      endpoint,
+      mergeMessages,
+      reloadHistory,
+    ],
   )
 
   const receiveMessage = useCallback(
@@ -299,6 +323,14 @@ function ChatPanelContent({
       if (!response.ok) {
         throw new Error(result.error ?? 'Could not load Chat history.')
       }
+      if (
+        restoreGenerationRef.current &&
+        result.restoreGeneration &&
+        result.restoreGeneration !== restoreGenerationRef.current
+      ) {
+        reloadHistory()
+        return
+      }
       mergeOlderPage(result.messages ?? [], result.hasMore !== true)
       applyHistoryPageMetadata(result)
     } catch (historyError: unknown) {
@@ -317,6 +349,7 @@ function ChatPanelContent({
     checkAvailability,
     endpoint,
     mergeOlderPage,
+    reloadHistory,
     updateOlderHistoryLoading,
   ])
 
@@ -341,6 +374,7 @@ function ChatPanelContent({
     channelSlug,
     onMessage: receiveMessage,
     onRecoveryFailed: reconcile,
+    onRestored: reloadHistory,
     onRestrictionChanged: timeout.refresh,
   })
 
@@ -350,6 +384,8 @@ function ChatPanelContent({
     const requestGeneration = requestGenerationRef.current
     const controller = new AbortController()
     const latestRequestSequence = latestChatSequence(messagesRef.current)
+    const replaceRestoredHistory = replaceHistoryRef.current
+    const existingIds = new Set(messagesRef.current.map(({ id }) => id))
     void fetch(endpoint, {
       cache: 'no-store',
       signal: controller.signal,
@@ -365,13 +401,18 @@ function ChatPanelContent({
         if (!response.ok)
           throw new Error(result.error ?? 'Could not load Chat.')
         const incoming = result.messages ?? []
+        restoreGenerationRef.current = result.restoreGeneration
         // Reopening starts with the latest page. Keep loaded history until it succeeds.
-        messagesRef.current = messagesRef.current.filter(
-          (message) =>
-            (message.removed && incoming.some(({ id }) => id === message.id)) ||
-            chatMessageRevision(message) >
-              Math.max(latestRequestSequence, latestChatSequence(incoming)),
-        )
+        messagesRef.current = replaceRestoredHistory
+          ? messagesRef.current.filter(({ id }) => !existingIds.has(id))
+          : messagesRef.current.filter(
+              (message) =>
+                (message.removed &&
+                  incoming.some(({ id }) => id === message.id)) ||
+                chatMessageRevision(message) >
+                  Math.max(latestRequestSequence, latestChatSequence(incoming)),
+            )
+        replaceHistoryRef.current = false
         const { merged } = mergeMessages(incoming)
         confirmMessages(incoming)
         setError(null)
@@ -411,6 +452,7 @@ function ChatPanelContent({
     isChatVisible,
     mergeMessages,
     reconcile,
+    restoreRevision,
   ])
 
   const sending = useChatSending({

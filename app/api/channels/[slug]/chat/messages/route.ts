@@ -1,3 +1,4 @@
+import { chatRestoreGeneration } from '@/lib/chat-maintenance'
 import { ChatStorageLimitError } from '@/lib/chat-storage'
 import { z } from 'zod'
 
@@ -60,7 +61,10 @@ export async function GET(
         )
       }
       return Response.json(
-        loadChatMessagesAfter(access.channel, Number(after)),
+        {
+          ...loadChatMessagesAfter(access.channel, Number(after)),
+          restoreGeneration: chatRestoreGeneration(),
+        },
         {
           headers: responseHeaders,
         },
@@ -69,9 +73,15 @@ export async function GET(
     const before = new URL(request.url).searchParams.get('before')
     if (before !== null) {
       try {
-        return Response.json(loadOlderChatMessages(access.channel, before), {
-          headers: responseHeaders,
-        })
+        return Response.json(
+          {
+            ...loadOlderChatMessages(access.channel, before),
+            restoreGeneration: chatRestoreGeneration(),
+          },
+          {
+            headers: responseHeaders,
+          },
+        )
       } catch (error) {
         if (!(error instanceof InvalidChatHistoryCursorError)) throw error
         return Response.json(
@@ -83,6 +93,7 @@ export async function GET(
     return Response.json(
       {
         ...loadLatestChatHistory(access.channel),
+        restoreGeneration: chatRestoreGeneration(),
         moderatorRole: getChatModeratorRole(access.channel, access.accountId),
       },
       {

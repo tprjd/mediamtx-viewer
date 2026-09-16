@@ -14,6 +14,8 @@
     "auth:bootstrap": "node scripts/bootstrap-admin.mjs",
     "auth:backup": "node scripts/backup-auth.mjs",
     "auth:restore": "node scripts/restore-auth.mjs",
+    "chat:restore": "node scripts/restore-chat.mjs",
+    "chat:restore-drill": "playwright test --project=chat-chromium --grep 'restore drill'",
     "validate:streaming-contract": "node scripts/validate-streaming-contract.mjs deploy/oracle/mediamtx.yml.example",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

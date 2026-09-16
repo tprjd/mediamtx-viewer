@@ -37,3 +37,54 @@ The notifier stores Chat alert state at `${STATE_FILE}.chat` on its existing per
 Chat health logs contain fixed event types, fault codes, and results. Chat migration and alert failures use fixed error codes. The Centrifugo container uses the `warn` log level. Do not enable request-body or debug logging for Chat.
 
 Operational logs must not contain message content, profile names, private notes, tokens, cookies, or client idempotency keys. The log-capture tests exercise successful publication, rejected requests, and failures against the pinned Centrifugo image.
+
+## Back up authentication and Chat
+
+Set `AUTH_BACKUP_KEY` to a base64-encoded 32-byte key in the encrypted deployment secrets. Keep this key outside the backup directory. Keep `CHAT_TAG_HMAC_SECRET` with those secrets so restored author tags keep their identity.
+
+Run `npm run auth:backup` with both database paths and `AUTH_BACKUP_DIR` configured. The existing command now backs up both databases. It prints the path to `manifest.json` after both encrypted files are complete.
+
+Each set has one directory, one identifier, an authenticated manifest, and separate AES-256-GCM files for authentication and Chat. The manifest records creation time, database selection, migration names, file sizes, checksums, and encryption parameters. The command validates the complete set before it permits either restore.
+
+The job keeps the newest complete set from each of seven days. A second backup on the same day replaces that day's earlier set. Rotation removes whole sets. Incomplete sets and abandoned temporary directories do not count toward retention. A failed backup leaves the previous complete sets in place. Complete sets that fail validation stay on disk for administrator inspection. Sets encrypted with another key also stay outside rotation. Legacy authentication-only backup files remain outside this rotation.
+
+Install the daily timer on the Oracle host after you set `AUTH_BACKUP_KEY` in `deploy/oracle/secrets/caddy.env` and encrypt the updated secrets:
+
+```sh
+sudo install -m 644 deploy/oracle/mediamtx-backup.service deploy/oracle/mediamtx-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now mediamtx-backup.timer
+sudo systemctl start mediamtx-backup.service
+sudo journalctl -u mediamtx-backup.service -n 20
+```
+
+The service uses `/home/ubuntu/mediamtx-viewer`. Change its paths if the deployment uses another directory. The timer runs daily at 03:00 UTC, with up to five minutes of delay. Remove any earlier authentication backup schedule to prevent duplicate jobs.
+
+## Restore Chat independently
+
+Keep the viewer and Centrifugo running. Run the following command inside the viewer container with the backup key available:
+
+```sh
+CHAT_RESTORE_CONFIRM=replace AUTH_BACKUP_KEY="$AUTH_BACKUP_KEY" \
+	node scripts/restore-chat.mjs /data/backups/SET_ID/manifest.json
+```
+
+The command uses `INTERNAL_AUTH_SECRET` to request a restore through the application. `CHAT_RESTORE_URL` defaults to `http://127.0.0.1:3000`. Use the internal viewer address. Do not send the secret through a public proxy.
+
+The application blocks Chat requests and token issuance while it restores. It drains pending publication work, validates the schema and account and Channel references, and deletes expired content. Missing references reject the restore. The administrator must select a compatible set or repair the references before trying again.
+
+The application clears Centrifugo recovery history and discards the restored delivery queue. After it replaces Chat storage, it checks retention again and reconnects participants. Clients reload the current transcript and restrictions. The authentication database, account sessions, Channel status, and player stay available.
+
+If a restore fails, Chat remains unavailable. Correct the cause, then run the same restore command again. The maintenance marker survives a viewer restart. Do not delete this marker to bypass validation.
+
+A process crash can leave a backup or restore lock directory. Confirm that the command and application restore have stopped before removing `AUTH_BACKUP_DIR/.backup-lock` or `CHAT_DB_PATH.restore-lock`. A failed restore can also leave `CHAT_DB_PATH.restore-candidate`. Keep it private. A retry replaces it, and a successful restore removes it.
+
+## Restore authentication independently
+
+Stop the viewer before replacing authentication storage. Use the same manifest and `AUTH_BACKUP_KEY` with `AUTH_RESTORE_CONFIRM=replace node scripts/restore-auth.mjs /data/backups/SET_ID/manifest.json` in a one-off container. This command leaves Chat storage unchanged. It keeps the replaced authentication files beside the restored database. Legacy `auth-*.sqlite.enc` files are also accepted.
+
+## Verify a restore before rollout
+
+Run `npx playwright test --project=chat-chromium --grep 'restore drill'` with Docker available. The drill uses an encrypted older set, blocks Chat during a failed Centrifugo operation, retries the restore, and checks expiry deletion and live delivery after reconnect. It also checks the existing account session and continued video progress without a player reset. The media fixture and MediaMTX status server are local test fixtures. Run the production capacity gate with a real Channel before enabling Chat.
+
+Chat cleanup also runs at application startup and once per hour, including when Chat is disabled. Each backup runs cleanup before taking the Chat snapshot. Messages and their queued content expire seven days after submission. Private notes expire seven days after the moderation action. Structured Chat moderation records and active bans remain until an authorized action clears them.

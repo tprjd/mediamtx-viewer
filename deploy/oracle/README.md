@@ -201,9 +201,9 @@ docker compose --env-file deploy/oracle/secrets/caddy.env \
 ```
 
 Set `AUTH_BACKUP_DIR` to persistent storage; the script retains the latest
-seven files. Test restore with `scripts/restore-auth.mjs` while the viewer is
-stopped. The restore command keeps replaced database files beside the restored
-copy.
+seven complete daily sets, each with separate encrypted authentication and Chat
+files and a shared manifest. Install the daily timer and follow the independent
+restore commands in [Chat operations](../../docs/chat-operations.md#back-up-authentication-and-chat).
 
 To roll back the access boundary, copy `Caddyfile.basic-auth` over
 `Caddyfile` on the VM and reload Caddy. Do not delete `auth_data`; keep the

@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up authentication and Chat databases
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ubuntu/mediamtx-viewer
+EnvironmentFile=/home/ubuntu/mediamtx-viewer/deploy/oracle/secrets/caddy.env
+ExecStart=/usr/bin/docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml exec -T -e AUTH_BACKUP_KEY viewer node scripts/backup-auth.mjs

@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { assertChatAvailable } from '@/lib/chat-maintenance'
 import Database from 'better-sqlite3'
 import { inspectChatStorage } from '@/lib/chat-storage'
 import {
@@ -47,6 +48,7 @@ export async function inspectChatHealth(
     health.faults.push('configuration')
   let database: Database.Database | undefined
   try {
+    assertChatAvailable()
     // A separate connection must never wait for a Chat writer or create a missing database.
     database = new Database(chatEnvironment.databasePath, {
       fileMustExist: true,

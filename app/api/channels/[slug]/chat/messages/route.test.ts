@@ -153,6 +153,7 @@ describe('/api/channels/[slug]/chat/messages', () => {
 
     expect(historyResponse.status).toBe(200)
     expect(await historyResponse.json()).toEqual({
+      restoreGeneration: 'initial',
       moderatorRole: null,
       messages: [message],
       hasMore: false,
@@ -181,6 +182,7 @@ describe('/api/channels/[slug]/chat/messages', () => {
 
     expect(validResponse.status).toBe(200)
     expect(await validResponse.json()).toEqual({
+      restoreGeneration: 'initial',
       messages: [],
       hasMore: false,
       cursor: null,

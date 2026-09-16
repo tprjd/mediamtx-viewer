@@ -6,10 +6,12 @@ import {
   type BrowserContext,
 } from '@playwright/test'
 import Database from 'better-sqlite3'
-import { spawnSync } from 'node:child_process'
+import { execFile, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { promisify } from 'node:util'
 
 const centrifugoContainer = 'mediamtx-viewer-e2e-centrifugo'
 const chatDatabasePath = resolve('.data/e2e-chat.sqlite')
@@ -243,7 +245,8 @@ function seedRetainedChatHistory(
 }
 
 let administratorCookies:
-  Awaited<ReturnType<BrowserContext['cookies']>> | undefined
+  | Awaited<ReturnType<BrowserContext['cookies']>>
+  | undefined
 
 async function signInAsAdministrator(page: Page) {
   if (administratorCookies) {
@@ -588,8 +591,15 @@ test('delivers one accepted Chat message to another active participant', async (
 
     const health = await receiver.request.get('/api/health')
     expect(health.status()).toBe(200)
-    expect(await health.json()).toMatchObject({ chat: { status: 'degraded', faults: expect.arrayContaining(['centrifugo']) } })
-    expect((await receiver.request.get('/api/channels/live/status')).status()).toBe(200)
+    expect(await health.json()).toMatchObject({
+      chat: {
+        status: 'degraded',
+        faults: expect.arrayContaining(['centrifugo']),
+      },
+    })
+    expect(
+      (await receiver.request.get('/api/channels/live/status')).status(),
+    ).toBe(200)
     await expect(receiverChat.getByText(content, { exact: true })).toBeVisible()
 
     const reconciledContent = `reconciled Chat message ${randomUUID()}`
@@ -1420,5 +1430,115 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
       )
       .run()
     restore.close()
+  }
+})
+
+test('restore drill keeps authentication and playback available during an independent Chat restore', async ({
+  page,
+}) => {
+  test.setTimeout(90_000)
+  await prepareChatPlayback(page)
+  await signInAsAdministrator(page)
+  const verifyPlayback = await observePlayback(page)
+  const chat = page.getByRole('complementary', { name: 'Chat' })
+  const retained = `before-backup-${randomUUID()}`
+  const later = `after-backup-${randomUUID()}`
+  expect((await postChat(page, retained)).ok()).toBe(true)
+  await expect(chat.getByText(retained, { exact: true })).toBeVisible()
+  const backupDirectory = mkdtempSync(resolve(tmpdir(), 'chat-restore-drill-'))
+  const env = {
+    ...process.env,
+    AUTH_DB_PATH: authDatabasePath,
+    CHAT_DB_PATH: chatDatabasePath,
+    AUTH_BACKUP_DIR: backupDirectory,
+    AUTH_BACKUP_KEY: Buffer.alloc(32, 17).toString('base64'),
+    CHAT_RESTORE_CONFIRM: 'replace',
+    CHAT_RESTORE_URL: 'http://[::1]:3299',
+    INTERNAL_AUTH_SECRET: 'e2e-chat-internal-secret-at-least-32-characters',
+  }
+  let paused = false
+  try {
+    const db = new Database(chatDatabasePath)
+    db.prepare(
+      `INSERT INTO chat_message
+      (id, room_id, room_sequence, account_id, profile_name, author_tag, content, created_at)
+      SELECT 'restore-expired', room_id, 10000, account_id, profile_name, author_tag, 'restore-expired-content', ?
+      FROM chat_message LIMIT 1`,
+    ).run(Date.now() - 8 * 86400000)
+    db.close()
+    // Make an older encrypted set in which this content was still retained.
+    const { stdout } = await promisify(execFile)(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        "import { createBackupSet, backupPaths } from './scripts/database-backups.mjs'; console.log(await createBackupSet({ ...backupPaths(), now: new Date(Date.now() - 2 * 86400000) }))",
+      ],
+      { env },
+    )
+    const manifest = stdout.trim()
+    expect((await postChat(page, later)).ok()).toBe(true)
+    await expect(chat.getByText(later, { exact: true })).toBeVisible()
+    // An authentication change made after backup must survive a Chat-only restore.
+    const auth = new Database(authDatabasePath)
+    auth
+      .prepare(
+        "UPDATE channel SET title = 'Restore drill marker' WHERE slug = 'alpha'",
+      )
+      .run()
+    auth.close()
+    runDocker('pause', centrifugoContainer)
+    paused = true
+    await expect(
+      promisify(execFile)(
+        process.execPath,
+        ['scripts/restore-chat.mjs', manifest],
+        { env },
+      ),
+    ).rejects.toThrow()
+    expect(
+      (await page.request.get('/api/channels/live/chat/messages')).status(),
+    ).toBe(503)
+    expect(
+      (await page.request.get('/api/channels/live/chat/token')).status(),
+    ).toBe(503)
+    expect((await page.request.get('/api/auth/get-session')).ok()).toBe(true)
+    expect((await page.request.get('/api/channels')).ok()).toBe(true)
+    await verifyPlayback()
+    runDocker('unpause', centrifugoContainer)
+    paused = false
+    await waitForCentrifugo()
+    await promisify(execFile)(
+      process.execPath,
+      ['scripts/restore-chat.mjs', manifest],
+      { env },
+    )
+    await expect(chat.getByText(retained, { exact: true })).toBeVisible()
+    await expect(chat.getByText(later, { exact: true })).toHaveCount(0)
+    const restored = new Database(chatDatabasePath)
+    expect(
+      restored
+        .prepare("SELECT 1 FROM chat_message WHERE id = 'restore-expired'")
+        .get(),
+    ).toBeUndefined()
+    restored.close()
+    const currentAuth = new Database(authDatabasePath)
+    expect(
+      currentAuth
+        .prepare("SELECT title FROM channel WHERE slug = 'alpha'")
+        .get(),
+    ).toEqual({ title: 'Restore drill marker' })
+    currentAuth.close()
+    const session = await (
+      await page.request.get('/api/auth/get-session')
+    ).json()
+    expect(session.user.username).toBe('power')
+    const connected = `after-restore-${randomUUID()}`
+    expect((await postChat(page, connected)).ok()).toBe(true)
+    await expect(chat.getByText(connected, { exact: true })).toBeVisible()
+    await verifyPlayback()
+  } finally {
+    if (paused) runDocker('unpause', centrifugoContainer)
+    rmSync(backupDirectory, { recursive: true, force: true })
   }
 })

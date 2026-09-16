@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { assertChatAvailable, isChatRestoring } from '@/lib/chat-maintenance'
 import { getActiveSession } from '@/lib/auth/session'
 import { getUserById } from '@/lib/auth/store'
 import { getChatChannel, type ChatChannel } from '@/lib/channels'
@@ -22,10 +23,15 @@ export async function authorizeLiveChat(slug: string): Promise<LiveChatAccess> {
   if (!isChatEnabled()) {
     return { ok: false, status: 404, error: 'Not found' }
   }
-  if (getChatRuntimeConfigurationErrors().length > 0) {
+  if (isChatRestoring() || getChatRuntimeConfigurationErrors().length > 0) {
     return { ok: false, status: 503, error: 'Chat is unavailable.' }
   }
 
+  try {
+    assertChatAvailable()
+  } catch {
+    return { ok: false, status: 503, error: 'Chat is unavailable.' }
+  }
   const session = await getActiveSession()
   if (!session) {
     return {
@@ -62,6 +68,8 @@ export async function authorizeLiveChat(slug: string): Promise<LiveChatAccess> {
       error: 'An active account is required.',
     }
   }
+  if (isChatRestoring())
+    return { ok: false, status: 503, error: 'Chat is unavailable.' }
   return {
     ok: true,
     channel,

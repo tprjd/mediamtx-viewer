@@ -38,6 +38,7 @@ vi.mock('centrifuge', () => ({
       void this.getToken()
     })
     disconnect = vi.fn(() => undefined)
+    setToken = vi.fn(() => undefined)
 
     constructor(
       _endpoint: string,
@@ -757,4 +758,84 @@ it('clears original author and content from the live region when SQLite repairs 
   )
   expect(screen.getByRole('status')).toBeEmptyDOMElement()
   expect(screen.queryByText('message 1')).not.toBeInTheDocument()
+})
+
+it('keeps loaded messages during successful recovery and failed restore reload, then replaces them when a restore succeeds', async () => {
+  let restored = false
+  let available = true
+  let historyRequests = 0
+  stubChatFetch(
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/token'))
+        return Response.json({ token: 'token' })
+      historyRequests++
+      if (!available)
+        return Response.json({ error: 'Chat is unavailable.' }, { status: 503 })
+      return Response.json({
+        messages: [message(restored ? 'restored' : 'later', restored ? 1 : 9)],
+      })
+    }),
+  )
+  render(
+    <ChatPanel
+      channelSlug="live"
+      narrowLayout={false}
+      onClose={() => undefined}
+    />,
+  )
+  await screen.findByText('message 9')
+  const client = realtime.instances[0]
+  client.emit('connected', {})
+  client.emit('connecting', { code: 1 })
+  client.emit('connected', {})
+  client.emit('subscribed', {
+    channel: 'chat:room',
+    wasRecovering: true,
+    recovered: true,
+  })
+  expect(historyRequests).toBe(1)
+  available = false
+  client.emit('connecting', { code: 4001 })
+  client.emit('connected', {})
+  await screen.findAllByText('Chat is unavailable.')
+  expect(screen.getByText('message 9')).toBeVisible()
+  available = true
+  restored = true
+  client.emit('connecting', { code: 4001 })
+  client.emit('connected', {})
+  await screen.findByText('message 1')
+  expect(screen.queryByText('message 9')).toBeNull()
+})
+
+it('detects an independent restore after a connection misses the restore disconnect event', async () => {
+  let restored = false
+  stubChatFetch(
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/token')) return Response.json({ token: 'token' })
+      return Response.json({
+        restoreGeneration: restored ? 'restored' : 'initial',
+        messages: url.includes('?after=')
+          ? []
+          : [message(restored ? 'restored' : 'later', restored ? 1 : 9)],
+        hasMore: false,
+      })
+    }),
+  )
+  render(
+    <ChatPanel
+      channelSlug="live"
+      narrowLayout={false}
+      onClose={() => undefined}
+    />,
+  )
+  await screen.findByText('message 9')
+  restored = true
+  realtime.instances[0].emit('subscribed', {
+    channel: 'chat:room',
+    wasRecovering: true,
+    recovered: false,
+  })
+  await screen.findByText('message 1')
+  expect(screen.queryByText('message 9')).toBeNull()
 })

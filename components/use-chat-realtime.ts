@@ -35,6 +35,7 @@ interface UseChatRealtimeInput {
   channelSlug: string
   onMessage: (message: PublicChatMessage) => void
   onRecoveryFailed: () => void
+  onRestored: () => void
   onRestrictionChanged: (channelId?: string) => void
 }
 
@@ -50,12 +51,14 @@ export function useChatRealtime({
   channelSlug,
   onMessage,
   onRecoveryFailed,
+  onRestored,
   onRestrictionChanged,
 }: UseChatRealtimeInput): 'connected' | 'connecting' | 'disconnected' {
   const [state, setState] = useState<
     'connected' | 'connecting' | 'disconnected'
   >(active ? 'connecting' : 'disconnected')
   const handleMessage = useEffectEvent(onMessage)
+  const handleRestored = useEffectEvent(onRestored)
   const handleRecoveryFailed = useEffectEvent(onRecoveryFailed)
   const handleRestrictionChanged = useEffectEvent(onRestrictionChanged)
 
@@ -93,8 +96,22 @@ export function useChatRealtime({
       const event = chatMessageEventSchema.safeParse(context.data)
       if (event.success) handleMessage(event.data.message)
     })
-    client.on('connected', () => setState('connected'))
-    client.on('connecting', () => setState('connecting'))
+    let restored = false
+    client.on('connected', () => {
+      setState('connected')
+      if (restored) {
+        restored = false
+        handleRestored()
+      }
+    })
+    client.on('connecting', (context) => {
+      if (context.code === 4001) {
+        restored = true
+        // A fresh token is unavailable until restore validation and cleanup finish.
+        client.setToken('')
+      }
+      setState('connecting')
+    })
     client.on('disconnected', () => setState('disconnected'))
     client.on('subscribed', (context) => {
       // Control channels have no recovery history. Read current state after each subscription.

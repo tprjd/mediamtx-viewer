@@ -22,7 +22,8 @@ vi.mock('@/lib/channels', () => ({
     mediaPath: 'live',
   })),
 }))
-vi.mock('@/lib/chat-environment', () => ({
+vi.mock('@/lib/chat-environment', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/chat-environment')>(),
   getChatRuntimeConfigurationErrors: vi.fn(() => []),
   isChatEnabled: vi.fn(() => true),
 }))

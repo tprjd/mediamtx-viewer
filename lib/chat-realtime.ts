@@ -121,3 +121,13 @@ export function createChatPublicationId(): string {
 export async function clearChatRecoveryHistory(channel: string, fetcher: typeof fetch = fetch): Promise<void> {
   await callCentrifugoApi('history_remove', { channel }, fetcher)
 }
+
+export async function reconnectChatParticipant(
+  accountId: string,
+): Promise<void> {
+  await callCentrifugoApi(
+    'disconnect',
+    { user: accountId, disconnect: { code: 4001, reason: 'Chat restored' } },
+    fetch,
+  )
+}

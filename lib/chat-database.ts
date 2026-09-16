@@ -4,6 +4,8 @@ import Database from 'better-sqlite3'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 
+import { assertChatAvailable } from '@/lib/chat-maintenance'
+
 import { chatEnvironment } from '@/lib/chat-environment'
 
 const globalDatabase = globalThis as typeof globalThis & {
@@ -19,6 +21,12 @@ function createChatDatabase(): Database.Database {
 }
 
 export function getChatDatabase(): Database.Database {
+  assertChatAvailable()
   globalDatabase.chatDatabase ??= createChatDatabase()
   return globalDatabase.chatDatabase
+}
+
+export function closeChatDatabase(): void {
+  globalDatabase.chatDatabase?.close()
+  globalDatabase.chatDatabase = undefined
 }
