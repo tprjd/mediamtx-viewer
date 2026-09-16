@@ -63,3 +63,45 @@ _Avoid_: Player lifecycle, playback session
 **Viewer identity**:
 An opaque identity for one watch visit, shared across playback transports so one viewer counts once.
 _Avoid_: MediaMTX reader ID, browser session
+
+### Chat
+
+**Chat room**:
+The conversation associated with one Channel and available while that Channel is live. It remains the same when publishing stops or restarts.
+_Avoid_: Stream chat, broadcast chat
+
+**Chat participant**:
+An active account that can read and send messages in Chat rooms.
+_Avoid_: Chatter, chat user
+
+**Chat author tag**:
+A stable, short identifier that distinguishes a Chat participant within one Chat room without exposing account credentials or an internal account identifier.
+_Avoid_: Username, account ID, discriminator
+
+**Chat message**:
+A plain-text contribution that a Chat participant sends to one Chat room. It keeps the participant's display name as it was when sent.
+_Avoid_: Comment, post
+
+**Chat moderator**:
+A Chat participant who can moderate a Chat room. Administrators moderate every room and its Channel owner, while a Channel owner moderates their own room but cannot restrict an administrator or moderate while under an administrator's Chat restriction.
+_Avoid_: Chat admin, mod
+
+**Chat restriction**:
+A Chat timeout or Chat ban that prevents one Chat participant from sending messages without removing Viewing access.
+_Avoid_: Mute, sanction
+
+**Chat timeout**:
+A Chat restriction that expires after a set period.
+_Avoid_: Mute, suspension
+
+**Chat ban**:
+An indefinite Chat restriction that remains until an authorized Chat moderator lifts it.
+_Avoid_: Account ban, block
+
+**Message removal**:
+A moderation action that replaces one Chat message with a content-free tombstone. The original content is available only to Chat moderators while the system retains it.
+_Avoid_: Message deletion, retraction
+
+**Chat moderation record**:
+A durable record of a Chat moderator's action and its target.
+_Avoid_: Chat audit log, mod log
