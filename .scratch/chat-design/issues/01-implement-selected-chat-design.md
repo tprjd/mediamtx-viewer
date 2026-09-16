@@ -1,7 +1,7 @@
 # 01: Implement the selected Chat design
 
 Status: needs-info
-Blocked by: Review of the selected variant's settings and moderation mockup.
+Blocked by: Review of the selected variant's menu and moderation visual refinement.
 
 ## Design sources
 
@@ -20,6 +20,8 @@ The prototype compares a continuous feed, groups by minute, and a separate tools
 The user selected A, the compact feed.
 The user requested a Chat settings menu that toggles timestamps before messages, role badge explanations, and a moderation mockup.
 The refined prototype includes those additions. Production implementation remains pending.
+The user accepted the functionality, then requested visual refinement focused on menus and moderation.
+The latest prototype reduces dialog height, aligns related fields, separates ban actions, and uses compact restriction rows.
 
 ## Implementation scope after selection
 

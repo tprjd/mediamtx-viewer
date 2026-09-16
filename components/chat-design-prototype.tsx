@@ -68,6 +68,7 @@ function MessageRow({ message, moderator, timestamps, onModerate }: {
         {message.role === 'admin' ? <div className={styles.menuHint}>Only administrators can moderate this participant.</div> : <>
           {!message.removed && <DropdownMenu.Item onSelect={() => openAction('remove')}><Trash2 size={15} />Remove message</DropdownMenu.Item>}
           <DropdownMenu.Item onSelect={() => openAction('timeout')}><Timer size={15} />Apply timeout…</DropdownMenu.Item>
+          <DropdownMenu.Separator className={styles.menuSeparator} />
           <DropdownMenu.Item className={styles.dangerItem} onSelect={() => openAction('ban')}><Ban size={15} />Ban from Chat…</DropdownMenu.Item>
         </>}
       </DropdownMenu.Content></DropdownMenu.Portal>

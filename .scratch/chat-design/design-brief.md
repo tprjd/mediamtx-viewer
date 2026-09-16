@@ -1,6 +1,6 @@
 # Chat design brief
 
-Status: Variant A selected. Settings, badge explanations, and moderation mockup available for review.
+Status: Variant A functionality accepted. Menu and moderation design refinement available for review.
 
 ## Goal
 
@@ -69,3 +69,6 @@ The user accepted all recommendations in interview questions 4 through 7.
 The user then selected A and requested a timestamp setting, badge explanations, and a moderation mockup.
 The timestamp setting replaces the earlier proposal to show each message's time on hover.
 These additions are available in the local prototype. Production Chat remains unchanged.
+The user accepted the functionality and requested further visual refinement focused on menus and moderation.
+The latest pass uses softer menu borders, a timestamp switch, smaller moderation headings, and aligned duration and category fields.
+Active restrictions use compact rows with actions beside each participant.
