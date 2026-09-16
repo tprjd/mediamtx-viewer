@@ -20,6 +20,7 @@ test.beforeEach(() => {
   const database = new Database(chatDatabasePath)
   database.pragma('foreign_keys = ON')
   database.prepare('DELETE FROM chat_room').run()
+  database.prepare('DELETE FROM chat_moderation_record').run()
   database.close()
 })
 
@@ -932,6 +933,11 @@ for (const preset of [
           `UPDATE chat_moderation_record SET expires_at = ? WHERE id IN (SELECT record_id FROM chat_restriction WHERE account_id = 'e2e-chat-participant')`,
         )
         .run(Date.now() + 4_000)
+      expiryDatabase
+        .prepare(
+          "UPDATE chat_restriction SET expires_at = ? WHERE account_id = 'e2e-chat-participant'",
+        )
+        .run(Date.now() + 4_000)
       expiryDatabase.close()
       await otherContext.setOffline(false)
       await expect(log).toHaveAttribute('data-realtime-state', 'connected')
@@ -948,3 +954,262 @@ for (const preset of [
     }
   })
 }
+
+test('manages Chat bans, allowed and rejected reversal, current badges, and administrator records', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000)
+  const authDatabase = new Database(authDatabasePath)
+  const original = authDatabase
+    .prepare("SELECT owner_user_id AS owner FROM channel WHERE slug = 'live'")
+    .get() as { owner: string }
+  authDatabase
+    .prepare(
+      "UPDATE channel SET owner_user_id = 'e2e-chat-participant' WHERE slug = 'live'",
+    )
+    .run()
+  authDatabase.close()
+  const ownerContext = await browser.newContext()
+  const owner = await ownerContext.newPage()
+  try {
+    await signInAsAdministrator(page)
+    await owner.goto('/login?returnTo=/watch/live')
+    await owner.getByLabel('Username').fill('chat_friend')
+    await owner.getByLabel('Password').fill('e2e-participant-password')
+    await owner.getByRole('button', { name: 'Sign in' }).click()
+    await expect(owner).toHaveURL('/watch/live')
+    const log = owner.getByRole('log', { name: 'Chat messages' })
+    await expect(log).toHaveAttribute('data-realtime-state', 'connected')
+    const { message: older } = await (
+      await postChat(owner, 'Retained owner message')
+    ).json()
+    const database = new Database(chatDatabasePath)
+    database
+      .prepare('UPDATE chat_message SET created_at = ? WHERE id = ?')
+      .run(Date.now() - 601_000, older.id)
+    database.close()
+    const oldRow = page.locator(`[data-message-id="${older.id}"]`)
+    await expect(oldRow.getByText('Owner', { exact: true })).toBeVisible({
+      timeout: 10_000,
+    })
+    const roles = new Database(authDatabasePath)
+    roles
+      .prepare(
+        "UPDATE user SET role = 'admin' WHERE id = 'e2e-chat-participant'",
+      )
+      .run()
+    await expect(oldRow.getByText('Admin', { exact: true })).toBeVisible({
+      timeout: 10_000,
+    })
+    roles
+      .prepare(
+        "UPDATE user SET role = 'user' WHERE id = 'e2e-chat-participant'",
+      )
+      .run()
+    roles.close()
+    await expect(oldRow.getByText('Admin', { exact: true })).toHaveCount(0, {
+      timeout: 10_000,
+    })
+
+    const { message } = await (await postChat(owner, 'Ban target')).json()
+    await owner
+      .locator(`[data-message-id="${message.id}"]`)
+      .getByRole('button', { name: 'Message actions' })
+      .click()
+    await owner.getByRole('menuitem', { name: 'Apply Chat ban' }).click()
+    const banDialog = owner.getByRole('dialog', { name: 'Apply Chat ban' })
+    await banDialog.getByLabel('Category').selectOption('Other')
+    await expect(
+      banDialog.getByRole('button', { name: 'Confirm ban' }),
+    ).toBeDisabled()
+    await banDialog.getByLabel('Private note').fill('Private ban evidence')
+    await banDialog.getByRole('button', { name: 'Confirm ban' }).click()
+    await expect(banDialog).not.toBeVisible()
+    const composer = owner.getByRole('textbox', { name: 'Chat message' })
+    const feedback = owner.getByRole('status', { name: 'Chat ban' })
+    await expect(composer).toBeDisabled()
+    await expect(feedback).toContainText('Other. Indefinite')
+    await expect(feedback).not.toContainText(/Private|power/)
+    await expect(log).toHaveAttribute('data-realtime-state', 'connected')
+    await expect(
+      owner.locator(`[data-message-id="${message.id}"]`),
+    ).toContainText('Message removed')
+    await expect(oldRow).toContainText('Retained owner message')
+    expect((await postChat(owner, 'HTTP bypass')).status()).toBe(403)
+    await postChat(page, 'Reading remains available')
+    await expect(log).toContainText('Reading remains available')
+    await ownerContext.setOffline(true)
+    await expect(log).not.toHaveAttribute('data-realtime-state', 'connected')
+    await ownerContext.setOffline(false)
+    await expect(log).toHaveAttribute('data-realtime-state', 'connected')
+    await expect(feedback).toContainText('Indefinite')
+    await owner
+      .getByRole('button', { name: 'Active Chat restrictions', exact: true })
+      .click()
+    const panel = owner.getByRole('dialog', {
+      name: 'Active Chat restrictions',
+    })
+    await expect(panel).toContainText('Chat Friend')
+    await panel.getByRole('button', { name: 'Lift restriction' }).click()
+    await expect(panel).toContainText('No active Chat restrictions.')
+    await panel.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(composer).toBeEnabled()
+
+    // An administrator's restriction cannot be reversed by the Channel owner.
+    const { message: adminTarget } = await (
+      await postChat(page, 'Administrator target')
+    ).json()
+    expect(
+      (
+        await page.request.post(
+          `/api/channels/live/chat/messages/${adminTarget.id}/ban`,
+          { data: { category: 'Spam' } },
+        )
+      ).status(),
+    ).toBe(200)
+    await owner
+      .getByRole('button', { name: 'Active Chat restrictions', exact: true })
+      .click()
+    await expect(
+      panel.getByRole('button', { name: 'Lift restriction' }),
+    ).toBeDisabled()
+    await expect(panel).toContainText('Only an administrator')
+    const active = await (
+      await page.request.get('/api/channels/live/chat/restrictions')
+    ).json()
+    expect(
+      (
+        await owner.request.post('/api/channels/live/chat/restrictions', {
+          data: { restrictionId: active.restrictions[0].id },
+        })
+      ).status(),
+    ).toBe(403)
+    await panel.getByRole('button', { name: 'Close', exact: true }).click()
+    expect(
+      (
+        await page.request.post('/api/channels/live/chat/restrictions', {
+          data: { restrictionId: active.restrictions[0].id },
+        })
+      ).status(),
+    ).toBe(200)
+
+    const { message: ownerTarget } = await (
+      await postChat(owner, 'Owner authority target')
+    ).json()
+    expect(
+      (
+        await page.request.post(
+          `/api/channels/live/chat/messages/${ownerTarget.id}/ban`,
+          { data: { category: 'Harassment' } },
+        )
+      ).status(),
+    ).toBe(200)
+    await expect(composer).toBeDisabled()
+    await expect(
+      owner.getByRole('button', {
+        name: 'Active Chat restrictions',
+        exact: true,
+      }),
+    ).toHaveCount(0)
+    await expect(oldRow.getByText('Owner', { exact: true })).toHaveCount(0, {
+      timeout: 10_000,
+    })
+    await page
+      .getByRole('button', { name: 'Active Chat restrictions', exact: true })
+      .click()
+    const adminPanel = page.getByRole('dialog', {
+      name: 'Active Chat restrictions',
+    })
+    await expect(adminPanel).toContainText('Chat Friend')
+    await adminPanel.getByRole('button', { name: 'Lift restriction' }).click()
+    await adminPanel.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(composer).toBeEnabled()
+    await expect(
+      owner.getByRole('button', {
+        name: 'Active Chat restrictions',
+        exact: true,
+      }),
+    ).toBeVisible()
+    await expect(oldRow.getByText('Owner', { exact: true })).toBeVisible({
+      timeout: 10_000,
+    })
+    await composer.fill('Sending restored by reversal')
+    await owner.getByRole('button', { name: 'Send', exact: true }).click()
+    await expect(
+      page.getByRole('log', { name: 'Chat messages' }),
+    ).toContainText('Sending restored by reversal')
+
+    expect(
+      (await owner.request.get('/api/admin/chat/moderation')).status(),
+    ).toBe(403)
+    const historyDatabase = new Database(chatDatabasePath)
+    const { roomId } = historyDatabase
+      .prepare('SELECT room_id AS roomId FROM chat_message WHERE id = ?')
+      .get(older.id) as { roomId: string }
+    for (let index = 0; index < 51; index++) {
+      historyDatabase
+        .prepare(
+          `INSERT INTO chat_moderation_record (id, action, category, actor_account_id, target_account_id, room_id, created_at) VALUES (?, 'reversal', 'Spam', ?, 'e2e-chat-participant', ?, ?)`,
+        )
+        .run(
+          randomUUID(),
+          original.owner,
+          roomId,
+          Date.now() - 3600_000 - index,
+        )
+    }
+    historyDatabase.close()
+    await page.goto('/admin/chat')
+    await expect(
+      page.getByRole('heading', {
+        name: 'Chat moderation records',
+        exact: true,
+      }),
+    ).toBeVisible()
+    const table = page.getByRole('table')
+    await expect(table).toContainText('Chat ban')
+    await expect(table).toContainText('Reversal')
+    await expect(table).toContainText('reversed')
+    await expect(table).not.toContainText('Private ban evidence')
+    await page.getByRole('button', { name: 'Next page' }).click()
+    await expect(table).not.toContainText('Chat ban')
+    await expect(page.getByRole('button', { name: 'Next page' })).toBeDisabled()
+    await page.getByRole('button', { name: 'Previous page' }).click()
+    await expect(table).toContainText('Chat ban')
+
+    await page
+      .getByRole('button', {
+        name: 'Clear Chat moderation records',
+        exact: true,
+      })
+      .click()
+    const clearDialog = page.getByRole('dialog', {
+      name: 'Clear Chat moderation records?',
+    })
+    await clearDialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(table).toBeVisible()
+    await page
+      .getByRole('button', {
+        name: 'Clear Chat moderation records',
+        exact: true,
+      })
+      .click()
+    await clearDialog.getByRole('button', { name: 'Confirm clear' }).click()
+    await expect(
+      page.getByText('No Chat moderation records.', { exact: true }),
+    ).toBeVisible()
+  } finally {
+    await ownerContext.close()
+    const restore = new Database(authDatabasePath)
+    restore
+      .prepare("UPDATE channel SET owner_user_id = ? WHERE slug = 'live'")
+      .run(original.owner)
+    restore
+      .prepare(
+        "UPDATE user SET role = 'user' WHERE id = 'e2e-chat-participant'",
+      )
+      .run()
+    restore.close()
+  }
+})

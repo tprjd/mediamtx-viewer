@@ -8,11 +8,19 @@ const participantStateSchema = z.object({
   restriction: z
     .object({
       category: z.enum(['Spam', 'Harassment', 'Other']),
-      expiresAt: z.iso.datetime(),
+      expiresAt: z.iso.datetime().nullable(),
     })
     .nullable(),
   moderatorRole: z.enum(['admin', 'owner']).nullable(),
   serverTime: z.iso.datetime(),
+  authorities: z
+    .array(
+      z.object({
+        authorTag: z.string(),
+        badges: z.array(z.enum(['admin', 'owner'])),
+      }),
+    )
+    .optional(),
 })
 
 export function useChatRestriction(channelSlug: string, active: boolean) {
@@ -27,7 +35,7 @@ export function useChatRestriction(channelSlug: string, active: boolean) {
   const deadline = useRef(0)
 
   const refresh = useCallback(
-    async (changedChannelId?: string) => {
+    async (changedChannelId?: string, background = false) => {
       if (
         !active ||
         (changedChannelId &&
@@ -36,7 +44,7 @@ export function useChatRestriction(channelSlug: string, active: boolean) {
       )
         return
       const request = ++generation.current
-      setChecking(true)
+      if (!background) setChecking(true)
       try {
         const response = await fetch(
           `/api/channels/${encodeURIComponent(channelSlug)}/chat/state`,
@@ -47,7 +55,7 @@ export function useChatRestriction(channelSlug: string, active: boolean) {
         const result = participantStateSchema.parse(await response.json())
         if (request !== generation.current) return
         channelId.current = result.channelId
-        const duration = result.restriction
+        const duration = result.restriction?.expiresAt
           ? Math.max(
               0,
               Date.parse(result.restriction.expiresAt) -
@@ -69,7 +77,9 @@ export function useChatRestriction(channelSlug: string, active: boolean) {
 
   useEffect(() => {
     const timer = setTimeout(() => void refresh(), 0)
+    const poll = setInterval(() => void refresh(undefined, true), 5_000)
     return () => {
+      clearInterval(poll)
       clearTimeout(timer)
       generation.current += 1
     }
@@ -81,7 +91,7 @@ export function useChatRestriction(channelSlug: string, active: boolean) {
       const timer = setTimeout(() => void refresh(), 3_000)
       return () => clearTimeout(timer)
     }
-    if (!state?.restriction) return
+    if (!state?.restriction?.expiresAt) return
     const timer = setInterval(() => {
       const remaining = Math.max(
         0,
@@ -99,7 +109,8 @@ export function useChatRestriction(channelSlug: string, active: boolean) {
 
   return {
     restriction: state?.restriction ?? null,
-    moderatorRole: !checking && !failed ? (state?.moderatorRole ?? null) : null,
+    authorities: state?.authorities,
+    moderatorRole: !failed ? (state?.moderatorRole ?? null) : null,
     blocked: !state || checking || failed || Boolean(state.restriction),
     failed,
     remainingSeconds,

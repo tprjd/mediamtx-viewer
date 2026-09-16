@@ -625,7 +625,7 @@ it.each([10, 60, 1440])(
     })
     expect(
       Date.parse(
-        getChatRestriction(testChannel.id, 'participant', now)!.expiresAt,
+        getChatRestriction(testChannel.id, 'participant', now)!.expiresAt!,
       ) - now.getTime(),
     ).toBe(durationMinutes * 60_000)
     const record = getChatDatabase()
@@ -812,4 +812,462 @@ it('rejects concurrent sends that started before a timeout but reach storage aft
   } finally {
     session.accountId = 'owner'
   }
+})
+
+it('keeps a Chat ban indefinite and replaces only the previous ten minutes with tombstones', async () => {
+  const { sendChatMessage, loadLatestChatHistory } = await import('@/lib/chat')
+  const { applyChatBan, getChatParticipantState } =
+    await import('@/lib/chat-moderation')
+  const room = { ...channel, id: crypto.randomUUID() }
+  const now = new Date()
+  const participant = { accountId: 'participant', profileName: 'Author' }
+  const older = sendChatMessage({
+    channel: room,
+    participant,
+    rawContent: 'Older',
+    now: new Date(now.getTime() - 600_001),
+  })
+  const recent = sendChatMessage({
+    channel: room,
+    participant,
+    rawContent: 'Recent',
+    now,
+  })
+  applyChatBan({
+    channel: room,
+    actorId: 'owner',
+    messageId: recent.id,
+    category: 'Other',
+    note: 'Private reason',
+    now,
+  })
+  const later = new Date(now.getTime() + 365 * 86400_000)
+  expect(
+    getChatParticipantState(room, 'participant', later).restriction,
+  ).toEqual({ category: 'Other', expiresAt: null })
+  expect(() =>
+    sendChatMessage({
+      channel: room,
+      participant,
+      rawContent: 'Bypass',
+      now: later,
+    }),
+  ).toThrow('Chat ban')
+  expect(loadLatestChatHistory(room, now).messages).toEqual([
+    older,
+    expect.objectContaining({ id: recent.id, removed: true }),
+  ])
+})
+
+it('reverses a ban, restores owner authority, and keeps durable records after retention and clearing', async () => {
+  const { sendChatMessage } = await import('@/lib/chat')
+  const {
+    applyChatBan,
+    getChatParticipantState,
+    listActiveChatRestrictions,
+    reverseChatRestriction,
+    listChatModerationRecords,
+    clearChatModerationRecords,
+  } = await import('@/lib/chat-moderation')
+  const room = { ...channel, id: crypto.randomUUID() }
+  const now = new Date()
+  const message = sendChatMessage({
+    channel: room,
+    participant: { accountId: 'owner', profileName: 'Owner' },
+    rawContent: 'Evidence',
+    now,
+  })
+  applyChatBan({
+    channel: room,
+    actorId: 'admin',
+    messageId: message.id,
+    category: 'Other',
+    note: 'Private note',
+    now,
+  })
+  expect(getChatParticipantState(room, 'owner', now).moderatorRole).toBeNull()
+  const [restriction] = listActiveChatRestrictions(room, 'admin', now)
+  expect(restriction).toMatchObject({
+    action: 'ban',
+    canReverse: true,
+    expiresAt: null,
+  })
+  expect(() =>
+    reverseChatRestriction(room, 'owner', restriction.id, now),
+  ).toThrow('Not authorized')
+  const later = new Date(now.getTime() + 8 * 86400_000)
+  const records = listChatModerationRecords('admin', undefined, later).records
+  expect(records.find((record) => record.id === restriction.id)).toMatchObject({
+    action: 'ban',
+    state: 'active',
+    category: 'Other',
+  })
+  expect(JSON.stringify(records)).not.toMatch(/Evidence|Private note/)
+  clearChatModerationRecords('admin')
+  expect(listChatModerationRecords('admin').records).toEqual([])
+  expect(
+    getChatParticipantState(room, 'owner', later).restriction,
+  ).not.toBeNull()
+  reverseChatRestriction(room, 'admin', restriction.id, later)
+  expect(getChatParticipantState(room, 'owner', later)).toMatchObject({
+    restriction: null,
+    moderatorRole: 'owner',
+  })
+  expect(
+    sendChatMessage({
+      channel: room,
+      participant: { accountId: 'owner', profileName: 'Owner' },
+      rawContent: 'Restored',
+      now: later,
+    }),
+  ).toMatchObject({ content: 'Restored' })
+  expect(listChatModerationRecords('admin', undefined, later).records).toEqual([
+    expect.objectContaining({
+      action: 'reversal',
+      state: 'completed',
+      sourceRecordId: restriction.id,
+    }),
+  ])
+})
+
+it.each([
+  ['owner', 'participant', 'owner', true],
+  ['owner', 'owner', 'owner', true],
+  ['owner', 'admin', 'owner', false],
+  ['owner', 'participant', 'participant', false],
+  ['participant', 'owner', 'owner', false],
+  ['participant', 'admin', 'owner', false],
+  ['participant', 'participant', 'owner', false],
+  ['admin', 'owner', 'owner', true],
+  ['admin', 'admin', 'owner', true],
+  ['admin', 'participant', 'participant', true],
+] as const)(
+  'checks ban authority for %s against %s in a room owned by %s',
+  async (actorId, targetId, ownerUserId, allowed) => {
+    const { sendChatMessage } = await import('@/lib/chat')
+    const { applyChatBan } = await import('@/lib/chat-moderation')
+    const room = { id: crypto.randomUUID(), ownerUserId }
+    const message = sendChatMessage({
+      channel: room,
+      participant: { accountId: targetId, profileName: targetId },
+      rawContent: 'Target',
+    })
+    const apply = () =>
+      applyChatBan({
+        channel: room,
+        actorId,
+        messageId: message.id,
+        category: 'Spam',
+      })
+    if (allowed) expect(apply().messages).toHaveLength(1)
+    else expect(apply).toThrow('Not authorized')
+  },
+)
+
+it.each(['ban', 'timeout'] as const)(
+  'enforces reversal authority and rejects stale %s reversals',
+  async (action) => {
+    const { sendChatMessage } = await import('@/lib/chat')
+    const {
+      applyChatBan,
+      applyChatTimeout,
+      listActiveChatRestrictions,
+      reverseChatRestriction,
+      getChatParticipantState,
+    } = await import('@/lib/chat-moderation')
+    for (const creator of ['owner', 'admin']) {
+      for (const actor of ['owner', 'admin', 'participant']) {
+        const room = { ...channel, id: crypto.randomUUID() }
+        const message = sendChatMessage({
+          channel: room,
+          participant: { accountId: 'participant', profileName: 'Friend' },
+          rawContent: 'Target',
+        })
+        const input = {
+          channel: room,
+          actorId: creator,
+          messageId: message.id,
+          category: 'Spam',
+        }
+        if (action === 'ban') applyChatBan(input)
+        else applyChatTimeout({ ...input, durationMinutes: 10 })
+        const [restriction] = listActiveChatRestrictions(room, 'admin')
+        const reverse = () =>
+          reverseChatRestriction(room, actor, restriction.id)
+        const allowed =
+          actor === 'admin' || (actor === 'owner' && creator === 'owner')
+        if (allowed) {
+          reverse()
+          expect(
+            getChatParticipantState(room, 'participant').restriction,
+          ).toBeNull()
+          expect(reverse).toThrow('not found')
+        } else expect(reverse).toThrow('Not authorized')
+        expect(() =>
+          reverseChatRestriction(
+            { ...room, id: 'wrong-room' },
+            'admin',
+            restriction.id,
+          ),
+        ).toThrow('not found')
+      }
+    }
+  },
+)
+
+it('keeps moderation history administrator-only and pages stable records across rooms', async () => {
+  const { sendChatMessage } = await import('@/lib/chat')
+  const {
+    applyChatBan,
+    listChatModerationRecords,
+    clearChatModerationRecords,
+  } = await import('@/lib/chat-moderation')
+  clearChatModerationRecords('admin')
+  for (let i = 0; i < 26; i++) {
+    const room = { ...channel, id: crypto.randomUUID() }
+    const message = sendChatMessage({
+      channel: room,
+      participant: { accountId: 'participant', profileName: 'Friend' },
+      rawContent: 'Private content',
+    })
+    applyChatBan({
+      channel: room,
+      actorId: 'owner',
+      messageId: message.id,
+      category: 'Spam',
+    })
+  }
+  const first = listChatModerationRecords('admin')
+  expect(first.records).toHaveLength(50)
+  const second = listChatModerationRecords('admin', first.cursor!)
+  expect(second.records).toHaveLength(2)
+  expect(second.cursor).toBeNull()
+  expect(
+    new Set([...first.records, ...second.records].map((row) => row.id)).size,
+  ).toBe(52)
+  for (const actor of ['owner', 'participant', 'missing']) {
+    expect(() => listChatModerationRecords(actor)).toThrow('Not authorized')
+    expect(() => clearChatModerationRecords(actor)).toThrow('Not authorized')
+  }
+})
+
+it('updates current Owner badges when authority is suspended and restored without rewriting history', async () => {
+  const { sendChatMessage, loadLatestChatHistory } = await import('@/lib/chat')
+  const {
+    applyChatBan,
+    applyChatTimeout,
+    listActiveChatRestrictions,
+    reverseChatRestriction,
+    getChatParticipantState,
+  } = await import('@/lib/chat-moderation')
+  const room = { ...channel, id: crypto.randomUUID() }
+  const now = new Date()
+  const message = sendChatMessage({
+    channel: room,
+    participant: { accountId: 'owner', profileName: 'Owner' },
+    rawContent: 'Old owner message',
+    now: new Date(now.getTime() - 601_000),
+  })
+  expect(message.badges).toEqual(['owner'])
+  applyChatBan({
+    channel: room,
+    actorId: 'admin',
+    messageId: message.id,
+    category: 'Spam',
+    now,
+  })
+  expect(loadLatestChatHistory(room, now).messages[0].badges).toEqual([])
+  expect(getChatParticipantState(room, 'participant', now).authorities).toEqual(
+    [],
+  )
+  expect(() =>
+    applyChatTimeout({
+      channel: room,
+      actorId: 'admin',
+      messageId: message.id,
+      category: 'Spam',
+      durationMinutes: 10,
+      now,
+    }),
+  ).toThrow('Lift the Chat ban')
+  reverseChatRestriction(
+    room,
+    'admin',
+    listActiveChatRestrictions(room, 'admin', now)[0].id,
+    now,
+  )
+  expect(loadLatestChatHistory(room, now).messages[0].badges).toEqual(['owner'])
+  expect(getChatParticipantState(room, 'participant', now).authorities).toEqual(
+    [{ authorTag: message.authorTag, badges: ['owner'] }],
+  )
+})
+
+it('enforces bans and reversal through HTTP while preserving private state, reading, and reconnect access', async () => {
+  const { getChatDatabase } = await import('@/lib/chat-database')
+  const { sendChatMessage } = await import('@/lib/chat')
+  const { POST: ban } =
+    await import('@/app/api/channels/[slug]/chat/messages/[messageId]/ban/route')
+  const { GET: restrictions, POST: reverse } =
+    await import('@/app/api/channels/[slug]/chat/restrictions/route')
+  const { GET: state } =
+    await import('@/app/api/channels/[slug]/chat/state/route')
+  const { GET: history, POST: send } =
+    await import('@/app/api/channels/[slug]/chat/messages/route')
+  const { GET: token } =
+    await import('@/app/api/channels/[slug]/chat/token/route')
+  const { GET: records, DELETE: clear } =
+    await import('@/app/api/admin/chat/moderation/route')
+  getChatDatabase().prepare('DELETE FROM chat_restriction').run()
+  const message = sendChatMessage({
+    channel: { ...channel, id: 'http-channel' },
+    participant: { accountId: 'participant', profileName: 'Friend' },
+    rawContent: 'Evidence',
+    now: new Date(Date.now() + 3000),
+  })
+  const context = {
+    params: Promise.resolve({ slug: 'moderation', messageId: message.id }),
+  }
+  const request = () => new Request('http://localhost/')
+  const body = (value: unknown, method = 'POST') =>
+    new Request('http://localhost/', {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(value),
+    })
+  // Use a past timestamp so the message is retained at the HTTP server's clock.
+  getChatDatabase()
+    .prepare('UPDATE chat_message SET created_at = ? WHERE id = ?')
+    .run(Date.now() - 1000, message.id)
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json({}, { status: 503 })),
+  )
+  try {
+    session.accountId = 'participant'
+    expect((await ban(body({ category: 'Spam' }), context)).status).toBe(403)
+    session.accountId = 'admin'
+    expect(
+      (
+        await ban(
+          body({ category: 'Other', note: 'Private evidence' }),
+          context,
+        )
+      ).status,
+    ).toBe(200)
+    const active = await (await restrictions(request(), context)).json()
+    const restrictionId = active.restrictions[0].id
+    session.accountId = 'owner'
+    expect((await reverse(body({ restrictionId }), context)).status).toBe(403)
+    expect((await records(request())).status).toBe(403)
+    expect((await clear(body({ confirmed: true }, 'DELETE'))).status).toBe(403)
+    session.accountId = 'participant'
+    expect((await restrictions(request(), context)).status).toBe(403)
+    const current = await (await state(request(), context)).json()
+    expect(current.restriction).toEqual({ category: 'Other', expiresAt: null })
+    expect(JSON.stringify(current)).not.toMatch(
+      /Private|actor|note|participant/,
+    )
+    expect(
+      (
+        await send(
+          body({
+            content: 'Bypass',
+            clientIdempotencyKey: crypto.randomUUID(),
+          }),
+          context,
+        )
+      ).status,
+    ).toBe(403)
+    expect((await history(request(), context)).status).toBe(200)
+    expect((await token(request(), context)).status).toBe(200)
+    session.accountId = 'admin'
+    expect((await reverse(body({ restrictionId }), context)).status).toBe(200)
+    expect((await records(request())).headers.get('cache-control')).toContain(
+      'no-store',
+    )
+    expect((await clear(body({}, 'DELETE'))).status).toBe(400)
+    expect((await clear(body({ confirmed: true }, 'DELETE'))).status).toBe(200)
+    session.accountId = null
+    expect((await restrictions(request(), context)).status).toBe(401)
+    expect((await records(request())).status).toBe(401)
+  } finally {
+    session.accountId = 'owner'
+    vi.unstubAllGlobals()
+  }
+})
+
+it('commits ban and reversal events privately and rolls back a failed reversal', async () => {
+  const { sendChatMessage } = await import('@/lib/chat')
+  const { getChatDatabase } = await import('@/lib/chat-database')
+  const {
+    applyChatBan,
+    listActiveChatRestrictions,
+    reverseChatRestriction,
+    getChatParticipantState,
+    listChatModerationRecords,
+  } = await import('@/lib/chat-moderation')
+  const { dispatchNextChatOutboxEvent } = await import('@/lib/chat-outbox')
+  const room = { ...channel, id: crypto.randomUUID() }
+  const message = sendChatMessage({
+    channel: room,
+    participant: { accountId: 'participant', profileName: 'Secret profile' },
+    rawContent: 'Secret content',
+  })
+  applyChatBan({
+    channel: room,
+    actorId: 'owner',
+    messageId: message.id,
+    category: 'Other',
+    note: 'Secret note',
+  })
+  const [restriction] = listActiveChatRestrictions(room, 'owner')
+  const db = getChatDatabase()
+  db.exec(
+    "CREATE TRIGGER reject_reversal BEFORE INSERT ON chat_outbox WHEN NEW.message_id IS NULL BEGIN SELECT RAISE(ABORT, 'control failed'); END",
+  )
+  try {
+    expect(() => reverseChatRestriction(room, 'owner', restriction.id)).toThrow(
+      'control failed',
+    )
+  } finally {
+    db.exec('DROP TRIGGER reject_reversal')
+  }
+  expect(
+    getChatParticipantState(room, 'participant').restriction,
+  ).not.toBeNull()
+  expect(
+    listChatModerationRecords('admin').records.filter(
+      (record) => record.sourceRecordId === restriction.id,
+    ),
+  ).toEqual([])
+  reverseChatRestriction(room, 'owner', restriction.id)
+  const fetcher = vi.fn<typeof fetch>(async () => Response.json({ result: {} }))
+  while (
+    await dispatchNextChatOutboxEvent(fetcher, new Date(Date.now() + 60_000))
+  ) {
+    /* drain */
+  }
+  const publications = fetcher.mock.calls
+    .filter(([url]) => String(url).endsWith('/publish'))
+    .map(([, options]) => JSON.parse(String(options?.body)))
+  const roomEvents = publications.filter(
+    (event) => event.channel === `chat:${room.id}`,
+  )
+  expect(roomEvents).toHaveLength(1)
+  expect(roomEvents[0].data.message).toMatchObject({
+    id: message.id,
+    removed: true,
+  })
+  expect(JSON.stringify(roomEvents)).not.toMatch(
+    /Secret|ban|restriction|Other|owner|participant/,
+  )
+  const controls = publications.filter(
+    (event) =>
+      event.channel === 'control:#participant' &&
+      event.data.channelId === room.id,
+  )
+  expect(controls.map((event) => event.data)).toEqual([
+    { type: 'restriction', channelId: room.id },
+    { type: 'restriction', channelId: room.id },
+  ])
 })

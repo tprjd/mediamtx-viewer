@@ -32,9 +32,9 @@ export function ChatMessageActions({
     canTimeout: boolean
   } | null>(null)
   const [menuError, setMenuError] = useState<string | null>(null)
-  const [dialog, setDialog] = useState<'remove' | 'timeout' | 'inspect' | null>(
-    null,
-  )
+  const [dialog, setDialog] = useState<
+    'remove' | 'timeout' | 'ban' | 'inspect' | null
+  >(null)
   const [durationMinutes, setDurationMinutes] = useState('10')
   const [category, setCategory] = useState('')
   const [note, setNote] = useState('')
@@ -78,7 +78,7 @@ export function ChatMessageActions({
     }
   }
 
-  function openAction(action: 'remove' | 'timeout') {
+  function openAction(action: 'remove' | 'timeout' | 'ban') {
     setCategory('')
     setNote('')
     setDurationMinutes('10')
@@ -91,8 +91,8 @@ export function ChatMessageActions({
     setError(null)
     try {
       const response = await fetch(
-        dialog === 'timeout'
-          ? endpoint.replace(/\/removal$/, '/timeout')
+        dialog === 'timeout' || dialog === 'ban'
+          ? endpoint.replace(/\/removal$/, `/${dialog}`)
           : endpoint,
         {
           method: 'POST',
@@ -111,7 +111,8 @@ export function ChatMessageActions({
         throw new Error(
           result.error ?? 'Could not apply the Chat moderation action.',
         )
-      if (dialog === 'timeout') result.messages.forEach(onRemoved)
+      if (dialog === 'timeout' || dialog === 'ban')
+        result.messages.forEach(onRemoved)
       else onRemoved(result.message)
       setDialog(null)
       setNote('')
@@ -178,6 +179,14 @@ export function ChatMessageActions({
                     Apply Chat timeout
                   </DropdownMenu.Item>
                 )}
+                {actions.canTimeout && (
+                  <DropdownMenu.Item
+                    className={styles.item}
+                    onSelect={() => openAction('ban')}
+                  >
+                    Apply Chat ban
+                  </DropdownMenu.Item>
+                )}
                 {!actions.canInspect &&
                   !actions.canRemove &&
                   !actions.canTimeout && (
@@ -210,20 +219,22 @@ export function ChatMessageActions({
             }}
           >
             <Dialog.Title>
-              {dialog === 'timeout'
-                ? 'Apply Chat timeout'
-                : dialog === 'remove'
-                  ? 'Remove message'
-                  : 'Removed message'}
+              {dialog === 'ban'
+                ? 'Apply Chat ban'
+                : dialog === 'timeout'
+                  ? 'Apply Chat timeout'
+                  : dialog === 'remove'
+                    ? 'Remove message'
+                    : 'Removed message'}
             </Dialog.Title>
             <Dialog.Description>
-              {dialog === 'timeout'
+              {dialog === 'timeout' || dialog === 'ban'
                 ? 'Stop this participant from sending and remove their messages from the previous ten minutes. They can still read Chat and watch the Channel.'
                 : dialog === 'remove'
                   ? 'Replace this message with a tombstone for everyone in this Chat room.'
                   : 'Only current Chat moderators can inspect this retained content.'}
             </Dialog.Description>
-            {dialog === 'remove' || dialog === 'timeout' ? (
+            {dialog === 'remove' || dialog === 'timeout' || dialog === 'ban' ? (
               <form
                 onSubmit={(event) => {
                   event.preventDefault()
@@ -285,9 +296,11 @@ export function ChatMessageActions({
                 >
                   {busy
                     ? 'Applying...'
-                    : dialog === 'timeout'
-                      ? 'Confirm timeout'
-                      : 'Confirm removal'}
+                    : dialog === 'ban'
+                      ? 'Confirm ban'
+                      : dialog === 'timeout'
+                        ? 'Confirm timeout'
+                        : 'Confirm removal'}
                 </button>
               </form>
             ) : busy ? (
@@ -305,7 +318,7 @@ export function ChatMessageActions({
             {error && <p role="alert">{error}</p>}
             <Dialog.Close asChild>
               <button type="button">
-                {dialog === 'remove' || dialog === 'timeout'
+                {dialog === 'remove' || dialog === 'timeout' || dialog === 'ban'
                   ? 'Cancel'
                   : 'Close'}
               </button>

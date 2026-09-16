@@ -217,6 +217,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
         <div>
           <p className="eyebrow">Administration</p>
           <h1>Viewer access</h1>
+          <Link href="/admin/chat">Chat moderation records</Link>
           <p>Approve friends, disable access, and revoke database sessions.</p>
         </div>
         <form action={registrationAction} className={`${styles.registrationControl}`}>

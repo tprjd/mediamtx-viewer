@@ -3,6 +3,7 @@
 import { Send } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { ChatRestrictionsPanel } from '@/components/chat-restrictions-panel'
 import { ChatFrame } from '@/components/chat-frame'
 import {
   ChatTranscript,
@@ -466,6 +467,9 @@ function ChatPanelContent({
 
   return (
     <>
+      {timeout.moderatorRole && !unavailable && !accessDenied && (
+        <ChatRestrictionsPanel channelSlug={channelSlug} />
+      )}
       {loading ? (
         <div
           aria-busy="true"
@@ -487,7 +491,17 @@ function ChatPanelContent({
           firstItemIndex={firstItemIndex}
           historyExhausted={historyExhausted}
           loadingOlderHistory={loadingOlderHistory}
-          messages={messages}
+          messages={messages.map((message) =>
+            message.removed || !timeout.authorities
+              ? message
+              : {
+                  ...message,
+                  badges:
+                    timeout.authorities.find(
+                      (author) => author.authorTag === message.authorTag,
+                    )?.badges ?? [],
+                },
+          )}
           onAtBottomChange={updateAtBottomState}
           onLoadOlder={() => void loadOlderHistory()}
           realtimeState={realtimeState}
@@ -526,14 +540,25 @@ function ChatPanelContent({
       {timeout.restriction && (
         <p
           role="status"
-          aria-label="Chat timeout"
+          aria-label={
+            timeout.restriction.expiresAt === null ? 'Chat ban' : 'Chat timeout'
+          }
           aria-live="off"
           className={styles.chatError}
         >
-          Chat timeout: {timeout.restriction.category}.{' '}
-          {Math.floor(timeout.remainingSeconds / 3600)}h{' '}
-          {Math.floor((timeout.remainingSeconds % 3600) / 60)}m{' '}
-          {timeout.remainingSeconds % 60}s remaining.
+          {timeout.restriction.expiresAt === null ? (
+            <>
+              Chat ban: {timeout.restriction.category}. Indefinite, until a Chat
+              moderator lifts it.
+            </>
+          ) : (
+            <>
+              Chat timeout: {timeout.restriction.category}.{' '}
+              {Math.floor(timeout.remainingSeconds / 3600)}h{' '}
+              {Math.floor((timeout.remainingSeconds % 3600) / 60)}m{' '}
+              {timeout.remainingSeconds % 60}s remaining.
+            </>
+          )}
         </p>
       )}
       {timeout.failed && (

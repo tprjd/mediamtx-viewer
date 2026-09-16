@@ -10,24 +10,23 @@ export function getActiveChatRestriction(
 ):
   | {
       category: ChatRestriction['category']
-      expiresAt: number
+      expiresAt: number | null
       actorRole: string
     }
   | undefined {
   return getChatDatabase()
     .prepare(
       `
-    SELECT record.category, record.expires_at AS expiresAt, record.actor_role AS actorRole
+    SELECT restriction.category, restriction.expires_at AS expiresAt, restriction.actor_role AS actorRole
     FROM chat_restriction restriction
     JOIN chat_room room ON room.id = restriction.room_id
-    JOIN chat_moderation_record record ON record.id = restriction.record_id
-    WHERE room.channel_id = ? AND restriction.account_id = ? AND record.expires_at > ?
+    WHERE room.channel_id = ? AND restriction.account_id = ? AND (restriction.expires_at IS NULL OR restriction.expires_at > ?)
   `,
     )
     .get(channelId, accountId, now.getTime()) as
     | {
         category: ChatRestriction['category']
-        expiresAt: number
+        expiresAt: number | null
         actorRole: string
       }
     | undefined
@@ -42,13 +41,20 @@ export function getChatRestriction(
   return restriction
     ? {
         category: restriction.category,
-        expiresAt: new Date(restriction.expiresAt).toISOString(),
+        expiresAt:
+          restriction.expiresAt === null
+            ? null
+            : new Date(restriction.expiresAt).toISOString(),
       }
     : null
 }
 
 export class ChatRestrictionError extends Error {
   constructor(readonly restriction: ChatRestriction) {
-    super('Chat timeout is active.')
+    super(
+      restriction.expiresAt === null
+        ? 'Chat ban is active.'
+        : 'Chat timeout is active.',
+    )
   }
 }

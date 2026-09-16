@@ -41,7 +41,7 @@ export type ChatModeratorRole = 'admin' | 'owner' | null
 
 export interface ChatRestriction {
   category: 'Spam' | 'Harassment' | 'Other'
-  expiresAt: string
+  expiresAt: string | null
 }
 
 export interface ChatParticipantState {
@@ -49,4 +49,5 @@ export interface ChatParticipantState {
   restriction: ChatRestriction | null
   moderatorRole: ChatModeratorRole
   serverTime: string
+  authorities: Array<{ authorTag: string; badges: Array<'admin' | 'owner'> }>
 }

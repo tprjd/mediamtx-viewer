@@ -1,0 +1,41 @@
+.history {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.controls button {
+  border: 1px solid var(--border, #555);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+.controls button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.tableScroll {
+  overflow-x: auto;
+}
+.history table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.history caption {
+  text-align: left;
+  padding: 0.75rem 0;
+}
+.history th,
+.history td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border, #444);
+  vertical-align: top;
+}
+.history small {
+  display: block;
+}

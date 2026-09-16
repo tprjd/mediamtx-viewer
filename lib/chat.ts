@@ -8,6 +8,7 @@ import { chatEnvironment } from '@/lib/chat-environment'
 import {
   ChatRestrictionError,
   getChatRestriction,
+  getActiveChatRestriction,
 } from '@/lib/chat-restrictions'
 import {
   allocateChatAuthorTag,
@@ -68,9 +69,10 @@ function createAuthorTagDigest(roomId: string, accountId: string): string {
     .digest('hex')
 }
 
-function currentBadges(
+export function currentChatBadges(
   accountId: string,
   channel: ChatChannelReference,
+  now = new Date(),
 ): Array<'admin' | 'owner'> {
   const account = getDatabase()
     .prepare('SELECT role, activationStatus FROM user WHERE id = ?')
@@ -80,7 +82,13 @@ function currentBadges(
 
   const badges: Array<'admin' | 'owner'> = []
   if (account.role === 'admin') badges.push('admin')
-  if (accountId === channel.ownerUserId) badges.push('owner')
+  if (
+    accountId === channel.ownerUserId &&
+    (account.role === 'admin' ||
+      getActiveChatRestriction(channel.id, accountId, now)?.actorRole !==
+        'admin')
+  )
+    badges.push('owner')
   return badges
 }
 
@@ -100,6 +108,7 @@ export function createChatTombstone(
 function toPublicMessage(
   row: ChatMessageRow,
   channel: ChatChannelReference,
+  now: Date,
 ): PublicChatMessage {
   if (row.removedSequence) {
     return createChatTombstone(row, row.removedSequence)
@@ -117,7 +126,7 @@ function toPublicMessage(
     content: row.content,
     profileName: row.profileName,
     authorTag: row.authorTag,
-    badges: currentBadges(row.accountId, channel),
+    badges: currentChatBadges(row.accountId, channel, now),
     serverTimestamp: new Date(row.createdAt).toISOString(),
   }
 }
@@ -173,7 +182,7 @@ export function sendChatMessage({
             'Retry must use the original message.',
           )
         }
-        return toPublicMessage(existing, channel)
+        return toPublicMessage(existing, channel, now)
       }
 
       const rateState = database
@@ -275,7 +284,7 @@ export function sendChatMessage({
         content,
         createdAt: now.getTime(),
       }
-      const message = toPublicMessage(row, channel)
+      const message = toPublicMessage(row, channel, now)
       const eventId = createChatPublicationId()
       const event: PublicChatMessageEvent = {
         type: 'message',
@@ -377,11 +386,12 @@ function loadRetainedChatRows(
 function toChatHistoryPage(
   rows: ChatMessageRow[],
   channel: ChatChannelReference,
+  now: Date,
 ): ChatHistoryPage {
   const hasMore = rows.length > HISTORY_PAGE_SIZE
   const selectedRows = rows.slice(0, HISTORY_PAGE_SIZE).toReversed()
   return {
-    messages: selectedRows.map((row) => toPublicMessage(row, channel)),
+    messages: selectedRows.map((row) => toPublicMessage(row, channel, now)),
     hasMore,
     cursor:
       hasMore && selectedRows[0]
@@ -400,6 +410,7 @@ export function loadLatestChatHistory(
       pageSize: HISTORY_PAGE_SIZE,
     }),
     channel,
+    now,
   )
 }
 
@@ -420,7 +431,7 @@ export function loadChatMessagesAfter(
   return {
     messages: rows
       .slice(0, GAP_REPAIR_PAGE_SIZE)
-      .map((row) => toPublicMessage(row, channel)),
+      .map((row) => toPublicMessage(row, channel, now)),
     hasMore,
   }
 }
@@ -441,5 +452,6 @@ export function loadOlderChatMessages(
       sequence: { operator: '<', value: beforeSequence },
     }),
     channel,
+    now,
   )
 }

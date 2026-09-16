@@ -4,7 +4,11 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { getDatabase } from '@/lib/auth/database'
 import { getChatDatabase } from '@/lib/chat-database'
-import { createChatTombstone, type ChatChannelReference } from '@/lib/chat'
+import {
+  createChatTombstone,
+  currentChatBadges,
+  type ChatChannelReference,
+} from '@/lib/chat'
 import type {
   ChatParticipantState,
   ChatModeratorRole,
@@ -263,6 +267,25 @@ export function inspectRemovedChatMessage(
   }
 }
 
+function currentChatAuthorities(channel: ChatChannelReference, now: Date) {
+  const accounts = getDatabase()
+    .prepare(
+      "SELECT id FROM user WHERE activationStatus = 'active' AND (role = 'admin' OR id = ?)",
+    )
+    .all(channel.ownerUserId) as Array<{ id: string }>
+  return accounts.flatMap((account) => {
+    const participant = getChatDatabase()
+      .prepare(
+        `SELECT author_tag AS authorTag FROM chat_participant p JOIN chat_room r ON r.id = p.room_id WHERE r.channel_id = ? AND p.account_id = ?`,
+      )
+      .get(channel.id, account.id) as { authorTag: string } | undefined
+    const badges = currentChatBadges(account.id, channel, now)
+    return participant && badges.length
+      ? [{ authorTag: participant.authorTag, badges }]
+      : []
+  })
+}
+
 export function getChatParticipantState(
   channel: ChatChannelReference,
   accountId: string,
@@ -273,28 +296,45 @@ export function getChatParticipantState(
     restriction: getChatRestriction(channel.id, accountId, now),
     moderatorRole: getChatModeratorRole(channel, accountId, now),
     serverTime: now.toISOString(),
+    authorities: currentChatAuthorities(channel, now),
   }))()
 }
 
-export function applyChatTimeout({
-  channel,
-  actorId,
-  messageId,
-  durationMinutes,
-  category,
-  note,
-  now = new Date(),
-}: RemoveChatMessageInput & { durationMinutes: number }) {
-  const parsed = chatTimeoutSchema.safeParse({
-    durationMinutes,
-    category,
-    note,
-  })
+export function applyChatTimeout(
+  input: RemoveChatMessageInput & { durationMinutes: number },
+) {
+  const parsed = chatTimeoutSchema.safeParse(input)
   if (!parsed.success)
     throw new ChatModerationError(
       'Select a timeout and category. Other requires a private note of at most 2000 characters.',
       400,
     )
+  return applyChatRestriction({ ...input, ...parsed.data })
+}
+
+export function applyChatBan(input: RemoveChatMessageInput) {
+  const parsed = chatRemovalSchema.safeParse(input)
+  if (!parsed.success)
+    throw new ChatModerationError(
+      'Select a category. Other requires a private note of at most 2000 characters.',
+      400,
+    )
+  return applyChatRestriction({
+    ...input,
+    ...parsed.data,
+    durationMinutes: null,
+  })
+}
+
+function applyChatRestriction({
+  channel,
+  actorId,
+  messageId,
+  category,
+  note,
+  durationMinutes,
+  now = new Date(),
+}: RemoveChatMessageInput & { durationMinutes: number | null }) {
   const database = getChatDatabase()
   return database
     .transaction(() => {
@@ -308,21 +348,35 @@ export function applyChatTimeout({
       ) {
         throw new ChatModerationError('Not authorized.', 403)
       }
+      if (
+        durationMinutes !== null &&
+        getActiveChatRestriction(channel.id, target.accountId, now)
+          ?.expiresAt === null
+      ) {
+        throw new ChatModerationError(
+          'Lift the Chat ban before applying a timeout.',
+          409,
+        )
+      }
       const recordId = randomUUID()
-      const expiresAt = now.getTime() + parsed.data.durationMinutes * 60_000
+      const expiresAt =
+        durationMinutes === null
+          ? null
+          : now.getTime() + durationMinutes * 60_000
       database
         .prepare(
           `INSERT INTO chat_moderation_record
       (id, action, category, actor_account_id, target_account_id, room_id, private_note, created_at, expires_at, actor_role)
-      VALUES (?, 'timeout', ?, ?, ?, ?, ?, ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           recordId,
-          parsed.data.category,
+          durationMinutes === null ? 'ban' : 'timeout',
+          category,
           actorId,
           target.accountId,
           target.roomId,
-          parsed.data.note || null,
+          note || null,
           now.getTime(),
           expiresAt,
           role,
@@ -345,17 +399,25 @@ export function applyChatTimeout({
           channel,
           actorId,
           messageId: id,
-          category: parsed.data.category,
-          note: parsed.data.note,
+          category,
+          note,
           now,
         }),
       )
       database
         .prepare(
-          `INSERT INTO chat_restriction (room_id, account_id, record_id) VALUES (?, ?, ?)
-      ON CONFLICT (room_id, account_id) DO UPDATE SET record_id = excluded.record_id`,
+          `INSERT INTO chat_restriction (room_id, account_id, record_id, category, actor_role, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (room_id, account_id) DO UPDATE SET record_id = excluded.record_id, category = excluded.category, actor_role = excluded.actor_role, created_at = excluded.created_at, expires_at = excluded.expires_at`,
         )
-        .run(target.roomId, target.accountId, recordId)
+        .run(
+          target.roomId,
+          target.accountId,
+          recordId,
+          category,
+          role,
+          now.getTime(),
+          expiresAt,
+        )
       // The event asks this participant's clients to load the current private state.
       // It does not announce the restriction to the room.
       database
@@ -373,4 +435,215 @@ export function applyChatTimeout({
       return { messages }
     })
     .immediate()
+}
+
+interface ActiveRestrictionRow {
+  id: string
+  accountId: string
+  category: 'Spam' | 'Harassment' | 'Other'
+  actorRole: 'admin' | 'owner'
+  createdAt: number
+  expiresAt: number | null
+  authorTag: string
+}
+
+function activeRestrictions(channel: ChatChannelReference, now: Date) {
+  return getChatDatabase()
+    .prepare(
+      `
+    SELECT restriction.record_id AS id, restriction.account_id AS accountId,
+      restriction.category, restriction.actor_role AS actorRole,
+      restriction.created_at AS createdAt, restriction.expires_at AS expiresAt,
+      participant.author_tag AS authorTag
+    FROM chat_restriction restriction
+    JOIN chat_room room ON room.id = restriction.room_id
+    JOIN chat_participant participant ON participant.room_id = room.id AND participant.account_id = restriction.account_id
+    WHERE room.channel_id = ? AND (restriction.expires_at IS NULL OR restriction.expires_at > ?)
+    ORDER BY restriction.created_at DESC, restriction.record_id DESC
+  `,
+    )
+    .all(channel.id, now.getTime()) as ActiveRestrictionRow[]
+}
+
+function accountName(accountId: string): string {
+  return (
+    (
+      getDatabase()
+        .prepare('SELECT name FROM user WHERE id = ?')
+        .get(accountId) as { name: string } | undefined
+    )?.name ?? 'Deleted account'
+  )
+}
+
+export function listActiveChatRestrictions(
+  channel: ChatChannelReference,
+  actorId: string,
+  now = new Date(),
+) {
+  const role = requireModerator(channel, actorId, now)
+  return activeRestrictions(channel, now).map((row) => ({
+    id: row.id,
+    target: accountName(row.accountId),
+    authorTag: row.authorTag,
+    action: row.expiresAt === null ? ('ban' as const) : ('timeout' as const),
+    category: row.category,
+    createdAt: new Date(row.createdAt).toISOString(),
+    expiresAt:
+      row.expiresAt === null ? null : new Date(row.expiresAt).toISOString(),
+    canReverse: role === 'admin' || row.actorRole === 'owner',
+  }))
+}
+
+export function reverseChatRestriction(
+  channel: ChatChannelReference,
+  actorId: string,
+  restrictionId: string,
+  now = new Date(),
+) {
+  const database = getChatDatabase()
+  return database
+    .transaction(() => {
+      const role = requireModerator(channel, actorId, now)
+      const restriction = activeRestrictions(channel, now).find(
+        (row) => row.id === restrictionId,
+      )
+      if (!restriction)
+        throw new ChatModerationError('Active Chat restriction not found.', 404)
+      if (role !== 'admin' && restriction.actorRole !== 'owner')
+        throw new ChatModerationError('Not authorized.', 403)
+      const { id: roomId } = database
+        .prepare('SELECT id FROM chat_room WHERE channel_id = ?')
+        .get(channel.id) as { id: string }
+      database
+        .prepare(
+          `INSERT INTO chat_moderation_record
+      (id, action, category, actor_account_id, target_account_id, room_id, created_at, actor_role, source_record_id)
+      VALUES (?, 'reversal', ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          randomUUID(),
+          restriction.category,
+          actorId,
+          restriction.accountId,
+          roomId,
+          now.getTime(),
+          role,
+          restriction.id,
+        )
+      database
+        .prepare(
+          'UPDATE chat_moderation_record SET reversed_at = ? WHERE id = ?',
+        )
+        .run(now.getTime(), restriction.id)
+      database
+        .prepare(
+          'DELETE FROM chat_restriction WHERE room_id = ? AND account_id = ? AND record_id = ?',
+        )
+        .run(roomId, restriction.accountId, restriction.id)
+      database
+        .prepare(
+          `INSERT INTO chat_outbox (id, channel_name, payload, next_attempt_at, created_at) VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(
+          randomUUID(),
+          chatControlChannel(restriction.accountId),
+          JSON.stringify({ type: 'restriction', channelId: channel.id }),
+          now.getTime(),
+          now.getTime(),
+        )
+    })
+    .immediate()
+}
+
+function requireChatAdministrator(actorId: string) {
+  if (activeRole(actorId) !== 'admin')
+    throw new ChatModerationError('Not authorized.', 403)
+}
+
+interface ModerationRecordRow {
+  id: string
+  action: 'message_removal' | 'timeout' | 'ban' | 'reversal'
+  category: string
+  actorId: string
+  targetId: string
+  channelId: string | null
+  createdAt: number
+  expiresAt: number | null
+  reversedAt: number | null
+  sourceRecordId: string | null
+  active: number
+}
+
+export function listChatModerationRecords(
+  actorId: string,
+  cursor?: string,
+  now = new Date(),
+) {
+  requireChatAdministrator(actorId)
+  let before: { createdAt: number; id: string } | undefined
+  if (cursor) {
+    const match = /^(\d+):([a-zA-Z0-9-]+)$/.exec(cursor)
+    if (!match || !Number.isSafeInteger(Number(match[1])))
+      throw new ChatModerationError('Invalid history cursor.', 400)
+    before = { createdAt: Number(match[1]), id: match[2] }
+  }
+  const rows = getChatDatabase()
+    .prepare(
+      `
+    SELECT record.id, record.action, record.category, record.actor_account_id AS actorId,
+      record.target_account_id AS targetId, room.channel_id AS channelId,
+      record.created_at AS createdAt, record.expires_at AS expiresAt, record.reversed_at AS reversedAt,
+      record.source_record_id AS sourceRecordId,
+      EXISTS(SELECT 1 FROM chat_restriction r WHERE r.record_id = record.id AND (r.expires_at IS NULL OR r.expires_at > ?)) AS active
+    FROM chat_moderation_record record LEFT JOIN chat_room room ON room.id = record.room_id
+    ${before ? 'WHERE (record.created_at, record.id) < (?, ?)' : ''}
+    ORDER BY record.created_at DESC, record.id DESC LIMIT 51
+  `,
+    )
+    .all(
+      now.getTime(),
+      ...(before ? [before.createdAt, before.id] : []),
+    ) as ModerationRecordRow[]
+  const page = rows.slice(0, 50)
+  return {
+    records: page.map((row) => {
+      const room = getDatabase()
+        .prepare('SELECT display_name AS name, slug FROM channel WHERE id = ?')
+        .get(row.channelId) as { name: string; slug: string } | undefined
+      return {
+        id: row.id,
+        action: row.action,
+        category: row.category,
+        actor: accountName(row.actorId),
+        target: accountName(row.targetId),
+        room: room?.name ?? 'Deleted Channel',
+        channelSlug: room?.slug ?? null,
+        state:
+          row.action === 'message_removal' || row.action === 'reversal'
+            ? 'completed'
+            : row.reversedAt !== null
+              ? 'reversed'
+              : row.active
+                ? 'active'
+                : row.expiresAt !== null && row.expiresAt <= now.getTime()
+                  ? 'expired'
+                  : 'superseded',
+        createdAt: new Date(row.createdAt).toISOString(),
+        expiresAt:
+          row.expiresAt === null ? null : new Date(row.expiresAt).toISOString(),
+        reversedAt:
+          row.reversedAt === null
+            ? null
+            : new Date(row.reversedAt).toISOString(),
+        sourceRecordId: row.sourceRecordId,
+      }
+    }),
+    cursor:
+      rows.length > 50 ? `${page.at(-1)!.createdAt}:${page.at(-1)!.id}` : null,
+  }
+}
+
+export function clearChatModerationRecords(actorId: string) {
+  requireChatAdministrator(actorId)
+  getChatDatabase().prepare('DELETE FROM chat_moderation_record').run()
 }
