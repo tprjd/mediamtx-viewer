@@ -2,7 +2,7 @@
 
 # 07: Add a Chat text size setting
 
-Status: ready-for-agent
+Status: resolved
 Category: enhancement
 Priority: Normal
 Blocked by: none
@@ -34,3 +34,28 @@ Use small, default, and large choices. Choose the exact sizes during implementat
 
 Key interfaces: `ChatSettings`, the browser preference mechanism, and the virtualized transcript.
 The user confirmed scope and browser persistence on 2026-09-16.
+
+## Implementation
+
+The Chat settings menu now has Small, Default, and Large radio choices.
+Message bodies use 0.75rem, the existing 0.85rem default, and 1rem respectively.
+Author names, timestamps, badges, and the composer retain their existing sizes.
+The preference persists in browser storage and remains usable if storage fails.
+
+The transcript captures the visible message before applying the size change.
+It reuses the history position correction after row heights change, or keeps
+the live end visible if the reader was already there.
+
+The new browser test covers keyboard selection, mobile touch, reload persistence,
+long-message wrapping, and reading position. Three consecutive size-change runs
+passed without retries. Standards and specification reviews found no issues.
+
+The root unit suite passed all 362 tests with `npm test -- --exclude '.kilo/**'`.
+The plain command also discovers stale tests in nested `.kilo` worktrees.
+Broader browser checks showed intermittent history-navigation and badge-tooltip
+failures. The history test passed three runs with the original transcript code.
+
+Final verification passed on 2026-09-17: typecheck, lint, and all four related
+browser tests without retries. The production build passed with
+`npm run build -- --webpack`. The default Turbopack build could not bind a local
+helper port in this environment. No bundler configuration changed.

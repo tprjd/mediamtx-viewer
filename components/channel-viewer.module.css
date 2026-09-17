@@ -400,6 +400,12 @@
 .chatMessageBody {
   white-space: pre-wrap;
 }
+.chatTranscriptRegion[data-text-size='small'] .chatMessageBody {
+  font-size: 0.75rem;
+}
+.chatTranscriptRegion[data-text-size='large'] .chatMessageBody {
+  font-size: 1rem;
+}
 .chatRemoved {
   color: var(--text-faint);
   font-style: italic;

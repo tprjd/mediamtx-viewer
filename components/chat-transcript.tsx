@@ -10,6 +10,7 @@ import {
 
 import type { ChatSubmission } from '@/components/use-chat-sending'
 import { ChatMessage } from '@/components/chat-message'
+import { useChatTextSize } from '@/components/chat-settings'
 import styles from '@/components/channel-viewer.module.css'
 import type { PublicChatMessage, ChatModeratorRole } from '@/lib/chat-types'
 
@@ -78,6 +79,17 @@ function EmptyTranscript() {
   return <div className={styles.chatNotice}>No messages yet.</div>
 }
 
+function readingAnchor(scroller: HTMLElement) {
+  const top = scroller.getBoundingClientRect().top
+  const anchor = Array.from(
+    scroller.querySelectorAll<HTMLElement>('[data-message-entry-id]'),
+  ).find(element => element.getBoundingClientRect().bottom > top)
+  return anchor ? {
+    id: anchor.dataset.messageEntryId!,
+    top: anchor.getBoundingClientRect().top - top,
+  } : null
+}
+
 const TranscriptList = forwardRef<HTMLDivElement, ListProps>(
   function TranscriptList({ children, ...props }, ref) {
     return (
@@ -128,6 +140,8 @@ export function ChatTranscript({
   onRetry,
   retryDisabled = false,
 }: ChatTranscriptProps) {
+  const textSize = useChatTextSize()
+  const regionRef = useRef<HTMLDivElement | null>(null)
   const initialPositionSetRef = useRef(false)
   const virtuosoRef = useRef<VirtuosoHandle | null>(null)
   const scrollerRef = useRef<HTMLElement | null>(null)
@@ -145,28 +159,31 @@ export function ChatTranscript({
     const scroller = scrollerRef.current
     if (initialPositionSetRef.current && scroller &&
       scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 2) {
-      const top = scroller?.getBoundingClientRect().top ?? 0
-      const anchor = scroller && Array.from(
-        scroller.querySelectorAll<HTMLElement>('[data-message-entry-id]'),
-      ).find(element => element.getBoundingClientRect().bottom > top)
-      if (anchor) historyAnchorRef.current = {
-        id: anchor.dataset.messageEntryId!,
-        top: anchor.getBoundingClientRect().top - top,
-      }
+      historyAnchorRef.current = readingAnchor(scroller)
       onLoadOlder()
     }
   }, [onLoadOlder])
 
   useLayoutEffect(() => {
+    const scroller = scrollerRef.current
+    const region = regionRef.current
+    let keepAtBottom = false
+    if (region && region.dataset.textSize !== textSize) {
+      // Capture the visible message before CSS changes its height.
+      if (scroller && initialPositionSetRef.current) {
+        keepAtBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2
+        if (!keepAtBottom) historyAnchorRef.current = readingAnchor(scroller)
+      }
+      region.dataset.textSize = textSize
+    }
     const anchor = historyAnchorRef.current
-    if (!anchor) return
+    if (!anchor && !keepAtBottom) return
     historyAnchorRef.current = null
     // Prepending can move the first day separator. Virtuoso preserves item indexes,
     // but the moved separator also changes the height before the visible message.
     let frame = 0
     let attempts = 0
     let previousScrollTop = 0
-    const scroller = scrollerRef.current
     let cancelled = false
     const cancel = () => { cancelled = true }
     const inputEvents = ['wheel', 'touchstart', 'pointerdown', 'keydown']
@@ -174,10 +191,12 @@ export function ChatTranscript({
     const restore = () => {
       // Stop if the reader returns to the start while measurements settle.
       if (cancelled || (previousScrollTop > 0 && scroller?.scrollTop === 0)) return
-      const element = scroller && Array.from(
+      const element = anchor && scroller && Array.from(
         scroller.querySelectorAll<HTMLElement>('[data-message-entry-id]'),
       ).find(element => element.dataset.messageEntryId === anchor.id)
-      if (scroller && element) {
+      if (keepAtBottom) {
+        virtuosoRef.current?.scrollToIndex({ align: 'end', index: 'LAST' })
+      } else if (scroller && element && anchor) {
         scroller.scrollTop += element.getBoundingClientRect().top -
           scroller.getBoundingClientRect().top - anchor.top
         previousScrollTop = scroller.scrollTop
@@ -191,7 +210,7 @@ export function ChatTranscript({
       cancelAnimationFrame(frame)
       for (const event of inputEvents) scroller?.removeEventListener(event, cancel)
     }
-  }, [firstItemIndex])
+  }, [firstItemIndex, textSize])
   const handleAtBottomChange = useCallback(
     (nextAtBottom: boolean) => {
       onAtBottomChange(nextAtBottom)
@@ -212,7 +231,7 @@ export function ChatTranscript({
   }, [entries.length])
 
   return (
-    <div className={styles.chatTranscriptRegion}>
+    <div className={styles.chatTranscriptRegion} ref={regionRef}>
       <Virtuoso
         alignToBottom
         aria-busy={loadingOlderHistory}

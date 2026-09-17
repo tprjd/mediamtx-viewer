@@ -473,6 +473,87 @@ test('uses Chat settings and badge explanations across desktop and mobile layout
   }
 })
 
+test('changes message text size without losing the reading position', async ({ page, browser }) => {
+  test.setTimeout(60_000)
+  // Wait for Virtuoso measurements and the reading-position correction.
+  const settleResize = () => page.evaluate(() => new Promise<void>(resolve => {
+    let frames = 0
+    const settle = () => {
+      if (++frames === 12) resolve()
+      else requestAnimationFrame(settle)
+    }
+    requestAnimationFrame(settle)
+  }))
+  const prefix = `text-size-${randomUUID()}`
+  seedRetainedChatHistory(prefix)
+  const database = new Database(chatDatabasePath)
+  database.prepare('UPDATE chat_message SET content = content || ?').run(` ${'Long message text wraps naturally. '.repeat(8)}${'x'.repeat(80)}`)
+  database.close()
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await signInAsAdministrator(page)
+  const log = page.getByRole('log', { name: 'Chat messages' })
+  const settings = page.getByRole('button', { name: 'Chat settings' })
+  const lastRow = page.locator(`[data-message-id="${prefix}-205"]`)
+  const body = lastRow.locator('[class*="chatMessageBody"]')
+  await expect(body).toHaveCSS('font-size', '13.6px')
+  await expect(log).toHaveAttribute('data-at-bottom', 'true')
+  await settings.focus()
+  await page.keyboard.press('Enter')
+  await page.getByRole('menuitemcheckbox', { name: /Show timestamps/ }).click()
+  for (const [label, pixels] of [['Small', '12px'], ['Default', '13.6px'], ['Large', '16px']]) {
+    await page.getByRole('menuitemradio', { name: label, exact: true }).focus()
+    await page.keyboard.press('Space')
+    await settleResize()
+    await expect(body).toHaveCSS('font-size', pixels)
+    await expect(lastRow.locator('strong')).toHaveCSS('font-size', '13.6px')
+    await expect(log).toHaveAttribute('data-at-bottom', 'true')
+    expect(await log.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+  }
+  await page.screenshot({ path: '.data/chat-text-size-desktop.png' })
+  await page.keyboard.press('Escape')
+  await page.reload()
+  await expect(body).toHaveCSS('font-size', '16px')
+  await expect(lastRow.locator('time')).toBeVisible()
+  await log.evaluate(element => { element.scrollTop -= 800 })
+  await expect(log).toHaveAttribute('data-at-bottom', 'false')
+  const anchor = await log.evaluate(element => {
+    const top = element.getBoundingClientRect().top
+    const row = Array.from(element.querySelectorAll<HTMLElement>('[data-message-entry-id]'))
+      .find(row => row.getBoundingClientRect().bottom > top)!
+    return { id: row.dataset.messageEntryId!, top: row.getBoundingClientRect().top - top }
+  })
+  await settings.click()
+  await page.getByRole('menuitemradio', { name: 'Small', exact: true }).click()
+  await page.keyboard.press('Escape')
+  await settleResize()
+  const anchorRow = page.locator(`[data-message-entry-id="${anchor.id}"]`)
+  await expect.poll(async () => Math.abs(
+    (await anchorRow.boundingBox())!.y - (await log.boundingBox())!.y - anchor.top,
+  )).toBeLessThan(4)
+  await expect(log).toHaveAttribute('data-at-bottom', 'false')
+
+  const touchContext = await browser.newContext({
+    hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 },
+    storageState: await page.context().storageState(),
+  })
+  try {
+    const touch = await touchContext.newPage()
+    await touch.goto('http://localhost:3299/watch/live')
+    await touch.getByRole('button', { name: 'Chat', exact: true }).tap()
+    const touchBody = touch.locator(`[data-message-id="${prefix}-205"] [class*="chatMessageBody"]`)
+    await expect(touchBody).toHaveCSS('font-size', '12px')
+    await touch.getByRole('button', { name: 'Chat settings' }).tap()
+    await touch.getByRole('menuitemradio', { name: 'Large', exact: true }).tap()
+    await expect(touchBody).toHaveCSS('font-size', '16px')
+    await touch.keyboard.press('Escape')
+    const touchLog = touch.getByRole('log', { name: 'Chat messages' })
+    expect(await touchLog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+    await touch.screenshot({ path: '.data/chat-text-size-mobile.png', fullPage: true })
+  } finally {
+    await touchContext.close()
+  }
+})
+
 test('browses retained Chat history without losing the reading position', async ({
   page,
 }) => {

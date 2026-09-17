@@ -15,7 +15,7 @@ Recommendations are provisional. No application behavior changed during triage.
 | [04: Correct the Chat composer highlight](issues/04-composer-focus-highlight.md) | resolved | Normal |
 | [05: Keep Chat message appearance consistent during submission](issues/05-message-style-delay.md) | resolved | Normal |
 | [06: Investigate repeated Chat participant colors](issues/06-participant-color-distribution.md) | needs-triage | Low |
-| [07: Add a Chat text size setting](issues/07-chat-text-size.md) | ready-for-agent | Normal |
+| [07: Add a Chat text size setting](issues/07-chat-text-size.md) | resolved | Normal |
 | [08: Let an administrator clear Chat message history](issues/08-administrator-clear-chat-history.md) | needs-info | Normal |
 | [09: Integrate the theater Chat button with player controls](issues/09-theater-chat-control.md) | needs-triage | Normal |
 
@@ -23,7 +23,7 @@ Recommendations are provisional. No application behavior changed during triage.
 
 1. Owner protection in 01 is implemented. Issue 02 is closed because administrator protection already exists. Selected-message-only timeout removal in 03 is implemented.
 2. Fix the theater control in 09. Submission appearance in 05 is fixed.
-3. Composer focus in 04 is fixed. Add the size preference in 07.
+3. Composer focus in 04 and the size preference in 07 are implemented.
 4. Define history clearing in 08. Investigate color distribution in 06 before changing the palette.
 
 ## Evidence and limits

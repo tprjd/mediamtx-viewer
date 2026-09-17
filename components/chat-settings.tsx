@@ -1,7 +1,7 @@
 'use client'
 
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { Settings2 } from 'lucide-react'
+import { Check, Settings2 } from 'lucide-react'
 import { useSyncExternalStore } from 'react'
 
 import styles from '@/components/chat-message-actions.module.css'
@@ -9,6 +9,32 @@ import styles from '@/components/chat-message-actions.module.css'
 const STORAGE_KEY = 'home-stream.chat-timestamps'
 const CHANGE_EVENT = 'home-stream:chat-timestamps-change'
 let fallback: boolean | null = null
+const TEXT_SIZE_KEY = 'home-stream.chat-text-size'
+type ChatTextSize = 'small' | 'default' | 'large'
+let textSizeFallback: ChatTextSize | null = null
+
+function textSizeSnapshot(): ChatTextSize {
+  if (textSizeFallback !== null) return textSizeFallback
+  try {
+    const value = window.localStorage.getItem(TEXT_SIZE_KEY)
+    return value === 'small' || value === 'large' ? value : 'default'
+  } catch {
+    return 'default'
+  }
+}
+
+function setTextSize(value: string) {
+  if (value !== 'small' && value !== 'default' && value !== 'large') return
+  textSizeFallback = value
+  try {
+    window.localStorage.setItem(TEXT_SIZE_KEY, value)
+  } catch { /* Keep the choice usable for this visit when storage is unavailable. */ }
+  window.dispatchEvent(new Event(CHANGE_EVENT))
+}
+
+export function useChatTextSize() {
+  return useSyncExternalStore(subscribe, textSizeSnapshot, () => 'default' as const)
+}
 
 function snapshot() {
   if (fallback !== null) return fallback
@@ -23,6 +49,10 @@ function subscribe(listener: () => void) {
   const onStorage = (event: StorageEvent) => {
     if (event.key === null || event.key === STORAGE_KEY) {
       fallback = null
+      listener()
+    }
+    if (event.key === null || event.key === TEXT_SIZE_KEY) {
+      textSizeFallback = null
       listener()
     }
   }
@@ -49,6 +79,7 @@ export function useChatTimestamps() {
 }
 
 export function ChatSettings({ showTimestamps }: { showTimestamps: boolean }) {
+  const textSize = useChatTextSize()
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
@@ -83,6 +114,28 @@ export function ChatSettings({ showTimestamps }: { showTimestamps: boolean }) {
               <span />
             </span>
           </DropdownMenu.CheckboxItem>
+          <DropdownMenu.Separator className={styles.menuSeparator} />
+          <DropdownMenu.Label className={styles.menuLabel}>
+            Message text size
+          </DropdownMenu.Label>
+          <DropdownMenu.RadioGroup
+            aria-label="Message text size"
+            value={textSize}
+            onValueChange={setTextSize}
+          >
+            {(['small', 'default', 'large'] as const).map((size) => (
+              <DropdownMenu.RadioItem
+                key={size}
+                value={size}
+                onSelect={(event) => event.preventDefault()}
+              >
+                {size[0].toUpperCase() + size.slice(1)}
+                <DropdownMenu.ItemIndicator className={styles.radioIndicator}>
+                  <Check size={14} aria-hidden="true" />
+                </DropdownMenu.ItemIndicator>
+              </DropdownMenu.RadioItem>
+            ))}
+          </DropdownMenu.RadioGroup>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>

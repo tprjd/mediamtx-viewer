@@ -32,6 +32,7 @@
   font-size: 12px;
 }
 .menu [role='menuitem'],
+.menu [role='menuitemradio'],
 .menu [role='menuitemcheckbox'] {
   display: flex;
   align-items: center;
@@ -42,6 +43,7 @@
   cursor: pointer;
 }
 .menu [role='menuitem'][data-highlighted],
+.menu [role='menuitemradio'][data-highlighted],
 .menu [role='menuitemcheckbox'][data-highlighted] {
   background: #ffffff07;
 }
@@ -59,6 +61,9 @@
 }
 .settingsMenu {
   width: 270px;
+}
+.radioIndicator {
+  margin-left: auto;
 }
 .settingsMenu strong {
   font-weight: 550;
