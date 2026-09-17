@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ArrowUpRight, Bell, Check, Download, Pencil, Power, RadioTower } from 'lucide-react'
+import { ArrowUpRight, Check, ChevronDown, Download, Pencil, Power, RadioTower, ShieldCheck } from 'lucide-react'
 
 import {
   disconnectBroadcastAction,
@@ -76,11 +76,13 @@ export default async function ChannelAccountPage({
       <div className={channelStyles.dashboard}>
         <div className={channelStyles.panel}>
           <section className={channelStyles.panelBody}>
-            <h2><RadioTower aria-hidden="true" /> OBS publishing</h2>
-            <p>
-              Use these values in OBS Settings → Stream. The stream key is separate
-              from your website password.
-            </p>
+            <div className={channelStyles.publishingHeading}>
+              <div>
+                <h2><RadioTower aria-hidden="true" /> OBS publishing</h2>
+                <p>Use these values in OBS Settings → Stream.</p>
+              </div>
+              <span className={channelStyles.serviceBadge}>Enhanced RTMP</span>
+            </div>
             {channel.enabled ? (
               <StreamKeyManager
                 hasKey={channel.hasStreamKey}
@@ -94,28 +96,36 @@ export default async function ChannelAccountPage({
           </section>
 
           <section className={channelStyles.installer}>
-            <div className={channelStyles.obsSetupHeading}>
+            <div className={channelStyles.installerHeading}>
+              <span className={channelStyles.installerIcon}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="13" rx="2" />
+                  <path d="M8 21h8M12 16v5m-1-15-2 4h5l-2 4" />
+                </svg>
+              </span>
               <div>
-                <h2>Windows OBS setup</h2>
-                <p>
-                  Install or update OBS and create managed AV1, HEVC, and H.264
-                  profiles at 1440p and 1080p with ready-made game and desktop
-                  scenes.
-                </p>
+                <p className="eyebrow">Windows OBS setup</p>
+                <h2>Download OBS setup</h2>
               </div>
             </div>
+            <p>
+              Install or update OBS and create managed AV1, HEVC, and H.264
+              profiles at 1440p and 1080p with ready-made game and desktop scenes.
+            </p>
             {channel.enabled ? (
               <>
-                <a
-                  className={channelStyles.primaryButton}
-                  download={OBS_SETUP_SCRIPT_FILENAME}
-                  href="/account/channel/obs-setup.cmd"
-                >
-                  <Download aria-hidden="true" /> Download Windows setup
-                </a>
-                <p className={channelStyles.obsSetupVersion}>Version {setupScript.version}</p>
+                <div className={channelStyles.installerActions}>
+                  <a
+                    className={channelStyles.primaryButton}
+                    download={OBS_SETUP_SCRIPT_FILENAME}
+                    href="/account/channel/obs-setup.cmd"
+                  >
+                    <Download aria-hidden="true" /> Download OBS setup for Windows
+                  </a>
+                  <p className={channelStyles.obsSetupVersion}>1080p &amp; 1440p<br />Version {setupScript.version}</p>
+                </div>
                 <details className={channelStyles.securityDetails}>
-                  <summary>Installer details &amp; security</summary>
+                  <summary><ShieldCheck aria-hidden="true" /> Installer details &amp; security <ChevronDown aria-hidden="true" /></summary>
                   <p>SHA-256 <code>{setupScript.sha256}</code></p>
                   <p className={channelStyles.obsSetupNote}>
                     Version one is unsigned. Verify the checksum, then double-click
@@ -155,17 +165,31 @@ export default async function ChannelAccountPage({
           </section>
 
           <section className={`${channelStyles.panel} ${channelStyles.notificationPanel}`}>
-            <h2><Bell aria-hidden="true" /> Discord notifications</h2>
-            <p>Choose whether live notifications may be sent for this channel.</p>
-            <form action={updateDiscordNotificationsAction} className={channelStyles.metadataForm}>
-              <label className={channelStyles.discordNotificationToggle}>
-                <input
-                  defaultChecked={channel.discordNotificationsEnabled}
-                  name="discordNotificationsEnabled"
-                  type="checkbox"
-                />
-                Send a notification when this channel goes live
-              </label>
+            <form action={updateDiscordNotificationsAction} className={channelStyles.notificationForm}>
+              <div className={channelStyles.notificationHeading}>
+                <div className={channelStyles.notificationTitle}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M8 5a21 21 0 0 0-4 1c-2 3-3 7-3 11a17 17 0 0 0 6 3l1.5-2.5m7.5-12.5a21 21 0 0 1 4 1c2 3 3 7 3 11a17 17 0 0 1-6 3l-1.5-2.5M7 17a15 15 0 0 0 10 0M8 7a16 16 0 0 1 8 0M9 4l-1 3m7-3 1 3" />
+                    <ellipse cx="8" cy="12.5" rx="1" ry="1.5" fill="currentColor" stroke="none" />
+                    <ellipse cx="16" cy="12.5" rx="1" ry="1.5" fill="currentColor" stroke="none" />
+                  </svg>
+                  <div>
+                    <h2>Discord notifications</h2>
+                    <p>Send a notification when this channel goes live</p>
+                  </div>
+                </div>
+                <label className={channelStyles.notificationSwitch}>
+                  <input
+                    aria-label="Send a notification when this channel goes live"
+                    defaultChecked={channel.discordNotificationsEnabled}
+                    name="discordNotificationsEnabled"
+                    role="switch"
+                    type="checkbox"
+                  />
+                  <span aria-hidden="true" />
+                </label>
+              </div>
+              <p className={channelStyles.notificationDescription}>Choose whether live notifications may be sent for this channel.</p>
               <Button className={channelStyles.secondaryButton} type="submit">Save notification setting</Button>
             </form>
           </section>

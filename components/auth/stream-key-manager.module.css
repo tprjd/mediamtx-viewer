@@ -2,10 +2,6 @@
   margin-top: 21px;
 }
 
-.streamKeyManager > form {
-  margin-top: 1rem;
-}
-
 .streamKeyReveal {
   display: grid;
   gap: 0.75rem;
@@ -21,60 +17,88 @@
   justify-self: start;
 }
 
-.obsSettings {
-  display: grid;
-  gap: 21px;
-  margin: 0;
-}
+.connectionGroup +.connectionGroup { margin-top: 21px; }
 
-.obsSettings > div {
-  display: grid;
-  gap: 8px;
-}
-
-.obsSettings dt {
-  color: var(--text-faint);
+.fieldLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--text);
   font-size: 12px;
   font-weight: 600;
 }
 
-.obsSettings dd {
+.fieldLabel small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 400;
+}
+.fieldLabel small svg { width: 11px; height: 11px; }
+
+.connectionField {
   display: flex;
   min-width: 0;
+  min-height: 52px;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin: 0;
-  color: var(--text);
-  font-size: 12px;
-  padding: 10px 13px;
+  gap: 2px;
+  padding: 4px 5px 4px 13px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #101116;
+  background: var(--background);
 }
-
-.obsSettings code,
-.streamKeyReveal code {
-  overflow-wrap: anywhere;
-  color: var(--text);
-}
-
-.obsSettings button {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 0.35rem;
+.connectionField:focus-within { border-color: var(--accent); }
+.connectionField input {
+  min-width: 0;
+  width: 100%;
+  padding: 6px 0;
   border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+.connectionField button {
+  display: grid;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font: inherit;
 }
+.connectionField button:hover { background: var(--panel); color: var(--text); }
+.connectionField button svg { width: 17px; height: 17px; }
 
-.obsSettings button svg {
-  width: 16px;
-  height: 16px;
+.keyFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 5px;
 }
+.keyFooter p, .keyNote { margin: 0; color: var(--muted); font-size: 10px; }
+.keyNote { margin-top: 14px; }
+.keyFooter button {
+  min-height: 40px;
+  height: auto;
+  padding: 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+.keyFooter button:hover { background: var(--panel); color: var(--text); }
+.keyFooter button svg { width: 13px; height: 13px; }
+.streamKeyReveal code { overflow-wrap: anywhere; color: var(--text); }
 
 .modalBackdrop {
   position: fixed;
@@ -96,7 +120,7 @@
   padding: 1.5rem;
   border: 1px solid var(--line);
   border-radius: 1rem;
-  background: #16171d;
+  background: var(--panel);
   box-shadow: 0 30px 100px rgba(0, 0, 0, 0.45);
   transform: translate(-50%, -50%);
 }
@@ -121,22 +145,6 @@
   justify-content: flex-end;
   gap: 0.6rem;
   margin-top: 1.4rem;
-}
-
-.streamKeyManager > form > button {
-  min-height: 40px;
-  border-radius: 8px;
-  font-size: 11px;
-}
-
-.obsSettings button { min-height: 28px; }
-.streamKeyManager > form > button svg { width: 16px; height: 16px; }
-
-.streamKeyHintText {
-  margin-top: 0.65rem;
-  font-size: 0.8125rem;
-  color: var(--muted, inherit);
-  overflow-wrap: anywhere;
 }
 
 .streamKeyRevealRow {

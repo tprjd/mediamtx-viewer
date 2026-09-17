@@ -2,6 +2,35 @@
 
 All notable changes to this project are documented here.
 
+## [0.10.1] - 2026-09-17
+
+### Fixed
+
+- Restore the original pink accent and use the shared theme for the header, Channel dashboard, and stream-key dialog.
+- Remove page-specific palette overrides while retaining the dashboard layout and 50-pixel header.
+- Restore the Discord and PC icons, notification toggle, and compact OBS connection fields from the approved design.
+
+## [0.10.0] - 2026-09-17
+
+### Added
+
+- Add compact Chat settings, role explanations, and message moderation controls.
+
+### Changed
+
+- Apply the Midnight Rose design to My channel, with two desktop columns and one mobile column.
+- Fix the shared header height at 50 CSS pixels, including its border.
+- Group Windows OBS setup with OBS publishing and add a direct public Channel link.
+- Keep explicit backend saves for Channel details and Discord notification preferences.
+
+### Fixed
+
+- Report clipboard failures without showing a false success state.
+- Protect Channel owners from Chat restrictions and reverse existing owner restrictions.
+- Remove only the selected message when applying a Chat timeout.
+- Remove the duplicate Chat composer focus outline.
+- Keep pending Chat message text styles through failure, retry, and acceptance.
+
 ## [0.9.0] - 2026-09-10
 
 ### Added
