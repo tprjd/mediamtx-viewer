@@ -79,3 +79,59 @@ export async function createChatSubmissionId(key: string): Promise<string> {
     byte.toString(16).padStart(2, '0'),
   ).join('')
 }
+
+function localDayKey(timestamp: string): string {
+  const date = new Date(timestamp)
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
+interface ChatMessageEntry {
+  kind: 'message'
+  message: PublicChatMessage
+}
+
+interface ChatDaySeparatorEntry {
+  dayKey: string
+  kind: 'day-separator'
+  serverTimestamp: string
+}
+
+interface HistoryBoundaryEntry {
+  kind: 'history-boundary'
+}
+
+export type ChatHistoryEntry =
+  | ChatDaySeparatorEntry
+  | ChatMessageEntry
+  | HistoryBoundaryEntry
+
+export function buildChatTranscriptEntries(
+  messages: PublicChatMessage[],
+  historyExhausted: boolean,
+): ChatHistoryEntry[] {
+  const entries: ChatHistoryEntry[] = []
+  if (historyExhausted && messages.length > 0) {
+    entries.push({ kind: 'history-boundary' })
+  }
+  let previousDay: string | null = null
+  for (const message of messages) {
+    const dayKey = localDayKey(message.serverTimestamp)
+    if (dayKey !== previousDay) {
+      entries.push({
+        dayKey,
+        kind: 'day-separator',
+        serverTimestamp: message.serverTimestamp,
+      })
+    }
+    entries.push({ kind: 'message', message })
+    previousDay = dayKey
+  }
+  return entries
+}
+
+export function chatTranscriptEntryCount(
+  messages: PublicChatMessage[],
+  historyExhausted: boolean,
+): number {
+  return buildChatTranscriptEntries(messages, historyExhausted).length
+}

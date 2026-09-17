@@ -12,68 +12,16 @@ import type { ChatSubmission } from '@/components/use-chat-sending'
 import { ChatMessage } from '@/components/chat-message'
 import { useChatTextSize } from '@/components/chat-settings'
 import styles from '@/components/channel-viewer.module.css'
+import { buildChatTranscriptEntries, type ChatHistoryEntry } from '@/lib/chat-client-state'
 import type { PublicChatMessage, ChatModeratorRole } from '@/lib/chat-types'
 
 const localDayFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'full',
 })
 
-function localDayKey(timestamp: string): string {
-  const date = new Date(timestamp)
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
-}
-
-interface ChatMessageEntry {
-  kind: 'message'
-  message: PublicChatMessage
-}
-
-interface ChatDaySeparatorEntry {
-  dayKey: string
-  kind: 'day-separator'
-  serverTimestamp: string
-}
-
-interface HistoryBoundaryEntry {
-  kind: 'history-boundary'
-}
-
 type ChatTranscriptEntry =
-  | ChatDaySeparatorEntry
-  | ChatMessageEntry
-  | HistoryBoundaryEntry
+  | ChatHistoryEntry
   | { kind: 'submission'; submission: ChatSubmission }
-
-function buildChatTranscriptEntries(
-  messages: PublicChatMessage[],
-  historyExhausted: boolean,
-): ChatTranscriptEntry[] {
-  const entries: ChatTranscriptEntry[] = []
-  if (historyExhausted && messages.length > 0) {
-    entries.push({ kind: 'history-boundary' })
-  }
-  let previousDay: string | null = null
-  for (const message of messages) {
-    const dayKey = localDayKey(message.serverTimestamp)
-    if (dayKey !== previousDay) {
-      entries.push({
-        dayKey,
-        kind: 'day-separator',
-        serverTimestamp: message.serverTimestamp,
-      })
-    }
-    entries.push({ kind: 'message', message })
-    previousDay = dayKey
-  }
-  return entries
-}
-
-export function chatTranscriptEntryCount(
-  messages: PublicChatMessage[],
-  historyExhausted: boolean,
-): number {
-  return buildChatTranscriptEntries(messages, historyExhausted).length
-}
 
 function EmptyTranscript() {
   return <div className={styles.chatNotice}>No messages yet.</div>

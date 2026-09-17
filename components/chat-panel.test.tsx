@@ -1,5 +1,6 @@
-import { webcrypto } from 'node:crypto'
+import { createHash, webcrypto } from 'node:crypto'
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -16,6 +17,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
+  ChatContentMessage,
   PublicChatMessage,
   PublicChatMessageEvent,
 } from '@/lib/chat-types'
@@ -136,7 +138,7 @@ vi.mock('react-virtuoso', async (importOriginal) => {
 
 import { ChatPanel } from '@/components/chat-panel'
 
-function message(id: string, sequence: number): PublicChatMessage {
+function message(id: string, sequence: number): ChatContentMessage {
   return {
     id,
     sequence,
@@ -633,6 +635,56 @@ describe('live Chat delivery', () => {
 })
 
 describe('Chat sending', () => {
+  it('keeps a realtime confirmation when the send response fails afterward', async () => {
+    let submissionKey = ''
+    let resolveSend: (response: Response) => void = () => undefined
+    stubChatFetch(
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith('/token'))
+          return Response.json({ token: 'token' })
+        if (init?.method === 'POST') {
+          submissionKey = JSON.parse(String(init.body)).clientIdempotencyKey
+          return new Promise<Response>((resolve) => {
+            resolveSend = resolve
+          })
+        }
+        return Response.json({ messages: [] })
+      }),
+    )
+    render(
+      <ChatPanel
+        channelSlug="live"
+        narrowLayout={false}
+        onClose={() => undefined}
+      />,
+    )
+    const input = screen.getByRole('textbox', { name: 'Chat message' })
+    await waitFor(() => expect(input).toBeEnabled())
+    fireEvent.change(input, { target: { value: 'already delivered' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(submissionKey).not.toBe(''))
+    await act(async () => {
+      realtime.instances[0].emit('publication', {
+        channel: 'chat:live-channel',
+        data: publication({
+          ...message('accepted', 1),
+          content: 'already delivered',
+          submissionId: createHash('sha256').update(submissionKey).digest('hex'),
+        }),
+      })
+    })
+    expect(input).toHaveValue('')
+    await act(async () => {
+      resolveSend(Response.json({ error: 'Request failed.' }, { status: 502 }))
+    })
+    expect(input).toHaveValue('')
+    expect(
+      within(screen.getByRole('log')).getAllByText('already delivered'),
+    ).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+    expect(screen.queryByText('Request failed.')).toBeNull()
+  })
+
   it('shows the pending text immediately and retries a failed request with the same key', async () => {
     const bodies: string[] = []
     let resolveSend: (response: Response) => void = () => undefined
