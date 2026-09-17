@@ -28,7 +28,7 @@ Apply the selected design to the real Chat header, transcript, message input, an
 Include the timestamp setting and accessible badge explanations.
 Use the prototype's moderation forms and restriction list as the visual reference.
 Use the existing Chat delivery, history, access, and moderation behavior.
-Keep author identity consistent with ADR 0004.
+Keep author identity consistent with the [author privacy rules](../../../docs/chat-operations.md#author-privacy).
 Preserve keyboard access, touch access, text selection, focus recovery, and history scroll position.
 Keep the prototype variants on the prototype branch. Production code must use the real Chat state and adapters.
 

@@ -14,7 +14,7 @@ Add an administrator option to clear Chat messages in one selected Channel. The 
 ## Evidence
 
 Administrators can already clear Chat moderation records. That action does not clear Chat messages.
-Chat content expires after seven days under ADR 0002. There is no administrator message-history clearing option in the inspected UI and routes.
+Chat content expires after seven days under the [retention rules](../../../docs/chat-operations.md#verify-a-restore-before-rollout). There is no administrator message-history clearing option in the inspected UI and routes.
 
 ## Accepted decisions
 
@@ -22,7 +22,7 @@ Chat content expires after seven days under ADR 0002. There is no administrator 
 - Preserve Chat restrictions and Chat moderation records. Their existing retention rules still apply.
 - Keep existing backups until they expire normally. Restoring an older backup may restore cleared messages that have not expired.
 
-The maintainer accepted these rules on 2026-09-17. ADR 0002 records this exception to automatic seven-day retention.
+The maintainer accepted these rules on 2026-09-17. [Chat operations](../../../docs/chat-operations.md#clear-one-channels-chat-history) records this exception to automatic seven-day retention.
 
 ## Proposed acceptance criteria
 

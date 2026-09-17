@@ -1,4 +1,55 @@
-# Chat health and storage limits
+# Chat operations
+
+## Delivery and storage
+
+Centrifugo owns long-lived browser connections and live event delivery. Next.js
+owns account access, validation, rate limits, moderation, and retained history.
+This keeps connection management separate from the viewer process without
+adding another account system or a custom connection service.
+
+Browsers receive events over WebSocket with five-minute connection tokens.
+They submit messages and moderation commands through authenticated Next.js HTTP
+endpoints. Next.js assigns the visible Chat room and a private participant
+control channel. Browsers cannot choose subscriptions or publish to Centrifugo.
+
+`chat.sqlite` stores messages, restrictions, moderation records, rate limits,
+delivery outbox entries, and room sequences. Authentication stays in
+`auth.sqlite` because Chat has different write, retention, backup, and failure
+requirements. The application validates account and Channel references on each
+request. The databases have no cross-database foreign keys.
+
+Next.js commits each accepted message and its outbox event in one transaction.
+It retries delivery after a Centrifugo failure. Increasing room sequences and
+client idempotency keys let clients order messages, reconcile gaps, and remove
+duplicates. Private restriction events stay on the participant control channel.
+
+Centrifugo uses its single-node memory engine, with recovery limited to 300
+publications for 30 seconds. SQLite remains authoritative. Clients reconcile
+from SQLite when recovery fails or a room sequence has a gap. Redis becomes
+necessary only if multiple realtime service instances are needed.
+
+Closed Chat interfaces hold no Centrifugo connections. Disabling an account
+disconnects its clients. Centrifugo restarts and Chat failures must leave
+playback and Channel status independent. Clients reconnect, refresh tokens,
+and reconcile from their last room sequence.
+
+All Chat rooms use the same message, rate, retention, and moderation rules.
+The deployment flag applies to every live Channel. Follow the
+[rollout procedure](chat-rollout.md) to enable or disable Chat.
+
+## Author privacy
+
+Each message stores its author's internal account ID and the profile name at
+submission time. Public messages show that name and a stable Chat author tag
+derived from a keyed hash of the account and Chat room IDs. Tags start at four
+characters. A collision extends only the newer participant's tag.
+
+Keep `CHAT_TAG_HMAC_SECRET` stable. Rotate it only for an intentional tag reset.
+Chat must not expose account usernames, email addresses, or raw account IDs.
+Profile names are public and need not be unique. Admin and Owner badges show
+current roles, not roles stored with historical messages.
+
+## Health
 
 `GET /api/health` reports core health and a separate `chat` object. A Chat fault does not change the HTTP status when core viewing is healthy.
 
@@ -110,4 +161,8 @@ Stop the viewer before replacing authentication storage. Use the same manifest a
 
 Run `npx playwright test --project=chat-chromium --grep 'restore drill'` with Docker available. The drill uses an encrypted older set, blocks Chat during a failed Centrifugo operation, retries the restore, and checks expiry deletion and live delivery after reconnect. It also checks the existing account session and continued video progress without a player reset. The media fixture and MediaMTX status server are local test fixtures. Run the production capacity gate with a real Channel before enabling Chat.
 
-Chat cleanup also runs at application startup and once per hour, including when Chat is disabled. Each backup runs cleanup before taking the Chat snapshot. Messages and their queued content expire seven days after submission. Private notes expire seven days after the moderation action. Structured Chat moderation records and active bans remain until an authorized action clears them.
+Chat cleanup also runs at application startup and once per hour, including when Chat is disabled. Each backup runs cleanup before taking the Chat snapshot. Messages, retained originals of removed messages, and queued content expire seven days after submission. Private notes expire seven days after the moderation action. Structured Chat moderation records and active bans remain until an authorized action clears them.
+
+Seven-day retention gives participants recent context and moderators short-term
+evidence. Longer-lived moderation records preserve accountability without
+retaining expired message content or private notes.

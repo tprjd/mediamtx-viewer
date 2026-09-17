@@ -45,7 +45,7 @@ This is an enhancement that supersedes the original timeout policy. No product q
 The redundancy check covered the shared restriction transaction, `removeChatMessage`, dialog descriptions, moderation tests, and the original Chat spec.
 The requested timeout behavior is absent. Both restriction types currently select unremoved messages from the previous ten minutes.
 The existing removal helper already avoids duplicate removal records and events and can remove a retained message older than ten minutes.
-ADR 0002 still limits retained content to seven days. No prior-rejection directory exists in this checkout.
+The [retention rules](../../../docs/chat-operations.md#verify-a-restore-before-rollout) still limit retained content to seven days. No prior-rejection directory exists in this checkout.
 
 At commit `5013d83`, `npm test -- lib/chat-moderation.integration.test.ts --exclude '.kilo/**'` passed all 54 tests.
 These tests verify current timeout removal, all duration presets, expiry, private notifications, rollback, authorization, and ban behavior.

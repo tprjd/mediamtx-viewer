@@ -62,7 +62,7 @@ player styles, `PlaybackModeControls`, HLS and WebRTC badge rendering, and
 Channel-viewer focus and preference handling. Existing tests cover theater
 layout and restoring Chat, but not this overlap or hidden-control behavior.
 No equivalent fix exists. No `.out-of-scope/` directory exists in this checkout.
-ADR 0001 requires Chat behavior to remain independent of playback.
+The [delivery rules](../../../docs/chat-operations.md#delivery-and-storage) require Chat behavior to remain independent of playback.
 
 Local evidence: `.data/triage09-{1440,390}.json` and the matching
 `-visible.png` and `-hidden.png` screenshots. The reproduction script is

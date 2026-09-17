@@ -24,7 +24,7 @@ Improve the overall appearance and readability of Chat with a compact, Twitch-st
 ## Existing constraints
 
 Chat author tags and role badges retain their meanings from [CONTEXT.md](../../CONTEXT.md).
-Public author information follows [ADR 0004](../../docs/adr/0004-protect-chat-author-identifiers.md).
+Public author information follows the [author privacy rules](../../docs/chat-operations.md#author-privacy).
 
 The design covers existing message history, new-message navigation, message submission states, and moderation controls.
 Status notices include connection loss, sending limits, Chat restrictions, and unavailable Chat.

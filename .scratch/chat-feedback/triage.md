@@ -35,7 +35,7 @@ No prior-rejection directory exists in this checkout.
 
 The review covered Chat moderation and tests, message actions and rendering, pending submissions, settings, composer CSS, theater controls, and administrator moderation-history clearing.
 The original Chat functionality spec and timeout issue explicitly permit administrator restrictions of Channel owners and removal of recent messages.
-The accepted Chat design requires consistent participant colors. ADR 0002 defines retention and restore behavior. ADR 0004 defines stable Chat author tags.
+The accepted Chat design requires consistent participant colors. [Chat operations](../../docs/chat-operations.md) defines retention, restore behavior, and stable Chat author tags.
 
 ## Pending answers
 

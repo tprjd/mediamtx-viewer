@@ -16,7 +16,7 @@ The maintainer clarified that the palette needs more than six colors.
 
 The message component assigns one of six colors by summing the character codes in the Chat author tag and taking the remainder.
 The assignment is stable. Different participants can share a color.
-The accepted Chat design requires consistent participant colors. The author-identifier ADR requires a stable tag, not a unique color.
+The accepted Chat design requires consistent participant colors. The [author privacy rules](../../../docs/chat-operations.md#author-privacy) require a stable tag, not a unique color.
 
 ## Investigation
 
