@@ -903,7 +903,7 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
 
   await page.goto('/account/channel')
   await expect(
-    page.getByRole('heading', { name: 'Windows OBS setup' }),
+    page.getByRole('heading', { name: 'Download OBS setup' }),
   ).toBeVisible()
   for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 })
@@ -911,6 +911,17 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
       element => element.getBoundingClientRect().height,
     )).toBe(50)
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+    await expect(page.getByRole('button', { name: 'Save details' })).toHaveCSS('background-color', 'rgb(219, 39, 119)')
+    await expect(page.getByRole('button', { name: 'Save details' })).toHaveCSS('color', 'rgb(255, 255, 255)')
+    for (const selector of ['[data-site-header]', 'main']) {
+      expect(await page.locator(selector).evaluate(element => {
+        const style = getComputedStyle(element)
+        const root = getComputedStyle(document.documentElement)
+        return ['--accent', '--accent-soft', '--panel', '--muted'].every(
+          token => style.getPropertyValue(token) === root.getPropertyValue(token),
+        )
+      })).toBe(true)
+    }
     for (const label of ['Title', 'Description']) {
       await expect(page.getByRole('textbox', { name: label, exact: true })).toBeVisible()
     }
@@ -951,7 +962,11 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
   await expect(page.getByText('Channel details updated.')).toBeVisible()
 
   const notifications = page.getByLabel('Send a notification when this channel goes live')
+  await expect(notifications).toHaveRole('switch')
+  await notifications.focus()
   const initialNotifications = await notifications.isChecked()
+  await page.keyboard.press('Space')
+  await expect(notifications).toBeChecked({ checked: !initialNotifications })
   await notifications.setChecked(!initialNotifications)
   await page.reload()
   await expect(notifications).toBeChecked({ checked: initialNotifications })
@@ -969,15 +984,15 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
       writeText: () => Promise.reject(new Error('Clipboard blocked')),
     } })
   })
-  await page.getByRole('button', { name: 'Copy', exact: true }).click()
+  await page.getByRole('button', { name: 'Copy server URL', exact: true }).click()
   await expect(page.locator('main [role=alert]')).toHaveText('Copy failed. Select the value and copy it manually.')
-  await expect(page.getByRole('button', { name: 'Copied', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Server URL copied', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'End broadcast', exact: true }).click()
   await expect(page.locator('main [role=alert]')).toHaveText('MediaMTX could not disconnect the broadcast.')
   await page.getByText('Installer details & security').click()
   await expect(page.getByText(/SHA-256/)).toBeVisible()
   const downloadPromise = page.waitForEvent('download')
-  await page.getByRole('link', { name: 'Download Windows setup' }).click()
+  await page.getByRole('link', { name: 'Download OBS setup for Windows' }).click()
   const download = await downloadPromise
   expect(download.suggestedFilename()).toBe('Setup-FrankerzSpam-OBS.cmd')
   const downloadStream = await download.createReadStream()

@@ -43,24 +43,6 @@
   text-decoration: none;
 }
 
-.discordNotificationToggle {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  width: fit-content;
-  color: var(--text);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.discordNotificationToggle input {
-  width: 1rem;
-  height: 1rem;
-  min-height: 0;
-  padding: 0;
-  accent-color: var(--accent);
-}
-
 .obsSetupHeading {
   display: flex;
   align-items: start;
@@ -112,22 +94,7 @@
   }
 }
 
-/* The channel dashboard owns these tokens; other account pages keep their styles. */
-:global(body):has(.dashboardPage) {
-  background: #0d0e12;
-}
-
 .dashboardPage {
-  --panel: #16171d;
-  --line: #30313b;
-  --text: #f4f2f6;
-  --muted: #a3a3b2;
-  --text-faint: #a3a3b2;
-  --accent: #f4a0c4;
-  --accent-soft: #f4a0c4;
-  --eyebrow: #f4a0c4;
-  --danger: #f2a1a4;
-  --success: #a4d5ba;
   color-scheme: dark;
   width: 100%;
   max-width: 1184px;
@@ -243,11 +210,11 @@
 .primaryButton {
   border-color: transparent;
   background: var(--accent);
-  color: #28131d;
+  color: var(--accent-foreground);
 }
 
-.primaryButton:hover { background: #ffb7d5; }
-.secondaryButton:hover { background: #202129; border-color: var(--muted); }
+.primaryButton:hover { background: var(--accent-strong); }
+.secondaryButton:hover { background: color-mix(in srgb, var(--text) 6%, var(--panel)); border-color: var(--muted); }
 .dashboardPage .channelAccountHeading > a { flex: none; color: var(--text); }
 .primaryButton svg,
 .secondaryButton svg { width: 16px; height: 16px; }
@@ -261,14 +228,16 @@
   padding: 23px 25px;
   border-top: 1px solid var(--line);
   border-radius: 0 0 13px 13px;
-  background: #2d202c;
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
 }
 
 .installer h2 { font-size: 16px; }
-.installer > a { margin-top: 17px; }
+
 .installer .obsSetupVersion { font-size: 10px; }
 .securityDetails { margin-top: 14px; color: var(--muted); font-size: 11px; }
-.securityDetails summary { width: fit-content; padding-block: 5px; cursor: pointer; }
+.securityDetails summary { display: flex; align-items: center; gap: 5px; width: fit-content; padding-block: 5px; cursor: pointer; }
+.securityDetails summary svg { width: 12px; height: 12px; }
+.securityDetails[open] summary svg:last-child { transform: rotate(180deg); }
 .securityDetails code { overflow-wrap: anywhere; }
 .securityDetails p { font-size: 11px; }
 
@@ -282,24 +251,13 @@
   padding: 11px 12px;
   border: 1px solid var(--line);
   border-radius: 7px;
-  background: #101116;
+  background: var(--background);
   color: var(--text);
   font: inherit;
   font-weight: 400;
 }
 .metadataForm textarea { min-height: 102px; resize: vertical; }
 .metadataForm button { justify-self: start; }
-.metadataForm .discordNotificationToggle {
-  display: flex;
-  width: auto;
-  align-items: center;
-  gap: 12px;
-  font-weight: 400;
-}
-.discordNotificationToggle input { flex: none; }
-.notificationPanel h2 { font-size: 15px; }
-.notificationPanel .metadataForm { margin-top: 17px; }
-
 .broadcastControls {
   display: flex;
   align-items: center;
@@ -315,7 +273,7 @@
 .broadcastControls p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
 .broadcastControls form { flex: none; }
 .dangerButton { background: transparent; color: var(--danger); }
-.dangerButton:hover { background: #2d2025; border-color: var(--danger); }
+.dangerButton:hover { background: color-mix(in srgb, var(--danger) 10%, var(--panel)); border-color: var(--danger); }
 
 @media (max-width: 1060px) {
   .dashboard { gap: 18px; grid-template-columns: minmax(0, 1.22fr) minmax(0, 1fr); }
@@ -333,3 +291,52 @@
   .panelBody, .notificationPanel, .installer { padding: 21px; }
   .broadcastControls { align-items: stretch; flex-direction: column; gap: 16px; padding: 20px; }
 }
+
+.publishingHeading, .notificationHeading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 15px;
+}
+.publishingHeading p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+.serviceBadge {
+  flex: none;
+  padding: 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--background);
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 650;
+}
+.installerHeading { display: flex; align-items: center; gap: 13px; }
+.installerIcon {
+  display: grid;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent-soft) 30%, transparent);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--accent-soft);
+}
+.installerIcon svg { width: 23px; height: 23px; }
+.installerHeading :global(.eyebrow) { margin-bottom: 3px; color: var(--accent-soft); font-size: 9px; }
+.installerActions { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin-top: 17px; }
+.installerActions .obsSetupVersion { margin: 0; }
+.notificationForm { display: grid; gap: 14px; }
+.notificationForm > button { justify-self: start; }
+.notificationHeading { align-items: center; }
+.notificationTitle { display: flex; align-items: center; gap: 11px; }
+.notificationTitle > svg { width: 22px; height: 22px; flex: none; color: var(--accent-soft); }
+.notificationTitle h2 { font-size: 15px; letter-spacing: -0.2px; }
+.notificationTitle p { margin: 2px 0 0; color: var(--muted); font-size: 10px; }
+.notificationDescription { margin: 0; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.notificationSwitch { position: relative; display: grid; flex: none; width: 44px; height: 44px; place-items: center; cursor: pointer; }
+.notificationSwitch input { position: absolute; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.notificationSwitch span { width: 40px; height: 24px; border: 1px solid var(--muted); border-radius: 999px; background: var(--panel); pointer-events: none; }
+.notificationSwitch span::after { content: ''; display: block; width: 16px; height: 16px; margin: 3px; border-radius: 50%; background: var(--muted); }
+.notificationSwitch input:checked + span { border-color: var(--accent); background: var(--accent); }
+.notificationSwitch input:checked + span::after { background: var(--accent-foreground); transform: translateX(16px); }
+.notificationSwitch input:focus-visible + span { outline: 2px solid var(--ring); outline-offset: 4px; }

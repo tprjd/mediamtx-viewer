@@ -1,7 +1,7 @@
 'use client'
 
 import { useActionState, useRef, useState } from 'react'
-import { Copy, KeyRound, RotateCw } from 'lucide-react'
+import { Check, Copy, KeyRound, LockKeyhole, RotateCw } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 
 import {
@@ -56,34 +56,61 @@ export function StreamKeyManager({
 
   return (
     <div className={styles.streamKeyManager}>
-      <dl className={styles.obsSettings}>
-        <div>
-          <dt>Service</dt>
-          <dd>Enhanced RTMP (rtmp://)</dd>
+      <div className={styles.connectionGroup}>
+        <div className={styles.fieldLabel}>
+          <label htmlFor="obs-server">Server</label>
+          <small>OBS → Settings → Stream</small>
         </div>
-        <div>
-          <dt>Server</dt>
-          <dd>
-            <code>{serverUrl}</code>
-            <button onClick={() => copy('server', serverUrl)} type="button">
-              <Copy aria-hidden="true" /> {copied === 'server' ? 'Copied' : 'Copy'}
-            </button>
-          </dd>
+        <div className={styles.connectionField}>
+          <input id="obs-server" value={serverUrl} readOnly spellCheck={false} />
+          <button aria-label={copied === 'server' ? 'Server URL copied' : 'Copy server URL'} onClick={() => copy('server', serverUrl)} type="button">
+            {copied === 'server' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+          </button>
         </div>
-        <div>
-          <dt>Stream key / play path</dt>
-          <dd>
-            {state.key ? (
-              <>
-                <code>{playPath(state.key!)}</code>
-                <button onClick={() => copy('playPath', playPath(state.key!))} type="button">
-                  <Copy aria-hidden="true" /> {copied === 'playPath' ? 'Copied' : 'Copy'}
-                </button>
-              </>
-            ) : currentHint ? `Current key ends in ${currentHint}` : 'No key generated'}
-          </dd>
+      </div>
+      <div className={styles.connectionGroup}>
+        <div className={styles.fieldLabel}>
+          <label htmlFor="obs-play-path">Stream key / play path</label>
+          <small><LockKeyhole aria-hidden="true" /> Keep it private</small>
         </div>
-      </dl>
+        <div className={styles.connectionField}>
+          {state.key ? (
+            <>
+              <input id="obs-play-path" value={playPath(state.key)} readOnly spellCheck={false} />
+              <button aria-label={copied === 'playPath' ? 'Stream key path copied' : 'Copy stream key path'} onClick={() => copy('playPath', playPath(state.key!))} type="button">
+                {copied === 'playPath' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+              </button>
+            </>
+          ) : (
+            <input id="obs-play-path" value={currentHint ? `Current key ends in ${currentHint}` : 'No key generated'} readOnly />
+          )}
+        </div>
+        <div className={styles.keyFooter}>
+          <p>Full keys are shown only once.</p>
+          <form
+            ref={formRef}
+            action={action}
+            onSubmit={(event) => {
+              if (currentHasKey && !confirmedRef.current) {
+                event.preventDefault()
+                setConfirmOpen(true)
+                return
+              }
+              confirmedRef.current = false
+            }}
+          >
+            <Button disabled={pending} type="submit" variant="secondary">
+              {currentHasKey ? <RotateCw aria-hidden="true" /> : <KeyRound aria-hidden="true" />}
+              {pending
+                ? 'Generating…'
+                : currentHasKey
+                  ? 'Rotate stream key'
+                  : 'Generate stream key'}
+            </Button>
+          </form>
+        </div>
+      </div>
+      <p className={styles.keyNote}>The stream key is separate from your website password.</p>
 
       {state.key && (
         <aside className={styles.streamKeyReveal}>
@@ -116,27 +143,6 @@ export function StreamKeyManager({
       {state.error && <p className="error-banner" role="alert">{state.error}</p>}
       {state.warning && <p className="notice-banner">{state.warning}</p>}
 
-      <form
-        ref={formRef}
-        action={action}
-        onSubmit={(event) => {
-          if (currentHasKey && !confirmedRef.current) {
-            event.preventDefault()
-            setConfirmOpen(true)
-            return
-          }
-          confirmedRef.current = false
-        }}
-      >
-        <Button disabled={pending} type="submit" variant="secondary">
-          {currentHasKey ? <RotateCw aria-hidden="true" /> : <KeyRound aria-hidden="true" />}
-          {pending
-            ? 'Generating…'
-            : currentHasKey
-              ? 'Rotate stream key'
-              : 'Generate stream key'}
-        </Button>
-      </form>
 
       <Dialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
         <Dialog.Portal>

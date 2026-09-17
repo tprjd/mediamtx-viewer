@@ -60,9 +60,11 @@ stored only as SHA-256 hashes.
 
 ## Channel dashboard
 
-Open `/account/channel` to manage your owned Channel. The Midnight Rose layout
-uses two columns above 850 CSS pixels and one column at narrower widths. The
+Open `/account/channel` to manage your owned Channel. The layout uses two
+columns above 850 CSS pixels and one column at narrower widths. The
 shared site header is exactly 50 CSS pixels tall, including its bottom border.
+Colors come from the shared theme in `app/theme.css`, including the original
+`#db2777` pink accent. Page styles control layout without redefining the palette.
 
 - **OBS publishing** shows the real server address and its copy action. A stored
   stream key shows only its suffix. Generating or rotating a key reveals the
@@ -72,7 +74,7 @@ shared site header is exactly 50 CSS pixels tall, including its bottom border.
 - **Channel details** saves the title and description through the backend.
   The field limits remain 120 and 300 characters.
 - **Discord notifications** requires **Save notification setting**. Changing the
-  checkbox alone does not save the preference.
+  toggle alone does not save the preference.
 - **Open public channel** opens the actual watch page. **End broadcast**
   disconnects the current publisher and connected viewers.
 
