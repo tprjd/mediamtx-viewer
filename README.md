@@ -15,6 +15,8 @@ HLS profile. (WebRTC retirement is a separate follow-up.)
 - Responsive Next.js App Router interface with strict TypeScript
 - Better Auth username accounts, SQLite sessions, and administrator approval
 - Self-service profile names shown as channel ownership labels
+- Responsive Account settings with session search, filters, pagination, and
+  password visibility controls. See the [account screen reference](docs/ui-current-screens.md#7-account--account).
 - Private channel directory with real-time live/offline status and viewer counts
 - One administrator-granted channel and revocable OBS key per streamer
 - Downloadable Windows setup that installs or updates OBS and creates managed

@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.0] - 2026-09-17
+
+### Added
+
+- Add session search, browser and other-client filters, expandable user-agent details, and eight-row pagination to Account settings.
+- Add password visibility controls and a profile-name character count with save feedback.
+
+### Changed
+
+- Match Account settings to the supplied design, with profile and security controls beside the session list on desktop and stacked panels on mobile.
+- Label session expiration times in UTC and explain that stored sessions can include expired entries.
+
+### Fixed
+
+- Allow password-change retries after a network failure without leaving the form disabled.
+
 ## [0.10.1] - 2026-09-17
 
 ### Fixed

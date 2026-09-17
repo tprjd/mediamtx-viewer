@@ -165,18 +165,30 @@ to Sign in.
 
 Purpose: self-service profile and security settings for a signed-in member.
 
-Vertical stack of panels below a heading showing the user's display name and
-email:
+The Account settings heading shows the profile name and email. At desktop
+widths, profile and security controls form the left column, and Sessions fills
+the right column. At 760 pixels and below, the panels form one column.
 
-- **Profile name**: single-field form to change the display name shown under the
-  user's channel; Save button.
-- **My channel**: status line — either "Manage OBS publishing for
-  /watch/<slug>." with a Manage channel button, or "Streaming access has not
-  been granted" with a Channel status button that still opens the channel page.
-- **Change password**: current/new/confirm password form; changing it signs out
-  every other session (explained in the copy).
-- **Sessions**: count of active sessions plus a list of devices/user agents with
-  expiration dates.
+- **Profile name**: a name field with a character count out of 80. Save name is
+  disabled until the name changes and while the save is pending. The form saves
+  through the existing server action and shows the returned notice or error.
+- **My channel**: an OBS publishing path and Manage channel link for a Channel
+  owner. Accounts without Streaming access see an explanation and Channel status
+  link.
+- **Change password**: current password, new password, and confirmation fields,
+  each with a Show or Hide control. New passwords require at least 15 characters.
+  A successful change signs out other sessions and clears the fields. Failed
+  requests show feedback and allow another attempt.
+- **Sessions**: stored session count, All, Browsers, and Other clients filters,
+  case-insensitive search, and eight rows per page. Search matches browser labels,
+  device labels, and raw user-agent text. Changing the filter or search resets
+  pagination. Details expands the raw user-agent text with a Radix disclosure.
+  Expiration dates use UTC. Stored entries can include expired sessions; the count
+  is not a count of currently connected devices. Browser labels are user-agent
+  hints, not verified device identities.
+
+Implementation previews with sample data, captured before the release version
+update: [desktop](images/account-desktop.png) and [mobile](images/account-mobile.png).
 
 ## 8. My channel (channel owner) — `/account/channel`
 
@@ -277,6 +289,5 @@ Notes for the design work:
   than separate navigation systems.
 - The watch page keeps latency modes and diagnostics available without placing
   them between the viewer and the player.
-- Account/admin/statistics screens are functional, panel-stacked pages with few
-  visual flourishes; the landing page and watch page carry most of the visual
-  identity.
+- Account settings uses a responsive two-column layout. Administration and
+  statistics use stacked panels.
