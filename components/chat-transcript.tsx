@@ -240,7 +240,11 @@ export function ChatTranscript({
           if (entry.kind === 'submission') {
             return (
               <div className={styles.chatTranscriptItem} role="listitem">
-                <p>{entry.submission.content}</p>
+                <div className={styles.chatMessage}>
+                  <span className={styles.chatMessageBody}>
+                    {entry.submission.content}
+                  </span>
+                </div>
                 <span>
                   {entry.submission.state === 'sending'
                     ? 'Sending'

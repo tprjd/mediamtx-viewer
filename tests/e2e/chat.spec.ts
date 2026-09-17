@@ -958,6 +958,73 @@ test('keeps history, Channel status, and the player at the Chat storage limit', 
   )
 })
 
+test('keeps submission text styles through failure, retry, and acceptance at both widths', async ({
+  page,
+}) => {
+  test.setTimeout(60_000)
+  await signInAsAdministrator(page)
+  const chat = page.getByRole('complementary', { name: 'Chat' })
+  const input = chat.getByRole('textbox', { name: 'Chat message' })
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    if (width === 390) {
+      const toggle = page.getByRole('button', { name: 'Chat', exact: true })
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await toggle.click()
+    }
+    const content = `Style probe ${width}  preserves spaces and wraps this longer message across several lines in the Chat room.`
+    let release: () => void = () => undefined
+    let gate = new Promise<void>((resolve) => { release = resolve })
+    const keys: string[] = []
+    await page.route('**/chat/messages', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      keys.push(route.request().postDataJSON().clientIdempotencyKey)
+      await gate
+      if (keys.length === 1) return route.abort('failed')
+      return route.continue()
+    })
+    await input.fill(content)
+    await input.press('Enter')
+    const text = chat.getByRole('log').getByText(content, { exact: true })
+    const appearance = () => text.evaluate((element) => {
+      const style = getComputedStyle(element)
+      const block = getComputedStyle(element.parentElement!)
+      return {
+        fontSize: style.fontSize, lineHeight: style.lineHeight,
+        color: style.color, whiteSpace: style.whiteSpace,
+        margin: style.margin, padding: style.padding,
+        blockPadding: block.padding, overflowWrap: block.overflowWrap,
+      }
+    })
+    await expect(chat.getByText('Sending', { exact: true })).toBeVisible()
+    await expect.poll(() => keys.length).toBe(1)
+    const pending = await appearance()
+    await page.screenshot({ path: `.data/chat-message-pending-${width}.png` })
+    release()
+    const retry = chat.getByRole('button', { name: 'Retry', exact: true })
+    await expect(retry).toBeVisible()
+    expect(await appearance()).toEqual(pending)
+    await expect(input).toHaveValue(content)
+    gate = new Promise<void>((resolve) => { release = resolve })
+    await retry.click()
+    await expect(chat.getByText('Sending', { exact: true })).toBeVisible()
+    await expect.poll(() => keys.length).toBe(2)
+    expect(await appearance()).toEqual(pending)
+    release()
+    await expect(input).toHaveValue('')
+    await expect(chat.getByText('Sending', { exact: true })).toHaveCount(0)
+    await expect(text).toHaveCount(1)
+    expect(new Set(keys).size).toBe(1)
+    expect(pending).toEqual(await appearance())
+    await expect(text).toHaveCSS('white-space', 'pre-wrap')
+    const author = text.locator('..').locator('strong')
+    await expect(author).toBeVisible()
+    expect(await author.evaluate(el => el.getAttribute('style'))).toContain('color:')
+    await page.screenshot({ path: `.data/chat-message-accepted-${width}.png` })
+    await page.unroute('**/chat/messages')
+  }
+})
+
 test('shows Sending immediately and retries failed requests with one submission key', async ({
   page,
 }) => {
