@@ -58,6 +58,32 @@ for its exact channel path. Website passwords, browser sessions, and publishing
 credentials are never interchangeable. Stream keys are displayed once and
 stored only as SHA-256 hashes.
 
+## Channel dashboard
+
+Open `/account/channel` to manage your owned Channel. The Midnight Rose layout
+uses two columns above 850 CSS pixels and one column at narrower widths. The
+shared site header is exactly 50 CSS pixels tall, including its bottom border.
+
+- **OBS publishing** shows the real server address and its copy action. A stored
+  stream key shows only its suffix. Generating or rotating a key reveals the
+  complete credential once. Rotation requires confirmation.
+- **Windows OBS setup** downloads the real launcher. Expand **Installer details
+  & security** for its SHA-256 checksum and execution-policy information.
+- **Channel details** saves the title and description through the backend.
+  The field limits remain 120 and 300 characters.
+- **Discord notifications** requires **Save notification setting**. Changing the
+  checkbox alone does not save the preference.
+- **Open public channel** opens the actual watch page. **End broadcast**
+  disconnects the current publisher and connected viewers.
+
+Authentication, authorization, and server-side validation still apply. The
+standalone redesign HTML is not part of the application.
+
+The administrator flow in `tests/e2e/viewer.spec.ts` checks the 390, 768, and
+1440-pixel layouts, exact header height, backend persistence, failed saves,
+clipboard errors, the installer download, and one-time stream-key display.
+It uses a test database and a mock MediaMTX API.
+
 ## Local development
 
 Use Node.js 24 and Docker. The `dev:local` command starts Next.js and
