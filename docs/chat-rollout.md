@@ -2,6 +2,10 @@
 
 Run these commands from the repository root. Keep the publisher running on the selected live Channel throughout the capacity test. Obtain approval before adding load accounts and visible test messages.
 
+The owner accepted a partial capacity run on 16 September 2026 for that deployment
+only. The full capacity target remains unverified. Future standard deployments
+still require all checks below.
+
 ## Prepare the host
 
 Keep `CHAT_ENABLED=false` in the encrypted deployment secrets. Configure separate 32-byte secrets for `CHAT_TAG_HMAC_SECRET`, `CENTRIFUGO_TOKEN_HMAC_SECRET`, and `CENTRIFUGO_API_KEY`. Configure `AUTH_BACKUP_KEY` as a base64-encoded 32-byte key. Follow [the backup procedure](chat-operations.md#back-up-authentication-and-chat) to install the daily timer.

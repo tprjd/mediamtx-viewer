@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 
-This specification records the agreed requirements. The linked implementation tickets below track progress. The [16 September 2026 rollout record](../../docs/chat-capacity/2026-09-16/README.md) documents the deployment exception to the original capacity requirements. The standard rollout gates remain unchanged.
+This specification records the agreed requirements. The linked implementation tickets below track progress. The [Chat rollout guide](../../docs/chat-rollout.md) records the deployment exception to the original capacity requirements. The standard rollout gates remain unchanged.
 
 ## Problem Statement
 

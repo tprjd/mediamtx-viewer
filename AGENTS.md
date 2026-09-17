@@ -16,8 +16,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 # Streaming contract
 
 - Read `config/streaming-contract.v1.json` before changing HLS timing, buffering,
-  managed OBS keyframes, or playback fallback policy. It is authoritative;
-  timing values in `docs/*plan.md` are historical.
+  managed OBS keyframes, or playback fallback policy. It is authoritative.
 - Read `lib/playback-run.ts` and `components/use-playback-run.ts` before changing
   player state, pause handling, progress detection, or recovery eligibility.
   Keep transport actions in the HLS and WebRTC adapters. Keep cross-protocol
@@ -33,14 +32,14 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Versioning
 
-- Read `docs/versioning-plan.md` before changing a release version.
+- Read `docs/releases.md` before changing a release version.
 - Keep `package.json` and `package-lock.json` in sync. Derive `APP_VERSION`
   from `package.json`; do not keep a duplicate version string.
 - Add a Keep a Changelog entry and an annotated `vX.Y.Z` git tag when cutting
   a release.
 - Run lint, tests, and build before tagging.
 - Do not bump the version for docs-only or planning changes.
-- Once implemented, show `APP_VERSION` in the header and in `/api/health`.
+- Keep `APP_VERSION` in the header and in `/api/health`.
 
 # Delivery workflow
 

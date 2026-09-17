@@ -37,6 +37,6 @@ The owner stopped further load testing and accepted the partial run on 2026-09-1
 
 The partial run opened 100 authenticated connections and accepted 2,009 messages. It recorded no playback interruptions or recovery in 205 observations. Rollback preserved messages and schema and closed sockets. Environment-flag changes recreate the viewer and can interrupt playback during deployment; the stronger live player-continuity assertion did not pass.
 
-See [the measurements, checks, exception, and deployment limitation](../../../docs/chat-capacity/2026-09-16/README.md). Astra medium standards and specification reviews found no remaining code blockers.
+See the [Chat rollout guide](../../../docs/chat-rollout.md) for the capacity exception and deployment limitation. Astra medium standards and specification reviews found no remaining code blockers.
 
 The owner subsequently requested removal of test messages. All 2,009 test messages and broker cached copies were removed, all 100 accounts remain disabled, and their sessions are gone. The final backup contains the cleaned Chat database.

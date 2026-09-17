@@ -16,7 +16,7 @@ HLS profile. (WebRTC retirement is a separate follow-up.)
 - Better Auth username accounts, SQLite sessions, and administrator approval
 - Self-service profile names shown as channel ownership labels
 - Responsive Account settings with session search, filters, pagination, and
-  password visibility controls. See the [account screen reference](docs/ui-current-screens.md#7-account--account).
+  password visibility controls
 - Private channel directory with real-time live/offline status and viewer counts
 - One administrator-granted channel and revocable OBS key per streamer
 - Downloadable Windows setup that installs or updates OBS and creates managed
@@ -223,6 +223,8 @@ HLS playback sessions.
 
 ## Checks
 
+For release steps, see [Release the application](docs/releases.md).
+
 ```sh
 npm run typecheck
 npm run lint
@@ -273,6 +275,8 @@ Deployment, secret generation, OBS setup, routine operations, encrypted SQLite
 backup and restore, and rollback instructions are maintained in
 [`deploy/oracle/README.md`](./deploy/oracle/README.md). Infrastructure details
 are in [`deploy/oracle/terraform/README.md`](./deploy/oracle/terraform/README.md).
+For Chat, see [health, storage, and recovery](docs/chat-operations.md) and
+[capacity verification and rollout](docs/chat-rollout.md).
 For another hosting provider, start from
 [`deploy/Caddyfile.example`](./deploy/Caddyfile.example).
 
