@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
-import { updateProfileNameAction } from '@/app/account/actions'
+import { ArrowUpRight, LockKeyhole, RadioTower } from 'lucide-react'
+
+import { AccountSessions, ProfileNameForm } from './account-details'
 import { ChangePasswordForm } from '@/components/auth/change-password-form'
-import { Button, buttonVariants } from '@/components/ui/button'
 import { requireActiveSession } from '@/lib/auth/session'
 import { listUserSessions } from '@/lib/auth/store'
 import { getOwnedChannel } from '@/lib/channels'
@@ -25,63 +26,34 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
   const channel = getOwnedChannel(session.user.id)
 
   return (
-    <main className={styles.accountLayout}>
-      <section>
+    <main className={styles.dashboard}>
+      <header className={styles.heading}>
         <p className="eyebrow">Account</p>
-        <h1>{session.user.name}</h1>
-        <p>{session.user.email}</p>
-      </section>
-      {params.notice && <p className="notice-banner">{params.notice}</p>}
+        <h1>Account settings</h1>
+        <p><strong>{session.user.name}</strong><span aria-hidden="true">·</span>{session.user.email}</p>
+      </header>
+      {params.notice && <p className="notice-banner" role="status">{params.notice}</p>}
       {params.error && <p className="error-banner" role="alert">{params.error}</p>}
-      <section className={styles.accountPanel}>
-        <h2>Profile name</h2>
-        <p>This name appears below your stream across the site.</p>
-        <form action={updateProfileNameAction} className={styles.channelMetadataForm}>
-          <label>
-            Name
-            <input
-              autoComplete="name"
-              defaultValue={session.user.name}
-              maxLength={80}
-              minLength={2}
-              name="name"
-              required
-            />
-          </label>
-          <Button type="submit">Save name</Button>
-        </form>
-      </section>
-      <section className={styles.accountPanel}>
-        <h2>My channel</h2>
-        <p>
-          {channel
-            ? `Manage OBS publishing for /watch/${channel.slug}.`
-            : 'Streaming access has not been granted to this account.'}
-        </p>
-        <Link
-          className={buttonVariants({ variant: 'secondary' })}
-          href="/account/channel"
-        >
-          {channel ? 'Manage channel' : 'Channel status'}
-        </Link>
-      </section>
-      <section className={styles.accountPanel}>
-        <h2>Change password</h2>
-        <p>Changing it signs out every other browser session.</p>
-        <ChangePasswordForm />
-      </section>
-      <section className={styles.accountPanel}>
-        <h2>Sessions</h2>
-        <p>{sessions.length} active {sessions.length === 1 ? 'session' : 'sessions'}.</p>
-        <ul className={styles.accountSessionList}>
-          {sessions.map((item) => (
-            <li key={item.id}>
-              {item.userAgent ?? 'Unknown device'}
-              <small>Expires {item.expiresAt.toLocaleString()}</small>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <div className={styles.columns}>
+        <div className={styles.settings}>
+          <ProfileNameForm key={session.user.name} name={session.user.name} />
+          <section className={`${styles.card} ${styles.channelCard}`}>
+            <div>
+              <h2><RadioTower aria-hidden="true" /> My channel</h2>
+              <p>{channel ? `OBS publishing · /watch/${channel.slug}` : 'Streaming access has not been granted to this account.'}</p>
+            </div>
+            <Link className={styles.secondaryButton} href="/account/channel">
+              {channel ? 'Manage channel' : 'Channel status'} <ArrowUpRight aria-hidden="true" />
+            </Link>
+          </section>
+          <section className={styles.card}>
+            <h2><LockKeyhole aria-hidden="true" /> Change password</h2>
+            <p>Changing it signs out every other browser session.</p>
+            <ChangePasswordForm />
+          </section>
+        </div>
+        <AccountSessions sessions={sessions} />
+      </div>
     </main>
   )
 }

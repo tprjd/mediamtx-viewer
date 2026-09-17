@@ -2,12 +2,13 @@
 
 import { useState, type FormEvent } from 'react'
 
-import { Button } from '@/components/ui/button'
+import styles from '@/app/account/account.module.css'
 import { authClient } from '@/lib/auth/client'
 
 export function ChangePasswordForm() {
   const [message, setMessage] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  const [visible, setVisible] = useState<Record<string, boolean>>({})
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -27,39 +28,45 @@ export function ChangePasswordForm() {
     }
 
     setPending(true)
-    const result = await authClient.changePassword({
-      currentPassword,
-      newPassword,
-      revokeOtherSessions: true,
-    })
-    setPending(false)
-    if (result.error) {
-      setMessage('The current password is incorrect or the password could not be changed.')
-      return
+    try {
+      const result = await authClient.changePassword({
+        currentPassword,
+        newPassword,
+        revokeOtherSessions: true,
+      })
+      if (result.error) {
+        setMessage('The current password is incorrect or the password could not be changed.')
+        return
+      }
+      formElement.reset()
+      setVisible({})
+      setMessage('Password changed. Other sessions were signed out.')
+    } catch {
+      setMessage('The password could not be changed. Please try again.')
+    } finally {
+      setPending(false)
     }
-    formElement.reset()
-    setMessage('Password changed. Other sessions were signed out.')
   }
 
   return (
-    <form className="auth-form" onSubmit={submit}>
-      <label>
-        <span>Current password</span>
-        <input autoComplete="current-password" name="currentPassword" required type="password" />
-      </label>
-      <label>
-        <span>New password</span>
-        <input autoComplete="new-password" minLength={15} name="newPassword" required type="password" />
-      </label>
-      <label>
-        <span>Confirm new password</span>
-        <input autoComplete="new-password" minLength={15} name="confirmation" required type="password" />
-      </label>
+    <form className={styles.form} onSubmit={submit}>
+      {[
+        { name: 'currentPassword', label: 'Current password', autoComplete: 'current-password' },
+        { name: 'newPassword', label: 'New password', autoComplete: 'new-password' },
+        { name: 'confirmation', label: 'Confirm new password', autoComplete: 'new-password' },
+      ].map((field) => (
+        <div className={styles.passwordField} key={field.name}>
+          <label htmlFor={field.name}>{field.label}{field.name === 'newPassword' && <small>15 characters minimum</small>}</label>
+          <div className={styles.passwordInput}>
+            <input id={field.name} autoComplete={field.autoComplete} minLength={field.name === 'currentPassword' ? undefined : 15} name={field.name} required type={visible[field.name] ? 'text' : 'password'} />
+            <button type="button" aria-label={`${visible[field.name] ? 'Hide' : 'Show'} ${field.label.toLowerCase()}`} aria-pressed={Boolean(visible[field.name])} onClick={() => setVisible({ ...visible, [field.name]: !visible[field.name] })}>{visible[field.name] ? 'Hide' : 'Show'}</button>
+          </div>
+        </div>
+      ))}
       {message && <p className="form-message" role="status">{message}</p>}
-      <Button disabled={pending} type="submit">
+      <button className={styles.primaryButton} disabled={pending} type="submit">
         {pending ? 'Changing…' : 'Change password'}
-      </Button>
+      </button>
     </form>
   )
 }
-
