@@ -1,5 +1,4 @@
 import { getChatDatabase } from '@/lib/chat-database'
-import { chatRestoreGeneration } from '@/lib/chat-maintenance'
 import { getChatHistoryState } from '@/lib/chat-history'
 import { inspectChatStorage } from '@/lib/chat-storage'
 import { authorizeLiveChat } from '@/lib/chat-access'
@@ -30,7 +29,6 @@ export async function GET(
         return {
           ...getChatParticipantState(access.channel, access.accountId),
           ...getChatHistoryState(access.channel.id),
-          restoreGeneration: chatRestoreGeneration(),
           storageLimited:
             storage.databaseLimitReached || storage.diskLimitReached,
         }

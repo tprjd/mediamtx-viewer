@@ -1,4 +1,3 @@
-import { chatRestoreGeneration } from '@/lib/chat-maintenance'
 import { z } from 'zod'
 import { getActiveSession } from '@/lib/auth/session'
 import { getChatChannel } from '@/lib/channels'
@@ -24,7 +23,7 @@ async function authorize(context: Context) {
 export async function GET(_request: Request, context: Context) {
   try {
     const { channel } = await authorize(context)
-    return Response.json({ ...getChatHistoryState(channel.id), restoreGeneration: chatRestoreGeneration() }, { headers })
+    return Response.json(getChatHistoryState(channel.id), { headers })
   } catch (error) { return chatModerationFailure(error) }
 }
 
@@ -37,6 +36,6 @@ export async function DELETE(request: Request, context: Context) {
     clearChatHistory(channel, actorId)
     await dispatchChatOutboxBatch()
     const state = getChatHistoryState(channel.id)
-    return Response.json({ ...state, restoreGeneration: chatRestoreGeneration() }, { status: state.clearPending ? 202 : 200, headers })
+    return Response.json(state, { status: state.clearPending ? 202 : 200, headers })
   } catch (error) { return chatModerationFailure(error) }
 }

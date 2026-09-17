@@ -73,7 +73,7 @@ it('rejects an unauthorized restore without entering maintenance', async () => {
 
 it('allows an older backup to restore messages that an administrator cleared', async () => {
   const { clearChatHistory } = await import('@/lib/chat-history')
-  const { loadLatestChatHistory } = await import('@/lib/chat')
+  const { loadLatestChatHistory } = await import('@/lib/chat-history')
   const channel = { id: 'channel', ownerUserId: 'account' }
   clearChatHistory(channel, 'account')
   expect(loadLatestChatHistory(channel).messages).toEqual([])
@@ -87,7 +87,9 @@ it('rejects orphan account references, then restores Chat and purges expired con
   const { POST } = await import('@/app/api/internal/chat/restore/route')
   const { getChatDatabase } = await import('@/lib/chat-database')
   const { getDatabase } = await import('@/lib/auth/database')
-  const { loadLatestChatHistory } = await import('@/lib/chat')
+  const { loadLatestChatHistory, loadOlderChatMessages, loadChatMessagesAfter, getChatHistoryState } = await import('@/lib/chat-history')
+  const channel = { id: 'channel', ownerUserId: 'account' }
+  const previousGeneration = getChatHistoryState(channel.id).restoreGeneration
   const request = () =>
     new Request('http://localhost/api/internal/chat/restore', {
       method: 'POST',
@@ -159,9 +161,20 @@ it('rejects orphan account references, then restores Chat and purges expired con
       sourceRecordId: 'previous-ban',
     }),
   ])
-  expect(
-    loadLatestChatHistory({ id: 'channel', ownerUserId: 'account' }).messages,
-  ).toEqual([expect.objectContaining({ content: 'retained' })])
+  const restored = getChatHistoryState(channel.id)
+  expect(restored.restoreGeneration).not.toBe(previousGeneration)
+  expect(restored).toMatchObject({ clearedThrough: 0, clearPending: false })
+  for (const page of [
+    loadLatestChatHistory(channel),
+    loadOlderChatMessages(channel, 'chat-history-v1:100'),
+    loadChatMessagesAfter(channel, 0),
+  ]) {
+    expect(page).toMatchObject({
+      ...restored,
+      messages: [expect.objectContaining({ content: 'retained' })],
+      hasMore: false,
+    })
+  }
   expect(
     getChatDatabase()
       .prepare("SELECT 1 FROM chat_message WHERE id = 'expired'")

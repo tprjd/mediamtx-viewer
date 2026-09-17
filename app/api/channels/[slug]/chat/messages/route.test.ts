@@ -15,9 +15,6 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('server-only', () => ({}))
-vi.mock('@/lib/chat-history', () => ({
-  getChatHistoryState: () => ({ clearedThrough: 0, clearPending: false }),
-}))
 
 vi.mock('@/lib/auth/session', () => ({
   getActiveSession: mocks.getActiveSession,
@@ -31,18 +28,16 @@ vi.mock('@/lib/channels', () => ({
 vi.mock('@/lib/mediamtx', () => ({
   getChannelStatus: mocks.getChannelStatus,
 }))
-vi.mock('@/lib/chat', async () => {
-  const { ChatMessageValidationError } = await import('@/lib/chat-rules')
+vi.mock('@/lib/chat-history', () => {
   class InvalidChatHistoryCursorError extends Error {}
   return {
-    ChatMessageValidationError,
     InvalidChatHistoryCursorError,
     loadLatestChatHistory: mocks.loadLatestChatHistory,
     loadChatMessagesAfter: vi.fn(),
     loadOlderChatMessages: mocks.loadOlderChatMessages,
-    sendChatMessage: mocks.sendChatMessage,
   }
 })
+vi.mock('@/lib/chat', () => ({ sendChatMessage: mocks.sendChatMessage }))
 vi.mock('@/lib/chat-outbox', () => ({
   requestChatOutboxDispatch: mocks.requestChatOutboxDispatch,
 }))
@@ -86,11 +81,17 @@ beforeEach(() => {
     activationStatus: 'active',
   })
   mocks.loadLatestChatHistory.mockReturnValue({
+    restoreGeneration: 'initial',
+    clearedThrough: 0,
+    clearPending: false,
     messages: [message],
     hasMore: false,
     cursor: null,
   })
   mocks.loadOlderChatMessages.mockReturnValue({
+    restoreGeneration: 'initial',
+    clearedThrough: 0,
+    clearPending: false,
     messages: [],
     hasMore: false,
     cursor: null,
@@ -199,7 +200,7 @@ describe('/api/channels/[slug]/chat/messages', () => {
       'chat-history-v1:1',
     )
 
-    const { InvalidChatHistoryCursorError } = await import('@/lib/chat')
+    const { InvalidChatHistoryCursorError } = await import('@/lib/chat-history')
     mocks.loadOlderChatMessages.mockImplementation(() => {
       throw new InvalidChatHistoryCursorError('Invalid Chat history cursor.')
     })

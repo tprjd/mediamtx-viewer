@@ -59,9 +59,8 @@ it.each(['timeout', 'ban', 'expired', 'cleared-history'])(
     const { getChatDatabase, closeChatDatabase } = await import(
       '@/lib/chat-database'
     )
-    const { sendChatMessage, loadLatestChatHistory } = await import(
-      '@/lib/chat'
-    )
+    const { sendChatMessage } = await import('@/lib/chat')
+    const { loadLatestChatHistory } = await import('@/lib/chat-history')
     const {
       getChatParticipantState,
       listChatModerationRecords,

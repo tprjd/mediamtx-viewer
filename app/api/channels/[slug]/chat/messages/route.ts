@@ -1,17 +1,15 @@
-import { chatRestoreGeneration } from '@/lib/chat-maintenance'
-import { getChatHistoryState } from '@/lib/chat-history'
 import { ChatStorageLimitError } from '@/lib/chat-storage'
 import { z } from 'zod'
 
 import { getChatModeratorRole } from '@/lib/chat-moderation'
 import { authorizeLiveChat } from '@/lib/chat-access'
+import { sendChatMessage } from '@/lib/chat'
 import {
   InvalidChatHistoryCursorError,
   loadChatMessagesAfter,
   loadLatestChatHistory,
   loadOlderChatMessages,
-  sendChatMessage,
-} from '@/lib/chat'
+} from '@/lib/chat-history'
 import { requestChatOutboxDispatch } from '@/lib/chat-outbox'
 import {
   ChatMessageValidationError,
@@ -63,11 +61,7 @@ export async function GET(
         )
       }
       return Response.json(
-        {
-          ...loadChatMessagesAfter(access.channel, Number(after)),
-          ...getChatHistoryState(access.channel.id),
-          restoreGeneration: chatRestoreGeneration(),
-        },
+        loadChatMessagesAfter(access.channel, Number(after)),
         {
           headers: responseHeaders,
         },
@@ -77,11 +71,7 @@ export async function GET(
     if (before !== null) {
       try {
         return Response.json(
-          {
-            ...loadOlderChatMessages(access.channel, before),
-            ...getChatHistoryState(access.channel.id),
-            restoreGeneration: chatRestoreGeneration(),
-          },
+          loadOlderChatMessages(access.channel, before),
           {
             headers: responseHeaders,
           },
@@ -97,8 +87,6 @@ export async function GET(
     return Response.json(
       {
         ...loadLatestChatHistory(access.channel),
-        ...getChatHistoryState(access.channel.id),
-        restoreGeneration: chatRestoreGeneration(),
         moderatorRole: getChatModeratorRole(access.channel, access.accountId),
       },
       {

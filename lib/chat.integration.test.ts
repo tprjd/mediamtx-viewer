@@ -122,9 +122,8 @@ describe('durable Chat messages', () => {
   })
 
   it('stops new messages at each disk threshold while retaining history and retry results', async () => {
-    const { sendChatMessage, loadLatestChatHistory } = await import(
-      '@/lib/chat'
-    )
+    const { sendChatMessage } = await import('@/lib/chat')
+    const { loadLatestChatHistory } = await import('@/lib/chat-history')
     const input = {
       channel: { id: 'stable-channel-id', ownerUserId: 'owner-id' },
       participant: {
@@ -162,8 +161,8 @@ describe('durable Chat messages', () => {
   })
 
   it('commits a message and reloads its safe public representation', async () => {
-    const { sendChatMessage, loadLatestChatHistory } =
-      await import('@/lib/chat')
+    const { sendChatMessage } = await import('@/lib/chat')
+    const { loadLatestChatHistory } = await import('@/lib/chat-history')
     const { getChatDatabase } = await import('@/lib/chat-database')
     const channel = {
       id: 'stable-channel-id',
@@ -197,6 +196,9 @@ describe('durable Chat messages', () => {
     expect(
       loadLatestChatHistory(channel, new Date('2026-09-11T10:00:00.000Z')),
     ).toEqual({
+      clearedThrough: 0,
+      clearPending: false,
+      restoreGeneration: 'initial',
       messages: [
         {
           id: accepted.id,
@@ -229,8 +231,8 @@ describe('durable Chat messages', () => {
   })
 
   it('loads all committed messages after a room sequence for gap repair', async () => {
-    const { loadChatMessagesAfter, sendChatMessage } =
-      await import('@/lib/chat')
+    const { sendChatMessage } = await import('@/lib/chat')
+    const { loadChatMessagesAfter } = await import('@/lib/chat-history')
     const channel = {
       id: 'gap-channel-id',
       ownerUserId: 'owner-id',
@@ -247,6 +249,9 @@ describe('durable Chat messages', () => {
     })
 
     expect(loadChatMessagesAfter(channel, first.sequence)).toEqual({
+      clearedThrough: 0,
+      clearPending: false,
+      restoreGeneration: 'initial',
       messages: [expect.objectContaining({ id: second.id })],
       hasMore: false,
     })
@@ -313,8 +318,8 @@ describe('durable Chat messages', () => {
   })
 
   it('shares the sending limit across requests and retries a committed message without another slot', async () => {
-    const { sendChatMessage, loadLatestChatHistory } =
-      await import('@/lib/chat')
+    const { sendChatMessage } = await import('@/lib/chat')
+    const { loadLatestChatHistory } = await import('@/lib/chat-history')
     const { ChatRateLimitError } = await import('@/lib/chat-rules')
     const channel = { id: 'limited-room', ownerUserId: 'owner-id' }
     const input = {
@@ -359,8 +364,8 @@ describe('durable Chat messages', () => {
   })
 
   it('keeps one room across publishing restarts and returns only the latest 100', async () => {
-    const { sendChatMessage, loadLatestChatHistory } =
-      await import('@/lib/chat')
+    const { sendChatMessage } = await import('@/lib/chat')
+    const { loadLatestChatHistory } = await import('@/lib/chat-history')
     const { getChatDatabase } = await import('@/lib/chat-database')
     const channel = {
       id: 'stable-channel-id',
@@ -403,8 +408,8 @@ describe('durable Chat messages', () => {
   })
 
   it('pages tied timestamps and a content-free tombstone through a stable cursor while new messages arrive', async () => {
-    const { loadLatestChatHistory, loadOlderChatMessages, sendChatMessage } =
-      await import('@/lib/chat')
+    const { sendChatMessage } = await import('@/lib/chat')
+    const { loadLatestChatHistory, loadOlderChatMessages } = await import('@/lib/chat-history')
     const { getChatDatabase } = await import('@/lib/chat-database')
     const channel = { id: 'history-channel-id', ownerUserId: 'owner-id' }
     const baseTime = 1_800_000_000_000
@@ -576,8 +581,8 @@ describe('durable Chat messages', () => {
   })
 
   it('rolls back the message, retry key, and rate slot if its outbox event cannot commit', async () => {
-    const { sendChatMessage, loadLatestChatHistory } =
-      await import('@/lib/chat')
+    const { sendChatMessage } = await import('@/lib/chat')
+    const { loadLatestChatHistory } = await import('@/lib/chat-history')
     const { getChatDatabase } = await import('@/lib/chat-database')
     const database = getChatDatabase()
     const input = {

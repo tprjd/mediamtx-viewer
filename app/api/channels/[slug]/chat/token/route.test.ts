@@ -10,9 +10,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/chat-access', () => ({
   authorizeLiveChat: mocks.authorizeLiveChat,
 }))
-vi.mock('@/lib/chat-maintenance', () => ({ chatRestoreGeneration: () => 'initial' }))
 vi.mock('@/lib/chat-history', () => ({
-  getChatHistoryState: () => ({ clearedThrough: 12, clearPending: false }),
+  getChatHistoryState: () => ({ restoreGeneration: 'initial', clearedThrough: 12, clearPending: false }),
 }))
 vi.mock('@/lib/chat-realtime', () => ({
   createChatConnectionToken: mocks.createChatConnectionToken,

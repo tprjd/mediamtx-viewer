@@ -24,11 +24,23 @@ process.env.CHAT_TAG_HMAC_SECRET =
 const channel = { id: 'room-channel', ownerUserId: 'owner' }
 
 it('clears only the selected room and rejects retries of cleared messages', async () => {
-  const { clearChatHistory, getChatHistoryState } = await import('@/lib/chat-history')
-  const { sendChatMessage, loadLatestChatHistory } = await import('@/lib/chat')
+  const {
+    clearChatHistory,
+    getChatHistoryState,
+    loadLatestChatHistory,
+    loadOlderChatMessages,
+    loadChatMessagesAfter,
+  } = await import('@/lib/chat-history')
+  const { sendChatMessage } = await import('@/lib/chat')
   const { getChatDatabase } = await import('@/lib/chat-database')
   const ownRoom = { ...channel, id: crypto.randomUUID() }
   const otherRoom = { ...channel, id: crypto.randomUUID() }
+  expect(getChatHistoryState(ownRoom.id)).toEqual({
+    clearedThrough: 0,
+    clearPending: false,
+    restoreGeneration: 'initial',
+  })
+  expect(clearChatHistory(ownRoom, 'admin')).toEqual(getChatHistoryState(ownRoom.id))
   const input = {
     channel: ownRoom,
     participant: { accountId: 'participant', profileName: 'Name' },
@@ -39,8 +51,18 @@ it('clears only the selected room and rejects retries of cleared messages', asyn
   const other = sendChatMessage({ ...input, channel: otherRoom })
   expect(() => clearChatHistory(ownRoom, 'owner')).toThrow('Not authorized')
   const cleared = clearChatHistory(ownRoom, 'admin')
-  expect(cleared).toMatchObject({ clearedThrough: old.sequence, clearPending: true })
-  expect(loadLatestChatHistory(ownRoom).messages).toEqual([])
+  expect(cleared).toEqual({
+    clearedThrough: old.sequence,
+    clearPending: true,
+    restoreGeneration: 'initial',
+  })
+  for (const page of [
+    loadLatestChatHistory(ownRoom),
+    loadOlderChatMessages(ownRoom, `chat-history-v1:${old.sequence + 1}`),
+    loadChatMessagesAfter(ownRoom, 0),
+  ]) {
+    expect(page).toMatchObject({ ...cleared, messages: [], hasMore: false })
+  }
   expect(loadLatestChatHistory(otherRoom).messages).toEqual([other])
   expect(() => sendChatMessage(input)).toThrow('This message was cleared')
   const next = sendChatMessage({ ...input, clientIdempotencyKey: crypto.randomUUID() })
@@ -131,8 +153,8 @@ afterAll(async () => {
 })
 
 it('removes content atomically and exposes only a tombstone in history and delivery', async () => {
-  const { sendChatMessage, loadLatestChatHistory, loadChatMessagesAfter } =
-    await import('@/lib/chat')
+  const { sendChatMessage } = await import('@/lib/chat')
+  const { loadLatestChatHistory, loadChatMessagesAfter } = await import('@/lib/chat-history')
   const { removeChatMessage, inspectRemovedChatMessage } =
     await import('@/lib/chat-moderation')
   const { dispatchNextChatOutboxEvent } = await import('@/lib/chat-outbox')
@@ -223,7 +245,8 @@ it.each([
 )
 
 it('rolls back removal and its record when the outbox insert fails', async () => {
-  const { sendChatMessage, loadLatestChatHistory } = await import('@/lib/chat')
+  const { sendChatMessage } = await import('@/lib/chat')
+  const { loadLatestChatHistory } = await import('@/lib/chat-history')
   const { removeChatMessage, inspectRemovedChatMessage } =
     await import('@/lib/chat-moderation')
   const { getChatDatabase } = await import('@/lib/chat-database')
@@ -269,7 +292,8 @@ it('rolls back removal and its record when the outbox insert fails', async () =>
 })
 
 it('validates Other notes, deduplicates removal, and checks current access to retained evidence', async () => {
-  const { sendChatMessage, loadOlderChatMessages } = await import('@/lib/chat')
+  const { sendChatMessage } = await import('@/lib/chat')
+  const { loadOlderChatMessages } = await import('@/lib/chat-history')
   const { removeChatMessage, inspectRemovedChatMessage } =
     await import('@/lib/chat-moderation')
   const { getDatabase } = await import('@/lib/auth/database')
@@ -445,9 +469,8 @@ it('keeps a disabled administrator immune to Channel-owner removal', async () =>
 it.each(['recent', 'older'] as const)(
   'times out sending and removes only the selected %s message',
   async (selectedAge) => {
-    const { sendChatMessage, loadLatestChatHistory } = await import(
-      '@/lib/chat'
-    )
+    const { sendChatMessage } = await import('@/lib/chat')
+    const { loadLatestChatHistory } = await import('@/lib/chat-history')
     const { applyChatTimeout } = await import('@/lib/chat-moderation')
     const { getChatRestriction } = await import('@/lib/chat-restrictions')
     const testChannel = { ...channel, id: crypto.randomUUID() }
@@ -515,8 +538,8 @@ it.each(['recent', 'older'] as const)(
 it.each(['removal', 'timeout'] as const)(
   'does not repeat Message removal when a timeout follows a %s',
   async (firstAction) => {
-    const { sendChatMessage, loadLatestChatHistory, loadChatMessagesAfter } =
-      await import('@/lib/chat')
+    const { sendChatMessage } = await import('@/lib/chat')
+    const { loadLatestChatHistory, loadChatMessagesAfter } = await import('@/lib/chat-history')
     const { applyChatTimeout, removeChatMessage } = await import(
       '@/lib/chat-moderation'
     )
@@ -773,9 +796,8 @@ it.each([10, 60, 1440])(
 it.each(['moderation record', 'private event'])(
   'rolls back the entire timeout when %s storage fails',
   async (failure) => {
-    const { sendChatMessage, loadLatestChatHistory } = await import(
-      '@/lib/chat'
-    )
+    const { sendChatMessage } = await import('@/lib/chat')
+    const { loadLatestChatHistory } = await import('@/lib/chat-history')
     const { applyChatTimeout } = await import('@/lib/chat-moderation')
     const { getChatRestriction } = await import('@/lib/chat-restrictions')
     const { getChatDatabase } = await import('@/lib/chat-database')
@@ -842,7 +864,8 @@ it.each([
 })
 
 it('rejects concurrent sends that started before a timeout but reach storage after its commit', async () => {
-  const { sendChatMessage, loadLatestChatHistory } = await import('@/lib/chat')
+  const { sendChatMessage } = await import('@/lib/chat')
+  const { loadLatestChatHistory } = await import('@/lib/chat-history')
   const { applyChatTimeout } = await import('@/lib/chat-moderation')
   const { POST } = await import('@/app/api/channels/[slug]/chat/messages/route')
   const testChannel = { ...channel, id: 'http-channel' }
@@ -921,7 +944,8 @@ it('rejects concurrent sends that started before a timeout but reach storage aft
 })
 
 it('keeps a Chat ban indefinite and replaces only the previous ten minutes with tombstones', async () => {
-  const { sendChatMessage, loadLatestChatHistory } = await import('@/lib/chat')
+  const { sendChatMessage } = await import('@/lib/chat')
+  const { loadLatestChatHistory } = await import('@/lib/chat-history')
   const { applyChatBan, getChatParticipantState } =
     await import('@/lib/chat-moderation')
   const room = { ...channel, id: crypto.randomUUID() }
@@ -1162,7 +1186,8 @@ it('keeps moderation history administrator-only and pages stable records across 
 })
 
 it('updates current Owner badges when restrictions are rejected without rewriting history', async () => {
-  const { sendChatMessage, loadLatestChatHistory } = await import('@/lib/chat')
+  const { sendChatMessage } = await import('@/lib/chat')
+  const { loadLatestChatHistory } = await import('@/lib/chat-history')
   const { applyChatBan, applyChatTimeout, getChatParticipantState } =
     await import('@/lib/chat-moderation')
   const room = { ...channel, id: crypto.randomUUID() }
@@ -1376,9 +1401,8 @@ it('commits ban and reversal events privately and rolls back a failed reversal',
 it.each(['timeout', 'ban'] as const)(
   'rejects an owner %s through HTTP without changing messages, history, or delivery',
   async (action) => {
-    const { sendChatMessage, loadLatestChatHistory } = await import(
-      '@/lib/chat'
-    )
+    const { sendChatMessage } = await import('@/lib/chat')
+    const { loadLatestChatHistory } = await import('@/lib/chat-history')
     const {
       getChatMessageActions,
       getChatParticipantState,
@@ -1446,7 +1470,8 @@ it.each(['timeout', 'ban'] as const)(
 
 it('requires administrator confirmation and preserves restrictions and records when clearing through HTTP', async () => {
   const { DELETE, GET } = await import('@/app/api/channels/[slug]/chat/history/route')
-  const { sendChatMessage, loadLatestChatHistory } = await import('@/lib/chat')
+  const { sendChatMessage } = await import('@/lib/chat')
+  const { loadLatestChatHistory } = await import('@/lib/chat-history')
   const { removeChatMessage, inspectRemovedChatMessage, applyChatBan, listChatModerationRecords } = await import('@/lib/chat-moderation')
   const { getChatDatabase } = await import('@/lib/chat-database')
   const { getDatabase } = await import('@/lib/auth/database')
