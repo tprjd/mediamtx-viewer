@@ -80,10 +80,13 @@ function PlayerPoster({ poster }: { poster?: string | null }) {
 }
 
 function PlayerControls({
+  chatOpen,
+  onOpenChat,
+  theaterChatRestoreRef,
   onTheaterModeChange,
   seekableLive,
   theaterMode = false,
-}: Pick<PlayerTheaterProps, 'onTheaterModeChange' | 'theaterMode'> & {
+}: PlayerTheaterProps & {
   seekableLive: boolean
 }) {
   const fullscreen = useMediaState('fullscreen')
@@ -138,6 +141,20 @@ function PlayerControls({
           </span>
         )}
 
+        {theaterMode && !chatOpen && onOpenChat && (
+          <button
+            aria-label="Open Chat"
+            className={styles.mediaControlButton}
+            data-theater-chat-restore="true"
+            onClick={onOpenChat}
+            ref={theaterChatRestoreRef}
+            title="Open Chat"
+            type="button"
+          >
+            <MessageSquare aria-hidden="true" />
+          </button>
+        )}
+
         {onTheaterModeChange && (
           <button
             aria-label={theaterMode ? 'Exit theater mode' : 'Enter theater mode'}
@@ -175,28 +192,6 @@ function PlayerControls({
         </FullscreenButton>
       </Controls.Group>
     </Controls.Root>
-  )
-}
-
-function TheaterChatRestore({
-  onOpenChat,
-  theaterChatRestoreRef,
-}: Pick<PlayerTheaterProps, 'onOpenChat' | 'theaterChatRestoreRef'>) {
-  if (!onOpenChat) return null
-
-  return (
-    <div className={styles.theaterChatRestore}>
-      <button
-        aria-label="Open Chat"
-        data-theater-chat-restore="true"
-        onClick={onOpenChat}
-        ref={theaterChatRestoreRef}
-        type="button"
-      >
-        <MessageSquare aria-hidden="true" />
-        <span>Open chat</span>
-      </button>
-    </div>
   )
 }
 
@@ -280,14 +275,11 @@ export function VidstackPlayer({
     >
       <MediaProvider />
       <PlayerPoster poster={poster} />
-      {theaterMode && !chatOpen && (
-        <TheaterChatRestore
-          onOpenChat={onOpenChat}
-          theaterChatRestoreRef={theaterChatRestoreRef}
-        />
-      )}
       {children}
       <PlayerControls
+        chatOpen={chatOpen}
+        onOpenChat={onOpenChat}
+        theaterChatRestoreRef={theaterChatRestoreRef}
         onTheaterModeChange={onTheaterModeChange}
         seekableLive={seekableLive}
         theaterMode={theaterMode}

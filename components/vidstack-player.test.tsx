@@ -223,6 +223,24 @@ describe('VidstackPlayer', () => {
     })
   })
 
+  it('keeps the icon-only Chat restore action inside player controls', () => {
+    const onOpenChat = vi.fn()
+    const restoreRef = vi.fn()
+    const props = { ariaLabel: 'Live channel video', onOpenChat, theaterChatRestoreRef: restoreRef }
+    const { rerender } = render(<VidstackPlayer {...props} theaterMode chatOpen={false} />)
+    const button = screen.getByRole('button', { name: 'Open Chat' })
+    expect(button.closest('[data-player-controls]')).not.toBeNull()
+    expect(button.textContent).toBe('')
+    expect(button.querySelector('svg')).not.toBeNull()
+    expect(restoreRef).toHaveBeenCalledWith(button)
+    button.click()
+    expect(onOpenChat).toHaveBeenCalledOnce()
+    rerender(<VidstackPlayer {...props} theaterMode chatOpen />)
+    expect(screen.queryByRole('button', { name: 'Open Chat' })).toBeNull()
+    rerender(<VidstackPlayer {...props} chatOpen={false} />)
+    expect(screen.queryByRole('button', { name: 'Open Chat' })).toBeNull()
+  })
+
   it('provides a theater-mode control without changing fullscreen behavior', () => {
     const onTheaterModeChange = vi.fn()
     const { rerender } = render(

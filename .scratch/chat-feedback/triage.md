@@ -17,12 +17,12 @@ Recommendations are provisional. No application behavior changed during triage.
 | [06: Investigate repeated Chat participant colors](issues/06-participant-color-distribution.md) | needs-triage | Low |
 | [07: Add a Chat text size setting](issues/07-chat-text-size.md) | resolved | Normal |
 | [08: Let an administrator clear Chat message history](issues/08-administrator-clear-chat-history.md) | resolved | Normal |
-| [09: Integrate the theater Chat button with player controls](issues/09-theater-chat-control.md) | needs-triage | Normal |
+| [09: Integrate the theater Chat button with player controls](issues/09-theater-chat-control.md) | resolved | Normal |
 
 ## Proposed work order
 
 1. Owner protection in 01 is implemented. Issue 02 is closed because administrator protection already exists. Selected-message-only timeout removal in 03 is implemented.
-2. Fix the theater control in 09. Submission appearance in 05 is fixed.
+2. The theater control overlap and visibility bug in 09 is fixed. Submission appearance in 05 is fixed.
 3. Composer focus in 04 and the size preference in 07 are implemented.
 4. Selected-room history clearing in 08 is implemented. Investigate color distribution in 06 before changing the palette.
 

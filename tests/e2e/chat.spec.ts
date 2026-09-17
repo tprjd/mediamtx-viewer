@@ -269,6 +269,74 @@ async function signInAsAdministrator(page: Page) {
   administratorCookies = await page.context().cookies()
 }
 
+test('integrates theater Chat with player controls at desktop and touch widths', async ({ page, browser }) => {
+  test.setTimeout(60_000)
+  await prepareChatPlayback(page)
+  await signInAsAdministrator(page)
+  const verifyPlayback = await observePlayback(page)
+  await page.getByRole('button', { name: 'Enter theater mode' }).click()
+  await page.getByRole('button', { name: 'Close Chat' }).click()
+  const restore = page.getByRole('button', { name: 'Open Chat', exact: true })
+  const controls = page.locator('[data-player-controls]')
+  await expect(restore).toBeFocused()
+  await expect(restore).toHaveText('')
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 })
+    await restore.focus()
+    await expect(controls).toHaveCSS('opacity', '1')
+    const boxes = await controls.locator('button, [role="slider"]').evaluateAll(elements =>
+      elements.filter(e => getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0)
+        .map(e => { const r = e.getBoundingClientRect(); return { left: r.left, right: r.right } }))
+    for (let index = 0; index < boxes.length; index++) {
+      expect(boxes[index].left).toBeGreaterThanOrEqual(0)
+      expect(boxes[index].right).toBeLessThanOrEqual(width)
+      if (index) expect(boxes[index].left).toBeGreaterThanOrEqual(boxes[index - 1].right)
+    }
+    const buttonBox = (await restore.boundingBox())!
+    const badgeBox = (await page.locator('.protocol-badge').boundingBox())!
+    expect(buttonBox.y).toBeGreaterThan(badgeBox.y + badgeBox.height)
+    await page.screenshot({ path: `.data/theater-chat-controls-${width}.png` })
+  }
+  await restore.evaluate(e => e.blur())
+  await page.mouse.move(0, 0)
+  await expect(controls).toHaveCSS('opacity', '0')
+  // Tab back from the adjacent control to verify keyboard access after idle hiding.
+  await page.getByRole('button', { name: 'Exit theater mode' }).focus()
+  await page.keyboard.press('Shift+Tab')
+  await expect(restore).toBeFocused()
+  await expect(controls).toHaveCSS('opacity', '1')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeFocused()
+  await page.getByRole('button', { name: 'Close Chat' }).click()
+  await expect(restore).toBeFocused()
+  await page.keyboard.press('Space')
+  await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeFocused()
+  await verifyPlayback()
+
+  const touchContext = await browser.newContext({
+    hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 },
+    storageState: await page.context().storageState(),
+  })
+  try {
+    const touch = await touchContext.newPage()
+    await prepareChatPlayback(touch)
+    await touch.goto('http://localhost:3299/watch/live')
+    const verifyTouchPlayback = await observePlayback(touch)
+    await touch.getByRole('button', { name: 'Enter theater mode' }).tap()
+    const close = touch.getByRole('button', { name: 'Close Chat' })
+    if (await close.isVisible()) await close.tap()
+    const touchRestore = touch.getByRole('button', { name: 'Open Chat', exact: true })
+    await touchRestore.evaluate(e => e.blur())
+    const touchControls = touch.locator('[data-player-controls]')
+    await expect(touchControls).toHaveCSS('opacity', '0')
+    await touch.locator('video').tap()
+    await expect(touchControls).toHaveCSS('opacity', '1')
+    await touchRestore.tap()
+    await expect(touch.getByRole('textbox', { name: 'Chat message' })).toBeFocused()
+    await verifyTouchPlayback()
+  } finally { await touchContext.close() }
+})
+
 test('clears one Chat room on desktop and touch clients and recovers from a realtime outage', async ({ page, browser }) => {
   test.setTimeout(90_000)
   await page.setViewportSize({ width: 1440, height: 900 })
