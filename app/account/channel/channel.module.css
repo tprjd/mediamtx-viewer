@@ -61,10 +61,6 @@
   accent-color: var(--accent);
 }
 
-.obsSetupPanel > a {
-  margin-top: 1.25rem;
-}
-
 .obsSetupHeading {
   display: flex;
   align-items: start;
@@ -114,4 +110,226 @@
     height: 2.75rem;
     flex: none;
   }
+}
+
+/* The channel dashboard owns these tokens; other account pages keep their styles. */
+:global(body):has(.dashboardPage) {
+  background: #0d0e12;
+}
+
+.dashboardPage {
+  --panel: #16171d;
+  --line: #30313b;
+  --text: #f4f2f6;
+  --muted: #a3a3b2;
+  --text-faint: #a3a3b2;
+  --accent: #f4a0c4;
+  --accent-soft: #f4a0c4;
+  --eyebrow: #f4a0c4;
+  --danger: #f2a1a4;
+  --success: #a4d5ba;
+  color-scheme: dark;
+  width: 100%;
+  max-width: 1184px;
+  margin: 0 auto;
+  padding: 24px 24px 40px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.dashboardPage .channelAccountHeading {
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.dashboardPage :global(.eyebrow) {
+  margin: 0 0 4px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+
+.dashboardPage h1 {
+  margin: 0;
+  font-size: clamp(24px, 2.7vw, 32px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.9px;
+}
+
+.dashboardPage .channelAccountMeta {
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.dashboardPage .channelAccountMeta a {
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+
+.dashboardPage :global(.notice-banner),
+.dashboardPage :global(.error-banner) {
+  margin: 0 0 20px;
+}
+
+.dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1.37fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 22px;
+}
+
+.panel {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--panel);
+}
+
+.panelBody,
+.notificationPanel {
+  padding: 25px;
+}
+
+.dashboardPage h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.45px;
+  line-height: 1.4;
+}
+
+.dashboardPage h2 svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+}
+
+.panelBody > p,
+.notificationPanel > p,
+.installer p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.primaryButton,
+.secondaryButton,
+.dangerButton {
+  display: inline-flex;
+  min-height: 42px;
+  height: auto;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 10px 15px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--panel);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.55;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primaryButton {
+  border-color: transparent;
+  background: var(--accent);
+  color: #28131d;
+}
+
+.primaryButton:hover { background: #ffb7d5; }
+.secondaryButton:hover { background: #202129; border-color: var(--muted); }
+.dashboardPage .channelAccountHeading > a { flex: none; color: var(--text); }
+.primaryButton svg,
+.secondaryButton svg { width: 16px; height: 16px; }
+
+.dashboardPage :is(a, button, input, textarea, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.installer {
+  padding: 23px 25px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 13px 13px;
+  background: #2d202c;
+}
+
+.installer h2 { font-size: 16px; }
+.installer > a { margin-top: 17px; }
+.installer .obsSetupVersion { font-size: 10px; }
+.securityDetails { margin-top: 14px; color: var(--muted); font-size: 11px; }
+.securityDetails summary { width: fit-content; padding-block: 5px; cursor: pointer; }
+.securityDetails code { overflow-wrap: anywhere; }
+.securityDetails p { font-size: 11px; }
+
+.rightColumn { display: grid; min-width: 0; gap: 20px; }
+.metadataForm { display: grid; gap: 17px; margin-top: 23px; }
+.metadataForm label { display: grid; gap: 8px; font-size: 12px; font-weight: 600; }
+.metadataForm input:not([type='checkbox']),
+.metadataForm textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #101116;
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+}
+.metadataForm textarea { min-height: 102px; resize: vertical; }
+.metadataForm button { justify-self: start; }
+.metadataForm .discordNotificationToggle {
+  display: flex;
+  width: auto;
+  align-items: center;
+  gap: 12px;
+  font-weight: 400;
+}
+.discordNotificationToggle input { flex: none; }
+.notificationPanel h2 { font-size: 15px; }
+.notificationPanel .metadataForm { margin-top: 17px; }
+
+.broadcastControls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 22px;
+  padding: 20px 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.broadcastControls h2 { font-size: 13px; }
+.broadcastControls h2 svg { color: var(--muted); }
+.broadcastControls p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+.broadcastControls form { flex: none; }
+.dangerButton { background: transparent; color: var(--danger); }
+.dangerButton:hover { background: #2d2025; border-color: var(--danger); }
+
+@media (max-width: 1060px) {
+  .dashboard { gap: 18px; grid-template-columns: minmax(0, 1.22fr) minmax(0, 1fr); }
+}
+
+@media (max-width: 850px) {
+  .dashboardPage { max-width: 700px; padding-top: 22px; }
+  .dashboard { grid-template-columns: 1fr; gap: 20px; }
+}
+
+@media (max-width: 580px) {
+  .dashboardPage { padding: 27px 18px 30px; }
+  .dashboardPage .channelAccountHeading { flex-wrap: wrap; gap: 17px; }
+  .channelAccountCopy { width: 100%; }
+  .panelBody, .notificationPanel, .installer { padding: 21px; }
+  .broadcastControls { align-items: stretch; flex-direction: column; gap: 16px; padding: 20px; }
 }

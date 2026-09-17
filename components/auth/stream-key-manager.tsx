@@ -28,6 +28,7 @@ export function StreamKeyManager({
 }: StreamKeyManagerProps) {
   const [state, action, pending] = useActionState(generateStreamKeyAction, initialState)
   const [copied, setCopied] = useState<string | null>(null)
+  const [copyError, setCopyError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const confirmedRef = useRef(false)
   const formRef = useRef<HTMLFormElement>(null)
@@ -37,8 +38,14 @@ export function StreamKeyManager({
   const fullUrl = (token: string) => `${serverUrl}/${playPath(token)}`
 
   async function copy(label: string, value: string) {
-    await navigator.clipboard.writeText(value)
-    setCopied(label)
+    setCopied(null)
+    setCopyError(null)
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(label)
+    } catch {
+      setCopyError('Copy failed. Select the value and copy it manually.')
+    }
   }
 
   function confirmRotate() {
@@ -105,6 +112,7 @@ export function StreamKeyManager({
           </div>
         </aside>
       )}
+      {copyError && <p className="error-banner" role="alert">{copyError}</p>}
       {state.error && <p className="error-banner" role="alert">{state.error}</p>}
       {state.warning && <p className="notice-banner">{state.warning}</p>}
 

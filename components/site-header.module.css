@@ -1,16 +1,23 @@
 .siteHeader {
+  --accent: #f4a0c4;
+  --accent-soft: #f4a0c4;
+  --accent-strong: #2d202c;
+  --ring: #f4a0c4;
   position: sticky;
   z-index: 50;
   top: 0;
   display: flex;
   width: 100%;
-  height: 3.125rem;
+  box-sizing: border-box;
+  height: 50px;
+  min-height: 50px;
+  max-height: 50px;
   flex: none;
   align-items: center;
   justify-content: space-between;
-  padding-inline: 1rem;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
+  padding: 0 18px;
+  border-bottom: 1px solid #272830;
+  background: #16171d;
 }
 
 .brand {
@@ -56,10 +63,10 @@
   width: 1.75rem;
   height: 1.75rem;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--accent-soft) 24%, transparent);
-  border-radius: 0.25rem;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent-soft);
+  border: 1px solid #664157;
+  border-radius: 8px;
+  background: #2d202c;
+  color: #f4a0c4;
 }
 
 .headerActions {
@@ -71,4 +78,9 @@
 .chatRestoreTarget {
   display: flex;
   align-items: center;
+}
+
+.brand:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
 }

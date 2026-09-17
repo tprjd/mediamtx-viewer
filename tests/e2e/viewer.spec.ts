@@ -905,14 +905,77 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
   await expect(
     page.getByRole('heading', { name: 'Windows OBS setup' }),
   ).toBeVisible()
-  const channelTitle = page.getByRole('heading', { name: 'Live stream' })
-  const channelHeading = page.locator('section').filter({ has: channelTitle }).first()
-  const channelTitleBox = await channelTitle.boundingBox()
-  const channelIconBox = await channelHeading.locator(':scope > svg').boundingBox()
-  expect(channelTitleBox).not.toBeNull()
-  expect(channelIconBox).not.toBeNull()
-  expect(channelIconBox!.y).toBeLessThan(channelTitleBox!.y + channelTitleBox!.height)
-  expect(channelIconBox!.y + channelIconBox!.height).toBeGreaterThan(channelTitleBox!.y)
+  for (const width of [390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 })
+    expect(await page.locator('[data-site-header]').evaluate(
+      element => element.getBoundingClientRect().height,
+    )).toBe(50)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+    for (const label of ['Title', 'Description']) {
+      await expect(page.getByRole('textbox', { name: label, exact: true })).toBeVisible()
+    }
+    const publishing = await page.getByRole('heading', { name: 'OBS publishing' }).boundingBox()
+    const details = await page.getByRole('heading', { name: 'Channel details' }).boundingBox()
+    if (width === 1440) expect(details!.y).toBe(publishing!.y)
+    else expect(details!.y).toBeGreaterThan(publishing!.y)
+    await page.screenshot({ path: testInfo.outputPath(`channel-${width}.png`), fullPage: true })
+  }
+  await page.getByRole('textbox', { name: 'Title', exact: true }).focus()
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('textbox', { name: 'Description', exact: true })).toBeFocused()
+  expect(await page.getByRole('textbox', { name: 'Description', exact: true }).evaluate(
+    element => getComputedStyle(element).outlineStyle,
+  )).toBe('solid')
+  await page.getByRole('link', { name: 'Open public channel' }).click()
+  await expect(page).toHaveURL('/watch/live')
+  await page.goto('/account/channel')
+  const initialDescription = await page.getByRole('textbox', { name: 'Description', exact: true }).inputValue()
+  await page.getByLabel('Title', { exact: true }).fill('Test channel title')
+  await page.getByRole('textbox', { name: 'Description', exact: true }).fill('Test channel description')
+  await page.getByRole('button', { name: 'Save details' }).click()
+  await expect(page.getByText('Channel details updated.')).toBeVisible()
+  await page.reload()
+  await expect(page.getByLabel('Title', { exact: true })).toHaveValue('Test channel title')
+  await expect(page.getByRole('textbox', { name: 'Description', exact: true })).toHaveValue('Test channel description')
+  // Bypass the browser limit to exercise server-side validation.
+  await page.getByLabel('Title', { exact: true }).evaluate((input: HTMLInputElement) => {
+    input.maxLength = 121
+    input.value = 'x'.repeat(121)
+  })
+  await page.getByRole('button', { name: 'Save details' }).click()
+  await expect(page.locator('main [role=alert]')).toBeVisible()
+  await expect(page.getByText('Channel details updated.')).toHaveCount(0)
+  await page.getByLabel('Title', { exact: true }).fill('Live stream')
+  await page.getByRole('textbox', { name: 'Description', exact: true }).fill(initialDescription)
+  await page.getByRole('button', { name: 'Save details' }).click()
+  await expect(page.getByText('Channel details updated.')).toBeVisible()
+
+  const notifications = page.getByLabel('Send a notification when this channel goes live')
+  const initialNotifications = await notifications.isChecked()
+  await notifications.setChecked(!initialNotifications)
+  await page.reload()
+  await expect(notifications).toBeChecked({ checked: initialNotifications })
+  await notifications.setChecked(!initialNotifications)
+  await page.getByRole('button', { name: 'Save notification setting' }).click()
+  await expect(page.getByText('Discord notifications updated.')).toBeVisible()
+  await page.reload()
+  await expect(notifications).toBeChecked({ checked: !initialNotifications })
+  await notifications.setChecked(initialNotifications)
+  await page.getByRole('button', { name: 'Save notification setting' }).click()
+  await expect(page.getByText('Discord notifications updated.')).toBeVisible()
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+      writeText: () => Promise.reject(new Error('Clipboard blocked')),
+    } })
+  })
+  await page.getByRole('button', { name: 'Copy', exact: true }).click()
+  await expect(page.locator('main [role=alert]')).toHaveText('Copy failed. Select the value and copy it manually.')
+  await expect(page.getByRole('button', { name: 'Copied', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'End broadcast', exact: true }).click()
+  await expect(page.locator('main [role=alert]')).toHaveText('MediaMTX could not disconnect the broadcast.')
+  await page.getByText('Installer details & security').click()
+  await expect(page.getByText(/SHA-256/)).toBeVisible()
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('link', { name: 'Download Windows setup' }).click()
   const download = await downloadPromise
@@ -938,4 +1001,16 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
     page.getByText('Paste these into OBS. They are shown only once.'),
   ).toBeVisible()
   await expect(page.getByText(/^mtx_sk_[A-Za-z0-9_-]+$/)).toBeVisible()
+  await page.reload()
+  await expect(page.getByText(/^mtx_sk_[A-Za-z0-9_-]+$/)).toHaveCount(0)
+  for (const path of ['/', '/watch/live', '/account', '/statistics']) {
+    await page.goto(path)
+    for (const width of [390, 768, 1440]) {
+      await page.setViewportSize({ width, height: 900 })
+      expect(await page.locator('[data-site-header]').evaluate(
+        element => element.getBoundingClientRect().height,
+      )).toBe(50)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+    }
+  }
 })

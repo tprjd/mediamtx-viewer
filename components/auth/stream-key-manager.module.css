@@ -1,5 +1,5 @@
 .streamKeyManager {
-  margin-top: 1rem;
+  margin-top: 21px;
 }
 
 .streamKeyManager > form {
@@ -23,21 +23,19 @@
 
 .obsSettings {
   display: grid;
-  gap: 0.85rem;
+  gap: 21px;
   margin: 0;
 }
 
 .obsSettings > div {
   display: grid;
-  gap: 0.3rem;
+  gap: 8px;
 }
 
 .obsSettings dt {
   color: var(--text-faint);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .obsSettings dd {
@@ -48,13 +46,17 @@
   gap: 1rem;
   margin: 0;
   color: var(--text);
-  font-size: 0.8rem;
+  font-size: 12px;
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #101116;
 }
 
 .obsSettings code,
 .streamKeyReveal code {
   overflow-wrap: anywhere;
-  color: var(--accent-soft);
+  color: var(--text);
 }
 
 .obsSettings button {
@@ -70,7 +72,8 @@
 }
 
 .obsSettings button svg {
-  width: 0.85rem;
+  width: 16px;
+  height: 16px;
 }
 
 .modalBackdrop {
@@ -85,7 +88,7 @@
 }
 
 .modalCard {
-  width: min(100%, 26rem);
+  width: min(calc(100% - 32px), 26rem);
   position: fixed;
   top: 50%;
   left: 50%;
@@ -93,7 +96,7 @@
   padding: 1.5rem;
   border: 1px solid var(--line);
   border-radius: 1rem;
-  background: #111114;
+  background: #16171d;
   box-shadow: 0 30px 100px rgba(0, 0, 0, 0.45);
   transform: translate(-50%, -50%);
 }
@@ -120,12 +123,14 @@
   margin-top: 1.4rem;
 }
 
-@media (max-width: 700px) {
-  .obsSettings dd {
-    align-items: start;
-    flex-direction: column;
-  }
+.streamKeyManager > form > button {
+  min-height: 40px;
+  border-radius: 8px;
+  font-size: 11px;
 }
+
+.obsSettings button { min-height: 28px; }
+.streamKeyManager > form > button svg { width: 16px; height: 16px; }
 
 .streamKeyHintText {
   margin-top: 0.65rem;
