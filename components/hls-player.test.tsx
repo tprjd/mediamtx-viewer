@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import type { LevelUpdatedData } from 'hls.js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HlsPlayer } from '@/components/hls-player'
@@ -37,11 +38,7 @@ const mocks = vi.hoisted(() => {
     liveSyncPosition: number | null = 20
     latency = 3
     playingDate: Date | null = null
-    latestLevelDetails = {
-      partHoldBack: 0.5,
-      partTarget: 0.2,
-      targetduration: 2,
-    }
+    latestLevelDetails: LevelUpdatedData['details'] | null = null
     private listeners = new Map<string, (...args: unknown[]) => void>()
 
     constructor(config: Record<string, unknown>) {
@@ -58,6 +55,9 @@ const mocks = vi.hoisted(() => {
     }
 
     emit(event: string, data?: unknown) {
+      if (event === FakeHls.Events.LEVEL_UPDATED) {
+        this.latestLevelDetails = (data as LevelUpdatedData).details
+      }
       this.listeners.get(event)?.(event, data)
     }
   }
@@ -373,7 +373,14 @@ describe('HlsPlayer recovery', () => {
       await Promise.resolve()
     })
 
-    // 4.167s WHIP stream -> adaptive ceiling ~4.37s; latency 4.0s is tolerated.
+    const video = screen.getByLabelText('Late-night games live video') as HTMLVideoElement
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
+    video.currentTime = 10
+    mocks.instances[0].latency = 4
+    fireEvent(video, new Event('playing'))
+
+    // A 4.167s segment gives a 6s adaptive ceiling; 4s latency is tolerated.
     act(() => {
       mocks.instances[0].emit('levelUpdated', {
         details: {
@@ -383,13 +390,20 @@ describe('HlsPlayer recovery', () => {
         },
       })
     })
-    await vi.waitFor(
-      () => {
-        expect(onUltraLowFailure).not.toHaveBeenCalled()
-        expect(onUltraLowUnavailable).not.toHaveBeenCalled()
-      },
-      { timeout: 500 },
-    )
+    await act(async () => vi.advanceTimersByTimeAsync(1_500))
+    expect(video.currentTime).toBe(10)
+    expect(mocks.instances).toHaveLength(1)
+    expect(onUltraLowFailure).not.toHaveBeenCalled()
+    expect(onUltraLowUnavailable).not.toHaveBeenCalled()
+    expect(mocks.playbackStats.mock.calls.at(-1)?.[0].hlsDiagnostics).toMatchObject({
+      maxLatencySeconds: 6,
+      forwardBufferLoadLimitSeconds: 2,
+      configuredMaxForwardBufferSeconds: 4.75,
+    })
+    expect(mocks.instances[0].config).toMatchObject({
+      maxBufferLength: 2,
+      maxMaxBufferLength: 2,
+    })
   })
 
   it('recreates the HLS instance when the latency profile changes', async () => {
@@ -404,6 +418,92 @@ describe('HlsPlayer recovery', () => {
     expect(mocks.instances).toHaveLength(2)
     expect(mocks.instances[0].destroy).toHaveBeenCalledOnce()
     expect(mocks.instances[1].config).toMatchObject({ liveSyncDuration: 5 })
+  })
+
+  it.each([
+    { mode: 'balanced', target: 3, ceiling: 6 },
+    { mode: 'smooth', target: 5, ceiling: 9 },
+  ] as const)('discards learned timing when switching to $mode', async ({ mode, target, ceiling }) => {
+    mocks.videoAlreadyPlaying = true
+    const view = render(<HlsPlayer channel={channel} latencyProfile="ultra-low" />)
+    await act(async () => Promise.resolve())
+    act(() => {
+      mocks.instances[0].emit('levelUpdated', {
+        details: { partTarget: 0.2, targetduration: 4, averagetargetduration: 3.2 },
+      })
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(mocks.playbackStats.mock.calls.at(-1)?.[0].hlsDiagnostics).toMatchObject({
+      targetLatencySeconds: 2.56,
+      maxLatencySeconds: 3.36,
+      measuredSegmentSeconds: 3.2,
+    })
+
+    view.rerender(<HlsPlayer channel={channel} latencyProfile={mode} />)
+    await act(async () => Promise.resolve())
+    const video = screen.getByLabelText('Late-night games live video') as HTMLVideoElement
+    video.currentTime = 10
+    mocks.instances.at(-1)!.latency = 4
+    fireEvent(video, new Event('play'))
+
+    expect(video.currentTime).toBe(10)
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(mocks.playbackStats.mock.calls.at(-1)?.[0].hlsDiagnostics).toMatchObject({
+      targetLatencySeconds: target,
+      maxLatencySeconds: ceiling,
+      adaptiveTargetSeconds: undefined,
+      adaptiveCeilingSeconds: undefined,
+      measuredSegmentSeconds: undefined,
+    })
+  })
+
+  it('discards learned timing when recovery replaces the HLS instance', async () => {
+    await renderPlayer('ultra-low')
+    act(() => {
+      mocks.instances[0].emit('levelUpdated', {
+        details: { partTarget: 0.2, targetduration: 5, averagetargetduration: 5 },
+      })
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(mocks.playbackStats.mock.calls.at(-1)?.[0].hlsDiagnostics).toMatchObject({
+      targetLatencySeconds: 5,
+      maxLatencySeconds: 6,
+    })
+    act(() => {
+      mocks.instances[0].emit('error', {
+        fatal: true, type: 'networkError', details: 'fragLoadError',
+      })
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(mocks.instances).toHaveLength(2)
+    expect(mocks.playbackStats.mock.calls.at(-1)?.[0].hlsDiagnostics).toMatchObject({
+      targetLatencySeconds: 1.8,
+      maxLatencySeconds: 3,
+      measuredSegmentSeconds: undefined,
+    })
+  })
+
+  it('keeps the contract buffer margin after observing two-second segments', async () => {
+    const video = await renderPlayer('ultra-low')
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 })
+    Object.defineProperty(video, 'buffered', {
+      configurable: true,
+      value: { length: 1, start: () => 0, end: () => 12.5 },
+    })
+    video.currentTime = 10
+    fireEvent(video, new Event('playing'))
+    act(() => {
+      mocks.instances[0].emit('levelUpdated', {
+        details: { partTarget: 0.2, targetduration: 2, averagetargetduration: 2 },
+      })
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(mocks.playbackStats.mock.calls.at(-1)?.[0].hlsDiagnostics).toMatchObject({
+      forwardBufferLoadLimitSeconds: 2,
+      configuredMaxForwardBufferSeconds: 3,
+      forwardBufferBreachCount: 0,
+    })
   })
 
   it('recreates HLS with bounded backoff after fatal network errors', async () => {
