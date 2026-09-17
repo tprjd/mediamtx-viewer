@@ -14,7 +14,7 @@ Recommendations are provisional. No application behavior changed during triage.
 | [03: Remove only the selected Chat message when applying a timeout](issues/03-timeout-selected-message-only.md) | resolved | High |
 | [04: Correct the Chat composer highlight](issues/04-composer-focus-highlight.md) | resolved | Normal |
 | [05: Keep Chat message appearance consistent during submission](issues/05-message-style-delay.md) | resolved | Normal |
-| [06: Investigate repeated Chat participant colors](issues/06-participant-color-distribution.md) | needs-triage | Low |
+| [06: Expand Chat participant colors to 12](issues/06-participant-color-distribution.md) | ready-for-agent | Low |
 | [07: Add a Chat text size setting](issues/07-chat-text-size.md) | resolved | Normal |
 | [08: Let an administrator clear Chat message history](issues/08-administrator-clear-chat-history.md) | resolved | Normal |
 | [09: Integrate the theater Chat button with player controls](issues/09-theater-chat-control.md) | resolved | Normal |
@@ -24,7 +24,7 @@ Recommendations are provisional. No application behavior changed during triage.
 1. Owner protection in 01 is implemented. Issue 02 is closed because administrator protection already exists. Selected-message-only timeout removal in 03 is implemented.
 2. The theater control overlap and visibility bug in 09 is fixed. Submission appearance in 05 is fixed.
 3. Composer focus in 04 and the size preference in 07 are implemented.
-4. Selected-room history clearing in 08 is implemented. Investigate color distribution in 06 before changing the palette.
+4. Selected-room history clearing in 08 is implemented. Expand the participant palette to 12 colors in 06.
 
 ## Evidence and limits
 
