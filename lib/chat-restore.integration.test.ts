@@ -97,6 +97,13 @@ it('rejects orphan account references, then restores Chat and purges expired con
     SELECT 'expired', room_id, 100, account_id, profile_name, author_tag, 'expired text', ? FROM chat_message LIMIT 1`,
     )
     .run(now - 8 * 86400000)
+  fixed.exec(`INSERT INTO chat_moderation_record
+    (id, action, category, actor_account_id, target_account_id, room_id, created_at, source_record_id)
+    SELECT 'policy-reversal', 'reversal', 'Spam', 'system:channel-owner-protection', 'account', id, 0, 'previous-ban'
+    FROM chat_room;
+    INSERT INTO chat_restriction
+    (room_id, account_id, record_id, category, actor_role, created_at, expires_at)
+    SELECT id, 'account', 'legacy-owner-ban', 'Spam', 'admin', 0, NULL FROM chat_room;`)
   fixed.close()
   let release!: () => void
   const blocked = new Promise<void>((resolve) => {
@@ -112,13 +119,34 @@ it('rejects orphan account references, then restores Chat and purges expired con
     return Response.json({ result: {} })
   })
   const restoration = POST(request())
-  await entering
+  expect(
+    await Promise.race([entering.then(() => null), restoration]),
+  ).toBeNull()
   expect(() => getChatDatabase()).toThrow('unavailable')
   expect(getDatabase().prepare('SELECT slug FROM channel').get()).toEqual({
     slug: 'restore',
   })
   release()
   expect((await restoration).status).toBe(200)
+  const { getChatParticipantState, listChatModerationRecords } = await import(
+    '@/lib/chat-moderation'
+  )
+  expect(
+    getChatParticipantState(
+      { id: 'channel', ownerUserId: 'account' },
+      'account',
+    ).restriction,
+  ).toBeNull()
+  expect(listChatModerationRecords('account').records).toEqual([
+    expect.objectContaining({
+      actor: 'System: Channel owner protection',
+      sourceRecordId: 'legacy-owner-ban',
+    }),
+    expect.objectContaining({
+      actor: 'System: Channel owner protection',
+      sourceRecordId: 'previous-ban',
+    }),
+  ])
   expect(
     loadLatestChatHistory({ id: 'channel', ownerUserId: 'account' }).messages,
   ).toEqual([expect.objectContaining({ content: 'retained' })])

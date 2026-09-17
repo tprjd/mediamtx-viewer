@@ -11,7 +11,10 @@ import {
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { setImmediate } from 'node:timers/promises'
-import { closeChatDatabase } from '@/lib/chat-database'
+import {
+  CHAT_OWNER_PROTECTION_ACTOR,
+  closeChatDatabase,
+} from '@/lib/chat-database'
 import { getDatabase } from '@/lib/auth/database'
 import { chatEnvironment, isChatEnabled } from '@/lib/chat-environment'
 import { waitForChatRetention } from '@/lib/chat-retention'
@@ -37,10 +40,12 @@ async function validateChatReferences(
     .prepare(
       `
     SELECT account_id AS id FROM chat_participant UNION SELECT account_id FROM chat_message
-    UNION SELECT account_id FROM chat_restriction UNION SELECT actor_account_id FROM chat_moderation_record
+    UNION SELECT account_id FROM chat_restriction
+    UNION SELECT actor_account_id FROM chat_moderation_record
+      WHERE actor_account_id != ? OR action != 'reversal' OR actor_role IS NOT NULL
     UNION SELECT target_account_id FROM chat_moderation_record`,
     )
-    .iterate() as Iterable<{ id: string }>) {
+    .iterate(CHAT_OWNER_PROTECTION_ACTOR) as Iterable<{ id: string }>) {
     if (!account.get(row.id))
       throw new Error('Chat account reference is missing')
     if (++checked % 500 === 0) await setImmediate()

@@ -83,7 +83,7 @@ A plain-text contribution that a Chat participant sends to one Chat room. It kee
 _Avoid_: Comment, post
 
 **Chat moderator**:
-A Chat participant who can moderate a Chat room. Administrators moderate every room and its Channel owner, while a Channel owner moderates their own room but cannot restrict an administrator or moderate while under an administrator's Chat restriction.
+A Chat participant who can moderate a Chat room. Administrators moderate every room. A Channel owner moderates their own room but cannot restrict an administrator. No Chat moderator can apply a Chat restriction to the current Channel owner in that owner's room. Message removal remains a separate permission.
 _Avoid_: Chat admin, mod
 
 **Chat restriction**:
@@ -103,5 +103,5 @@ A moderation action that replaces one Chat message with a content-free tombstone
 _Avoid_: Message deletion, retraction
 
 **Chat moderation record**:
-A durable record of a Chat moderator's action and its target.
+A durable record of a Chat moderator's action and its target, or an explicitly identified system policy reversal. The owner-protection policy lifts existing active restrictions against owners in their own rooms, records each reversal, and leaves removed messages removed.
 _Avoid_: Chat audit log, mod log

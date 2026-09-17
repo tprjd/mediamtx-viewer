@@ -3,7 +3,10 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { getDatabase } from '@/lib/auth/database'
-import { getChatDatabase } from '@/lib/chat-database'
+import {
+  CHAT_OWNER_PROTECTION_ACTOR,
+  getChatDatabase,
+} from '@/lib/chat-database'
 import {
   createChatTombstone,
   currentChatBadges,
@@ -136,6 +139,7 @@ export function getChatMessageActions(
     canRemove: !message.removedSequence && mayRemoveMessage(role, message),
     canInspect: Boolean(message.removedSequence),
     canTimeout:
+      message.accountId !== channel.ownerUserId &&
       mayRemoveMessage(role, message) &&
       (role === 'admin' ||
         getActiveChatRestriction(channel.id, message.accountId)?.actorRole !==
@@ -341,6 +345,7 @@ function applyChatRestriction({
       const role = requireModerator(channel, actorId, now)
       const target = retainedMessage(channel, messageId, now)
       if (
+        target.accountId === channel.ownerUserId ||
         !mayRemoveMessage(role, target) ||
         (role === 'owner' &&
           getActiveChatRestriction(channel.id, target.accountId, now)
@@ -614,7 +619,10 @@ export function listChatModerationRecords(
         id: row.id,
         action: row.action,
         category: row.category,
-        actor: accountName(row.actorId),
+        actor:
+          row.actorId === CHAT_OWNER_PROTECTION_ACTOR
+            ? 'System: Channel owner protection'
+            : accountName(row.actorId),
         target: accountName(row.targetId),
         room: room?.name ?? 'Deleted Channel',
         channelSlug: room?.slug ?? null,

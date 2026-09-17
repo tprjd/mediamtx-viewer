@@ -1352,7 +1352,9 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
       .run(Date.now() - 601_000, older.id)
     database.close()
     const oldRow = page.locator(`[data-message-id="${older.id}"]`)
-    await expect(oldRow.getByRole('button', { name: 'Channel owner', exact: true })).toBeVisible({
+    await expect(
+      oldRow.getByRole('button', { name: 'Channel owner', exact: true }),
+    ).toBeVisible({
       timeout: 10_000,
     })
     const roles = new Database(authDatabasePath)
@@ -1361,7 +1363,9 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
         "UPDATE user SET role = 'admin' WHERE id = 'e2e-chat-participant'",
       )
       .run()
-    await expect(oldRow.getByRole('button', { name: 'Administrator', exact: true })).toBeVisible({
+    await expect(
+      oldRow.getByRole('button', { name: 'Administrator', exact: true }),
+    ).toBeVisible({
       timeout: 10_000,
     })
     roles
@@ -1370,17 +1374,25 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
       )
       .run()
     roles.close()
-    await expect(oldRow.getByRole('button', { name: 'Administrator', exact: true })).toHaveCount(0, {
+    await expect(
+      oldRow.getByRole('button', { name: 'Administrator', exact: true }),
+    ).toHaveCount(0, {
       timeout: 10_000,
     })
 
+    // Exercise bans against a participant in another owner's room.
+    const ownership = new Database(authDatabasePath)
+    ownership
+      .prepare("UPDATE channel SET owner_user_id = ? WHERE slug = 'live'")
+      .run(original.owner)
+    ownership.close()
     const { message } = await (await postChat(owner, 'Ban target')).json()
-    await owner
+    await page
       .locator(`[data-message-id="${message.id}"]`)
       .getByRole('button', { name: 'Message actions' })
       .click()
-    await owner.getByRole('menuitem', { name: 'Apply Chat ban' }).click()
-    const banDialog = owner.getByRole('dialog', { name: 'Apply Chat ban' })
+    await page.getByRole('menuitem', { name: 'Apply Chat ban' }).click()
+    const banDialog = page.getByRole('dialog', { name: 'Apply Chat ban' })
     await banDialog.getByLabel('Category').selectOption('Other')
     await expect(
       banDialog.getByRole('button', { name: 'Confirm ban' }),
@@ -1406,17 +1418,32 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
     await ownerContext.setOffline(false)
     await expect(log).toHaveAttribute('data-realtime-state', 'connected')
     await expect(feedback).toContainText('Indefinite')
-    await owner
+    await page
       .getByRole('button', { name: 'Active Chat restrictions', exact: true })
       .click()
+    const reversalPanel = page.getByRole('dialog', {
+      name: 'Active Chat restrictions',
+    })
+    await expect(reversalPanel).toContainText('Chat Friend')
+    await reversalPanel
+      .getByRole('button', { name: 'Lift restriction' })
+      .click()
+    await expect(reversalPanel).toContainText('No active Chat restrictions.')
+    await reversalPanel
+      .getByRole('button', { name: 'Close', exact: true })
+      .click()
+    await expect(composer).toBeEnabled()
+
+    const restoreOwnership = new Database(authDatabasePath)
+    restoreOwnership
+      .prepare(
+        "UPDATE channel SET owner_user_id = 'e2e-chat-participant' WHERE slug = 'live'",
+      )
+      .run()
+    restoreOwnership.close()
     const panel = owner.getByRole('dialog', {
       name: 'Active Chat restrictions',
     })
-    await expect(panel).toContainText('Chat Friend')
-    await panel.getByRole('button', { name: 'Lift restriction' }).click()
-    await expect(panel).toContainText('No active Chat restrictions.')
-    await panel.getByRole('button', { name: 'Close', exact: true }).click()
-    await expect(composer).toBeEnabled()
 
     // An administrator's restriction cannot be reversed by the Channel owner.
     const { message: adminTarget } = await (
@@ -1459,33 +1486,32 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
     const { message: ownerTarget } = await (
       await postChat(owner, 'Owner authority target')
     ).json()
-    expect(
-      (
-        await page.request.post(
-          `/api/channels/live/chat/messages/${ownerTarget.id}/ban`,
-          { data: { category: 'Harassment' } },
-        )
-      ).status(),
-    ).toBe(200)
-    await expect(composer).toBeDisabled()
-    await expect(
-      owner.getByRole('button', {
-        name: 'Active Chat restrictions',
-        exact: true,
-      }),
-    ).toHaveCount(0)
-    await expect(oldRow.getByRole('button', { name: 'Channel owner', exact: true })).toHaveCount(0, {
-      timeout: 10_000,
-    })
-    await page
-      .getByRole('button', { name: 'Active Chat restrictions', exact: true })
-      .click()
-    const adminPanel = page.getByRole('dialog', {
-      name: 'Active Chat restrictions',
-    })
-    await expect(adminPanel).toContainText('Chat Friend')
-    await adminPanel.getByRole('button', { name: 'Lift restriction' }).click()
-    await adminPanel.getByRole('button', { name: 'Close', exact: true }).click()
+    for (const actor of [page, owner]) {
+      await actor
+        .locator(`[data-message-id="${ownerTarget.id}"]`)
+        .getByRole('button', { name: 'Message actions' })
+        .click()
+      await expect(
+        actor.getByRole('menuitem', { name: 'Remove message', exact: true }),
+      ).toBeVisible()
+      await expect(
+        actor.getByRole('menuitem', { name: 'Apply Chat timeout' }),
+      ).toHaveCount(0)
+      await expect(
+        actor.getByRole('menuitem', { name: 'Apply Chat ban' }),
+      ).toHaveCount(0)
+      await actor.keyboard.press('Escape')
+      for (const action of ['timeout', 'ban']) {
+        expect(
+          (
+            await actor.request.post(
+              `/api/channels/live/chat/messages/${ownerTarget.id}/${action}`,
+              { data: { category: 'Harassment', durationMinutes: 10 } },
+            )
+          ).status(),
+        ).toBe(403)
+      }
+    }
     await expect(composer).toBeEnabled()
     await expect(
       owner.getByRole('button', {
@@ -1493,14 +1519,14 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
         exact: true,
       }),
     ).toBeVisible()
-    await expect(oldRow.getByRole('button', { name: 'Channel owner', exact: true })).toBeVisible({
-      timeout: 10_000,
-    })
-    await composer.fill('Sending restored by reversal')
+    await expect(
+      oldRow.getByRole('button', { name: 'Channel owner', exact: true }),
+    ).toBeVisible()
+    await composer.fill('Owner can still send')
     await owner.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(
       page.getByRole('log', { name: 'Chat messages' }),
-    ).toContainText('Sending restored by reversal')
+    ).toContainText('Owner can still send')
 
     expect(
       (await owner.request.get('/api/admin/chat/moderation')).status(),
