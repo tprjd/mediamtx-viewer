@@ -1,8 +1,6 @@
 import 'server-only'
 
-import { getChannels } from '@/lib/channels'
-import { channelPosterUrl } from '@/lib/channel-thumbnails'
-import { getChannelStatuses } from '@/lib/mediamtx'
+import { loadChannelLiveUpdates } from '@/lib/channel-reads'
 import type {
   ChannelLiveUpdate,
   ChannelStatus,
@@ -70,25 +68,6 @@ export function sameChannelLiveState(
       (track, index) => track === second.status.tracks[index],
     )
   )
-}
-
-export async function loadChannelLiveUpdates(): Promise<ChannelLiveUpdate[]> {
-  const channels = getChannels()
-  const statuses = await getChannelStatuses(
-    channels.map((channel) => channel.mediaPath),
-  )
-
-  return channels.map((channel) => {
-    const status = statuses.get(channel.mediaPath)!
-    return {
-      slug: channel.slug,
-      ownerName: channel.ownerName,
-      title: channel.title,
-      discordNotificationsEnabled: channel.discordNotificationsEnabled,
-      status,
-      poster: channelPosterUrl(channel, status.live) ?? null,
-    }
-  })
 }
 
 export class ChannelStatusMonitor {

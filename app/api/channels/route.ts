@@ -1,29 +1,16 @@
 import { NextResponse } from 'next/server'
 
-import { getChannels } from '@/lib/channels'
-import { channelPosterUrl } from '@/lib/channel-thumbnails'
-import { getChannelStatuses } from '@/lib/mediamtx'
-import { toPublicChannel } from '@/lib/public-channel'
+import { getPublicChannels } from '@/lib/channel-reads'
 import type { ChannelsResponse } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(): Promise<NextResponse<ChannelsResponse>> {
-  const configuredChannels = getChannels()
-  const statuses = await getChannelStatuses(
-    configuredChannels.map((channel) => channel.mediaPath),
-  )
+  const channels = await getPublicChannels()
 
   return NextResponse.json(
     {
-      channels: configuredChannels.map((channel) => {
-        const status = statuses.get(channel.mediaPath)!
-        return toPublicChannel(
-          channel,
-          status,
-          channelPosterUrl(channel, status.live),
-        )
-      }),
+      channels,
       updatedAt: new Date().toISOString(),
     },
     {

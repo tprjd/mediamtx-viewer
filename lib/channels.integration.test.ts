@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   mkdirSync,
   mkdtempSync,
@@ -54,6 +54,19 @@ describe('account-owned channels', () => {
     const { getDatabase } = await import('@/lib/auth/database')
     getDatabase().close()
     rmSync(testDirectory, { recursive: true, force: true })
+  })
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it('reads an empty directory without contacting MediaMTX', async () => {
+    const { getPublicChannels, loadChannelLiveUpdates } = await import(
+      '@/lib/channel-reads'
+    )
+    const fetcher = vi.spyOn(globalThis, 'fetch')
+
+    await expect(getPublicChannels()).resolves.toEqual([])
+    await expect(loadChannelLiveUpdates()).resolves.toEqual([])
+    expect(fetcher).not.toHaveBeenCalled()
   })
 
   it('grants one stable channel to an active user', async () => {
@@ -184,6 +197,83 @@ describe('account-owned channels', () => {
     expect(authorizePublish('channels/second-channel', first.token)).toBe(false)
   })
 
+  it('assembles fresh public and event reads with status and poster rules', async () => {
+    const { getPublicChannels, loadChannelLiveUpdates } = await import(
+      '@/lib/channel-reads'
+    )
+    const { GET } = await import('@/app/api/channels/route')
+    const fetcher = vi.spyOn(globalThis, 'fetch')
+
+    for (const state of ['live', 'offline', 'unavailable'] as const) {
+      fetcher.mockImplementation(async () =>
+        state === 'unavailable'
+          ? new Response(null, { status: 503 })
+          : Response.json({
+              items: state === 'live'
+                ? [{ name: 'channels/friend-channel', ready: true, tracks: ['H264'] }]
+                : [],
+            }),
+      )
+      const channels = await getPublicChannels()
+      const updates = await loadChannelLiveUpdates()
+      const poster = state === 'live'
+        ? expect.stringMatching(/^\/api\/channels\/friend-channel\/thumbnail\?v=\d+$/)
+        : undefined
+      const status = {
+        state,
+        live: state === 'live',
+        startedAt: null,
+        tracks: state === 'live' ? ['H264'] : [],
+        viewerCount: state === 'offline' ? 0 : null,
+        checkedAt: expect.any(String),
+      }
+
+      expect(channels.map(({ slug }) => slug)).toEqual(['friend-channel', 'second-channel'])
+      expect(channels[0]).toEqual({
+        slug: 'friend-channel',
+        ownerName: 'Friend',
+        title: "Friend's stream",
+        description: undefined,
+        accentColor: '#db2777',
+        preferredPlayback: 'hls',
+        hasCompatibilityFallback: false,
+        playback: {
+          hls: '/media/hls/channels/friend-channel/index.m3u8?cookieCheck=1',
+          webrtc: '/media/whep/channels/friend-channel/whep',
+          fallbackHls: undefined,
+        },
+        status,
+        poster,
+      })
+      expect(updates[0]).toEqual({
+        slug: 'friend-channel',
+        ownerName: 'Friend',
+        title: "Friend's stream",
+        discordNotificationsEnabled: true,
+        status,
+        poster: poster ?? null,
+      })
+      expect(updates.map(({ slug }) => slug)).toEqual(['friend-channel', 'second-channel'])
+      expect(channels[1]).toMatchObject({
+        status: { state: state === 'unavailable' ? 'unavailable' : 'offline' },
+      })
+      expect(channels[1]?.poster).toBeUndefined()
+      expect(updates[1]?.poster).toBeNull()
+
+      const response = await GET()
+      expect(response.headers.get('cache-control')).toBe('private, no-store, max-age=0')
+      expect(await response.json()).toMatchObject({
+        channels: [{ slug: 'friend-channel', status }, { slug: 'second-channel' }],
+        updatedAt: expect.any(String),
+      })
+    }
+    expect(fetcher).toHaveBeenCalledTimes(9)
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining('/v3/paths/list'),
+      { cache: 'no-store', signal: expect.any(AbortSignal) },
+    )
+  })
+
   it('disables the owned channel and its key with the account', async () => {
     const { disableUser } = await import('@/lib/auth/store')
     const { authorizePublish, createOrRotateStreamKey, getOwnedChannel } = await import(
@@ -197,5 +287,10 @@ describe('account-owned channels', () => {
       enabled: false,
       hasStreamKey: false,
     })
+
+    const { getPublicChannels, loadChannelLiveUpdates } = await import('@/lib/channel-reads')
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({ items: [] }))
+    expect((await getPublicChannels()).map(({ slug }) => slug)).toEqual(['second-channel'])
+    expect((await loadChannelLiveUpdates()).map(({ slug }) => slug)).toEqual(['second-channel'])
   })
 })
