@@ -34,6 +34,7 @@ interface UseChatRealtimeInput {
   active: boolean
   channelSlug: string
   onMessage: (message: PublicChatMessage) => void
+  onHistoryCleared: (clearedThrough: number, restoreGeneration?: string) => void
   onRecoveryFailed: () => void
   onRestored: () => void
   onRestrictionChanged: (channelId?: string) => void
@@ -50,6 +51,7 @@ export function useChatRealtime({
   active,
   channelSlug,
   onMessage,
+  onHistoryCleared,
   onRecoveryFailed,
   onRestored,
   onRestrictionChanged,
@@ -58,12 +60,14 @@ export function useChatRealtime({
     'connected' | 'connecting' | 'disconnected'
   >(active ? 'connecting' : 'disconnected')
   const handleMessage = useEffectEvent(onMessage)
+  const handleHistoryCleared = useEffectEvent(onHistoryCleared)
   const handleRestored = useEffectEvent(onRestored)
   const handleRecoveryFailed = useEffectEvent(onRecoveryFailed)
   const handleRestrictionChanged = useEffectEvent(onRestrictionChanged)
 
   useEffect(() => {
     if (!active) return
+    let disposed = false
     const tokenEndpoint = `/api/channels/${encodeURIComponent(channelSlug)}/chat/token`
     const client = new Centrifuge(chatWebSocketUrl(), {
       minReconnectDelay: 250,
@@ -73,18 +77,27 @@ export function useChatRealtime({
         const response = await fetch(tokenEndpoint, { cache: 'no-store' })
         const result = (await response.json()) as {
           token?: string
+          restoreGeneration?: string
+          clearedThrough?: number
+          clearPending?: boolean
           error?: string
         }
+        if (disposed) return ''
         if (response.status === 401 || response.status === 403) {
           throw new UnauthorizedError(result.error ?? 'Chat access denied.')
         }
         if (!response.ok || !result.token) {
           throw new Error(result.error ?? 'Could not connect to Chat.')
         }
+        if (Number.isSafeInteger(result.clearedThrough) && result.clearedThrough! >= 0) {
+          handleHistoryCleared(result.clearedThrough!, result.restoreGeneration)
+        }
+        if (result.clearPending) throw new Error('Chat history is being cleared.')
         return result.token
       },
     })
     client.on('publication', (context) => {
+      if (disposed) return
       if (context.channel.startsWith('control:')) {
         const event = z
           .object({ type: z.literal('restriction'), channelId: z.string() })
@@ -93,6 +106,14 @@ export function useChatRealtime({
         return
       }
       if (!context.channel.startsWith('chat:')) return
+      const cleared = z.object({
+        restoreGeneration: z.string().optional(),
+        type: z.literal('history-cleared'), clearedThrough: z.number().int().nonnegative(),
+      }).safeParse(context.data)
+      if (cleared.success) {
+        handleHistoryCleared(cleared.data.clearedThrough, cleared.data.restoreGeneration)
+        return
+      }
       const event = chatMessageEventSchema.safeParse(context.data)
       if (event.success) handleMessage(event.data.message)
     })
@@ -125,7 +146,7 @@ export function useChatRealtime({
       }
     })
     client.connect()
-    return () => client.disconnect()
+    return () => { disposed = true; client.disconnect() }
   }, [active, channelSlug])
   return state
 }

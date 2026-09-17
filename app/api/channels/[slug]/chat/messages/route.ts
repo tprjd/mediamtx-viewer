@@ -1,4 +1,5 @@
 import { chatRestoreGeneration } from '@/lib/chat-maintenance'
+import { getChatHistoryState } from '@/lib/chat-history'
 import { ChatStorageLimitError } from '@/lib/chat-storage'
 import { z } from 'zod'
 
@@ -14,6 +15,7 @@ import {
 import { requestChatOutboxDispatch } from '@/lib/chat-outbox'
 import {
   ChatMessageValidationError,
+  ChatMessageClearedError,
   ChatRateLimitError,
 } from '@/lib/chat-rules'
 import { readUtf8BodyWithLimit } from '@/lib/http-body'
@@ -63,6 +65,7 @@ export async function GET(
       return Response.json(
         {
           ...loadChatMessagesAfter(access.channel, Number(after)),
+          ...getChatHistoryState(access.channel.id),
           restoreGeneration: chatRestoreGeneration(),
         },
         {
@@ -76,6 +79,7 @@ export async function GET(
         return Response.json(
           {
             ...loadOlderChatMessages(access.channel, before),
+            ...getChatHistoryState(access.channel.id),
             restoreGeneration: chatRestoreGeneration(),
           },
           {
@@ -93,6 +97,7 @@ export async function GET(
     return Response.json(
       {
         ...loadLatestChatHistory(access.channel),
+        ...getChatHistoryState(access.channel.id),
         restoreGeneration: chatRestoreGeneration(),
         moderatorRole: getChatModeratorRole(access.channel, access.accountId),
       },
@@ -159,6 +164,9 @@ export async function POST(
     requestChatOutboxDispatch()
     return Response.json({ message }, { status: 201, headers: responseHeaders })
   } catch (error) {
+    if (error instanceof ChatMessageClearedError) {
+      return Response.json({ error: error.message, cleared: true }, { status: 409, headers: responseHeaders })
+    }
     if (error instanceof ChatStorageLimitError) {
       return Response.json(
         { error: error.message },

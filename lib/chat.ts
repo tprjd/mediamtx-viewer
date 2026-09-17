@@ -17,6 +17,7 @@ import {
   decideChatSendRate,
   ChatRateLimitError,
   ChatMessageValidationError,
+  ChatMessageClearedError,
 } from '@/lib/chat-rules'
 import type {
   ChatHistoryPage,
@@ -163,6 +164,13 @@ export function sendChatMessage({
           'SELECT id, next_sequence AS nextSequence FROM chat_room WHERE channel_id = ?',
         )
         .get(channel.id) as { id: string; nextSequence: number }
+
+      if (database.prepare(`
+        SELECT 1 FROM chat_cleared_submission
+        WHERE room_id = ? AND account_id = ? AND client_idempotency_key = ?
+      `).get(room.id, participant.accountId, clientIdempotencyKey)) {
+        throw new ChatMessageClearedError('This message was cleared by an administrator.')
+      }
 
       const existing = database
         .prepare(

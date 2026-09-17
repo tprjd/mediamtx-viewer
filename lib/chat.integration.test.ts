@@ -108,6 +108,7 @@ describe('durable Chat messages', () => {
         )
         .all(),
     ).toEqual([
+      { name: 'chat_cleared_submission' },
       { name: 'chat_message' },
       { name: 'chat_moderation_record' },
       { name: 'chat_outbox' },

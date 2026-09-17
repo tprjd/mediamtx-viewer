@@ -38,6 +38,29 @@ Chat health logs contain fixed event types, fault codes, and results. Chat migra
 
 Operational logs must not contain message content, profile names, private notes, tokens, cookies, or client idempotency keys. The log-capture tests exercise successful publication, rejected requests, and failures against the pinned Centrifugo image.
 
+## Clear one Channel's Chat history
+
+Apply Chat migrations with `npm run chat:migrate` before starting the updated application.
+Migration 007 adds the room clearing boundary and content-free submission receipts.
+
+As an administrator, open the Channel's Chat panel and select **Clear Chat history**
+(the trash icon). Check the Channel name, then select **Confirm clearing**. Cancel
+leaves history unchanged. Channel owners without administrator status cannot clear history.
+
+Clearing deletes stored messages, including retained originals of removed messages,
+and removes their queued delivery content. It preserves participant tags, restrictions,
+moderation records, and the existing private-note retention policy. New messages remain
+available. Retrying an accepted, cleared submission does not recreate it.
+
+If realtime delivery fails, the dialog shows **Messages deleted. Updating connected
+participants…**. The server retries recovery-history invalidation and publication.
+The dialog closes after that work succeeds. You can close the dialog while retries
+continue. Check Chat health and the outbox if the pending state persists.
+
+Existing backups expire under the normal policy. Restoring a compatible older backup
+can restore cleared messages that have not expired. Restore still deletes expired
+content. Clearing does not guarantee forensic erasure of filesystem copies or backups.
+
 ## Back up authentication and Chat
 
 Set `AUTH_BACKUP_KEY` to a base64-encoded 32-byte key in the encrypted deployment secrets. Keep this key outside the backup directory. Keep `CHAT_TAG_HMAC_SECRET` with those secrets so restored author tags keep their identity.

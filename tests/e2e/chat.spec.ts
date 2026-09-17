@@ -269,6 +269,66 @@ async function signInAsAdministrator(page: Page) {
   administratorCookies = await page.context().cookies()
 }
 
+test('clears one Chat room on desktop and touch clients and recovers from a realtime outage', async ({ page, browser }) => {
+  test.setTimeout(90_000)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await prepareChatPlayback(page)
+  await signInAsAdministrator(page)
+  const key = randomUUID()
+  const oldContent = `Clear history ${randomUUID()}`
+  const body = { content: oldContent, clientIdempotencyKey: key }
+  expect((await page.request.post('/api/channels/live/chat/messages', { data: body })).status()).toBe(201)
+  await expect(page.getByRole('log').getByText(oldContent)).toBeVisible()
+  await page.getByRole('button', { name: 'Clear Chat history', exact: true }).focus()
+  await page.keyboard.press('Enter')
+  const dialog = page.getByRole('dialog', { name: 'Clear Chat history' })
+  await expect(dialog).toContainText('live')
+  await expect(dialog).toContainText('restoring an older backup can bring them back')
+  await page.screenshot({ path: '.data/chat-clear-desktop.png' })
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByRole('log').getByText(oldContent)).toBeVisible()
+
+  const touchContext = await browser.newContext({
+    hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 },
+    storageState: await page.context().storageState(),
+  })
+  try {
+    const touch = await touchContext.newPage()
+    await prepareChatPlayback(touch)
+    await touch.goto('http://localhost:3299/watch/live')
+    await touch.getByRole('button', { name: 'Chat', exact: true }).tap()
+    await expect(touch.getByRole('log').getByText(oldContent)).toBeVisible()
+    await touch.getByRole('button', { name: 'Clear Chat history', exact: true }).tap()
+    const touchDialog = touch.getByRole('dialog', { name: 'Clear Chat history' })
+    await touch.screenshot({ path: '.data/chat-clear-mobile.png', fullPage: true })
+    runDocker('stop', centrifugoContainer)
+    const clearedResponse = touch.waitForResponse(response => response.request().method() === 'DELETE' && response.url().endsWith('/chat/history'))
+    await touchDialog.getByRole('button', { name: 'Confirm clearing' }).tap()
+    expect((await clearedResponse).status()).toBe(202)
+    await expect(touchDialog.getByRole('status')).toContainText('Updating connected participants')
+    await expect(touchDialog.getByRole('button', { name: 'Clearing…' })).toBeDisabled()
+    await expect(page.getByRole('log').getByText(oldContent)).toHaveCount(0, { timeout: 15_000 })
+    const newContent = `After clearing ${randomUUID()}`
+    expect((await postChat(page, newContent)).status()).toBe(201)
+    expect((await page.request.post('/api/channels/live/chat/messages', { data: body })).status()).toBe(409)
+    const history = await (await page.request.get('/api/channels/live/chat/messages')).json()
+    expect(history.messages.map((message: { content: string }) => message.content)).toEqual([newContent])
+    runDocker('start', centrifugoContainer)
+    await waitForCentrifugo()
+    await expect(touchDialog).toHaveCount(0, { timeout: 20_000 })
+    await expect(page.getByRole('log').getByText(newContent)).toBeVisible({ timeout: 20_000 })
+    await expect(touch.getByRole('log').getByText(newContent)).toBeVisible({ timeout: 20_000 })
+    await expect(touch.getByRole('log').getByText(oldContent)).toHaveCount(0)
+    await page.reload()
+    await expect(page.getByRole('log').getByText(newContent)).toBeVisible()
+    await expect(page.getByRole('log').getByText(oldContent)).toHaveCount(0)
+    expect(await touch.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  } finally {
+    runDocker('start', centrifugoContainer)
+    await touchContext.close()
+  }
+})
+
 test('lets an active participant send and reload one Chat message', async ({
   page,
 }) => {

@@ -22,7 +22,7 @@ it('backs up separate encrypted databases with one authenticated manifest and cl
       ).toBe(0)
     }
     const db = new Database(env.CHAT_DB_PATH)
-    db.exec(`INSERT INTO chat_room VALUES ('room', 'channel', 2, 0);
+    db.exec(`INSERT INTO chat_room (id, channel_id, next_sequence, created_at) VALUES ('room', 'channel', 2, 0);
       INSERT INTO chat_message (id, room_id, room_sequence, account_id, profile_name, author_tag, content, created_at)
       VALUES ('old', 'room', 1, 'account', 'Name', 'tag1', 'secret message', 0)`)
     const result = spawnSync(process.execPath, ['scripts/backup-auth.mjs'], {

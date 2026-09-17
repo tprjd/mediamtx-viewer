@@ -25,6 +25,8 @@ export interface ChatContentMessage extends ChatMessageIdentity {
 }
 
 export interface ChatHistoryPage {
+  clearedThrough?: number
+  clearPending?: boolean
   messages: PublicChatMessage[]
   hasMore: boolean
   cursor: string | null

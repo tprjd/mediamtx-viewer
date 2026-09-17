@@ -16,7 +16,7 @@ Recommendations are provisional. No application behavior changed during triage.
 | [05: Keep Chat message appearance consistent during submission](issues/05-message-style-delay.md) | resolved | Normal |
 | [06: Investigate repeated Chat participant colors](issues/06-participant-color-distribution.md) | needs-triage | Low |
 | [07: Add a Chat text size setting](issues/07-chat-text-size.md) | resolved | Normal |
-| [08: Let an administrator clear Chat message history](issues/08-administrator-clear-chat-history.md) | needs-info | Normal |
+| [08: Let an administrator clear Chat message history](issues/08-administrator-clear-chat-history.md) | resolved | Normal |
 | [09: Integrate the theater Chat button with player controls](issues/09-theater-chat-control.md) | needs-triage | Normal |
 
 ## Proposed work order
@@ -24,7 +24,7 @@ Recommendations are provisional. No application behavior changed during triage.
 1. Owner protection in 01 is implemented. Issue 02 is closed because administrator protection already exists. Selected-message-only timeout removal in 03 is implemented.
 2. Fix the theater control in 09. Submission appearance in 05 is fixed.
 3. Composer focus in 04 and the size preference in 07 are implemented.
-4. Define history clearing in 08. Investigate color distribution in 06 before changing the palette.
+4. Selected-room history clearing in 08 is implemented. Investigate color distribution in 06 before changing the palette.
 
 ## Evidence and limits
 
@@ -42,7 +42,7 @@ The accepted Chat design requires consistent participant colors. ADR 0002 define
 The user confirmed clearing one selected Channel, message text size saved in this browser, and redundant highlights on both the composer input and its container.
 The user clarified that the display name and message initially appear as plain white text, then receive their styles. Issue 05 is ready for reproduction work.
 On 2026-09-17, the user accepted lifting existing owner restrictions in their own rooms, recording each reversal, and leaving removed messages removed.
-Issue 01 records that decision and an implementation brief. History deletion semantics still need a decision in issue 08.
+Issue 01 records that decision and an implementation brief. On 2026-09-17, the user accepted deleting stored messages in one selected room while preserving restrictions and moderation records. Existing backups expire normally and may restore cleared messages. Issue 08 records the implementation brief and the accepted retention exception.
 No unanswered proposal is an accepted requirement.
 
 

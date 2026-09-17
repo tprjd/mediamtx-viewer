@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { z } from 'zod'
 
 const participantStateSchema = z.object({
+  clearedThrough: z.number().int().nonnegative().optional(),
+  restoreGeneration: z.string().optional(),
   storageLimited: z.boolean().optional(),
   channelId: z.string(),
   restriction: z
@@ -109,6 +111,8 @@ export function useChatRestriction(channelSlug: string, active: boolean) {
   }, [active, checking, failed, refresh, state])
 
   return {
+    clearedThrough: state?.clearedThrough,
+    restoreGeneration: state?.restoreGeneration,
     restriction: state?.restriction ?? null,
     authorities: state?.authorities,
     moderatorRole: !failed ? (state?.moderatorRole ?? null) : null,

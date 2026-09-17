@@ -198,6 +198,63 @@ afterEach(() => {
 })
 
 describe('live Chat delivery', () => {
+  it('accepts restored history when Chat was hidden during the restore', async () => {
+    let restored = false
+    stubChatFetch(vi.fn(async input => {
+      const state = { clearedThrough: restored ? 0 : 1, restoreGeneration: restored ? 'restored' : 'before' }
+      return String(input).endsWith('/token')
+        ? Response.json({ token: 'token', clearedThrough: 1, restoreGeneration: 'before' })
+        : Response.json({ messages: restored ? [message('restored', 1)] : [], ...state })
+    }))
+    const view = render(<ChatPanel channelSlug="live" narrowLayout={false} onClose={() => undefined} />)
+    await screen.findByText('No messages yet.')
+    view.rerender(<ChatPanel channelSlug="live" open={false} narrowLayout={false} onClose={() => undefined} />)
+    restored = true
+    view.rerender(<ChatPanel channelSlug="live" open narrowLayout={false} onClose={() => undefined} />)
+    expect(await screen.findByText('message 1')).toBeInTheDocument()
+    // A delayed token or clear event from the old database must not clear restored rows.
+    await realtime.instances.at(-1)!.refreshToken()
+    realtime.instances.at(-1)!.emit('publication', {
+      channel: 'chat:live',
+      data: { type: 'history-cleared', clearedThrough: 1, restoreGeneration: 'before' },
+    })
+    expect(screen.getByText('message 1')).toBeInTheDocument()
+  })
+
+  it('discards a delayed history response and replay from before the clearing boundary', async () => {
+    let release: (response: Response) => void = () => undefined
+    const oldHistory = new Promise<Response>(resolve => { release = resolve })
+    stubChatFetch(vi.fn(async input => String(input).endsWith('/token')
+      ? Response.json({ token: 'token', restoreGeneration: 'initial', clearedThrough: 0 })
+      : oldHistory))
+    render(<ChatPanel channelSlug="live" narrowLayout={false} onClose={() => undefined} />)
+    await waitFor(() => expect(realtime.instances).toHaveLength(1))
+    const client = realtime.instances[0]
+    client.emit('publication', { channel: 'chat:live-channel', data: { type: 'history-cleared', restoreGeneration: 'initial', clearedThrough: 1 } })
+    client.emit('publication', { channel: 'chat:live-channel', data: publication(message('new', 2)) })
+    release(Response.json({ messages: [message('old', 1)], restoreGeneration: 'initial', clearedThrough: 0, hasMore: true, cursor: 'stale' }))
+    await screen.findByText('message 2')
+    client.emit('publication', { channel: 'chat:live-channel', data: publication(message('old', 1)) })
+    await waitFor(() => expect(screen.queryByText('message 1')).not.toBeInTheDocument())
+    expect(screen.getByText('message 2')).toBeInTheDocument()
+  })
+
+  it('removes a local retry when the server reports that its accepted message was cleared', async () => {
+    stubChatFetch(vi.fn(async (input, init) => {
+      if (String(input).endsWith('/token')) return Response.json({ token: 'token' })
+      if (init?.method === 'POST') return Response.json({ cleared: true, error: 'This message was cleared.' }, { status: 409 })
+      return Response.json({ messages: [] })
+    }))
+    render(<ChatPanel channelSlug="live" narrowLayout={false} onClose={() => undefined} />)
+    const input = screen.getByRole('textbox', { name: 'Chat message' })
+    await waitFor(() => expect(input).toBeEnabled())
+    fireEvent.change(input, { target: { value: 'cleared send' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(input).toHaveValue(''))
+    expect(screen.queryByText('cleared send')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+  })
+
   it('applies the saved timestamp setting to the real transcript', async () => {
     window.localStorage.setItem('home-stream.chat-timestamps', 'true')
     stubChatFetch(vi.fn(async (input: RequestInfo | URL) =>

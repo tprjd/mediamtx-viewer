@@ -71,6 +71,18 @@ it('rejects an unauthorized restore without entering maintenance', async () => {
   expect(existsSync(`${process.env.CHAT_DB_PATH}.maintenance`)).toBe(false)
 })
 
+it('allows an older backup to restore messages that an administrator cleared', async () => {
+  const { clearChatHistory } = await import('@/lib/chat-history')
+  const { loadLatestChatHistory } = await import('@/lib/chat')
+  const channel = { id: 'channel', ownerUserId: 'account' }
+  clearChatHistory(channel, 'account')
+  expect(loadLatestChatHistory(channel).messages).toEqual([])
+  const backup = new Database(candidate, { readonly: true })
+  expect(backup.prepare('SELECT content FROM chat_message').get()).toEqual({ content: 'retained' })
+  backup.close()
+  // The next test restores this same candidate through the real restore route.
+})
+
 it('rejects orphan account references, then restores Chat and purges expired content before reopening', async () => {
   const { POST } = await import('@/app/api/internal/chat/restore/route')
   const { getChatDatabase } = await import('@/lib/chat-database')

@@ -135,6 +135,12 @@ export function useChatSending({
         message?: PublicChatMessage
         error?: string
         retryAt?: string
+        cleared?: boolean
+      }
+      if (response.status === 409 && result.cleared) {
+        setSubmissions(current => current.filter(entry => entry.key !== submission.key))
+        setDraft(current => current === submission.content ? '' : current)
+        return
       }
       if (response.status === 429 && result.retryAt) {
         const time = Date.parse(result.retryAt)

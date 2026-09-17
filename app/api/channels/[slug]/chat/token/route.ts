@@ -1,4 +1,6 @@
+import { chatRestoreGeneration } from '@/lib/chat-maintenance'
 import { authorizeLiveChat } from '@/lib/chat-access'
+import { getChatHistoryState } from '@/lib/chat-history'
 import { createChatConnectionToken } from '@/lib/chat-realtime'
 
 export const dynamic = 'force-dynamic'
@@ -26,6 +28,8 @@ export async function GET(
   }
   return Response.json(
     {
+      restoreGeneration: chatRestoreGeneration(),
+      ...getChatHistoryState(access.channel.id),
       token: createChatConnectionToken({
         accountId: access.accountId,
         channelId: access.channel.id,

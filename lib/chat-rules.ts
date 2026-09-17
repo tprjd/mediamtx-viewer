@@ -4,6 +4,7 @@ const graphemeSegmenter = new Intl.Segmenter('und', {
 })
 
 export class ChatMessageValidationError extends Error {}
+export class ChatMessageClearedError extends Error {}
 
 export function normalizeChatMessage(rawContent: string): string {
   const content = rawContent

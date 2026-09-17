@@ -6,7 +6,7 @@ export function purgeExpiredChat(database, now = Date.now()) {
   database
     .transaction(() => {
       database
-        .prepare('DELETE FROM chat_outbox WHERE created_at < ?')
+        .prepare("DELETE FROM chat_outbox WHERE created_at < ? AND json_extract(payload, '$.type') IS NOT 'history-cleared'")
         .run(cutoff)
       database
         .prepare('DELETE FROM chat_message WHERE created_at < ?')

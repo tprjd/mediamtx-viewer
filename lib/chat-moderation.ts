@@ -563,7 +563,7 @@ export function reverseChatRestriction(
     .immediate()
 }
 
-function requireChatAdministrator(actorId: string) {
+export function requireChatAdministrator(actorId: string) {
   if (activeRole(actorId) !== 'admin')
     throw new ChatModerationError('Not authorized.', 403)
 }

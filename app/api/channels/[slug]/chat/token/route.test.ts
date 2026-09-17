@@ -10,6 +10,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/chat-access', () => ({
   authorizeLiveChat: mocks.authorizeLiveChat,
 }))
+vi.mock('@/lib/chat-maintenance', () => ({ chatRestoreGeneration: () => 'initial' }))
+vi.mock('@/lib/chat-history', () => ({
+  getChatHistoryState: () => ({ clearedThrough: 12, clearPending: false }),
+}))
 vi.mock('@/lib/chat-realtime', () => ({
   createChatConnectionToken: mocks.createChatConnectionToken,
 }))
@@ -39,7 +43,7 @@ describe('/api/channels/[slug]/chat/token', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('private, no-store, max-age=0')
-    expect(await response.json()).toEqual({ token: 'connection-token' })
+    expect(await response.json()).toEqual({ restoreGeneration: 'initial', token: 'connection-token', clearedThrough: 12, clearPending: false })
     expect(mocks.createChatConnectionToken).toHaveBeenCalledWith({
       accountId: 'participant-id',
       channelId: 'stable-channel-id',

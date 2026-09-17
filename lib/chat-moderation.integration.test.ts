@@ -23,6 +23,83 @@ process.env.CHAT_TAG_HMAC_SECRET =
   'test-chat-removal-secret-with-at-least-32-characters'
 const channel = { id: 'room-channel', ownerUserId: 'owner' }
 
+it('clears only the selected room and rejects retries of cleared messages', async () => {
+  const { clearChatHistory, getChatHistoryState } = await import('@/lib/chat-history')
+  const { sendChatMessage, loadLatestChatHistory } = await import('@/lib/chat')
+  const { getChatDatabase } = await import('@/lib/chat-database')
+  const ownRoom = { ...channel, id: crypto.randomUUID() }
+  const otherRoom = { ...channel, id: crypto.randomUUID() }
+  const input = {
+    channel: ownRoom,
+    participant: { accountId: 'participant', profileName: 'Name' },
+    rawContent: 'clear this content',
+    clientIdempotencyKey: crypto.randomUUID(),
+  }
+  const old = sendChatMessage(input)
+  const other = sendChatMessage({ ...input, channel: otherRoom })
+  expect(() => clearChatHistory(ownRoom, 'owner')).toThrow('Not authorized')
+  const cleared = clearChatHistory(ownRoom, 'admin')
+  expect(cleared).toMatchObject({ clearedThrough: old.sequence, clearPending: true })
+  expect(loadLatestChatHistory(ownRoom).messages).toEqual([])
+  expect(loadLatestChatHistory(otherRoom).messages).toEqual([other])
+  expect(() => sendChatMessage(input)).toThrow('This message was cleared')
+  const next = sendChatMessage({ ...input, clientIdempotencyKey: crypto.randomUUID() })
+  expect(next.sequence).toBeGreaterThan(cleared.clearedThrough)
+  expect(next).toHaveProperty('authorTag', 'authorTag' in old ? old.authorTag : undefined)
+  // A retry while realtime clearing is pending must not delete newer sends.
+  expect(clearChatHistory(ownRoom, 'admin')).toEqual(cleared)
+  expect(loadLatestChatHistory(ownRoom).messages).toEqual([next])
+  expect(getChatHistoryState(ownRoom.id)).toEqual(cleared)
+  expect(getChatDatabase().prepare('SELECT 1 FROM chat_message WHERE id = ?').get(old.id)).toBeUndefined()
+  getChatDatabase().prepare('DELETE FROM chat_outbox WHERE channel_name IN (?, ?)').run(`chat:${ownRoom.id}`, `chat:${otherRoom.id}`)
+  getChatDatabase().prepare('DELETE FROM chat_room WHERE channel_id IN (?, ?)').run(ownRoom.id, otherRoom.id)
+})
+
+it('orders clearing after an in-flight publication and retries realtime cleanup before newer messages', async () => {
+  const { clearChatHistory, getChatHistoryState } = await import('@/lib/chat-history')
+  const { sendChatMessage } = await import('@/lib/chat')
+  const { dispatchNextChatOutboxEvent } = await import('@/lib/chat-outbox')
+  const ownRoom = { ...channel, id: crypto.randomUUID() }
+  const input = {
+    channel: ownRoom, participant: { accountId: 'participant', profileName: 'Name' },
+    rawContent: 'old content',
+  }
+  const old = sendChatMessage(input)
+  let release: () => void = () => undefined
+  let started: () => void = () => undefined
+  const gate = new Promise<void>(resolve => { release = resolve })
+  const publishing = new Promise<void>(resolve => { started = resolve })
+  let failCleanup = true
+  const publications: unknown[] = []
+  const fetcher = vi.fn<typeof fetch>(async (url, options) => {
+    if (String(url).endsWith('/history_remove') && failCleanup) return Response.json({ error: { code: 100 } })
+    if (String(url).endsWith('/publish')) {
+      const data = JSON.parse(String(options?.body)).data
+      publications.push(data)
+      if (data.message?.id === old.id) { started(); await gate }
+    }
+    return Response.json({ result: {} })
+  })
+  const first = dispatchNextChatOutboxEvent(fetcher)
+  await publishing
+  const cleared = clearChatHistory(ownRoom, 'admin')
+  const next = sendChatMessage({ ...input, rawContent: 'new content' })
+  release()
+  await first
+  expect(await dispatchNextChatOutboxEvent(fetcher)).toBe(false)
+  expect(getChatHistoryState(ownRoom.id).clearPending).toBe(true)
+  expect(await dispatchNextChatOutboxEvent(fetcher)).toBe(false)
+  failCleanup = false
+  expect(await dispatchNextChatOutboxEvent(fetcher, new Date(Date.now() + 60_000))).toBe(true)
+  expect(getChatHistoryState(ownRoom.id).clearPending).toBe(false)
+  expect(await dispatchNextChatOutboxEvent(fetcher)).toBe(true)
+  expect(publications).toEqual([
+    expect.objectContaining({ message: old }),
+    { type: 'history-cleared', restoreGeneration: 'initial', clearedThrough: cleared.clearedThrough },
+    expect.objectContaining({ message: next }),
+  ])
+})
+
 beforeAll(async () => {
   for (const script of ['scripts/migrate.mjs', 'scripts/migrate-chat.mjs']) {
     const result = spawnSync(process.execPath, [script], { env: process.env })
@@ -1366,3 +1443,45 @@ it.each(['timeout', 'ban'] as const)(
     }
   },
 )
+
+it('requires administrator confirmation and preserves restrictions and records when clearing through HTTP', async () => {
+  const { DELETE, GET } = await import('@/app/api/channels/[slug]/chat/history/route')
+  const { sendChatMessage, loadLatestChatHistory } = await import('@/lib/chat')
+  const { removeChatMessage, inspectRemovedChatMessage, applyChatBan, listChatModerationRecords } = await import('@/lib/chat-moderation')
+  const { getChatDatabase } = await import('@/lib/chat-database')
+  const { getDatabase } = await import('@/lib/auth/database')
+  const room = { id: 'http-channel', ownerUserId: 'owner' }
+  const context = { params: Promise.resolve({ slug: 'moderation' }) }
+  const request = (confirmed = true) => new Request('http://localhost', {
+    method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirmed }),
+  })
+  const database = getChatDatabase()
+  database.prepare('DELETE FROM chat_restriction WHERE room_id IN (SELECT id FROM chat_room WHERE channel_id = ?)').run(room.id)
+  database.prepare('UPDATE chat_participant SET next_send_time = 0').run()
+  const message = sendChatMessage({ channel: room, participant: { accountId: 'participant', profileName: 'Name' }, rawContent: 'retained original', now: new Date(Date.now() + 20_000) })
+  const now = new Date(Date.now() + 20_001)
+  removeChatMessage({ channel: room, actorId: 'admin', messageId: message.id, category: 'Spam', now })
+  applyChatBan({ channel: room, actorId: 'admin', messageId: message.id, category: 'Spam', now })
+  const records = listChatModerationRecords('admin')
+  const restrictions = database.prepare('SELECT * FROM chat_restriction').all()
+  for (const actor of [null, 'owner', 'participant']) {
+    session.accountId = actor
+    expect((await DELETE(request(), context)).status).toBe(actor ? 403 : 401)
+  }
+  session.accountId = 'admin'
+  getDatabase().prepare("UPDATE user SET activationStatus = 'pending' WHERE id = 'admin'").run()
+  expect((await DELETE(request(), context)).status).toBe(403)
+  getDatabase().prepare("UPDATE user SET activationStatus = 'active' WHERE id = 'admin'").run()
+  expect((await DELETE(request(false), context)).status).toBe(400)
+  vi.stubGlobal('fetch', async () => Response.json({ result: {} }))
+  try {
+    const response = await DELETE(request(), context)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ clearPending: false })
+    expect(loadLatestChatHistory(room, now).messages).toEqual([])
+    expect(() => inspectRemovedChatMessage(room, 'admin', message.id, now)).toThrow('Message not found')
+    expect(listChatModerationRecords('admin')).toEqual(records)
+    expect(database.prepare('SELECT * FROM chat_restriction').all()).toEqual(restrictions)
+    expect((await GET(new Request('http://localhost'), context)).status).toBe(200)
+  } finally { vi.unstubAllGlobals(); session.accountId = 'owner' }
+})

@@ -15,6 +15,9 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('server-only', () => ({}))
+vi.mock('@/lib/chat-history', () => ({
+  getChatHistoryState: () => ({ clearedThrough: 0, clearPending: false }),
+}))
 
 vi.mock('@/lib/auth/session', () => ({
   getActiveSession: mocks.getActiveSession,
@@ -154,6 +157,8 @@ describe('/api/channels/[slug]/chat/messages', () => {
     expect(historyResponse.status).toBe(200)
     expect(await historyResponse.json()).toEqual({
       restoreGeneration: 'initial',
+      clearedThrough: 0,
+      clearPending: false,
       moderatorRole: null,
       messages: [message],
       hasMore: false,
@@ -183,6 +188,8 @@ describe('/api/channels/[slug]/chat/messages', () => {
     expect(validResponse.status).toBe(200)
     expect(await validResponse.json()).toEqual({
       restoreGeneration: 'initial',
+      clearedThrough: 0,
+      clearPending: false,
       messages: [],
       hasMore: false,
       cursor: null,

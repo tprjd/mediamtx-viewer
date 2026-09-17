@@ -47,8 +47,13 @@ async function dispatchNextEvent(
     .prepare(
       `SELECT id, channel_name AS channelName, payload,
               attempt_count AS attemptCount
-       FROM chat_outbox
+       FROM chat_outbox AS event
        WHERE next_attempt_at <= ?
+         AND (json_extract(payload, '$.type') = 'history-cleared' OR NOT EXISTS (
+           SELECT 1 FROM chat_outbox AS pending
+           WHERE pending.channel_name = event.channel_name
+             AND json_extract(pending.payload, '$.type') = 'history-cleared'
+         ))
        ORDER BY created_at ASC
        LIMIT 1`,
     )
@@ -57,7 +62,7 @@ async function dispatchNextEvent(
 
   try {
     const event = JSON.parse(row.payload)
-    if (event.message?.removed === true) {
+    if (event.message?.removed === true || event.type === 'history-cleared') {
       await clearChatRecoveryHistory(row.channelName, fetcher)
     }
     await publishChatEvent(row.channelName, event, row.id, fetcher)

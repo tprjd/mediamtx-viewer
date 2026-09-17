@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { ChatRestrictionsPanel } from '@/components/chat-restrictions-panel'
+import { ChatClearHistory } from '@/components/chat-clear-history'
 import { ChatFrame } from '@/components/chat-frame'
 import { ChatSettings, useChatTimestamps } from '@/components/chat-settings'
 import {
@@ -71,6 +72,7 @@ function ChatPanelContent({
   const timeout = useChatRestriction(channelSlug, isChatVisible)
   const [messages, setMessages] = useState<PublicChatMessage[]>([])
   const messagesRef = useRef<PublicChatMessage[]>([])
+  const clearedThroughRef = useRef(0)
   const reconciliationRef = useRef<Promise<void> | null>(null)
   const pendingReconciliationRef = useRef<number | null>(null)
   const requestGenerationRef = useRef(0)
@@ -148,6 +150,7 @@ function ChatPanelContent({
   const [restoreRevision, setRestoreRevision] = useState(0)
   const replaceHistoryRef = useRef(false)
   const reloadHistory = useCallback(() => {
+    clearedThroughRef.current = 0
     replaceHistoryRef.current = true
     resetChatPanelState()
     setRestoreRevision((value) => value + 1)
@@ -174,12 +177,37 @@ function ChatPanelContent({
     )
   }, [])
 
+  const applyHistoryClear = useCallback((clearedThrough: number, restoreGeneration?: string) => {
+    if (restoreGeneration !== undefined) {
+      if (restoreGenerationRef.current !== undefined && restoreGeneration !== restoreGenerationRef.current) return
+      restoreGenerationRef.current = restoreGeneration
+    }
+    if (!Number.isSafeInteger(clearedThrough) || clearedThrough <= clearedThroughRef.current) return
+    clearedThroughRef.current = clearedThrough
+    confirmMessages(messagesRef.current.filter(message => message.sequence <= clearedThrough))
+    messagesRef.current = messagesRef.current.filter(message => message.sequence > clearedThrough)
+    setMessages(messagesRef.current)
+    setAnnouncement(null)
+    historyCursorRef.current = null
+    updateHistoryAvailability(false)
+    setHistoryExhausted(true)
+    setFirstItemIndex(INITIAL_FIRST_ITEM_INDEX)
+    setTranscriptVisit(visit => visit + 1)
+  }, [confirmMessages, updateHistoryAvailability])
+
+  useEffect(() => {
+    if (timeout.restoreGeneration === restoreGenerationRef.current && timeout.clearedThrough !== undefined) {
+      applyHistoryClear(timeout.clearedThrough)
+    }
+  }, [applyHistoryClear, timeout.clearedThrough, timeout.restoreGeneration])
+
   const checkAvailability = useCallback((response: Response) => {
     if (chatRequestBlocksSending(response.status)) setUnavailable(true)
     else if (response.ok) setUnavailable(false)
   }, [])
 
   const mergeMessages = useCallback((incoming: PublicChatMessage[]) => {
+    incoming = incoming.filter(message => message.sequence > clearedThroughRef.current)
     if (incoming.some((message) => message.removed)) setAnnouncement(null)
     const previous = messagesRef.current
     const knownIds = new Set(previous.map(({ id }) => id))
@@ -194,17 +222,19 @@ function ChatPanelContent({
 
   const mergeAndAnnounceMessage = useCallback(
     (message: PublicChatMessage) => {
+      if (message.sequence <= clearedThroughRef.current) confirmMessages([message])
       const { added } = mergeMessages([message])
       if (isChatVisible && atBottomRef.current && added.length > 0) {
         announceMessage(message)
       }
       return added
     },
-    [announceMessage, isChatVisible, mergeMessages],
+    [announceMessage, confirmMessages, isChatVisible, mergeMessages],
   )
 
   const mergeOlderPage = useCallback(
     (older: PublicChatMessage[], historyEnds: boolean) => {
+      older = older.filter(message => message.sequence > clearedThroughRef.current)
       if (older.some((message) => message.removed)) setAnnouncement(null)
       const previous = messagesRef.current
       const merged = mergeChatHistoryPages(previous, older)
@@ -257,6 +287,8 @@ function ChatPanelContent({
               return
             }
             const incoming = result.messages ?? []
+            if ((result.clearedThrough ?? 0) < clearedThroughRef.current) return
+            applyHistoryClear(result.clearedThrough ?? 0)
             setError(null)
             mergeMessages(incoming)
             confirmMessages(incoming)
@@ -281,6 +313,7 @@ function ChatPanelContent({
       reconciliationRef.current = work
     },
     [
+      applyHistoryClear,
       checkAvailability,
       confirmMessages,
       endpoint,
@@ -338,6 +371,8 @@ function ChatPanelContent({
         reloadHistory()
         return
       }
+      if ((result.clearedThrough ?? 0) < clearedThroughRef.current) return
+      applyHistoryClear(result.clearedThrough ?? 0)
       mergeOlderPage(result.messages ?? [], result.hasMore !== true)
       applyHistoryPageMetadata(result)
     } catch (historyError: unknown) {
@@ -352,6 +387,7 @@ function ChatPanelContent({
       updateOlderHistoryLoading(false)
     }
   }, [
+    applyHistoryClear,
     applyHistoryPageMetadata,
     checkAvailability,
     endpoint,
@@ -380,6 +416,7 @@ function ChatPanelContent({
     active: isChatVisible,
     channelSlug,
     onMessage: receiveMessage,
+    onHistoryCleared: applyHistoryClear,
     onRecoveryFailed: reconcile,
     onRestored: reloadHistory,
     onRestrictionChanged: timeout.refresh,
@@ -408,6 +445,12 @@ function ChatPanelContent({
         if (!response.ok)
           throw new Error(result.error ?? 'Could not load Chat.')
         const incoming = result.messages ?? []
+        if (restoreGenerationRef.current !== undefined && result.restoreGeneration !== restoreGenerationRef.current) {
+          clearedThroughRef.current = 0
+          messagesRef.current = []
+        }
+        if ((result.clearedThrough ?? 0) < clearedThroughRef.current) return
+        applyHistoryClear(result.clearedThrough ?? 0)
         restoreGenerationRef.current = result.restoreGeneration
         // Reopening starts with the latest page. Keep loaded history until it succeeds.
         messagesRef.current = replaceRestoredHistory
@@ -452,6 +495,7 @@ function ChatPanelContent({
 
     return () => controller.abort()
   }, [
+    applyHistoryClear,
     applyHistoryPageMetadata,
     checkAvailability,
     confirmMessages,
@@ -524,7 +568,12 @@ function ChatPanelContent({
         !accessDenied &&
         moderationTarget &&
         createPortal(
-          <ChatRestrictionsPanel channelSlug={channelSlug} />,
+          <>
+            <ChatRestrictionsPanel channelSlug={channelSlug} />
+            {timeout.moderatorRole === 'admin' && (
+              <ChatClearHistory channelSlug={channelSlug} onCleared={applyHistoryClear} />
+            )}
+          </>,
           moderationTarget,
         )}
       {loading ? (
