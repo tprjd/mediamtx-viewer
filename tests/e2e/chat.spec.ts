@@ -301,6 +301,73 @@ test('lets an active participant send and reload one Chat message', async ({
   ).toBeVisible()
 })
 
+test('uses one composer input focus indicator and keeps Send keyboard focus on desktop and mobile', async ({
+  page,
+}) => {
+  test.setTimeout(60_000)
+  let storageLimited = false
+  await page.route('**/api/channels/live/chat/state', async (route) => {
+    const response = await route.fetch()
+    await route.fulfill({
+      response,
+      json: { ...(await response.json()), storageLimited },
+    })
+  })
+  await signInAsAdministrator(page)
+  const input = page.getByRole('textbox', { name: 'Chat message' })
+  const send = page.getByRole('button', { name: 'Send', exact: true })
+  const settings = page.getByRole('button', { name: 'Chat settings' })
+  const row = input.locator('..')
+  await expect(input).toBeVisible()
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    if (width === 390) {
+      const toggle = page.getByRole('button', { name: 'Chat', exact: true })
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await toggle.click()
+    }
+    await expect(input).toBeVisible()
+    await expect(input).toBeEnabled({ timeout: 10_000 })
+    await input.fill('')
+    await expect(send).toBeDisabled()
+    await settings.focus()
+    const normalBorder = await row.evaluate(
+      (el) => getComputedStyle(el).borderColor,
+    )
+    await input.click()
+    await expect(input).toBeFocused()
+    await expect(input).toHaveCSS('outline-style', 'none')
+    await expect(row).not.toHaveCSS('border-color', normalBorder)
+    await input.fill('Draft stays here')
+    await input.press('Tab')
+    await expect(send).toBeFocused()
+    await expect(send).toHaveCSS('outline-style', 'solid')
+    await expect(send).toHaveCSS('outline-width', '2px')
+    await send.press('Shift+Tab')
+    await expect(input).toBeFocused()
+    await expect(input).toHaveCSS('outline-style', 'none')
+    await expect(row).not.toHaveCSS('border-color', normalBorder)
+    await page.screenshot({
+      path: `.data/chat-composer-focus-after-${width}.png`,
+      fullPage: true,
+    })
+    await settings.focus()
+    await expect(row).toHaveCSS('border-color', normalBorder)
+    storageLimited = true
+    await expect(input).toBeDisabled({ timeout: 10_000 })
+    await expect(send).toBeDisabled()
+    await expect(input).toHaveCSS('opacity', '0.55')
+    await expect(row).toHaveCSS('border-color', normalBorder)
+    await page.screenshot({
+      path: `.data/chat-composer-disabled-${width}.png`,
+      fullPage: true,
+    })
+    storageLimited = false
+    await expect(input).toBeEnabled({ timeout: 10_000 })
+    await expect(input).toHaveValue('Draft stays here')
+  }
+})
+
 test('uses Chat settings and badge explanations across desktop and mobile layouts', async ({ page, browser }) => {
   test.setTimeout(60_000)
   await page.setViewportSize({ width: 1440, height: 900 })

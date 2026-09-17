@@ -549,7 +549,10 @@
   opacity: 0.55;
 }
 
-.chatComposer input:focus-visible,
+.chatComposer input:focus-visible {
+  outline: none;
+}
+
 .chatComposer button:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 1px;
