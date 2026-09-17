@@ -1240,12 +1240,19 @@ for (const preset of [
       const { message } = await (
         await postChat(other, 'Recent disruptive message')
       ).json()
+      const { message: unaffected } = await (
+        await postChat(other, 'Another recent message')
+      ).json()
+      const selected = preset.minutes === 1440 ? older : message
+      const kept = preset.minutes === 1440 ? message : older
       await page
-        .locator(`[data-message-id="${message.id}"]`)
+        .locator(`[data-message-id="${selected.id}"]`)
         .getByRole('button', { name: 'Message actions' })
         .click()
       await page.getByRole('menuitem', { name: 'Apply Chat timeout' }).click()
       const dialog = page.getByRole('dialog', { name: 'Apply Chat timeout' })
+      await expect(dialog).toContainText('remove only the selected message')
+      await expect(dialog).not.toContainText('previous ten minutes')
       await dialog.getByLabel('Duration').selectOption(String(preset.minutes))
       await dialog.getByLabel('Category').selectOption(preset.category)
       if (preset.category === 'Other') {
@@ -1267,11 +1274,14 @@ for (const preset of [
       ).toHaveCount(0)
       await expect(log).toHaveAttribute('data-realtime-state', 'connected')
       await expect(
-        other.locator(`[data-message-id="${message.id}"]`),
+        other.locator(`[data-message-id="${selected.id}"]`),
       ).toContainText('Message removed')
       await expect(
-        other.locator(`[data-message-id="${older.id}"]`),
-      ).toContainText('Older retained message')
+        other.locator(`[data-message-id="${kept.id}"]`),
+      ).toContainText(kept.content)
+      await expect(
+        other.locator(`[data-message-id="${unaffected.id}"]`),
+      ).toContainText('Another recent message')
       const state = await (
         await other.request.get('/api/channels/live/chat/state')
       ).json()
@@ -1284,6 +1294,15 @@ for (const preset of [
       await postChat(page, 'Reading is still available')
       await expect(log).toContainText('Reading is still available')
       await other.reload()
+      await expect(
+        other.locator(`[data-message-id="${selected.id}"]`),
+      ).toContainText('Message removed')
+      await expect(
+        other.locator(`[data-message-id="${kept.id}"]`),
+      ).toContainText(kept.content)
+      await expect(
+        other.locator(`[data-message-id="${unaffected.id}"]`),
+      ).toContainText('Another recent message')
       await expect(composer).toBeDisabled()
       await expect(feedback).toContainText(preset.category)
       // Shorten only the fixture's expiry, then reconnect to load its current state.

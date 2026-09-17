@@ -387,18 +387,21 @@ function applyChatRestriction({
           role,
         )
 
-      const affected = database
-        .prepare(
-          `SELECT id FROM chat_message
+      const affected =
+        durationMinutes !== null
+          ? [target]
+          : (database
+              .prepare(
+                `SELECT id FROM chat_message
       WHERE room_id = ? AND account_id = ? AND created_at BETWEEN ? AND ? AND removed_sequence IS NULL
       ORDER BY room_sequence`,
-        )
-        .all(
-          target.roomId,
-          target.accountId,
-          now.getTime() - 600_000,
-          now.getTime(),
-        ) as Array<{ id: string }>
+              )
+              .all(
+                target.roomId,
+                target.accountId,
+                now.getTime() - 600_000,
+                now.getTime(),
+              ) as Array<{ id: string }>)
       const messages = affected.map(({ id }) =>
         removeChatMessage({
           channel,

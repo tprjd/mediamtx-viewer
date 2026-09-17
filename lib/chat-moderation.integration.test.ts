@@ -365,57 +365,149 @@ it('keeps a disabled administrator immune to Channel-owner removal', async () =>
   }
 })
 
-it('times out sending, removes only the previous ten minutes, and restores sending at expiry', async () => {
-  const { sendChatMessage, loadLatestChatHistory } = await import('@/lib/chat')
-  const { applyChatTimeout } = await import('@/lib/chat-moderation')
-  const { getChatRestriction } = await import('@/lib/chat-restrictions')
-  const testChannel = { ...channel, id: 'timeout-channel' }
-  const now = new Date('2026-09-15T12:00:00Z')
-  const participant = { accountId: 'participant', profileName: 'Author' }
-  const send = (content: string, time: Date) =>
-    sendChatMessage({
+it.each(['recent', 'older'] as const)(
+  'times out sending and removes only the selected %s message',
+  async (selectedAge) => {
+    const { sendChatMessage, loadLatestChatHistory } = await import(
+      '@/lib/chat'
+    )
+    const { applyChatTimeout } = await import('@/lib/chat-moderation')
+    const { getChatRestriction } = await import('@/lib/chat-restrictions')
+    const testChannel = { ...channel, id: crypto.randomUUID() }
+    const now = new Date('2026-09-15T12:00:00Z')
+    const participant = { accountId: 'participant', profileName: 'Author' }
+    const send = (content: string, time: Date) =>
+      sendChatMessage({
+        channel: testChannel,
+        participant,
+        rawContent: content,
+        now: time,
+      })
+    const older = send(
+      'older retained message',
+      new Date('2026-09-15T11:49:59.999Z'),
+    )
+    const recent = send('recent message', new Date('2026-09-15T11:50:00Z'))
+    const other = send(
+      'another recent message',
+      new Date('2026-09-15T11:59:00Z'),
+    )
+    const selected = selectedAge === 'recent' ? recent : older
+    const result = applyChatTimeout({
       channel: testChannel,
-      participant,
-      rawContent: content,
-      now: time,
+      actorId: 'owner',
+      messageId: selected.id,
+      category: 'Other',
+      note: 'Private evidence',
+      durationMinutes: 10,
+      now,
     })
-  const older = send(
-    'older retained message',
-    new Date('2026-09-15T11:49:59.999Z'),
-  )
-  const recent = send('recent message', new Date('2026-09-15T11:50:00Z'))
-  applyChatTimeout({
-    channel: testChannel,
-    actorId: 'owner',
-    messageId: recent.id,
-    category: 'Other',
-    note: 'Private evidence',
-    durationMinutes: 10,
-    now,
-  })
-  expect(getChatRestriction(testChannel.id, 'participant', now)).toEqual({
-    category: 'Other',
-    expiresAt: '2026-09-15T12:10:00.000Z',
-  })
-  expect(loadLatestChatHistory(testChannel, now).messages).toEqual([
-    older,
-    expect.objectContaining({ id: recent.id, removed: true }),
-  ])
-  expect(() => send('blocked', now)).toThrow('Chat timeout')
-  expect(() =>
-    send('still blocked', new Date('2026-09-15T12:09:59.999Z')),
-  ).toThrow('Chat timeout')
-  expect(
-    getChatRestriction(
-      testChannel.id,
-      'participant',
-      new Date('2026-09-15T12:10:00Z'),
-    ),
-  ).toBeNull()
-  expect(send('restored', new Date('2026-09-15T12:10:00Z'))).toMatchObject({
-    content: 'restored',
-  })
-})
+    expect(getChatRestriction(testChannel.id, 'participant', now)).toEqual({
+      category: 'Other',
+      expiresAt: '2026-09-15T12:10:00.000Z',
+    })
+    expect(result.messages).toEqual([
+      expect.objectContaining({ id: selected.id, removed: true }),
+    ])
+    expect(loadLatestChatHistory(testChannel, now).messages).toEqual([
+      selectedAge === 'older'
+        ? expect.objectContaining({ id: older.id, removed: true })
+        : older,
+      selectedAge === 'recent'
+        ? expect.objectContaining({ id: recent.id, removed: true })
+        : recent,
+      other,
+    ])
+    expect(() => send('blocked', now)).toThrow('Chat timeout')
+    expect(() =>
+      send('still blocked', new Date('2026-09-15T12:09:59.999Z')),
+    ).toThrow('Chat timeout')
+    expect(
+      getChatRestriction(
+        testChannel.id,
+        'participant',
+        new Date('2026-09-15T12:10:00Z'),
+      ),
+    ).toBeNull()
+    expect(send('restored', new Date('2026-09-15T12:10:00Z'))).toMatchObject({
+      content: 'restored',
+    })
+  },
+)
+
+it.each(['removal', 'timeout'] as const)(
+  'does not repeat Message removal when a timeout follows a %s',
+  async (firstAction) => {
+    const { sendChatMessage, loadLatestChatHistory, loadChatMessagesAfter } =
+      await import('@/lib/chat')
+    const { applyChatTimeout, removeChatMessage } = await import(
+      '@/lib/chat-moderation'
+    )
+    const { dispatchNextChatOutboxEvent } = await import('@/lib/chat-outbox')
+    const room = { ...channel, id: crypto.randomUUID() }
+    const now = new Date()
+    const participant = { accountId: 'participant', profileName: 'Friend' }
+    const selected = sendChatMessage({
+      channel: room,
+      participant,
+      rawContent: 'Selected',
+      now: new Date(now.getTime() - 601_000),
+    })
+    const other = sendChatMessage({
+      channel: room,
+      participant,
+      rawContent: 'Keep this',
+      now,
+    })
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({ result: {} }),
+    )
+    while (await dispatchNextChatOutboxEvent(fetcher)) {
+      /* drain original messages */
+    }
+    fetcher.mockClear()
+    const input = {
+      channel: room,
+      actorId: 'owner',
+      messageId: selected.id,
+      category: 'Spam',
+      durationMinutes: 10,
+      now,
+    }
+    const tombstone =
+      firstAction === 'removal'
+        ? removeChatMessage(input)
+        : applyChatTimeout(input).messages[0]
+    expect(applyChatTimeout(input).messages).toEqual([tombstone])
+    expect(loadLatestChatHistory(room, now).messages).toEqual([
+      tombstone,
+      other,
+    ])
+    expect(loadChatMessagesAfter(room, other.sequence, now).messages).toEqual([
+      tombstone,
+    ])
+    while (await dispatchNextChatOutboxEvent(fetcher)) {
+      /* drain moderation events */
+    }
+    const publications = fetcher.mock.calls
+      .filter(([url]) => String(url).endsWith('/publish'))
+      .map(([, options]) => JSON.parse(String(options?.body)))
+    expect(
+      publications.filter((event) => event.channel === `chat:${room.id}`),
+    ).toEqual([
+      expect.objectContaining({
+        data: expect.objectContaining({ type: 'message', message: tombstone }),
+      }),
+    ])
+    expect(
+      publications.filter(
+        (event) =>
+          event.channel === 'control:#participant' &&
+          event.data.channelId === room.id,
+      ),
+    ).toHaveLength(firstAction === 'removal' ? 1 : 2)
+  },
+)
 
 it('returns private timeout state and rejects direct HTTP sends while allowing reading and connection tokens', async () => {
   const { sendChatMessage } = await import('@/lib/chat')
@@ -601,52 +693,59 @@ it.each([10, 60, 1440])(
   },
 )
 
-it('rolls back the entire timeout when private event storage fails', async () => {
-  const { sendChatMessage, loadLatestChatHistory } = await import('@/lib/chat')
-  const { applyChatTimeout } = await import('@/lib/chat-moderation')
-  const { getChatRestriction } = await import('@/lib/chat-restrictions')
-  const { getChatDatabase } = await import('@/lib/chat-database')
-  const database = getChatDatabase()
-  const testChannel = { ...channel, id: crypto.randomUUID() }
-  const participant = { accountId: 'participant', profileName: 'Author' }
-  const message = sendChatMessage({
-    channel: testChannel,
-    participant,
-    rawContent: 'retained',
-  })
-  database.exec(
-    "CREATE TRIGGER reject_control BEFORE INSERT ON chat_outbox WHEN NEW.message_id IS NULL BEGIN SELECT RAISE(ABORT, 'control failed'); END",
-  )
-  try {
-    expect(() =>
-      applyChatTimeout({
-        channel: testChannel,
-        actorId: 'owner',
-        messageId: message.id,
-        durationMinutes: 10,
-        category: 'Spam',
-      }),
-    ).toThrow('control failed')
-  } finally {
-    database.exec('DROP TRIGGER reject_control')
-  }
-  expect(getChatRestriction(testChannel.id, 'participant')).toBeNull()
-  expect(loadLatestChatHistory(testChannel).messages).toEqual([message])
-  expect(
-    database
-      .prepare(
-        `SELECT record.id FROM chat_moderation_record record JOIN chat_room room ON room.id = record.room_id WHERE room.channel_id = ?`,
-      )
-      .all(testChannel.id),
-  ).toEqual([])
-  expect(
-    sendChatMessage({
+it.each(['moderation record', 'private event'])(
+  'rolls back the entire timeout when %s storage fails',
+  async (failure) => {
+    const { sendChatMessage, loadLatestChatHistory } = await import(
+      '@/lib/chat'
+    )
+    const { applyChatTimeout } = await import('@/lib/chat-moderation')
+    const { getChatRestriction } = await import('@/lib/chat-restrictions')
+    const { getChatDatabase } = await import('@/lib/chat-database')
+    const database = getChatDatabase()
+    const testChannel = { ...channel, id: crypto.randomUUID() }
+    const participant = { accountId: 'participant', profileName: 'Author' }
+    const message = sendChatMessage({
       channel: testChannel,
       participant,
-      rawContent: 'still allowed',
-    }),
-  ).toMatchObject({ sequence: 2 })
-})
+      rawContent: 'retained',
+    })
+    database.exec(
+      failure === 'private event'
+        ? "CREATE TRIGGER reject_control BEFORE INSERT ON chat_outbox WHEN NEW.message_id IS NULL BEGIN SELECT RAISE(ABORT, 'storage failed'); END"
+        : "CREATE TRIGGER reject_control BEFORE INSERT ON chat_moderation_record WHEN NEW.action = 'message_removal' BEGIN SELECT RAISE(ABORT, 'storage failed'); END",
+    )
+    try {
+      expect(() =>
+        applyChatTimeout({
+          channel: testChannel,
+          actorId: 'owner',
+          messageId: message.id,
+          durationMinutes: 10,
+          category: 'Spam',
+        }),
+      ).toThrow('storage failed')
+    } finally {
+      database.exec('DROP TRIGGER reject_control')
+    }
+    expect(getChatRestriction(testChannel.id, 'participant')).toBeNull()
+    expect(loadLatestChatHistory(testChannel).messages).toEqual([message])
+    expect(
+      database
+        .prepare(
+          `SELECT record.id FROM chat_moderation_record record JOIN chat_room room ON room.id = record.room_id WHERE room.channel_id = ?`,
+        )
+        .all(testChannel.id),
+    ).toEqual([])
+    expect(
+      sendChatMessage({
+        channel: testChannel,
+        participant,
+        rawContent: 'still allowed',
+      }),
+    ).toMatchObject({ sequence: 2 })
+  },
+)
 
 it.each([
   { durationMinutes: 5, category: 'Spam' },

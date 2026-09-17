@@ -251,11 +251,13 @@ export function ChatMessageActions({
                     : 'Removed message'}
             </Dialog.Title>
             <Dialog.Description>
-              {dialog === 'timeout' || dialog === 'ban'
-                ? 'Stop this participant from sending and remove their messages from the previous ten minutes. They can still read Chat and watch the Channel.'
-                : dialog === 'remove'
-                  ? 'Replace this message with “Message removed” for everyone in this Chat room.'
-                  : 'Only current Chat moderators can inspect this retained content.'}
+              {dialog === 'timeout'
+                ? 'Stop this participant from sending and remove only the selected message. They can still read Chat and watch the Channel.'
+                : dialog === 'ban'
+                  ? 'Stop this participant from sending and remove their messages from the previous ten minutes. They can still read Chat and watch the Channel.'
+                  : dialog === 'remove'
+                    ? 'Replace this message with “Message removed” for everyone in this Chat room.'
+                    : 'Only current Chat moderators can inspect this retained content.'}
             </Dialog.Description>
             {!message.removed && (
               <div className={styles.targetMessage}>

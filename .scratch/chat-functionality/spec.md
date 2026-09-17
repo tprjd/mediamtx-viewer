@@ -100,7 +100,7 @@ Keep the current desktop, narrow-screen, and theater-mode Chat layout. Add paged
 78. As a Chat participant with a Chat timeout or Chat ban, I want to keep Viewing access, so that a Chat restriction does not become an account restriction.
 79. As a restricted Chat participant, I want the composer disabled with the category and duration, so that I know why I cannot send.
 80. As a restricted Chat participant, I do not want the moderator's identity or private note exposed, so that private moderation data stays private.
-81. As a Chat moderator, I want a restriction to remove that participant's messages from the previous ten minutes, so that I can clear an active spam incident.
+81. As a Chat moderator, I want a Chat timeout to remove only the selected message and a Chat ban to remove that participant's messages from the previous ten minutes, so that each action has a defined removal scope.
 82. As a viewer, I want removed messages replaced by content-free tombstones, so that I can understand gaps in the transcript.
 83. As a viewer, I do not want Chat timeouts or Chat bans announced publicly, so that moderation does not become room entertainment.
 84. As a Chat moderator, I want original removed content available for seven days, so that I can review recent evidence.
@@ -198,7 +198,8 @@ Keep the current desktop, narrow-screen, and theater-mode Chat layout. Add paged
 - An administrator's Chat restriction of a Channel owner also suspends that owner's Chat moderation authority. It does not change Streaming access.
 - Support Message removal, Chat timeouts of 10 minutes, 1 hour, and 24 hours, and indefinite Chat bans.
 - A Chat timeout or Chat ban prevents sending but does not remove Viewing access.
-- Applying a Chat timeout or Chat ban also applies Message removal to the target's messages from the previous ten minutes.
+- Applying a Chat timeout also applies Message removal only to the selected retained message, including a message older than ten minutes. Other messages remain unchanged. This supersedes the original timeout removal rule, as accepted in [Chat feedback issue 03](../chat-feedback/issues/03-timeout-selected-message-only.md) on 2026-09-17.
+- Applying a Chat ban also applies Message removal to the target's messages from the previous ten minutes.
 - Message removal replaces the public entry with a tombstone that contains no author or message content.
 - Do not publish Chat timeout or Chat ban announcements to the room.
 - Send restriction changes to the affected participant through a private control subscription. Show the category and remaining duration in the disabled composer. Do not show the moderator identity or private note.
@@ -316,7 +317,7 @@ Keep the current desktop, narrow-screen, and theater-mode Chat layout. Add paged
 - Add browser tests for optimistic send success, failed send Retry, delayed delivery, duplicate suppression, automatic scrolling, upward pagination, viewport anchoring, virtualization, New messages behavior, and reopen-at-bottom behavior.
 - Add browser tests for Enter submission, input-method composition, player-shortcut isolation, draft lifecycle, focus return, and accessible-log announcements.
 - Add browser tests for current Admin and Owner badges after authority changes.
-- Add browser tests for Message removal, every timeout preset, Chat ban, required Other notes, affected-participant feedback, automatic ten-minute tombstones, active-restriction management, and allowed reversal.
+- Add browser tests for Message removal, every timeout preset, Chat ban, required Other notes, affected-participant feedback, selected-message-only timeout removal, ten-minute ban removal, active-restriction management, and allowed reversal.
 - Add backup tests that create one shared manifest and two encrypted database files. Verify seven-set rotation and independent restore.
 - Run the restore drill before enabling Chat. Restore only `chat.sqlite`, purge expired content, reconnect Centrifugo, and prove that authentication and playback remain available.
 - Add health and alert tests. Verify degraded main health, Centrifugo health, Statistics warnings, the five-minute alert delay, deduplication, and one recovery alert.

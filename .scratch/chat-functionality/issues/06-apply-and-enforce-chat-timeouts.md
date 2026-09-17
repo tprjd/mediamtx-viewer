@@ -12,8 +12,8 @@
 - [x] The moderator can select 10 minutes, 1 hour, or 24 hours
 - [x] The moderator selects Spam, Harassment, or Other under the agreed private-note rules
 - [x] Applying a Chat timeout commits the restriction, Chat moderation record, affected Message removals, and delivery events atomically
-- [x] Applying a Chat timeout replaces the target's messages from the previous ten minutes with tombstones
-- [x] Older retained messages remain visible unless a Chat moderator removes them separately
+- [x] Applying a Chat timeout replaces only the selected retained message with a tombstone, including when it is older than ten minutes
+- [x] All other messages remain unchanged, including recent messages from the same participant
 - [x] The restricted participant remains connected and can read the room
 - [x] The restricted participant cannot send through the UI or a direct HTTP request
 - [x] A private control event disables the affected participant's composer without a reload
@@ -30,6 +30,7 @@
 
 ## Comments
 
+- 2026-09-17: [Chat feedback issue 03](../../chat-feedback/issues/03-timeout-selected-message-only.md) supersedes the original ten-minute timeout removal rule. A timeout removes only the selected retained message. Chat bans retain their ten-minute removal window. The notes below describe the original implementation.
 - 2026-09-16: Verified the existing implementation in commit `0aa357c`. Chat timeouts enforce all three presets, remove the previous ten minutes of messages atomically, deliver private restriction feedback, and restore sending at expiry. Administrator timeouts also suspend Channel-owner moderation authority.
 - Validation passed: `npm run typecheck`, `npm run lint`, `npm test` with 44 files and 294 tests, and `npm run build -- --webpack`.
 - Browser validation passed: `npx playwright test --project=chat-chromium --grep 'Chat timeout' --reporter=line`, with all three preset scenarios against Next.js, SQLite, and Centrifugo.
