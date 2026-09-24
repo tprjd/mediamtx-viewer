@@ -26,7 +26,6 @@ import {
   type VidstackProviderKind,
 } from '@/components/vidstack-player'
 import { usePlaybackRun } from '@/components/use-playback-run'
-import { authClient } from '@/lib/auth/client'
 import {
   adaptiveLatencyProfile,
   hlsPackagingContract,
@@ -201,11 +200,11 @@ export function HlsPlayer({
   const [providerKind, setProviderKind] = useState<VidstackProviderKind>(null)
   const status = channel.status
   const {
-    canRecover: playbackCanRecover,
     onUserPauseChange,
     onVideoElementChange,
     progress,
-    setPhase: setPlaybackPhase,
+    report: setPlaybackPhase,
+    startRun,
     state: visibleState,
     videoElement,
     videoRef,
@@ -281,12 +280,9 @@ export function HlsPlayer({
     let active = true
     const hls = hlsInstance ?? undefined
     let codecErrorTimer: ReturnType<typeof setTimeout> | undefined
-    let retryTimer: ReturnType<typeof setTimeout> | undefined
-    let stableTimer: ReturnType<typeof setTimeout> | undefined
     let mediaRecoveryAttempted = false
     let softRecoveryAttempted = false
     let everPlayed = false
-    let needsRecovery = false
     const nativeHls = providerKind === 'native'
     let excessiveNativeLatencySamples = 0
     let missingNativeLiveEdgeSamples = 0
@@ -350,7 +346,15 @@ export function HlsPlayer({
       return
     }
 
-    const canRecover = () => active && playbackCanRecover()
+    const run = startRun({
+      stop: () => {
+        clearTimeout(codecErrorTimer)
+        hls?.stopLoad()
+        video.pause()
+      },
+      resume: () => scheduleRecreate(true),
+    })
+    const canRecover = () => run.canRecover()
 
     const markCorrection = (reason: string, correctiveSeek = false) => {
       lastCorrectionRef.current = reason
@@ -428,17 +432,14 @@ export function HlsPlayer({
       immediate = false,
       instabilityReason = 'playback recoveries',
     ) => {
-      needsRecovery = true
-      setPlaybackPhase('reconnecting')
-      clearTimeout(retryTimer)
-      if (!canRecover()) return
-      if (reportUltraLowInstability(instabilityReason)) return
+      if (!run.acceptsEvents()) return
+      if (canRecover() && reportUltraLowInstability(instabilityReason)) return
 
       const attempt = recoveryRef.current.attempts
       const delay = immediate ? 0 : Math.min(1_000 * 2 ** attempt, 15_000)
-      recoveryRef.current.attempts = Math.min(attempt + 1, 8)
-      retryTimer = setTimeout(() => {
-        if (canRecover()) setReloadKey((key) => key + 1)
+      run.recover(() => {
+        recoveryRef.current.attempts = Math.min(attempt + 1, 8)
+        setReloadKey((key) => key + 1)
       }, delay)
     }
 
@@ -525,8 +526,14 @@ export function HlsPlayer({
       }
 
       const progressValue = readProgress()
-      if (!progress.observe(progressValue).stalled) return
-      setPlaybackPhase('reconnecting')
+      const observation = progress.observe(progressValue)
+      if (observation.stable) {
+        recoveryRef.current.attempts = 0
+        mediaRecoveryAttempted = false
+        softRecoveryAttempted = false
+      }
+      if (!observation.stalled) return
+      run.report('reconnecting')
 
       if (hls && !softRecoveryAttempted) {
         softRecoveryAttempted = true
@@ -648,26 +655,21 @@ export function HlsPlayer({
     }
 
     const handleLoadStart = () => {
-      if (!everPlayed) setPlaybackPhase('loading')
+      if (!everPlayed) run.report('loading')
     }
     const handlePlaying = () => {
+      if (!run.report('playing')) {
+        video.pause()
+        return
+      }
       clearTimeout(codecErrorTimer)
-      clearTimeout(stableTimer)
       everPlayed = true
-      needsRecovery = false
-      progress.reset()
-      setPlaybackPhase('playing')
-      stableTimer = setTimeout(() => {
-        recoveryRef.current.attempts = 0
-        mediaRecoveryAttempted = false
-        softRecoveryAttempted = false
-      }, 60_000)
     }
     const handleWaiting = () => {
+      if (!run.acceptsEvents()) return
       if (!video.paused) {
         if (everPlayed && reportUltraLowInstability('playback stalls')) return
-        needsRecovery = true
-        setPlaybackPhase('reconnecting')
+        run.report('reconnecting')
       }
     }
     const handlePause = () => {
@@ -687,28 +689,30 @@ export function HlsPlayer({
       }
     }
     const handleVideoError = () => {
-      void authClient.getSession().then(({ data }) => {
-        if (!active) return
-        if (!data) {
-          clearTimeout(retryTimer)
-          setPlaybackPhase('unauthorized')
-        } else if (video.error?.code !== MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+      if (!run.acceptsEvents()) return
+      const errorCode = video.error?.code
+      run.checkAccess(() => {
+        if (errorCode !== MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
           scheduleRecreate(false, 'media recoveries')
         }
       })
-      if (video.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+      if (errorCode === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
         clearTimeout(codecErrorTimer)
         codecErrorTimer = setTimeout(() => {
           if (
-            active &&
+            run.acceptsEvents() &&
             (video.paused || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA)
           ) {
-            setPlaybackPhase('unsupported')
+            run.report('unsupported')
           }
         }, 2_500)
       }
     }
     const handlePlay = () => {
+      if (!run.acceptsEvents()) {
+        video.pause()
+        return
+      }
       if (hls && hls.latency > readTiming().maxLatencySeconds) {
         const syncPosition = hls.liveSyncPosition
         if (syncPosition !== null) {
@@ -735,18 +739,13 @@ export function HlsPlayer({
       handlePlaying()
     }
 
-    const resumeRecovery = () => {
-      progress.reset()
-      if (needsRecovery && canRecover()) scheduleRecreate(true)
-    }
-    window.addEventListener('online', resumeRecovery)
-    document.addEventListener('visibilitychange', resumeRecovery)
     const progressTimer = setInterval(pollProgress, 1_000)
     const sloTimer = latencyProfile === 'ultra-low'
       ? setInterval(pollUltraLowSlo, ULTRA_LOW_SAMPLE_INTERVAL_MS)
       : undefined
 
     const beginPlayback = () => {
+      if (!run.allowsAutomaticPlay()) return
       void video.play().catch(() => {
         // The Play control remains available when autoplay is blocked.
       })
@@ -766,17 +765,15 @@ export function HlsPlayer({
       }
     }
     const handleHlsError = (_event: string, data: ErrorData) => {
-      if (!data.fatal) return
+      if (!data.fatal || !run.acceptsEvents()) return
 
       if (data.response?.code === 401 || data.response?.code === 403) {
-        setPlaybackPhase('unauthorized')
-        hls?.stopLoad()
+        run.report('unauthorized')
         return
       }
 
       if (isCodecError(data.details)) {
-        setPlaybackPhase('unsupported')
-        hls?.stopLoad()
+        run.report('unsupported')
         return
       }
 
@@ -787,14 +784,12 @@ export function HlsPlayer({
 
       if (data.type === ErrorTypes.MEDIA_ERROR && !mediaRecoveryAttempted) {
         mediaRecoveryAttempted = true
-        setPlaybackPhase('reconnecting')
-        hls?.recoverMediaError()
+        run.recover(() => hls?.recoverMediaError())
         return
       }
 
       if (data.details === ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR) {
-        setPlaybackPhase('unsupported')
-        hls?.stopLoad()
+        run.report('unsupported')
         return
       }
 
@@ -813,6 +808,7 @@ export function HlsPlayer({
     }
 
     return () => {
+      run.dispose()
       active = false
       video.removeEventListener('loadstart', handleLoadStart)
       video.removeEventListener('playing', handlePlaying)
@@ -822,14 +818,10 @@ export function HlsPlayer({
       video.removeEventListener('error', handleVideoError)
       video.removeEventListener('play', handlePlay)
       video.removeEventListener('seeking', handleSeeking)
-      window.removeEventListener('online', resumeRecovery)
-      document.removeEventListener('visibilitychange', resumeRecovery)
       hls?.off(Hls.Events.MANIFEST_PARSED, beginPlayback)
       hls?.off(Hls.Events.LEVEL_UPDATED, handleLevelUpdated)
       hls?.off(Hls.Events.ERROR, handleHlsError)
       clearTimeout(codecErrorTimer)
-      clearTimeout(retryTimer)
-      clearTimeout(stableTimer)
       clearInterval(progressTimer)
       if (sloTimer !== undefined) clearInterval(sloTimer)
       progress.reset()
@@ -844,9 +836,8 @@ export function HlsPlayer({
     profileExitReason,
     providerKind,
     reloadKey,
-    playbackCanRecover,
     progress,
-    setPlaybackPhase,
+    startRun,
     status.live,
     videoElement,
   ])

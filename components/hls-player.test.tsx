@@ -200,6 +200,7 @@ describe('HlsPlayer recovery', () => {
     mocks.userPauseChange = undefined
     mocks.videoAlreadyPlaying = false
     mocks.FakeHls.isSupported = () => true
+    vi.stubGlobal('MediaError', { MEDIA_ERR_SRC_NOT_SUPPORTED: 4 })
     mocks.getSession.mockResolvedValue({ data: { user: { id: 'user' } } })
     vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('')
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
@@ -218,7 +219,170 @@ describe('HlsPlayer recovery', () => {
   afterEach(() => {
     cleanup()
     vi.useRealTimers()
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
+  })
+
+  it.each(['hls', 'native'] as const)('does not show session expired when a session check fails after playback resumes with %s', async (provider) => {
+    if (provider === 'native') {
+      mocks.FakeHls.isSupported = () => false
+      vi.mocked(HTMLMediaElement.prototype.canPlayType).mockReturnValue('probably')
+    }
+    let resolveSession!: (result: unknown) => void
+    mocks.getSession.mockReturnValueOnce(new Promise((resolve) => {
+      resolveSession = resolve
+    }))
+    const video = await renderPlayer()
+    Object.defineProperty(video, 'paused', { configurable: true, value: false })
+    Object.defineProperty(video, 'readyState', {
+      configurable: true,
+      value: HTMLMediaElement.HAVE_ENOUGH_DATA,
+    })
+    fireEvent.error(video)
+    fireEvent.playing(video)
+
+    await act(async () => {
+      resolveSession({ data: null, error: { status: 503, message: 'Unavailable' } })
+      await Promise.resolve()
+    })
+
+    expect(video.paused).toBe(false)
+    expect(screen.queryByText('Session expired')).not.toBeInTheDocument()
+  })
+
+  it('does not recreate HLS when playback resumes before a pending retry', async () => {
+    const video = await renderPlayer()
+    act(() => {
+      mocks.instances[0].emit('error', {
+        fatal: true,
+        type: 'networkError',
+        details: 'manifestLoadError',
+      })
+    })
+    fireEvent.playing(video)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(mocks.instances).toHaveLength(1)
+    expect(screen.queryByText('Reconnecting')).not.toBeInTheDocument()
+  })
+
+  it('does not reconnect when a successful session check completes after playback resumes', async () => {
+    let resolveSession!: (result: unknown) => void
+    mocks.getSession.mockReturnValueOnce(new Promise((resolve) => {
+      resolveSession = resolve
+    }))
+    const video = await renderPlayer()
+    fireEvent.error(video)
+    fireEvent.playing(video)
+
+    await act(async () => {
+      resolveSession({ data: { user: { id: 'user' } }, error: null })
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByText('Session expired')).not.toBeInTheDocument()
+    expect(screen.queryByText('Reconnecting')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    { data: null, error: { status: 503, message: 'Unavailable' } },
+    new TypeError('Failed to fetch'),
+  ])('retries a media interruption when the session check is unavailable: %s', async (result) => {
+    if (result instanceof Error) mocks.getSession.mockRejectedValueOnce(result)
+    else mocks.getSession.mockResolvedValueOnce(result)
+    const video = await renderPlayer()
+    fireEvent.error(video)
+    await act(async () => Promise.resolve())
+
+    expect(screen.queryByText('Session expired')).not.toBeInTheDocument()
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(mocks.instances).toHaveLength(2)
+  })
+
+  it('stops media and pending retries when HLS confirms access is denied', async () => {
+    const video = await renderPlayer()
+    act(() => {
+      mocks.instances[0].emit('error', {
+        fatal: true,
+        type: 'networkError',
+        details: 'manifestLoadError',
+      })
+      mocks.instances[0].emit('error', {
+        fatal: true,
+        type: 'networkError',
+        response: { code: 401 },
+        details: 'manifestLoadError',
+      })
+    })
+
+    expect(screen.getByText('Session expired')).toBeInTheDocument()
+    expect(video.pause).toHaveBeenCalled()
+    fireEvent.playing(video)
+    await act(async () => vi.advanceTimersByTimeAsync(20_000))
+    expect(mocks.instances).toHaveLength(1)
+    expect(screen.getByText('Session expired')).toBeInTheDocument()
+  })
+
+  it.each(['hidden', 'offline', 'paused'])('defers a queued HLS retry while %s and resumes it once', async (condition) => {
+    await renderPlayer()
+    act(() => {
+      mocks.instances[0].emit('error', {
+        fatal: true,
+        type: 'networkError',
+        details: 'manifestLoadError',
+      })
+      if (condition === 'hidden') {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+        fireEvent(document, new Event('visibilitychange'))
+      } else if (condition === 'offline') {
+        Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+        fireEvent(window, new Event('offline'))
+      } else {
+        mocks.userPauseChange?.(true)
+      }
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(10_000))
+    expect(mocks.instances).toHaveLength(1)
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+      Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
+      mocks.userPauseChange?.(false)
+      fireEvent(document, new Event('visibilitychange'))
+      fireEvent(window, new Event('online'))
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(1))
+    expect(mocks.instances).toHaveLength(2)
+  })
+
+  it('bounds a hung session check before retrying HLS', async () => {
+    mocks.getSession.mockReturnValueOnce(new Promise(() => {}))
+    const video = await renderPlayer()
+    fireEvent.error(video)
+    await act(async () => vi.advanceTimersByTimeAsync(5_999))
+    expect(mocks.instances).toHaveLength(1)
+    expect(screen.queryByText('Session expired')).not.toBeInTheDocument()
+    await act(async () => vi.advanceTimersByTimeAsync(1))
+    expect(mocks.instances).toHaveLength(2)
+  })
+
+  it.each([
+    { data: null, error: null },
+    { data: null, error: { status: 401, message: 'Unauthorized' } },
+    { data: null, error: { status: 403, message: 'Forbidden' } },
+  ])('stops native HLS when the session check confirms access is denied: %s', async (result) => {
+    mocks.FakeHls.isSupported = () => false
+    vi.mocked(HTMLMediaElement.prototype.canPlayType).mockReturnValue('probably')
+    mocks.getSession.mockResolvedValueOnce(result)
+    const video = await renderPlayer()
+    fireEvent.error(video)
+    await act(async () => Promise.resolve())
+
+    expect(screen.getByText('Session expired')).toBeInTheDocument()
+    expect(video.pause).toHaveBeenCalled()
   })
 
   it('uses the bounded balanced latency profile', async () => {

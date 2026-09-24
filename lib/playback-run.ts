@@ -1,3 +1,5 @@
+import type { PlaybackSessionResult } from '@/lib/playback-session'
+
 export type PlaybackRunPhase =
   | 'loading'
   | 'playing'
@@ -22,6 +24,131 @@ export interface ProgressObservation {
 
 const STAGNANT_SAMPLE_LIMIT = 5
 const STABLE_RECOVERY_RESET_MS = 60_000
+const SESSION_CHECK_TIMEOUT_MS = 5_000
+
+interface PlaybackRunOptions {
+  environment: () => PlaybackEnvironment
+  onPhaseChange: (phase: PlaybackRunPhase) => void
+  checkSession: (signal: AbortSignal) => Promise<PlaybackSessionResult>
+  stop: () => void
+  resume?: () => void
+  progress: PlaybackProgressMonitor
+}
+
+/** Owns recovery work for one attached transport. Media actions stay in the adapter. */
+export class PlaybackRun {
+  private phase: PlaybackRunPhase = 'loading'
+  private disposed = false
+  private generation = 0
+  private recovery: { action: () => void; dueAt: number } | undefined
+  private recoveryTimer: ReturnType<typeof setTimeout> | undefined
+  private accessTimer: ReturnType<typeof setTimeout> | undefined
+  private accessController: AbortController | undefined
+
+  constructor(private readonly options: PlaybackRunOptions) {}
+
+  acceptsEvents(): boolean {
+    return !this.disposed && this.phase !== 'unauthorized' && this.phase !== 'unsupported'
+  }
+
+  canRecover(): boolean {
+    return this.acceptsEvents() && playbackCanRecover(this.options.environment())
+  }
+
+  allowsAutomaticPlay(): boolean {
+    const environment = this.options.environment()
+    return this.acceptsEvents() && environment.live && !environment.userPaused
+  }
+
+  report(phase: PlaybackRunPhase): boolean {
+    if (!this.acceptsEvents()) return false
+    this.phase = phase
+    if (phase === 'playing' || phase === 'unauthorized' || phase === 'unsupported') {
+      this.cancelWork()
+      this.options.progress.reset()
+    }
+    this.options.onPhaseChange(phase)
+    if (phase === 'unauthorized' || phase === 'unsupported') this.options.stop()
+    return true
+  }
+
+  recover(action: () => void, delayMs = 0): void {
+    if (!this.report('reconnecting')) return
+    this.cancelWork()
+    if (delayMs === 0 && this.canRecover()) {
+      action()
+      return
+    }
+    this.recovery = { action, dueAt: Date.now() + delayMs }
+    this.armRecovery()
+  }
+
+  checkAccess(recover: () => void): void {
+    if (this.accessController) return
+    if (!this.report('reconnecting')) return
+    this.cancelWork()
+    const generation = this.generation
+    const controller = new AbortController()
+    this.accessController = controller
+
+    const finish = (result: PlaybackSessionResult) => {
+      if (!this.acceptsEvents() || generation !== this.generation) return
+      // Invalidate the request before aborting it, including its rejection handler.
+      this.generation += 1
+      clearTimeout(this.accessTimer)
+      this.accessTimer = undefined
+      this.accessController = undefined
+      controller.abort()
+      if (result === 'unauthorized') {
+        this.report('unauthorized')
+      } else if (this.canRecover()) {
+        recover()
+      } else {
+        this.recover(recover)
+      }
+    }
+
+    this.accessTimer = setTimeout(() => finish('unavailable'), SESSION_CHECK_TIMEOUT_MS)
+    void this.options.checkSession(controller.signal).then(finish, () => finish('unavailable'))
+  }
+
+  environmentChanged(): void {
+    this.options.progress.reset()
+    clearTimeout(this.recoveryTimer)
+    this.recoveryTimer = undefined
+    if (!this.canRecover()) return
+    if (this.recovery) this.armRecovery()
+    else if (this.phase === 'reconnecting' && !this.accessController) this.options.resume?.()
+  }
+
+  dispose(): void {
+    this.disposed = true
+    this.cancelWork()
+    this.options.progress.reset()
+  }
+
+  private cancelWork(): void {
+    this.generation += 1
+    clearTimeout(this.recoveryTimer)
+    clearTimeout(this.accessTimer)
+    this.recoveryTimer = undefined
+    this.accessTimer = undefined
+    this.recovery = undefined
+    this.accessController?.abort()
+    this.accessController = undefined
+  }
+
+  private armRecovery(): void {
+    const recovery = this.recovery
+    if (!recovery || !this.canRecover()) return
+    this.recoveryTimer = setTimeout(() => {
+      this.recoveryTimer = undefined
+      if (this.recovery !== recovery || !this.canRecover()) return
+      this.recovery = undefined
+      recovery.action()
+    }, Math.max(0, recovery.dueAt - Date.now()))
+  }
+}
 
 export function visiblePlaybackState(
   live: boolean,

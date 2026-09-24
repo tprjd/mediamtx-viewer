@@ -13,7 +13,6 @@ import {
   type PlayerTheaterProps,
 } from '@/components/vidstack-player'
 import { hasAudioTrack, hasVideoTrack } from '@/lib/playback-availability'
-import { authClient } from '@/lib/auth/client'
 import type { PublicChannel } from '@/lib/types'
 
 interface ReaderOptions {
@@ -119,12 +118,11 @@ export function WebRtcPlayer({
   const status = channel.status
   const {
     allowsAutomaticPlay,
-    canRecover,
     onUserPauseChange,
     onVideoElementChange,
     playing,
     progress,
-    setPhase: setPlaybackPhase,
+    startRun,
     state: playbackState,
     videoElement,
     videoRef,
@@ -215,8 +213,6 @@ export function WebRtcPlayer({
     let active = true
     let reader: MediaMtxReader | undefined
     let readerToRetire: MediaMtxReader | undefined
-    let fallbackTimer: ReturnType<typeof setTimeout> | undefined
-    let repairTimer: ReturnType<typeof setTimeout> | undefined
     let audioTimer: ReturnType<typeof setTimeout> | undefined
     let watchdogTimer: ReturnType<typeof setInterval> | undefined
     let readerGeneration = 0
@@ -230,6 +226,22 @@ export function WebRtcPlayer({
     let recoveryCount = 0
     let recoveryInProgress = false
     let fallbackTriggered = false
+    const run = startRun({
+      stop: () => {
+        readerGeneration += 1
+        stopWatchdog()
+        reader?.close()
+        reader = undefined
+        readerToRetire?.close()
+        readerToRetire = undefined
+        clearTimeout(audioTimer)
+        setPeerConnection(null)
+        video.srcObject = null
+        setMediaStream(null)
+        clearMedia()
+      },
+    })
+    const canRecover = () => run.canRecover()
 
     queueMicrotask(() => {
       if (active) setPeerConnection(null)
@@ -383,7 +395,7 @@ export function WebRtcPlayer({
           expectedVideoTrack = false
           stopWatchdog()
           setPeerConnection(null)
-          setPlaybackPhase('reconnecting')
+          run.report('reconnecting')
           if (ReaderConstructor) createReader(ReaderConstructor)
         } else {
           recoveryCount = 2
@@ -393,9 +405,8 @@ export function WebRtcPlayer({
           reader = undefined
           readerToRetire?.close()
           readerToRetire = undefined
-          clearTimeout(fallbackTimer)
           clearMedia()
-          fallbackRef.current()
+          run.recover(() => fallbackRef.current())
         }
       } finally {
         watchdogPollInFlight = false
@@ -415,58 +426,44 @@ export function WebRtcPlayer({
 
     if (!status.live) {
       clearMedia()
-      return
+      return () => run.dispose()
     }
 
     const scheduleFallback = (delay = 6_000) => {
-      clearTimeout(fallbackTimer)
-      fallbackTimer = setTimeout(() => {
-        if (active) fallbackRef.current()
-      }, delay)
+      run.recover(() => fallbackRef.current(), delay)
     }
 
     const handlePlaying = () => {
-      clearTimeout(fallbackTimer)
-      setPlaybackPhase('playing')
+      if (!run.report('playing')) {
+        video.pause()
+        return
+      }
       startWatchdog()
     }
 
     video.addEventListener('playing', handlePlaying)
-    const handleVisibilityChange = () => resetProgress()
-    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     let ReaderConstructor: MediaMtxReaderConstructor | undefined
 
     const createReader = (Reader: MediaMtxReaderConstructor) => {
-      if (!active) return
+      if (!run.acceptsEvents()) return
       const generation = readerGeneration
       reader = new Reader({
         url: new URL(channel.playback.webrtc, window.location.href).href,
         onError: () => {
-          if (!active || generation !== readerGeneration) return
-          setPlaybackPhase('reconnecting')
-          void authClient.getSession().then(({ data }) => {
-            if (!active || generation !== readerGeneration) return
-            if (!data) {
-              reader?.close()
-              readerToRetire?.close()
-              readerToRetire = undefined
-              clearTimeout(fallbackTimer)
-              setPlaybackPhase('unauthorized')
-              return
-            }
+          if (!run.acceptsEvents() || generation !== readerGeneration) return
+          run.checkAccess(() => {
             if (recoveryCount === 0 && ReaderConstructor) {
-              recoveryCount = 1
-              readerGeneration += 1
-              readerToRetire = reader
-              reader = undefined
-              peerConnectionForWatchdog = undefined
-              expectedVideoTrack = false
-              stopWatchdog()
-              setPeerConnection(null)
-              clearTimeout(repairTimer)
-              repairTimer = setTimeout(() => {
-                if (active && ReaderConstructor) createReader(ReaderConstructor)
+              run.recover(() => {
+                recoveryCount = 1
+                readerGeneration += 1
+                readerToRetire = reader
+                reader = undefined
+                peerConnectionForWatchdog = undefined
+                expectedVideoTrack = false
+                stopWatchdog()
+                setPeerConnection(null)
+                if (ReaderConstructor) createReader(ReaderConstructor)
               }, 1_000)
             } else {
               scheduleFallback(5_000)
@@ -474,7 +471,7 @@ export function WebRtcPlayer({
           })
         },
         onTrack: (event) => {
-          if (!active || generation !== readerGeneration) return
+          if (!run.acceptsEvents() || generation !== readerGeneration) return
 
           const eventTarget = event.currentTarget
           if (eventTarget && 'getStats' in eventTarget) {
@@ -526,14 +523,15 @@ export function WebRtcPlayer({
           clearTimeout(audioTimer)
           if (sourceHasAudioRef.current) {
             audioTimer = setTimeout(() => {
-              if (active && stream.getAudioTracks().length === 0) {
-                fallbackRef.current()
+              if (run.acceptsEvents() && stream.getAudioTracks().length === 0) {
+                run.recover(() => fallbackRef.current())
               }
             }, 2_000)
           }
         },
       })
       scheduleFallback(recoveryCount > 0 ? 5_000 : 8_000)
+      if (recoveryCount === 0) run.report('loading')
     }
 
     void loadReader()
@@ -544,18 +542,16 @@ export function WebRtcPlayer({
       })
       .catch(() => {
         if (!active) return
-        setPlaybackPhase('error')
         scheduleFallback(2_000)
+        run.report('error')
       })
 
     return () => {
+      run.dispose()
       active = false
       readerGeneration += 1
-      clearTimeout(fallbackTimer)
-      clearTimeout(repairTimer)
       clearTimeout(audioTimer)
       video.removeEventListener('playing', handlePlaying)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
       stopWatchdog()
       reader?.close()
       readerToRetire?.close()
@@ -563,9 +559,8 @@ export function WebRtcPlayer({
     }
   }, [
     channel.playback.webrtc,
-    canRecover,
     progress,
-    setPlaybackPhase,
+    startRun,
     status.live,
     videoElement,
   ])

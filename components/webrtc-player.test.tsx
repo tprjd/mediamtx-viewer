@@ -152,6 +152,8 @@ describe('WebRtcPlayer watchdog', () => {
     mocks.userPauseChange = undefined
     FakeReader.instances = []
     window.MediaMTXWebRTCReader = FakeReader as never
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
   })
 
   afterEach(() => {
@@ -290,6 +292,42 @@ describe('WebRtcPlayer watchdog', () => {
     expect(fallback).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { data: null, error: { status: 503, message: 'Unavailable' } },
+    new TypeError('Failed to fetch'),
+  ])('retries a reader interruption when the session check is unavailable: %s', async (result) => {
+    const fallback = vi.fn()
+    await renderPlayer(fallback)
+    if (result instanceof Error) mocks.getSession.mockRejectedValueOnce(result)
+    else mocks.getSession.mockResolvedValueOnce(result)
+    await act(async () => {
+      FakeReader.instances[0].options.onError?.('connection interrupted')
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByText('Session expired')).not.toBeInTheDocument()
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(FakeReader.instances).toHaveLength(2)
+  })
+
+  it('does not repair a reader after playback resumes during the session check', async () => {
+    let resolveSession!: (result: unknown) => void
+    mocks.getSession.mockReturnValueOnce(new Promise((resolve) => {
+      resolveSession = resolve
+    }))
+    const fallback = vi.fn()
+    await renderPlayer(fallback)
+    act(() => FakeReader.instances[0].options.onError?.('connection interrupted'))
+    await connect(FakeReader.instances[0], peerWithFrames(() => 10))
+    await act(async () => {
+      resolveSession({ data: { user: { id: 'user' } }, error: null })
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(FakeReader.instances).toHaveLength(1)
+    expect(fallback).not.toHaveBeenCalled()
+  })
+
   it('shows an expired session after a reader error without a session', async () => {
     const fallback = vi.fn()
     await renderPlayer(fallback)
@@ -302,6 +340,81 @@ describe('WebRtcPlayer watchdog', () => {
     expect(screen.getByText('Session expired')).toBeInTheDocument()
     expect(FakeReader.instances[0].close).toHaveBeenCalledOnce()
     expect(fallback).not.toHaveBeenCalled()
+  })
+
+  it('cancels a queued reader repair when playback resumes', async () => {
+    const fallback = vi.fn()
+    await renderPlayer(fallback)
+    await act(async () => {
+      FakeReader.instances[0].options.onError?.('connection interrupted')
+      await Promise.resolve()
+    })
+    await connect(FakeReader.instances[0], peerWithFrames(() => 10))
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(FakeReader.instances).toHaveLength(1)
+    expect(fallback).not.toHaveBeenCalled()
+  })
+
+  it.each(['hidden', 'offline', 'paused'])('defers WebRTC fallback while %s and resumes it once', async (condition) => {
+    const fallback = vi.fn()
+    await renderPlayer(fallback)
+    act(() => {
+      if (condition === 'hidden') {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+        fireEvent(document, new Event('visibilitychange'))
+      } else if (condition === 'offline') {
+        Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+        fireEvent(window, new Event('offline'))
+      } else {
+        mocks.userPauseChange?.(true)
+      }
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(10_000))
+    expect(fallback).not.toHaveBeenCalled()
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+      Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
+      mocks.userPauseChange?.(false)
+      fireEvent(document, new Event('visibilitychange'))
+      fireEvent(window, new Event('online'))
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(1))
+    expect(fallback).toHaveBeenCalledOnce()
+  })
+
+  it('bounds a hung session check before repairing WebRTC', async () => {
+    const fallback = vi.fn()
+    await renderPlayer(fallback)
+    mocks.getSession.mockReturnValueOnce(new Promise(() => {}))
+    act(() => FakeReader.instances[0].options.onError?.('connection interrupted'))
+    await act(async () => vi.advanceTimersByTimeAsync(5_999))
+    expect(FakeReader.instances).toHaveLength(1)
+    expect(screen.queryByText('Session expired')).not.toBeInTheDocument()
+    await act(async () => vi.advanceTimersByTimeAsync(1))
+    expect(FakeReader.instances).toHaveLength(2)
+    expect(fallback).not.toHaveBeenCalled()
+  })
+
+  it('detaches active media and cancels recovery when access is denied', async () => {
+    const fallback = vi.fn()
+    await renderPlayer(fallback)
+    const reader = FakeReader.instances[0]
+    const video = await connect(reader, peerWithFrames(() => 10))
+    mocks.getSession.mockResolvedValueOnce({ data: null, error: null })
+    await act(async () => {
+      reader.options.onError?.('connection interrupted')
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText('Session expired')).toBeInTheDocument()
+    expect(video.srcObject).toBeNull()
+    expect(video.pause).toHaveBeenCalled()
+    fireEvent.playing(video)
+    await act(async () => vi.advanceTimersByTimeAsync(20_000))
+    expect(FakeReader.instances).toHaveLength(1)
+    expect(fallback).not.toHaveBeenCalled()
+    expect(screen.getByText('Session expired')).toBeInTheDocument()
   })
 
   it('repairs one reader error before falling back to smooth playback', async () => {
