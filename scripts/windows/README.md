@@ -23,7 +23,7 @@ The default run installs or updates the exact `OBSProject.OBSStudio` WinGet
 package, probes the hardware encoders that OBS actually reports, and creates a
 managed profile for every requested codec and resolution it can encode. The
 defaults request AV1, HEVC (H.265), and H.264 at 1440p and 1080p, producing up
-to six 60 fps CBR profiles with two-second keyframes and Opus audio. The
+to six 60 fps CBR profiles with two-second keyframes and AAC audio. The
 keyframe interval comes from the canonical
 [`streaming-contract.v1.json`](../../config/streaming-contract.v1.json).
 NVIDIA AV1 profiles use two B-frames for better quality per bit; other

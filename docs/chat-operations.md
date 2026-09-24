@@ -89,6 +89,37 @@ Chat health logs contain fixed event types, fault codes, and results. Chat migra
 
 Operational logs must not contain message content, profile names, private notes, tokens, cookies, or client idempotency keys. The log-capture tests exercise successful publication, rejected requests, and failures against the pinned Centrifugo image.
 
+## Troubleshoot local Chat tests
+
+Run these checks from the repository root with Docker running:
+
+```sh
+docker version
+npm test -- 'app/api/channels/[slug]/chat/messages/route.test.ts' lib/chat-realtime.integration.test.ts
+```
+
+`docker version` must report a server version as well as a client version.
+If it cannot connect, start the local Docker daemon and check `docker context show`.
+Check whether `DOCKER_HOST` points to the intended daemon. Do not change the
+production Chat configuration to repair a local Docker connection.
+
+The realtime suite starts and removes its own Centrifugo container. Docker
+launch failures and early container exits include startup diagnostics with
+the test secrets redacted. A process that stays running without a healthy
+endpoint fails after 20 seconds. If the image download is too slow, pull the
+exact image pinned in `lib/chat-realtime.integration.test.ts` before retrying.
+Do not treat skipped tests after a setup failure as a passing suite.
+
+The messages route unit tests replace the moderator-role lookup with a test
+double, along with the other database dependencies. They do not require a local
+authentication database. A `no such table: user` error in these unit tests means
+a real database call escaped the test setup. Check the test doubles instead of
+migrating a development database to make the unit tests pass. Actual database
+failures must still produce the route's `503` response.
+
+After the focused tests pass, run `npm test` for the full suite. Local tests do
+not replace the [capacity and rollout checks](chat-rollout.md).
+
 ## Clear one Channel's Chat history
 
 Apply Chat migrations with `npm run chat:migrate` before starting the updated application.

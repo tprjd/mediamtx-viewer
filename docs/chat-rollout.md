@@ -12,7 +12,12 @@ Keep `CHAT_ENABLED=false` in the encrypted deployment secrets. Configure separat
 
 Inspect available memory, CPU use, and free disk before deployment. The gate requires at least 1 GiB available memory and no more than 70% sampled CPU use. If old Docker build cache consumes disk, remove only unused cache with `docker builder prune --force --filter until=168h`. Do not remove application volumes.
 
-Run `npm run chat:rollout-checks -- .data/chat-checks.json`. The command runs lint, type checking, the full unit suite, browser tests, the independent restore drill, the production webpack build, Streaming contract validation, both Compose flag states, and WebSocket authentication through the production proxy configuration. A failed command stops verification. Repair the failure and rerun the affected checks before producing a complete report. Do not edit a failed report to mark it passed.
+Start Docker on the verification workstation and confirm that `docker version`
+reports a server version. The realtime integration tests require a local
+Centrifugo container. For setup failures, follow
+[Chat test troubleshooting](chat-operations.md#troubleshoot-local-chat-tests).
+
+Run `npm run chat:rollout-checks -- .data/chat-checks.json`. The command runs lint, type checking, the full Vitest suite, browser tests, the independent restore drill, the production webpack build, Streaming contract validation, both Compose flag states, and WebSocket authentication through the production proxy configuration. A failed command stops verification. Repair the failure and rerun the affected checks before producing a complete report. Do not edit a failed report to mark it passed.
 
 The report contains a hash of the source files. Deploy the same source with `deploy/oracle/deploy.sh`. The viewer image records that hash. Deployment removes obsolete files only from the application source directories. It preserves secrets and operational state. The rollout gate refuses a different image source. Deployment sets Chat to disabled and stops Centrifugo, even if an older environment file contains an enabled flag. Do not change the application version for this verification task.
 

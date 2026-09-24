@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Added
+
+- Add persistent Chat message text-size settings.
+- Let administrators clear one Channel's Chat history, including realtime recovery history.
+
+### Changed
+
+- Separate read-only server Viewing access checks from browser session renewal.
+- Give Channel events and fallback polling one owner with shared status ordering and recovery rules.
+- Share Playback run state, access checks, progress detection, and recovery eligibility across HLS and WebRTC.
+- Centralize Channel reads and Chat history reads, and move Chat room synchronization out of the panel.
+
+### Fixed
+
+- Keep server access checks from extending session expiry without delivering a renewed browser cookie.
+- Treat transient access-check failures as recoverable, stop media on confirmed denial, and ignore cancelled playback work.
+- Preserve the last known Channel status during an outage and prevent older responses from overwriting newer observations.
+- Recover silent Channel event connections and refresh directory membership and metadata.
+- Derive HLS timing from the active player instance.
+- Integrate the theater-mode Chat restore button with the player controls.
+- Isolate the Chat route test's moderator-role lookup and report Docker startup failures without waiting for the health timeout.
+
 ## [0.11.0] - 2026-09-17
 
 ### Added

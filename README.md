@@ -29,6 +29,7 @@ HLS profile. (WebRTC retirement is a separate follow-up.)
 - Authenticated server-sent status events with automatic degraded-mode recovery
 - Low-frequency 640×360 thumbnails captured at stream start and every three
   minutes
+- Live Channel Chat with retained history, moderation, and administrator history clearing
 - Unit, integration, component, route, worker, and Playwright coverage
 - Signed-in OCI cost, Free Tier guardrail, allocation, and VM-health dashboard
 - Reproducible Docker Compose and OpenTofu deployment
@@ -79,6 +80,27 @@ MediaMTX separately asks a private Next.js callback to authorize each OBS token
 for its exact channel path. Website passwords, browser sessions, and publishing
 credentials are never interchangeable. Stream keys are displayed once and
 stored only as SHA-256 hashes.
+
+### Playback run and recovery
+
+[`lib/playback-run.ts`](lib/playback-run.ts) owns the shared playback state,
+progress checks, Viewing access checks, and pending recovery work.
+[`components/use-playback-run.ts`](components/use-playback-run.ts) connects it
+to React, browser connectivity, page visibility, and intentional pauses.
+HLS and WebRTC adapters still own their media connections and transport actions.
+[`components/use-playback-mode.ts`](components/use-playback-mode.ts) owns
+selection and fallback between playback modes.
+
+A Viewing access check has a five-second deadline. A timeout or service failure
+permits recovery instead of declaring the session expired. Confirmed access
+denial stops the media transport and prevents further recovery in that run.
+Resumed playback cancels pending checks and retries. Results from cancelled
+work or a disposed run cannot change the current state.
+
+Recovery waits until the Channel is live, the browser is online, the page is
+visible, and the viewer has not paused playback. These rules apply to both
+transports. The automated tests cover these state transitions. Physical-device
+checks after screen lock, app switching, and network changes remain necessary.
 
 ## Channel dashboard
 
@@ -262,6 +284,12 @@ HLS playback sessions.
 
 For release steps, see [Release the application](docs/releases.md).
 
+Start Docker before running `npm test`. The Chat realtime integration suite
+starts a disposable Centrifugo container and requires a reachable Docker daemon.
+It uses the image pinned in `lib/chat-realtime.integration.test.ts`, not a
+production Chat service. See [Chat test troubleshooting](docs/chat-operations.md#troubleshoot-local-chat-tests)
+for startup failures.
+
 ```sh
 npm run typecheck
 npm run lint
@@ -288,9 +316,10 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The Vitest suite covers authentication, channel authorization, status mapping,
-the dashboard, the watch view, and thumbnail generation. Playwright covers the
-primary desktop and mobile account/viewing flows.
+The Vitest suite covers Viewing access, session renewal, Channel refresh,
+Playback run recovery, Chat, the dashboard, the watch view, and thumbnails.
+Playwright covers desktop and mobile account and viewing flows, plus Chat
+moderation and recovery.
 
 ## Docker
 
@@ -301,8 +330,10 @@ layout.
 
 ## Oracle deployment
 
-The production Compose stack runs Caddy, MediaMTX, Next.js, and the thumbnail
-worker on one Oracle VM. The OpenTofu module creates the VM, reserved IP, and
+The production Compose stack includes Caddy, MediaMTX, Next.js, Centrifugo, the
+thumbnail worker, and the Discord notifier on one Oracle VM. Centrifugo runs
+when Chat is enabled through the rollout procedure.
+The OpenTofu module creates the VM, reserved IP, and
 restricted network. Caddy is the only public HTTP entry point; WebRTC ICE uses
 UDP 8189 with TCP 8189 as a fallback, and HTTP/3 uses UDP 443 while HTTP/2
 remains available on TCP 443. Next.js, SQLite, the MediaMTX Control API, HLS
@@ -328,8 +359,15 @@ is stored as a SOPS-encrypted deployment secret and is never included in the
 image.
 
 The deployment script validates staged MediaMTX configuration, rebuilds the
-stack, applies database migrations, and leaves an unchanged MediaMTX container
-running. Valid configuration changes are hot-reloaded where supported:
+stack, and applies database migrations. It explicitly restarts MediaMTX when
+its configuration changes and reloads Caddy. Without a configuration change,
+Compose can still recreate MediaMTX if its image or service definition changes.
+Deployment also disables Chat and stops Centrifugo. Use the
+[Chat rollout procedure](docs/chat-rollout.md) to enable Chat again.
+Viewer recreation can interrupt authorization and playback. Deployment is not
+an uninterrupted operation.
+
+Run deployment from the repository root:
 
 ```sh
 ./deploy/oracle/deploy.sh ubuntu@SERVER_IP
