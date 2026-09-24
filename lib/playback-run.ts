@@ -1,4 +1,4 @@
-import type { PlaybackSessionResult } from '@/lib/playback-session'
+import type { ViewingAccessResult } from '@/lib/auth/viewing-access-client'
 
 export type PlaybackRunPhase =
   | 'loading'
@@ -29,7 +29,7 @@ const SESSION_CHECK_TIMEOUT_MS = 5_000
 interface PlaybackRunOptions {
   environment: () => PlaybackEnvironment
   onPhaseChange: (phase: PlaybackRunPhase) => void
-  checkSession: (signal: AbortSignal) => Promise<PlaybackSessionResult>
+  checkSession: (signal: AbortSignal) => Promise<ViewingAccessResult>
   stop: () => void
   resume?: () => void
   progress: PlaybackProgressMonitor
@@ -91,7 +91,7 @@ export class PlaybackRun {
     const controller = new AbortController()
     this.accessController = controller
 
-    const finish = (result: PlaybackSessionResult) => {
+    const finish = (result: ViewingAccessResult) => {
       if (!this.acceptsEvents() || generation !== this.generation) return
       // Invalidate the request before aborting it, including its rejection handler.
       this.generation += 1

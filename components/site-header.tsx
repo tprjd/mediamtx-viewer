@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import styles from './site-header.module.css'
 
 import { UserMenu } from '@/components/auth/user-menu'
+import { SessionRenewal } from '@/components/auth/session-renewal'
 import { getActiveSession } from '@/lib/auth/session'
 import { APP_VERSION } from '@/lib/app-version'
 import { getOwnedChannel } from '@/lib/channels'
@@ -15,12 +16,15 @@ async function AccountNavigation() {
     : false
 
   return (
-    <UserMenu
-      hasOwnedChannel={hasOwnedChannel}
-      user={
-        session ? { name: session.user.name, role: session.user.role } : null
-      }
-    />
+    <>
+      {session && <SessionRenewal key={session.session.id} />}
+      <UserMenu
+        hasOwnedChannel={hasOwnedChannel}
+        user={
+          session ? { name: session.user.name, role: session.user.role } : null
+        }
+      />
+    </>
   )
 }
 

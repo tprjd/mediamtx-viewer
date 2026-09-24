@@ -1,8 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 
-import { auth } from '@/lib/auth/auth'
 import { authEnvironment, getRuntimeConfigurationErrors } from '@/lib/auth/env'
-import { getUserStatus } from '@/lib/auth/store'
+import { getActiveSession } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,11 +25,18 @@ export async function GET(request: Request) {
     return new Response(null, { status: 503 })
   }
 
-  const session = await auth.api.getSession({ headers: request.headers })
-  if (session && getUserStatus(session.user.id) === 'active') {
+  let session
+  try {
+    session = await getActiveSession(request.headers)
+  } catch {
+    // A failed access check must not become a sign-in redirect or an expiry claim.
+    return new Response(null, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+  }
+  if (session) {
     return new Response(null, {
       status: 204,
       headers: {
+        'Cache-Control': 'no-store',
         'X-Authenticated-User': session.user.id,
         'X-Authenticated-Role': session.user.role ?? 'user',
       },
@@ -52,4 +58,3 @@ export async function GET(request: Request) {
     headers: { 'Cache-Control': 'no-store' },
   })
 }
-

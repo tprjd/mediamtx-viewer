@@ -8,7 +8,7 @@ import {
   type PlaybackRunPhase,
   visiblePlaybackState,
 } from '@/lib/playback-run'
-import { checkPlaybackSession } from '@/lib/playback-session'
+import { checkViewingAccess } from '@/lib/auth/viewing-access-client'
 
 export function usePlaybackRun(live: boolean) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -45,7 +45,7 @@ export function usePlaybackRun(live: boolean) {
       ...actions,
       environment,
       onPhaseChange: setPhase,
-      checkSession: checkPlaybackSession,
+      checkSession: checkViewingAccess,
       progress: progressMonitorRef.current,
     })
     runRef.current = run

@@ -55,6 +55,26 @@ MediaMTX instead of passing through Next.js or Caddy (Caddy cannot proxy raw
 TCP; RTMP listens directly on the host on port 1935). RTMPS/1936 is a
 config-ready follow-up once TLS certs are mounted for MediaMTX.
 
+### Viewing access and session renewal
+
+`lib/auth/session.ts` owns the server-side Viewing access check. Pages, APIs,
+and Caddy authorization use the same active-account rule and read the session
+from the database without extending its expiry. A server-side check must not
+consume a renewal when its response cannot deliver the renewed browser cookie.
+
+The authenticated site header mounts `SessionRenewal`. It calls Better Auth
+from the browser on mount, every five minutes while visible and online, and
+after focus, page restoration, or a network reconnect. Better Auth renews a
+session when its one-day update threshold is reached and sends the seven-day
+cookie on that browser response. Caddy already permits `/api/auth/*` directly.
+No renewal cookie needs to pass through a Caddy authorization subrequest.
+
+Renewal requests have a five-second deadline. Temporary failures are retried
+on a 30-second polling cycle without changing playback or redirecting to sign-in.
+`lib/auth/viewing-access-client.ts` classifies the result for both renewal and
+Playback runs. Missing sessions and explicit access denial remain separate from
+network or service failures. An expired or revoked session still requires sign-in.
+
 MediaMTX separately asks a private Next.js callback to authorize each OBS token
 for its exact channel path. Website passwords, browser sessions, and publishing
 credentials are never interchangeable. Stream keys are displayed once and

@@ -6,7 +6,7 @@ import {
   PlaybackRun,
   visiblePlaybackState,
 } from '@/lib/playback-run'
-import type { PlaybackSessionResult } from '@/lib/playback-session'
+import type { ViewingAccessResult } from '@/lib/auth/viewing-access-client'
 
 describe('PlaybackRun coordination', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -17,7 +17,7 @@ describe('PlaybackRun coordination', () => {
     const stop = vi.fn()
     const resume = vi.fn()
     const onPhaseChange = vi.fn()
-    const checkSession = vi.fn<(signal: AbortSignal) => Promise<PlaybackSessionResult>>()
+    const checkSession = vi.fn<(signal: AbortSignal) => Promise<ViewingAccessResult>>()
       .mockResolvedValue('authorized')
     const run = new PlaybackRun({
       environment: () => environment,
@@ -56,7 +56,7 @@ describe('PlaybackRun coordination', () => {
 
   it('rejects late access results after playback resumes and aborts the check', async () => {
     const { run, checkSession, onPhaseChange } = setup()
-    let resolve!: (value: PlaybackSessionResult) => void
+    let resolve!: (value: ViewingAccessResult) => void
     checkSession.mockReturnValueOnce(new Promise((done) => { resolve = done }))
     const repair = vi.fn()
     run.checkAccess(repair)

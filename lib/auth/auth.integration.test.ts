@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createHmac, randomUUID } from 'node:crypto'
 
 const testDirectory = mkdtempSync(join(tmpdir(), 'mediamtx-auth-test-'))
 const databasePath = join(testDirectory, 'auth.sqlite')
@@ -14,6 +15,24 @@ process.env.BETTER_AUTH_SECRET = 'vitest-better-auth-secret-at-least-32-characte
 process.env.INTERNAL_AUTH_SECRET = 'vitest-internal-secret-at-least-32-characters'
 
 describe('account approval authentication', () => {
+  async function renewalFixture() {
+    const { getDatabase } = await import('@/lib/auth/database')
+    const token = randomUUID()
+    const day = 86_400_000
+    const expiresAt = Date.now() + 5 * day
+    getDatabase().prepare(
+      'INSERT INTO session (id, token, userId, createdAt, updatedAt, expiresAt) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run(randomUUID(), token, 'admin-id', Date.now() - 2 * day, Date.now() - 2 * day, expiresAt)
+    const signature = createHmac('sha256', process.env.BETTER_AUTH_SECRET!)
+      .update(token).digest('base64')
+    const cookie = `better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`
+    const expiry = () => {
+      const row = getDatabase().prepare('SELECT expiresAt FROM session WHERE token = ?')
+        .get(token) as { expiresAt: number | string }
+      return new Date(row.expiresAt).getTime()
+    }
+    return { cookie, expiresAt, expiry }
+  }
   beforeAll(async () => {
     const { getDatabase } = await import('@/lib/auth/database')
     const database = getDatabase()
@@ -125,6 +144,52 @@ describe('account approval authentication', () => {
     expect(() => disableUser('admin-id', 'admin-id')).toThrow(
       'You cannot disable your own account',
     )
+  })
+
+  it('keeps proxy authorization read-only so browser renewal still sends its cookie', async () => {
+    const { cookie, expiresAt, expiry } = await renewalFixture()
+    const { GET } = await import('@/app/api/internal/authorize/route')
+    const response = await GET(new Request('http://localhost:3000/api/internal/authorize', {
+      headers: { cookie, 'x-internal-auth': process.env.INTERNAL_AUTH_SECRET! },
+    }))
+    expect(response.status).toBe(204)
+    expect(response.headers.get('set-cookie')).toBeNull()
+    expect(expiry()).toBe(expiresAt)
+
+    const { auth } = await import('@/lib/auth/auth')
+    const renewed = await auth.handler(new Request('http://localhost:3000/api/auth/get-session', {
+      headers: { cookie },
+    }))
+    expect(renewed.status).toBe(200)
+    expect(renewed.headers.get('set-cookie')).toContain('better-auth.session_token=')
+    expect(renewed.headers.get('set-cookie')).toContain('Max-Age=604800')
+    expect(expiry()).toBeGreaterThan(expiresAt)
+  })
+
+  it('does not consume renewal during page and API access checks', async () => {
+    const { cookie, expiresAt, expiry } = await renewalFixture()
+    const { getActiveSession } = await import('@/lib/auth/session')
+    const session = await getActiveSession(new Headers({ cookie }))
+    expect(session?.user.id).toBe('admin-id')
+    expect(expiry()).toBe(expiresAt)
+  })
+
+  it.each(['pending', 'disabled'])('denies an existing session for an account that is %s', async (status) => {
+    const { cookie, expiresAt, expiry } = await renewalFixture()
+    const { getDatabase } = await import('@/lib/auth/database')
+    const { getActiveSession } = await import('@/lib/auth/session')
+    const { GET } = await import('@/app/api/internal/authorize/route')
+    getDatabase().prepare('UPDATE user SET activationStatus = ? WHERE id = ?').run(status, 'admin-id')
+    try {
+      expect(await getActiveSession(new Headers({ cookie }))).toBeNull()
+      const response = await GET(new Request('http://localhost:3000/api/internal/authorize', {
+        headers: { cookie, 'x-internal-auth': process.env.INTERNAL_AUTH_SECRET! },
+      }))
+      expect(response.status).toBe(401)
+      expect(expiry()).toBe(expiresAt)
+    } finally {
+      getDatabase().prepare('UPDATE user SET activationStatus = ? WHERE id = ?').run('active', 'admin-id')
+    }
   })
 
   it('updates and audits a profile name', async () => {

@@ -4,8 +4,12 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth/auth'
 import { getUserStatus } from '@/lib/auth/store'
 
-export async function getActiveSession() {
-  const session = await auth.api.getSession({ headers: await headers() })
+/** Read Viewing access without renewing a cookie that this caller cannot send. */
+export async function getActiveSession(requestHeaders?: Headers) {
+  const session = await auth.api.getSession({
+    headers: requestHeaders ?? await headers(),
+    query: { disableRefresh: true, disableCookieCache: true },
+  })
   if (!session || getUserStatus(session.user.id) !== 'active') return null
   return session
 }
@@ -21,4 +25,3 @@ export async function requireAdminSession() {
   if (session.user.role !== 'admin') redirect('/')
   return session
 }
-
