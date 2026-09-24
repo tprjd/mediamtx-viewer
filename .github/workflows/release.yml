@@ -48,6 +48,12 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Install staging test encryption tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y age
+          go install github.com/getsops/sops/v3/cmd/sops@v3.13.3
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Install test browser
         run: npx playwright install --with-deps chromium
       - name: Run release checks

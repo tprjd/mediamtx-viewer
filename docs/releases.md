@@ -61,3 +61,9 @@ original `release.json` unchanged. A moved tag or changed image identity fails.
 For local ARM64 image verification, run `node scripts/release-images.mjs`. This
 builds temporary local images, checks the image layers, and starts the images
 with test-only runtime configuration. It does not publish or deploy them.
+
+To stage a published release without activation, follow
+[Prepare a selected release](deployment-preparation.md). Use
+`sh deploy/oracle/deploy.sh prepare TARGET vX.Y.Z`, then inspect it with
+`sh deploy/oracle/deploy.sh status TARGET`. This opt-in path keeps the current
+services running and leaves the existing deployment procedure as the default.

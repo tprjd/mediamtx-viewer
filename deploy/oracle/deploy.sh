@@ -1,6 +1,13 @@
 #!/bin/sh
 set -eu
 
+case "${1:-}" in
+  prepare|status)
+    script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+    exec node "$script_dir/../../scripts/stage-release.mjs" "$@"
+    ;;
+esac
+
 if [ "$#" -ne 1 ]; then
   echo "Usage: $0 <host-or-ssh-target>" >&2
   echo "Example: $0 ubuntu@158.180.29.172" >&2
