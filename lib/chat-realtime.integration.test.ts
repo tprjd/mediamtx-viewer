@@ -30,16 +30,45 @@ async function reservePort(): Promise<number> {
   return address.port
 }
 
-async function waitForHealth(): Promise<void> {
-  const deadline = Date.now() + 20_000
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/health`)
-      if (response.ok) return
-    } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 100))
+async function waitForHealth(child: ChildProcess): Promise<void> {
+  let startupOutput = ''
+  let spawnError: Error | undefined
+  const captureOutput = (chunk: Buffer) => {
+    startupOutput = (startupOutput + chunk.toString()).slice(-8192)
   }
-  throw new Error('Centrifugo did not become healthy')
+  child.stdout?.on('data', captureOutput)
+  child.stderr?.on('data', captureOutput)
+  child.once('error', (error) => { spawnError = error })
+
+  function startupFailure(reason: string): Error {
+    const detail = startupOutput.trim()
+      .replaceAll(apiKey, '<REDACTED>')
+      .replaceAll(tokenSecret, '<REDACTED>')
+    return new Error(`${reason}. Check Docker and the Centrifugo test image.${detail ? `\n${detail}` : ''}`)
+  }
+
+  const deadline = Date.now() + 20_000
+  try {
+    while (Date.now() < deadline) {
+      if (spawnError) throw startupFailure(`Could not launch Docker: ${spawnError.message}`)
+      if (child.exitCode !== null || child.signalCode !== null) {
+        throw startupFailure(`Centrifugo container exited before becoming healthy: ${child.exitCode ?? child.signalCode}`)
+      }
+      try {
+        const response = await fetch(`http://127.0.0.1:${port}/health`, {
+          signal: AbortSignal.timeout(1_000),
+        })
+        if (response.ok) return
+      } catch {}
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    throw startupFailure('Centrifugo did not become healthy within 20 seconds')
+  } finally {
+    child.stdout?.off('data', captureOutput)
+    child.stderr?.off('data', captureOutput)
+    child.stdout?.resume()
+    child.stderr?.resume()
+  }
 }
 
 async function callCentrifugoApi<T>(
@@ -109,13 +138,13 @@ describe('Centrifugo Chat delivery', () => {
         'CENTRIFUGO_CHANNEL_NAMESPACES=[{"name":"chat","history_size":300,"history_ttl":"30s","force_recovery":true,"force_positioning":true,"allow_subscribe_for_client":false,"allow_publish_for_client":false,"allow_publish_for_subscriber":false},{"name":"control","allow_subscribe_for_client":false,"allow_publish_for_client":false,"allow_publish_for_subscriber":false}]',
         CENTRIFUGO_IMAGE,
       ],
-      { stdio: ['ignore', 'ignore', 'pipe'] },
+      { stdio: ['ignore', 'pipe', 'pipe'] },
     )
-    await waitForHealth()
+    await waitForHealth(container)
   }, 30_000)
 
   afterAll(() => {
-    spawnSync('docker', ['rm', '--force', containerName], { stdio: 'ignore' })
+    spawnSync('docker', ['rm', '--force', containerName], { stdio: 'ignore', timeout: 5_000 })
     container?.kill('SIGTERM')
     delete process.env.CHAT_ENABLED
     delete process.env.CENTRIFUGO_API_KEY

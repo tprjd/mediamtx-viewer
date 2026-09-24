@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getActiveSession: vi.fn(),
   getChatChannel: vi.fn(),
+  getChatModeratorRole: vi.fn(),
   getChannelStatus: vi.fn(),
   getUserById: vi.fn(),
   loadOlderChatMessages: vi.fn(),
@@ -38,6 +39,9 @@ vi.mock('@/lib/chat-history', () => {
   }
 })
 vi.mock('@/lib/chat', () => ({ sendChatMessage: mocks.sendChatMessage }))
+vi.mock('@/lib/chat-moderation', () => ({
+  getChatModeratorRole: mocks.getChatModeratorRole,
+}))
 vi.mock('@/lib/chat-outbox', () => ({
   requestChatOutboxDispatch: mocks.requestChatOutboxDispatch,
 }))
@@ -74,6 +78,7 @@ beforeEach(() => {
   process.env.CHAT_ENABLED = 'true'
   mocks.getActiveSession.mockResolvedValue({ user: { id: 'viewer-id' } })
   mocks.getChatChannel.mockReturnValue(channel)
+  mocks.getChatModeratorRole.mockReturnValue(null)
   mocks.getChannelStatus.mockResolvedValue({ live: true, state: 'live' })
   mocks.getUserById.mockReturnValue({
     id: 'viewer-id',
@@ -166,6 +171,7 @@ describe('/api/channels/[slug]/chat/messages', () => {
       cursor: null,
     })
     expect(mocks.loadLatestChatHistory).toHaveBeenCalledWith(channel)
+    expect(mocks.getChatModeratorRole).toHaveBeenCalledWith(channel, 'viewer-id')
     expect(sendResponse.status).toBe(201)
     expect(await sendResponse.json()).toEqual({ message })
     expect(mocks.sendChatMessage).toHaveBeenCalledWith({
@@ -178,6 +184,26 @@ describe('/api/channels/[slug]/chat/messages', () => {
       clientIdempotencyKey: submissionKey,
     })
     expect(mocks.requestChatOutboxDispatch).toHaveBeenCalledOnce()
+  })
+
+  it.each(['admin', 'owner'])('returns the %s moderator role with latest history', async (role) => {
+    mocks.getChatModeratorRole.mockReturnValue(role)
+
+    const response = await GET(new Request('https://example.test'), context)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ moderatorRole: role })
+  })
+
+  it('returns unavailable when the moderator-role lookup fails', async () => {
+    mocks.getChatModeratorRole.mockImplementation(() => {
+      throw new Error('database failed')
+    })
+
+    const response = await GET(new Request('https://example.test'), context)
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: 'Chat is unavailable.' })
   })
 
   it('returns retained history from the cursor and rejects an invalid cursor', async () => {
