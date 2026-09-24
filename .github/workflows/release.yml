@@ -1,0 +1,115 @@
+name: Verified ARM64 release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Validate current source or refresh an existing release without rebuilding
+        type: choice
+        options: [validation, refresh]
+        default: validation
+      tag:
+        description: Existing release tag, required for refresh
+        type: string
+        default: ''
+
+# Serialize publication and refresh. Never cancel an in-progress publication.
+concurrency:
+  group: verified-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CI: '1'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  verification:
+    # Playwright's Linux ARM64 Chromium cannot decode the H.264 test media.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      evidence-id: ${{ steps.evidence.outputs.artifact-id }}
+    steps:
+      - name: Check out selected source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.mode == 'refresh' && inputs.tag || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install test browser
+        run: npx playwright install --with-deps chromium
+      - name: Run release checks
+        run: |
+          mkdir -p .data/release
+          node scripts/chat-capacity/checks.mjs .data/release/checks.json
+      - name: Transfer completed verification
+        id: evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: source-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .data/release/checks.json
+          retention-days: 1
+          if-no-files-found: error
+
+  release:
+    needs: verification
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+    env:
+      RELEASE_MODE: ${{ github.event_name == 'push' && 'publish' || inputs.mode }}
+      RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+    steps:
+      - name: Check out selected source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.mode == 'refresh' && inputs.tag || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Read source verification
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.verification.outputs.evidence-id }}
+          merge-multiple: true
+          path: .data/release
+      - name: Authenticate image publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_ACTOR: ${{ github.actor }}
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
+      - name: Build, test, and publish ARM64 images
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/release-ci.mjs
+      - name: Save verification reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .data/release/*.json
+          retention-days: 1
+          if-no-files-found: ignore
+      - name: Log out of the registry
+        if: always()
+        run: docker logout ghcr.io

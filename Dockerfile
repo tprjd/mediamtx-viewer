@@ -16,7 +16,11 @@ RUN npm run build -- --webpack
 
 FROM node:24-alpine AS runner
 ARG SOURCE_FINGERPRINT=unverified
+ARG SOURCE_REVISION=unverified
+ARG SOURCE_REPOSITORY=https://github.com/tprjd/mediamtx-viewer
 LABEL org.frankerzspam.source=$SOURCE_FINGERPRINT
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION
+LABEL org.opencontainers.image.source=$SOURCE_REPOSITORY
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

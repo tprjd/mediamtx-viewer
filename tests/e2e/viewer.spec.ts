@@ -898,8 +898,11 @@ test('administrator can manage the owned OBS channel and reveal a key once', asy
   await page.goto('/account')
   await expect(page.getByRole('heading', { name: 'Profile name' })).toBeVisible()
   await expect(page.getByLabel('Name')).toHaveValue('power')
-  await page.getByRole('button', { name: 'Save name' }).click()
-  await expect(page.getByText('Name updated.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save name' })).toBeDisabled()
+  await page.getByLabel('Name').fill('Updated profile name')
+  await expect(page.getByRole('button', { name: 'Save name' })).toBeEnabled()
+  await page.getByLabel('Name').fill('power')
+  await expect(page.getByRole('button', { name: 'Save name' })).toBeDisabled()
 
   await page.goto('/account/channel')
   await expect(

@@ -14,3 +14,8 @@ nextjs-portal {
   opacity: 1 !important;
   pointer-events: auto !important;
 }
+
+/* Version behavior has separate assertions. Releases must not change snapshots. */
+[data-site-header] sup {
+  visibility: hidden;
+}
