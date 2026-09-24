@@ -24,6 +24,7 @@ import {
 } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { pipeline } from 'node:stream/promises'
+import { acquireBackupOperation } from './backup-operation.mjs'
 import { purgeExpiredChat } from './chat-retention.mjs'
 
 const setPattern = /^\d{4}-\d{2}-\d{2}T[\d-]+Z-[a-f0-9-]{36}$/
@@ -145,10 +146,10 @@ export async function createBackupSet({
   directory,
   key = backupKey(),
   now = new Date(),
+  deployment = false,
 }) {
   mkdirSync(directory, { recursive: true, mode: 0o700 })
-  const lock = join(directory, '.backup-lock')
-  mkdirSync(lock, { mode: 0o700 })
+  const release = acquireBackupOperation(directory, authPath)
   const id = `${now.toISOString().replaceAll(':', '-').replaceAll('.', '-')}-${randomUUID()}`
   const staging = join(directory, `.pending-${id}`)
   try {
@@ -176,7 +177,7 @@ export async function createBackupSet({
       try {
         db.pragma('foreign_keys = ON')
         db.pragma('busy_timeout = 5000')
-        if (name === 'chat') purgeExpiredChat(db, now.getTime())
+        if (name === 'chat' && !deployment) purgeExpiredChat(db, now.getTime())
         await db.backup(snapshot)
       } finally {
         db.close()
@@ -224,6 +225,7 @@ export async function createBackupSet({
     )
     const completed = join(directory, id)
     renameSync(staging, completed)
+    if (deployment) return join(completed, 'manifest.json')
     const complete = []
     for (const name of readdirSync(directory)
       .filter((name) => setPattern.test(name))
@@ -249,7 +251,7 @@ export async function createBackupSet({
     return join(completed, 'manifest.json')
   } finally {
     rmSync(staging, { recursive: true, force: true })
-    rmSync(lock, { recursive: true, force: true })
+    release()
   }
 }
 

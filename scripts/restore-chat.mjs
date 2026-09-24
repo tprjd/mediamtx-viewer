@@ -1,5 +1,6 @@
 import { mkdirSync, rmSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { resolve } from 'node:path'
+import { acquireBackupOperation } from './backup-operation.mjs'
 import { backupPaths, decryptDatabaseBackup } from './database-backups.mjs'
 
 const [manifest] = process.argv.slice(2)
@@ -9,17 +10,14 @@ if (!manifest || process.env.CHAT_RESTORE_CONFIRM !== 'replace')
   )
 if (!process.env.INTERNAL_AUTH_SECRET)
   throw new Error('INTERNAL_AUTH_SECRET is required')
-const { chatPath, directory } = backupPaths()
+const { authPath, chatPath, directory } = backupPaths()
 const lock = `${chatPath}.restore-lock`
 mkdirSync(lock, { mode: 0o700 })
 const candidate = `${chatPath}.restore-candidate`
 let requestPending = false
-let ownsBackupLock = false
-const backupLock = join(directory, '.backup-lock')
+let release
 try {
-  mkdirSync(directory, { recursive: true, mode: 0o700 })
-  mkdirSync(backupLock, { mode: 0o700 })
-  ownsBackupLock = true
+  release = acquireBackupOperation(directory, authPath)
   for (const suffix of ['', '-wal', '-shm'])
     rmSync(`${candidate}${suffix}`, { force: true })
   await decryptDatabaseBackup(resolve(manifest), 'chat', candidate)
@@ -51,7 +49,7 @@ try {
 } finally {
   if (!requestPending) {
     rmSync(lock, { recursive: true, force: true })
-    if (ownsBackupLock) rmSync(backupLock, { recursive: true, force: true })
+    release?.()
   }
   // The application owns candidate removal once a request starts. A lost HTTP response
   // must not delete a database that an active restore still needs.

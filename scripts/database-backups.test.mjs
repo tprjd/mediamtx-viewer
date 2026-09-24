@@ -228,3 +228,5 @@ it('preserves complete backup sets when the encryption key changes', async () =>
     rmSync(directory, { recursive: true, force: true })
   }
 })
+
+await import("./fixtures/maintenance/docker-tests.mjs")

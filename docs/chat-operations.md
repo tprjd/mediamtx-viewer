@@ -165,6 +165,10 @@ sudo journalctl -u mediamtx-backup.service -n 20
 
 The service uses `/home/ubuntu/mediamtx-viewer`. Change its paths if the deployment uses another directory. The timer runs daily at 03:00 UTC, with up to five minutes of delay. Remove any earlier authentication backup schedule to prevent duplicate jobs.
 
+For a stable pair with stopped writers and a verified workstation copy, use the
+[maintenance backup command](maintenance-backups.md). Deployment sets are separate
+from the daily seven-day rotation.
+
 ## Restore Chat independently
 
 Keep the viewer and Centrifugo running. Run the following command inside the viewer container with the backup key available:
@@ -192,7 +196,7 @@ Stop the viewer before replacing authentication storage. Use the same manifest a
 
 Run `npx playwright test --project=chat-chromium --grep 'restore drill'` with Docker available. The drill uses an encrypted older set, blocks Chat during a failed Centrifugo operation, retries the restore, and checks expiry deletion and live delivery after reconnect. It also checks the existing account session and continued video progress without a player reset. The media fixture and MediaMTX status server are local test fixtures. Run the production capacity gate with a real Channel before enabling Chat.
 
-Chat cleanup also runs at application startup and once per hour, including when Chat is disabled. Each backup runs cleanup before taking the Chat snapshot. Messages, retained originals of removed messages, and queued content expire seven days after submission. Private notes expire seven days after the moderation action. Structured Chat moderation records and active bans remain until an authorized action clears them.
+Chat cleanup also runs at application startup and once per hour, including when Chat is disabled. Each daily backup runs cleanup before taking the Chat snapshot. Maintenance backups apply cleanup only to the snapshot. Messages, retained originals of removed messages, and queued content expire seven days after submission. Private notes expire seven days after the moderation action. Structured Chat moderation records and active bans remain until an authorized action clears them.
 
 Seven-day retention gives participants recent context and moderators short-term
 evidence. Longer-lived moderation records preserve accountability without
