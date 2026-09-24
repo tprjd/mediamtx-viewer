@@ -33,6 +33,12 @@ function update(
 }
 
 describe('sameChannelLiveState', () => {
+  it('detects Channel metadata changes even when playback status is unchanged', () => {
+    const original = update(1, '2026-08-31T10:00:00.000Z')
+    expect(sameChannelLiveState(original, { ...original, title: 'Changed' })).toBe(false)
+    expect(sameChannelLiveState(original, { ...original, ownerName: 'Changed' })).toBe(false)
+    expect(sameChannelLiveState(original, { ...original, discordNotificationsEnabled: false })).toBe(false)
+  })
   it('ignores checkedAt but detects viewer changes', () => {
     expect(
       sameChannelLiveState(
@@ -59,6 +65,34 @@ describe('ChannelStatusMonitor', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+  })
+
+  it('publishes a directory snapshot when Channels are added or removed', async () => {
+    const alice = update(1, '2026-08-31T10:00:00.000Z')
+    const bob = { ...alice, slug: 'bob' }
+    const loadUpdates = vi.fn().mockResolvedValueOnce([alice])
+      .mockResolvedValueOnce([alice, bob]).mockResolvedValueOnce([bob])
+    const monitor = new ChannelStatusMonitor({ loadUpdates })
+    const events: ChannelMonitorEvent[] = []
+    const stop = await monitor.subscribe((event) => events.push(event))
+    await monitor.refresh()
+    expect(events[1]).toMatchObject({ type: 'channel-status', data: bob })
+    expect(events[2]).toMatchObject({ type: 'directory', data: { channels: [alice, bob] } })
+    await monitor.refresh()
+    expect(events[3]).toMatchObject({ type: 'directory', data: { channels: [bob] } })
+    stop()
+  })
+
+  it('does not claim an empty directory when the first read fails', async () => {
+    const alice = update(1, '2026-08-31T10:00:00.000Z')
+    const loadUpdates = vi.fn().mockRejectedValueOnce(new Error('Unavailable')).mockResolvedValueOnce([alice])
+    const monitor = new ChannelStatusMonitor({ loadUpdates })
+    const events: ChannelMonitorEvent[] = []
+    const stop = await monitor.subscribe((event) => events.push(event))
+    expect(events).toEqual([])
+    await monitor.refresh()
+    expect(events).toEqual([expect.objectContaining({ type: 'snapshot', data: expect.objectContaining({ channels: [alice] }) })])
+    stop()
   })
 
   it('shares one polling loop and emits only meaningful changes', async () => {

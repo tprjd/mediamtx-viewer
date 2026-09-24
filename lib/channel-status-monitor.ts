@@ -14,7 +14,7 @@ const UNAVAILABLE_THRESHOLD = 2
 export type ChannelMonitorEvent =
   | {
       id: number
-      type: 'snapshot'
+      type: 'snapshot' | 'directory'
       data: ChannelStatusSnapshot
     }
   | {
@@ -58,6 +58,9 @@ export function sameChannelLiveState(
 ): boolean {
   return (
     first.slug === second.slug &&
+    first.title === second.title &&
+    first.ownerName === second.ownerName &&
+    first.discordNotificationsEnabled === second.discordNotificationsEnabled &&
     first.poster === second.poster &&
     first.status.state === second.status.state &&
     first.status.live === second.status.live &&
@@ -91,11 +94,13 @@ export class ChannelStatusMonitor {
   async subscribe(listener: ChannelMonitorListener): Promise<() => void> {
     if (!this.initialized || this.subscribers.size === 0) await this.refresh()
     this.subscribers.add(listener)
-    this.emitTo(listener, {
-      id: this.nextEventId(),
-      type: 'snapshot',
-      data: this.snapshot(),
-    })
+    if (this.initialized) {
+      this.emitTo(listener, {
+        id: this.nextEventId(),
+        type: 'snapshot',
+        data: this.snapshot(),
+      })
+    }
     this.schedule()
 
     return () => {
@@ -130,8 +135,12 @@ export class ChannelStatusMonitor {
         this.failures = 0
       }
 
+      const firstSnapshot = !this.initialized
       this.applyUpdates(updates)
       this.initialized = true
+      if (firstSnapshot && this.subscribers.size > 0) {
+        this.broadcast({ id: this.nextEventId(), type: 'snapshot', data: this.snapshot() })
+      }
     } catch (error) {
       this.failures += 1
       if (this.failures === 1) {
@@ -142,7 +151,6 @@ export class ChannelStatusMonitor {
       if (this.failures >= UNAVAILABLE_THRESHOLD && this.latest.size > 0) {
         this.applyUpdates([...this.latest.values()].map(withoutGeneratedPoster))
       }
-      this.initialized = true
     }
   }
 
@@ -165,6 +173,11 @@ export class ChannelStatusMonitor {
           data: update,
         })
       }
+    }
+    if (previous.size !== this.latest.size || updates.some((update) => !previous.has(update.slug))) {
+      // Directory changes must not reset consumers that use snapshots only at
+      // connection start, such as the Discord notification scheduler.
+      this.broadcast({ id: this.nextEventId(), type: 'directory', data: this.snapshot() })
     }
   }
 

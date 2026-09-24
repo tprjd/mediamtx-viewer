@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildHomeDashboardModel,
-  mergeChannelsWithLastStatus,
   newlyLiveChannelNames,
   sortChannelsForHome,
 } from '@/lib/home-dashboard'
@@ -132,18 +131,5 @@ describe('newlyLiveChannelNames', () => {
         [channel('one', 'live'), channel('two', 'live')],
       ),
     ).toEqual(['one title'])
-  })
-})
-
-describe('mergeChannelsWithLastStatus', () => {
-  it('retains known statuses while accepting channel additions and removals', () => {
-    const merged = mergeChannelsWithLastStatus(
-      [channel('removed', 'live'), channel('kept', 'live')],
-      [channel('kept', 'unavailable'), channel('added', 'unavailable')],
-    )
-
-    expect(merged.map(({ slug }) => slug)).toEqual(['kept', 'added'])
-    expect(merged[0]?.status.state).toBe('live')
-    expect(merged[1]?.status.state).toBe('unavailable')
   })
 })

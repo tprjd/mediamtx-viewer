@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   isChannelLiveUpdate,
   isChannelStatusSnapshot,
-  mergeChannelLiveUpdates,
+  isChannelsResponse,
 } from '@/lib/channel-events'
 import type { ChannelLiveUpdate, PublicChannel } from '@/lib/types'
 
@@ -62,18 +62,18 @@ describe('channel events', () => {
     ).toBe(false)
   })
 
-  it('updates only live presentation state and removes a cleared poster', () => {
-    const [merged] = mergeChannelLiveUpdates([channel], [liveUpdate])
-    expect(merged).toMatchObject({
-      title: 'Alice stream',
-      poster: '/new.jpg',
-      status: { state: 'live', viewerCount: 2 },
-    })
+  it('validates full polling responses before they can replace the directory', () => {
+    const response = { channels: [channel], updatedAt: channel.status.checkedAt }
+    expect(isChannelsResponse(response)).toBe(true)
+    expect(isChannelsResponse({ ...response, channels: [{}] })).toBe(false)
+    expect(isChannelsResponse({ ...response, updatedAt: 'invalid' })).toBe(false)
+    expect(isChannelsResponse({ ...response, channels: [{ ...channel, playback: null }] })).toBe(false)
+  })
 
-    const [withoutPoster] = mergeChannelLiveUpdates(
-      [merged!],
-      [{ ...liveUpdate, poster: null }],
-    )
-    expect(withoutPoster?.poster).toBeUndefined()
+  it('rejects inconsistent states and invalid timestamps for both transports', () => {
+    const status = { ...liveUpdate.status, live: false }
+    expect(isChannelLiveUpdate({ ...liveUpdate, status })).toBe(false)
+    expect(isChannelsResponse({ channels: [{ ...channel, status }], updatedAt: status.checkedAt })).toBe(false)
+    expect(isChannelLiveUpdate({ ...liveUpdate, status: { ...status, checkedAt: 'invalid' } })).toBe(false)
   })
 })

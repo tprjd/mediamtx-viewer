@@ -58,18 +58,3 @@ export function newlyLiveChannelNames(
     )
     .map((channel) => channel.title)
 }
-
-export function mergeChannelsWithLastStatus(
-  previous: readonly PublicChannel[],
-  incoming: readonly PublicChannel[],
-): PublicChannel[] {
-  const previousChannels = new Map(
-    previous.map((channel) => [channel.slug, channel]),
-  )
-  return incoming.map((channel) => {
-    const previousChannel = previousChannels.get(channel.slug)
-    return previousChannel && previousChannel.status.state !== 'unavailable'
-      ? { ...channel, status: previousChannel.status }
-      : channel
-  })
-}

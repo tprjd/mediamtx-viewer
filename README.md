@@ -214,9 +214,26 @@ generated-poster changes through one authenticated Server-Sent Events feed.
 While at least one page is subscribed, a shared monitor checks the private
 MediaMTX Control API every two seconds and emits only meaningful changes. Five
 open pages therefore still produce one status check rather than five. A
-20-second heartbeat detects stale connections, native browser reconnection is
-enabled, and the existing JSON directory becomes a 30-second fallback only
-while SSE is unhealthy.
+20-second heartbeat lets the browser detect a silent connection after 45 seconds.
+
+`lib/channel-refresh.ts` owns the browser subscription and JSON polling. Both
+transports use one merge rule. An unavailable status preserves the last known
+live or offline status and marks updates as delayed. A heartbeat cannot clear
+that data warning. A current live or offline observation clears it. Confirmed
+offline status still ends live playback. Older observations and responses from
+cancelled requests cannot overwrite newer data.
+
+If no valid event data arrives within five seconds, JSON polling starts at
+30-second intervals. Each request has a five-second deadline. Silent event
+connections are reopened. Polling waits while the page is hidden or offline,
+then resumes when the page returns. A valid snapshot or Channel update stops
+fallback polling; an open connection alone does not.
+
+The monitor emits `directory` events for Channel additions and removals. New
+Channels trigger a full directory read to obtain their playback configuration.
+Event updates to title, owner name, and poster do not replace playback URLs.
+The separate directory event leaves the Discord notifier's initial-snapshot
+behavior unchanged.
 
 Viewer counts represent active player tabs rather than unique accounts. Each
 watch page tags its HLS and WebRTC sessions with one random request-scoped ID,
