@@ -63,7 +63,7 @@ function caddyFileDigest(id) {
     return createHash('sha256').update(readFileSync(path)).digest('hex')
   } finally { rmSync(directory, { recursive: true, force: true }) }
 }
-function caddyConfiguration(caddy) {
+export function caddyConfiguration(caddy) {
   if (caddy.Args.includes('--resume') || !caddy.Args.includes('/etc/caddy/Caddyfile')) throw new Error('Unsupported Caddy startup configuration')
   const adapted = JSON.parse(docker('exec', caddy.Id, 'caddy', 'adapt', '--config', '/etc/caddy/Caddyfile', '--adapter', 'caddyfile'))
   const active = JSON.parse(docker('exec', caddy.Id, 'wget', '-qO-', 'http://127.0.0.1:2019/config/'))

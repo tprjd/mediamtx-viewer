@@ -2,6 +2,10 @@
 set -eu
 
 case "${1:-}" in
+  managed)
+    script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+    exec node "$script_dir/../../scripts/deploy-release.mjs" "$@"
+    ;;
   prepare|status)
     script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
     exec node "$script_dir/../../scripts/stage-release.mjs" "$@"

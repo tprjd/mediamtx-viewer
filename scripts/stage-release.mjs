@@ -60,16 +60,25 @@ async function main() {
   }
 }
 
-async function stageOrStatus({ action, target, record, tag, project, directory }) {
+export async function stageOrStatus({ action, target, record, tag, project, directory }) {
   const endpoint = target === 'local' ? process.env.DOCKER_HOST || JSON.parse(run('docker', ['context', 'inspect']))[0].Endpoints.docker.Host : `ssh://${target}`
   const docker = (...args) => run('docker', ['--host', endpoint, ...args])
   const inspect = id => JSON.parse(docker('inspect', id))[0]
   const volume = `${project}-deployment-staging`, lock = `${project}-stage-operation`
   const ids = docker('ps', '-aq', '--filter', `label=com.docker.compose.project=${project}`).split('\n').filter(Boolean)
   const containers = ids.map(inspect)
-  const viewer = containers.find(container => service(container) === 'viewer')
+  const viewer = containers.find(container => service(container) === 'viewer') ||
+    (action === 'status' && docker('ps', '-aq', '--filter', `name=^/${project}-deploy-operation$`) ? inspect(`${project}-deploy-operation`) : null)
   if (!viewer) throw new Error('Existing viewer is missing')
   if (action === 'status') {
+    const deployment = docker('ps', '-aq', '--filter', `name=^/${project}-deploy-operation$`)
+    try {
+      docker('volume', 'inspect', volume)
+      const saved = JSON.parse(docker('run', '--rm', '--user', '0', '--network', 'none', '--mount', `type=volume,source=${volume},target=/stage,readonly`, '--entrypoint', 'cat', viewer.Image, '/stage/deployment-status.json'))
+      return { ...saved, ...(deployment ? { operationHeld: true } : {}) }
+    } catch {
+      if (deployment) return { project, result: 'in-progress-or-interrupted', nextAction: 'Inspect the managed deployment owner before recovery.' }
+    }
     const readStatus = () => {
       // Never create a volume while reading status.
       docker('volume', 'inspect', volume)
@@ -261,7 +270,7 @@ async function stageOrStatus({ action, target, record, tag, project, directory }
     const finalRecord = await selectedRelease(tag)
     if (['format', 'tag', 'version', 'repository', 'commit', 'tagObject', 'sourceFingerprint'].some(key => finalRecord[key] !== record[key]) || ['viewer', 'thumbnailer'].some(name => finalRecord.images[name] !== record.images[name])) throw new Error('Release identity changed during preparation')
     state.result = 'ready'; state.preparedAt = new Date().toISOString(); state.phase = 'prepared'; state.stagingVolume = volume
-    state.nextAction = 'Prepared only. Activation is not implemented. Recheck storage and host state before maintenance.'
+    state.nextAction = 'Prepared only. Use the opt-in managed deployment command with a verified managed baseline to activate.'
     save()
     return state
   } catch (error) {
@@ -277,5 +286,7 @@ async function stageOrStatus({ action, target, record, tag, project, directory }
   }
 }
 function safeReason(error) { return error instanceof SyntaxError ? 'Malformed release or configuration data' : error.code ? 'File or host operation failed' : error.message }
-try { console.log(JSON.stringify(await main())) }
-catch (error) { console.error(JSON.stringify(error.report || { result: 'rejected', release: /^v\d+\.\d+\.\d+$/.test(process.argv[4] ?? '') ? process.argv[4] : undefined, reason: safeReason(error) })); process.exitCode = 1 }
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try { console.log(JSON.stringify(await main())) }
+  catch (error) { console.error(JSON.stringify(error.report || { result: 'rejected', release: /^v\d+\.\d+\.\d+$/.test(process.argv[4] ?? '') ? process.argv[4] : undefined, reason: safeReason(error) })); process.exitCode = 1 }
+}

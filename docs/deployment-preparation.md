@@ -2,7 +2,9 @@
 
 Preparation downloads and checks a release. It does not enter maintenance,
 activate a release, run migrations, or change the default deployment procedure.
-Use the existing deployment procedure until activation and recovery are available.
+Use the existing deployment procedure for unmanaged installations. The
+[managed deployment command](managed-deployment.md) is opt-in and requires a
+verified managed baseline.
 
 ## Prepare the workstation
 
@@ -60,7 +62,8 @@ sh deploy/oracle/deploy.sh status ubuntu@your-host
 A host-side container name locks preparation for the selected Compose project.
 A lost workstation connection leaves that lock in place. Status reports
 `in-progress-or-interrupted` while the lock exists. Do not delete a lock while
-its owner can still run. Automatic recovery and activation are separate work.
+its owner can still run. Managed deployment status takes precedence when a deployment record exists.
+Interrupted-operation recovery is separate work.
 
 Use `--project NAME` with both commands for an installation with a different
 Compose project name. Use `--directory PATH` to choose private workstation

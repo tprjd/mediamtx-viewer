@@ -1,0 +1,322 @@
+import { execFileSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { setTimeout as delay } from 'node:timers/promises'
+import { stageOrStatus } from './stage-release.mjs'
+import { selectedRelease } from './stage-release-source.mjs'
+import { maintenanceBackup, caddyConfiguration } from './maintenance-backup.mjs'
+import { verifyProxy } from './deployment-proxy.mjs'
+import { runtimeIdentity } from './deployment-state.mjs'
+
+const scripts = dirname(fileURLToPath(import.meta.url))
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical)
+  if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])]))
+  return value
+}
+function recoveryIdentity(runtime, privatePorts = false) {
+  const value = structuredClone(runtime)
+  delete value.config.Hostname
+  // Compose adds per-instance labels when it recreates a container. Keep project
+  // and service ownership; compare the actual image, environment, and mounts below.
+  for (const key of Object.keys(value.config.Labels)) {
+    if (key.startsWith('com.docker.compose.') && !['com.docker.compose.project', 'com.docker.compose.service'].includes(key)) delete value.config.Labels[key]
+  }
+  if (privatePorts) {
+    delete value.config.ExposedPorts
+    delete value.host.PortBindings
+  }
+  value.config.Env?.sort()
+  value.host.Binds?.sort()
+  value.host.Mounts?.sort((a, b) => a.Target.localeCompare(b.Target))
+  return value
+}
+const same = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b))
+function docker(...args) {
+  try { return execFileSync('docker', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 120000, maxBuffer: 32 * 1024 ** 2 }).trim() }
+  catch { throw new Error('Docker deployment operation failed') }
+}
+const service = c => c.Config.Labels?.['com.docker.compose.service']
+const env = (c, name) => c.Config.Env?.find(value => value.startsWith(`${name}=`))?.slice(name.length + 1)
+function containers(project) {
+  const ids = docker('ps', '-aq', '--filter', `label=com.docker.compose.project=${project}`).split('\n').filter(Boolean)
+  return ids.length ? JSON.parse(docker('inspect', ...ids)).filter(c => !c.Config.Labels['org.frankerzspam.maintenance']) : []
+}
+
+async function deploy({ target, tag, project, directory, url }) {
+  if (target !== 'local') process.env.DOCKER_HOST = `ssh://${target}`
+  const volume = `${project}-deployment-staging`, tool = `${project}-deploy-operation`
+  try { docker('volume', 'inspect', volume) } catch { throw new Error('A verified managed baseline is required. Complete managed adoption before deployment.') }
+  const initial = containers(project), viewer = initial.find(c => service(c) === 'viewer')
+  if (!viewer) throw new Error('Managed viewer is missing')
+  const info = JSON.parse(docker('info', '--format', '{{json .}}'))
+  const attempt = randomUUID(), work = mkdtempSync(join(tmpdir(), 'deploy-release-'))
+  const state = { attempt, project, release: tag, phase: 'baseline', result: 'in-progress' }
+  let owned = false, backupReceipt, previous, migrationBaseline, activeModel, staged, retained = false, ownershipRecorded = false
+  const host = (action, value) => JSON.parse(docker('exec', tool, 'node', '/app/deployment-state.mjs', action, JSON.stringify(value)))
+  const save = (path, value) => {
+    const file = join(work, 'state.json')
+    writeFileSync(file, JSON.stringify({ path, value }), { mode: 0o600 })
+    docker('cp', file, `${tool}:/app/deployment-input.json`)
+    return JSON.parse(docker('exec', tool, 'node', '/app/deployment-state.mjs', 'save', '@/app/deployment-input.json'))
+  }
+  const read = path => host('read', { path })
+  const phase = value => { state.phase = value; save(`/stage/deployments/${attempt}.json`, state); save('/stage/deployment-status.json', state) }
+  const compose = (model, ...args) => {
+    const file = join(work, 'compose.json')
+    writeFileSync(file, JSON.stringify(model), { mode: 0o600 })
+    return docker('compose', '--project-name', project, '-f', file, ...args)
+  }
+  const maintenance = (action, value) => JSON.parse(docker('exec', `maintenance-tool-${backupReceipt.attempt}`, 'node', '/app/scripts/maintenance-host.mjs', action, ...(value ? [JSON.stringify(value)] : [])))
+  const databaseState = (requireDrained = false) => JSON.parse(docker('exec', tool, 'node', '/app/deployment-databases.mjs', JSON.stringify({
+    requireDrained, paths: { auth: env(viewer, 'AUTH_DB_PATH'), chat: env(viewer, 'CHAT_DB_PATH') }, previous: previous.source, candidate: `/stage/${staged.attempt}/source`,
+  })))
+  const checkHistory = (requireDrained = false) => { if (!same(databaseState(requireDrained), migrationBaseline)) throw new Error('Database migration history changed or is uncertain') }
+  const stop = (preserve = []) => {
+    let failed = false
+    for (const c of containers(project)) {
+      // SIGKILL stops paused writers without a window for more accepted writes.
+      try {
+        if (preserve.includes(service(c))) { if (c.State.Paused) docker('unpause', c.Id) }
+        else if (c.State.Running) docker('kill', c.Id)
+      } catch { failed = true }
+    }
+    if (failed) throw new Error('Required services could not be stopped')
+  }
+  function verifyRestoredRuntime(expected, privatePorts = false) {
+    const restored = Object.fromEntries(containers(project).map(c => [service(c), runtimeIdentity(c)]))
+    if (!same(Object.keys(restored).sort(), Object.keys(expected).sort())) throw new Error('Previous service set was not restored')
+    for (const [name, value] of Object.entries(restored)) {
+      const actual = recoveryIdentity(value, privatePorts), baseline = recoveryIdentity(expected[name], privatePorts)
+      if (!same(actual, baseline)) {
+        const fields = ['config', 'host'].flatMap(group => Object.keys(actual[group]).filter(key => !same(actual[group][key], baseline[group][key])).map(key => `${group}.${key}`))
+        if (!same(actual.mounts, baseline.mounts)) fields.push('mounts')
+        if (actual.image !== baseline.image) fields.push('image')
+        throw new Error(`Previous runtime differs for ${name}: ${fields.join(', ')}`)
+      }
+    }
+    return restored
+  }
+  async function accept(model, version, chatEnabled, expectedRuntime) {
+    const privateModel = structuredClone(model)
+    for (const config of Object.values(privateModel.services)) if (config.ports) config.ports = []
+    const identities = Object.fromEntries(Object.entries(model.services).map(([name, config]) => [name, JSON.parse(docker('image', 'inspect', config.image))[0].Id]))
+    const wanted = Object.keys(model.services).filter(name => name !== 'caddy' && (chatEnabled || name !== 'centrifugo'))
+    compose(privateModel, 'up', '-d', '--no-build', '--pull', 'never', '--no-deps', ...wanted)
+    if (!chatEnabled) compose(privateModel, 'create', '--no-build', '--pull', 'never', 'centrifugo')
+    let healthy = false
+    for (let n = 0; n < 30; n++) {
+      try {
+        const current = containers(project)
+        for (const name of wanted) {
+          const c = current.find(c => service(c) === name)
+          const image = identities[name]
+          if (!c?.State.Running || c.State.Paused || c.State.Restarting || c.Image !== image || c.State.Health && c.State.Health.Status !== 'healthy') throw new Error('Required service is unhealthy')
+        }
+        const live = current.find(c => service(c) === 'viewer')
+        if (env(live, 'CHAT_ENABLED') !== String(chatEnabled)) throw new Error('Chat flag changed')
+        if (!chatEnabled && current.find(c => service(c) === 'centrifugo')?.State.Running) throw new Error('Disabled broker started')
+        const health = JSON.parse(docker('exec', live.Id, 'node', '-e',
+          "fetch('http://127.0.0.1:3000/api/health',{signal:AbortSignal.timeout(2000)}).then(async r=>{if(!r.ok)process.exit(1);console.log(JSON.stringify(await r.json()))}).catch(()=>process.exit(1))"))
+        if (health.status !== 'ok' || health.version !== version || health.chat?.status !== (chatEnabled ? 'healthy' : 'disabled')) throw new Error('Application acceptance failed')
+        checkHistory(chatEnabled)
+        healthy = true
+        break
+      } catch { await delay(1000) }
+    }
+    if (!healthy) throw new Error('Application or required service acceptance failed')
+    // Validate the actual proxy with its public ports closed until acceptance.
+    compose(privateModel, 'up', '-d', '--no-build', '--pull', 'never', '--no-deps', 'caddy')
+    const proxy = containers(project).find(c => service(c) === 'caddy')
+    caddyConfiguration(proxy)
+    const live = containers(project).find(c => service(c) === 'viewer')
+    docker('exec', live.Id, 'node', '--input-type=module', '-e', readFileSync(join(scripts, 'deployment-proxy.mjs'), 'utf8') + '\nawait verifyPrivateProxy(process.argv[1]).catch(()=>process.exit(1))', model.services.caddy.environment.PUBLIC_HOSTNAME)
+    for (const current of containers(project)) {
+      if (current.Image !== identities[service(current)]) throw new Error('Required service image differs')
+    }
+    checkHistory(chatEnabled)
+    if (ownershipRecorded) host('check-ownership', { path: `/stage/deployments/${attempt}-ownership.json` })
+    if (expectedRuntime) verifyRestoredRuntime(expectedRuntime, true)
+    // All application, database, service, and proxy checks precede public access.
+    phase('accepted')
+    const exposed = wanted.filter(name => model.services[name].ports?.length)
+    if (exposed.length) compose(model, 'up', '-d', '--no-build', '--pull', 'never', '--no-deps', '--wait', '--wait-timeout', '30', ...exposed)
+    if (exposed.includes('mediamtx')) {
+      phase('public-service-health')
+      const startedAt = Date.parse(containers(project).find(c => service(c) === 'mediamtx').State.StartedAt)
+      let fresh = false
+      for (let n = 0; n < 60; n++) {
+        const health = containers(project).find(c => service(c) === 'mediamtx-health')?.State.Health
+        if (health?.Status === 'healthy' && health.Log?.some(check => check.ExitCode === 0 && Date.parse(check.Start) >= startedAt)) { fresh = true; break }
+        await delay(500)
+      }
+      if (!fresh) throw new Error('Required MediaMTX checks did not pass after public port activation')
+    }
+    compose(privateModel, 'stop', '-t', '2', 'caddy')
+    phase('opening-proxy')
+    docker('stop', '-t', '2', `maintenance-proxy-${backupReceipt.attempt}`)
+    compose(model, 'up', '-d', '--no-build', '--pull', 'never', '--no-deps', 'caddy')
+    const opened = containers(project).find(c => service(c) === 'caddy')
+    if (!opened?.State.Running || opened.Image !== proxy.Image) throw new Error('Public proxy failed to start')
+    caddyConfiguration(opened)
+    const publicUrl = url || `https://${env(initial.find(c => service(c) === 'caddy'), 'PUBLIC_HOSTNAME')}/`
+    let publicHealthy = false
+    for (let n = 0; n < 20; n++) {
+      try {
+        await verifyProxy(async (path, headers) => {
+          const response = await fetch(new URL(path, publicUrl), { headers, redirect: 'manual', signal: AbortSignal.timeout(2000) })
+          return { status: response.status, headers: Object.fromEntries(response.headers), body: await response.text() }
+        })
+        for (const c of containers(project)) {
+          const running = chatEnabled || service(c) !== 'centrifugo'
+          if (c.Image !== identities[service(c)] || c.State.Running !== running || c.State.Paused || c.State.Restarting ||
+              running && c.State.Health && c.State.Health.Status !== 'healthy') throw new Error('Required public service failed')
+        }
+        publicHealthy = true
+        break
+      } catch { await delay(300) }
+    }
+    if (!publicHealthy) throw new Error('Public proxy or service verification failed')
+
+  }
+  try {
+    // The atomic Docker name is an exclusive host-side owner, including during preparation.
+    docker('create', '--name', tool, '--label', `org.frankerzspam.deployment=${project}`, '--network', 'none', '--user', '0',
+      '--volumes-from', `${viewer.Id}:ro`, '-v', `${volume}:/stage`, '--mount', `type=bind,source=${info.DockerRootDir},target=/docker-storage,readonly`, '--entrypoint', 'node', viewer.Image, '-e', 'setInterval(()=>{},1000)')
+    owned = true
+    for (const file of ['deployment-state.mjs', 'deployment-databases.mjs', 'stage-host.mjs']) docker('cp', join(scripts, file), `${tool}:/app/${file}`)
+    docker('start', tool)
+    phase('baseline')
+    previous = read('/stage/current.json')
+    if (previous.format !== 1 || previous.result !== 'active' || !previous.source?.startsWith('/stage/') || previous.source.includes('..') ||
+        previous.tree !== host('tree', { path: previous.source }).digest || !same(previous.model, read(`${previous.source}/resolved-compose.json`))) throw new Error('Verified managed baseline is missing or changed')
+    if (initial.length !== Object.keys(previous.runtime).length || initial.some(c => !same(runtimeIdentity(c), previous.runtime[service(c)]))) throw new Error('Managed runtime differs from its verified baseline')
+    if (!same(previous.model.services.viewer.entrypoint, ['node']) || !same(previous.model.services.viewer.command, ['server.js'])) throw new Error('Managed baseline must suppress startup migrations')
+    if (Object.values(previous.model.services).some(config => config.restart !== 'no')) throw new Error('Managed baseline must disable restart retries')
+    const chat = env(viewer, 'CHAT_ENABLED')
+    if (!['true', 'false'].includes(chat) || previous.chatEnabled !== (chat === 'true')) throw new Error('Managed Chat state is uncertain')
+    state.chatEnabled = previous.chatEnabled
+    phase('staging')
+    const record = await selectedRelease(tag)
+    staged = await stageOrStatus({ action: 'prepare', target, tag, record, project, directory })
+    state.stagedAttempt = staged.attempt
+    activeModel = read(`/stage/${staged.attempt}/source/resolved-compose.json`)
+    activeModel.services.viewer.entrypoint = ['node']
+    activeModel.services.viewer.command = ['server.js']
+    for (const config of Object.values(activeModel.services)) config.restart = 'no'
+    if (activeModel.services.viewer.environment.CHAT_ENABLED !== String(previous.chatEnabled)) throw new Error('Candidate Chat flag changed')
+    for (const [name, config] of Object.entries(activeModel.services)) {
+      if (!same(config.ports, previous.model.services[name].ports)) throw new Error('Candidate public service ports changed')
+    }
+    if (activeModel.services.caddy.environment.AUTH_BACKUP_KEY !== env(initial.find(c => service(c) === 'caddy'), 'AUTH_BACKUP_KEY')) throw new Error('Credential rotation requires a separate operation')
+    // External credential rotation is not a recoverable deployment operation.
+    for (const key of ['BETTER_AUTH_SECRET', 'INTERNAL_AUTH_SECRET', 'MEDIAMTX_AUTH_SECRET', 'CENTRIFUGO_API_KEY', 'CENTRIFUGO_TOKEN_HMAC_SECRET', 'CHAT_TAG_HMAC_SECRET']) {
+      if (String(activeModel.services.viewer.environment[key]) !== env(viewer, key)) throw new Error('Credential rotation requires a separate operation')
+    }
+    const unchanged = []
+    for (const [name, config] of Object.entries(activeModel.services)) {
+      const old = previous.model.services[name]
+      if (JSON.parse(docker('image', 'inspect', config.image))[0].Id === JSON.parse(docker('image', 'inspect', old.image))[0].Id) config.image = old.image
+      if (!config.ports?.length && !['viewer', 'caddy', 'centrifugo', 'discord-notifier'].includes(name) && same(config, old)) unchanged.push(name)
+    }
+    save(`/stage/${staged.attempt}/source/resolved-compose.json`, activeModel)
+    phase('migration-preflight')
+    migrationBaseline = databaseState()
+    if (!same(migrationBaseline, previous.migrations)) throw new Error('Database migration history differs from the managed baseline')
+    state.migrations = migrationBaseline
+    // Keep the resolved model, secrets, scripts, images, and volume identities in private host storage.
+    save(`/stage/deployments/${attempt}-previous.json`, previous)
+    phase('maintenance-backup')
+    backupReceipt = await maintenanceBackup({ project, directory: join(directory, 'backups'), url, hold: true })
+    state.backup = backupReceipt
+    phase('stopping-writers')
+    stop(unchanged)
+    checkHistory()
+    // The backup receipt is produced only after encrypted workstation verification and acknowledgement.
+    if (maintenance('state').phase !== 'held' || !backupReceipt.backupId || !backupReceipt.workstationManifest) throw new Error('Workstation acknowledgement is missing')
+    phase('activation-preflight')
+    const budget = { databases: { auth: env(viewer, 'AUTH_DB_PATH'), chat: env(viewer, 'CHAT_DB_PATH') },
+      stageBytes: 64 * 1024 ** 2, files: 1000, imageBytes: 0,
+      minimumFreeBytes: Number(activeModel.services.viewer.environment.CHAT_MINIMUM_FREE_BYTES),
+      databaseLimitBytes: Number(activeModel.services.viewer.environment.CHAT_DATABASE_LIMIT_BYTES) }
+    const measured = JSON.parse(docker('exec', '-w', '/app', tool, 'node', '--input-type=module', '-e', readFileSync(join(scripts, 'stage-databases.mjs'), 'utf8'), JSON.stringify(budget)))
+    docker('exec', tool, 'node', '/app/stage-host.mjs', 'check', JSON.stringify({ ...budget, ...measured }))
+    phase('volume-ownership')
+    const volumePaths = [...new Set(initial.flatMap(c => c.Mounts).filter(m => m.Type === 'volume').map(m => {
+      if (!m.Source.startsWith(`${info.DockerRootDir}/`)) throw new Error('Managed volume location is unsupported')
+      return '/docker-storage' + m.Source.slice(info.DockerRootDir.length)
+    }))]
+    host('ownership', { paths: volumePaths, destination: `/stage/deployments/${attempt}-ownership.json` })
+    ownershipRecorded = true
+    phase('activation')
+    await accept(activeModel, record.version, previous.chatEnabled)
+    state.result = 'active'; state.version = record.version
+    const current = { format: 1, result: 'active', version: record.version, source: `/stage/${staged.attempt}/source`, model: activeModel,
+      tree: host('tree', { path: `/stage/${staged.attempt}/source` }).digest, migrations: migrationBaseline, chatEnabled: previous.chatEnabled,
+      runtime: Object.fromEntries(containers(project).map(c => [service(c), runtimeIdentity(c)])) }
+    save('/stage/current.json', current)
+    maintenance('finish')
+    phase('complete')
+    return state
+  } catch (error) {
+    state.failedPhase = state.phase
+    state.reason = /^(Verified managed|Managed |Candidate |Credential |Database |Application |Required |Public |Docker )/.test(error.message) ? error.message : 'Deployment check failed'
+    state.result = 'rejected'
+    state.nextAction = 'Repair the failed preflight and run a new deployment.'
+    if (backupReceipt) {
+      retained = true
+      state.result = 'maintenance-required'
+      state.nextAction = 'Keep maintenance active. Inspect the private attempt record and both database histories. Use explicit recovery; do not restore databases automatically.'
+      try {
+        phase('checking-rollback')
+        stop()
+        docker('start', `maintenance-proxy-${backupReceipt.attempt}`)
+        checkHistory()
+        if (ownershipRecorded) host('check-ownership', { path: `/stage/deployments/${attempt}-ownership.json` })
+        if (previous.tree !== host('tree', { path: previous.source }).digest) throw new Error('Previous files changed')
+        phase('rollback')
+        await accept(previous.model, previous.version, previous.chatEnabled, previous.runtime)
+        previous.runtime = verifyRestoredRuntime(previous.runtime)
+        save('/stage/current.json', previous)
+        maintenance('finish')
+        state.result = 'failed-rolled-back'
+        state.nextAction = 'Previous release restored. Repair the selected release before another deployment.'
+        retained = false
+      } catch (recoveryError) {
+        state.recoveryFailedPhase = state.phase
+        state.recoveryReason = /^(Previous |Public |Required |Database |Docker )/.test(recoveryError.message) ? recoveryError.message : 'Recovery check failed'
+        try { stop(); docker('start', `maintenance-proxy-${backupReceipt.attempt}`) } catch { /* Retain all recovery evidence and the owner. */ }
+      }
+    } else {
+      // The backup command owns failures before it returns a verified receipt.
+      try {
+        const report = JSON.parse(error.message)
+        if (report.result === 'maintenance-retained') { retained = true; state.result = 'maintenance-required'; state.nextAction = report.nextAction }
+      } catch { /* Controlled preflight failure. */ }
+    }
+    if (owned) { try { phase(state.result) } catch { retained = true } }
+    throw Object.assign(new Error('Deployment failed'), { report: state })
+  } finally {
+    rmSync(work, { recursive: true, force: true })
+    if (owned && !retained) {
+      if (backupReceipt) for (const id of [`maintenance-tool-${backupReceipt.attempt}`, `maintenance-proxy-${backupReceipt.attempt}`]) { try { docker('rm', '-f', id) } catch {} }
+      try { docker('rm', '-f', tool) } catch { /* A remaining owner requires inspection. */ }
+    }
+  }
+}
+async function main() {
+  const [action, target, tag, ...args] = process.argv.slice(2)
+  const options = { target, tag, project: 'mediamtx-viewer', directory: join(homedir(), '.local/share/mediamtx-deployments') }
+  while (args.length) {
+    const key = args.shift(), value = args.shift()
+    if (!['--project', '--directory', '--url'].includes(key) || !value) throw new Error('Invalid deployment option')
+    options[key.slice(2)] = key === '--directory' ? resolve(value) : value
+  }
+  if (action !== 'managed' || !/^[a-zA-Z0-9_@.:-]+$/.test(target ?? '') || target.startsWith('-') || !/^v\d+\.\d+\.\d+$/.test(tag ?? '') || !/^[a-z0-9][a-z0-9_-]*$/.test(options.project)) throw new Error('Usage: deploy.sh managed TARGET TAG [--project NAME] [--directory PATH] [--url URL]')
+  return deploy(options)
+}
+try { console.log(JSON.stringify(await main())) }
+catch (error) { console.error(JSON.stringify(error.report ?? { result: 'rejected', phase: 'preflight', nextAction: error.message })); process.exitCode = 1 }
