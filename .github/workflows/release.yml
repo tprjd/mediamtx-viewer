@@ -3,6 +3,7 @@ name: Verified ARM64 release
 on:
   push:
     tags: ['v*']
+    branches: ['feat/verified-arm64-releases']
   workflow_dispatch:
     inputs:
       mode:
@@ -78,8 +79,8 @@ jobs:
       contents: write
       packages: write
     env:
-      RELEASE_MODE: ${{ github.event_name == 'push' && 'publish' || inputs.mode }}
-      RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+      RELEASE_MODE: ${{ github.ref_type == 'tag' && github.event_name == 'push' && 'publish' || inputs.mode || 'validation' }}
+      RELEASE_TAG: ${{ github.ref_type == 'tag' && github.event_name == 'push' && github.ref_name || inputs.tag }}
     steps:
       - name: Check out selected source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
