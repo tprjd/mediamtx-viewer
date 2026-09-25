@@ -88,9 +88,9 @@ export async function stageOrStatus({ action, target, record, tag, project, dire
           ? docker('exec', deployment, 'sh', '-c', 'flock -n /stage/operation.lock -c "echo abandoned" || echo active')
           : 'abandoned'
       }
-      const resolved = ['active', 'recovered', 'failed-rolled-back', 'rejected'].includes(saved.result) && saved.phase === 'complete'
+      const resolved = ['active', 'recovered', 'failed-rolled-back', 'failed-disabled', 'rejected'].includes(saved.result) && saved.phase === 'complete'
       if (!resolved && owner === 'none') owner = 'abandoned'
-      const result = !resolved && owner === 'abandoned' && !['maintenance-required', 'rejected'].includes(saved.result) ? 'interrupted' : saved.result
+      const result = !resolved && owner === 'abandoned' && !['maintenance-required', 'chat-recovery-required', 'rejected'].includes(saved.result) ? 'interrupted' : saved.result
       let observedMigrations = { auth: null, chat: null }
       try {
         observedMigrations = JSON.parse(docker('run', '--rm', '--network', 'none', '--volumes-from', viewer.Id,

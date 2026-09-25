@@ -80,8 +80,11 @@ Compose can also recreate a service when its image or definition changes.
 The script waits for health checks after the restart. It does not delete unrelated
 remote files, the auth volume, or DNS.
 
-Deployment disables Chat and stops Centrifugo. Follow the
-[Chat rollout procedure](../../docs/chat-rollout.md) before enabling Chat again.
+The legacy VM-build deployment disables Chat and stops Centrifugo. Managed
+deployment preserves the effective Chat state in its deployment record. On a
+managed installation, use the [Chat commands](../../docs/chat-rollout.md) to enable,
+disable, or inspect Chat without capacity reports. A verified managed baseline is
+required; adoption remains a separate installation step.
 Schedule deployment as maintenance. Viewer recreation can interrupt
 authorization and playback even when MediaMTX stays running.
 

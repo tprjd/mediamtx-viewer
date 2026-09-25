@@ -1,6 +1,6 @@
 // Runs in the private host tool container. Never starts the application.
 import { createHash } from 'node:crypto'
-import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -36,6 +36,24 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     if (action === 'exists') result = { exists: existsSync(input.path) }
     else if (action === 'read') result = JSON.parse(readFileSync(input.path, 'utf8'))
     else if (action === 'save') save(input.path, input.value)
+    else if (action === 'chat-lock') {
+      const { acquireBackupOperation } = await import('./backup-operation.mjs')
+      const lock = join(input.directory, '.backup-lock')
+      if (input.resume && existsSync(lock)) {
+        if (existsSync(join(dirname(input.authPath), '.maintenance-backup.json')) ||
+            JSON.parse(readFileSync(join(lock, 'chat-owner.json'), 'utf8')).attempt !== input.attempt) throw new Error('Chat lock owner differs')
+      } else {
+        const release = acquireBackupOperation(input.directory, input.authPath)
+        try { save(join(lock, 'chat-owner.json'), { attempt: input.attempt }) }
+        catch (error) { release(); throw error }
+      }
+    } else if (action === 'chat-unlock') {
+      const lock = join(input.directory, '.backup-lock')
+      if (existsSync(lock)) {
+        if (JSON.parse(readFileSync(join(lock, 'chat-owner.json'), 'utf8')).attempt !== input.attempt) throw new Error('Chat lock owner differs')
+        rmSync(lock, { recursive: true })
+      }
+    }
     else if (action === 'ownership') {
       const entries = {}
       function visit(path) {

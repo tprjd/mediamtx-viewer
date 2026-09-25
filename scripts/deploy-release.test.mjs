@@ -250,6 +250,8 @@ it('does not steal an active deployment or let a scheduled backup remove its fil
       expect((await command('recover', {}, ['--release', 'previous', '--restore', 'none'])).status).not.toBe(0)
       expect((await command('managed')).status).not.toBe(0)
       expect((await command('prepare')).status).not.toBe(0)
+      expect((await command('chat-enable')).status).not.toBe(0)
+      expect((await command('chat-disable')).status).not.toBe(0)
       expect(() => docker('exec', `maintenance-tool-${report.backup.attempt}`, 'node', '/app/scripts/backup-auth.mjs')).toThrow()
       expect(JSON.parse((await command('status')).stdout)).toMatchObject({ attempt: report.attempt, owner: 'active' })
       expect((await fetch(url)).status).toBe(503)

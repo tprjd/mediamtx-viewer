@@ -18,9 +18,9 @@ export async function prepareManagedSource({ source, directory, image, project, 
   writeFileSync(join(directory, 'port'), String(port))
   writeFileSync(join(source, 'deploy/oracle/Caddyfile'), proxyConfiguration('candidate'))
   const env = Object.fromEntries(['BETTER_AUTH_SECRET', 'INTERNAL_AUTH_SECRET', 'MEDIAMTX_AUTH_SECRET', 'CENTRIFUGO_API_KEY', 'CENTRIFUGO_TOKEN_HMAC_SECRET', 'CHAT_TAG_HMAC_SECRET'].map(key => [key, 'fixture-private-secret']))
-  const idle = { image, command: ['node', '-e', 'setInterval(()=>{},1000)'] }
+  const idle = { image, stop_grace_period: '1s', command: ['node', '-e', 'setInterval(()=>{},1000)'] }
   const model = { name: project, services: {
-    viewer: { image, entrypoint: ['node'], command: ['scripts/fixtures/maintenance/server.mjs'], environment: { ...env,
+    viewer: { image, stop_grace_period: '1s', entrypoint: ['node'], command: ['scripts/fixtures/maintenance/server.mjs'], environment: { ...env,
       AUTH_DB_PATH: '/data/auth.sqlite', CHAT_DB_PATH: '/data/chat.sqlite', AUTH_BACKUP_DIR: '/data/backups', CHAT_ENABLED: '${CHAT_ENABLED}',
       CHAT_DATABASE_LIMIT_BYTES: '2147483648', CHAT_MINIMUM_FREE_BYTES: '10737418240', FIXTURE_VERSION: '1.2.3' },
       volumes: ['auth_data:/data', 'thumbnail_data:/thumbnails'] },
@@ -29,7 +29,7 @@ export async function prepareManagedSource({ source, directory, image, project, 
     mediamtx: { image: 'bluenviron/mediamtx:1.20.1', volumes: ['./secrets/mediamtx.yml:/mediamtx.yml:ro'], environment: { MTX_UDPREADBUFFERSIZE: '0' } },
     'mediamtx-health': idle,
     thumbnailer: { ...idle, volumes: ['thumbnail_data:/thumbnails'] },
-    centrifugo: idle,
+    centrifugo: { ...idle, healthcheck: { test: ['CMD', 'node', '-e', 'process.exit(0)'], interval: '1s', timeout: '1s', retries: 2 } },
     'discord-notifier': { ...idle, volumes: ['discord_notifier_state:/state', '../../scripts/discord-notifier.mjs:/app/discord-notifier.mjs:ro'] },
   }, volumes: Object.fromEntries(['auth_data', 'thumbnail_data', 'caddy_data', 'caddy_config', 'discord_notifier_state'].map(name => [name, {}])) }
   if (mediaPorts) {
@@ -92,6 +92,7 @@ export async function startManagedBaseline({ source, directory, image, project, 
     return [value.Config.Labels['com.docker.compose.service'], runtimeIdentity(value)]
   }))
   docker('cp', 'scripts/deployment-state.mjs', `${tool}:/app/deployment-state.mjs`)
+  docker('cp', 'scripts/backup-operation.mjs', `${tool}:/app/backup-operation.mjs`)
   const tree = JSON.parse(docker('exec', tool, 'node', '/app/deployment-state.mjs', 'tree', JSON.stringify({ path: '/stage/baseline/source' }))).digest
   const migrations = JSON.parse(docker('exec', `${project}-viewer-1`, 'node', '-e', `const D=require('better-sqlite3'); console.log(JSON.stringify(Object.fromEntries(['auth','chat'].map(n=>{const d=new D('/data/'+n+'.sqlite',{readonly:true});const rows=d.prepare('SELECT name, applied_at FROM app_migration ORDER BY name').all();d.close();return [n,rows]}))))`))
   docker('exec', tool, 'node', '/app/deployment-state.mjs', 'save', JSON.stringify({ path: '/stage/current.json', value: {

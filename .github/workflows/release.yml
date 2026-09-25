@@ -31,7 +31,8 @@ jobs:
   verification:
     # Playwright's Linux ARM64 Chromium cannot decode the H.264 test media.
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # Full Docker activation and recovery checks exceed the former 30-minute limit.
+    timeout-minutes: 90
     outputs:
       evidence-id: ${{ steps.evidence.outputs.artifact-id }}
     steps:

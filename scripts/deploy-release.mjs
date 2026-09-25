@@ -10,6 +10,8 @@ import { selectedRelease } from './stage-release-source.mjs'
 import { maintenanceBackup, caddyConfiguration, acknowledgeBackup } from './maintenance-backup.mjs'
 import { verifyProxy } from './deployment-proxy.mjs'
 import { runtimeIdentity } from './deployment-state.mjs'
+import { applicationHealth, applicationAccepted, changeChat, chatHealth, chatModel } from './deployment-chat.mjs'
+import { cancelChatTrial } from './cancel-chat-trial.mjs'
 
 import { assertDeploymentOwner, setDeploymentOwner, ownerProgram, deploymentStdio } from './deployment-connection.mjs'
 
@@ -22,6 +24,8 @@ function canonical(value) {
 function recoveryIdentity(runtime, privatePorts = false) {
   const value = structuredClone(runtime)
   delete value.config.Hostname
+  // Docker changes this nullable default when a created broker first starts.
+  value.host.OomKillDisable ??= false
   // Compose adds per-instance labels when it recreates a container. Keep project
   // and service ownership; compare the actual image, environment, and mounts below.
   for (const key of Object.keys(value.config.Labels)) {
@@ -49,18 +53,24 @@ function containers(project) {
   return ids.length ? JSON.parse(docker('inspect', ...ids)).filter(c => !c.Config.Labels['org.frankerzspam.maintenance']) : []
 }
 
-async function deploy({ target, tag, project, directory, url, recovery, restore, confirm }) {
+async function deploy({ target, tag, project, directory, url, recovery, restore, confirm, chatAction }) {
   if (target !== 'local') process.env.DOCKER_HOST = `ssh://${target}`
   const volume = `${project}-deployment-staging`, tool = `${project}-deploy-operation`
   try { docker('volume', 'inspect', volume) } catch { throw new Error('A verified managed baseline is required. Complete managed adoption before deployment.') }
   const initial = containers(project), viewer = initial.find(c => service(c) === 'viewer')
   if (!viewer) throw new Error('Managed viewer is missing')
+  if (chatAction === 'health') {
+    const current = JSON.parse(docker('run', '--rm', '--user', '0', '--network', 'none', '-v', `${volume}:/stage:ro`, '--entrypoint', 'cat', viewer.Image, '/stage/current.json'))
+    const report = chatHealth(docker, initial, current)
+    if (!report.accepted) process.exitCode = 1
+    return report
+  }
   const info = JSON.parse(docker('info', '--format', '{{json .}}'))
   let attempt = randomUUID()
   const work = mkdtempSync(join(tmpdir(), 'deploy-release-'))
-  let state = { attempt, project, release: tag, phase: 'baseline', result: 'in-progress' }
+  let state = { attempt, project, release: tag, phase: 'baseline', result: 'in-progress', capacity: 'unverified' }
   let connection, connectionFd, preserveState = false
-  let owned = false, backupReceipt, previous, migrationBaseline, activeModel, staged, retained = false, ownershipRecorded = false, acceptanceHistory, migrationProcess
+  let owned = false, chatLocked = false, backupReceipt, previous, migrationBaseline, activeModel, staged, retained = false, ownershipRecorded = false, acceptanceHistory, migrationProcess
   const createTool = () => {
     docker('create', '--name', tool, '--label', `org.frankerzspam.deployment=${project}`, '--label', `org.frankerzspam.deployment-state=${JSON.stringify(state)}`, '--network', 'none', '--user', '0',
       '--volumes-from', viewer.Id, '-v', `${volume}:/stage`, '--mount', `type=bind,source=${info.DockerRootDir},target=/docker-storage,readonly`, '--entrypoint', 'node', viewer.Image, '-e', 'setInterval(()=>{},1000)')
@@ -81,12 +91,18 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
       setDeploymentOwner({ tool, token, input: connectionFd })
       owned = true
       try {
-        for (const file of ['deployment-state.mjs', 'deployment-databases.mjs', 'stage-host.mjs']) docker('cp', join(scripts, file), `${tool}:/app/${file}`)
+        for (const file of ['deployment-state.mjs', 'backup-operation.mjs', 'deployment-databases.mjs', 'stage-host.mjs']) docker('cp', join(scripts, file), `${tool}:/app/${file}`)
         resolve()
       } catch (error) { retained = true; preserveState = true; reject(error) }
     })
   })
-  const host = (action, value) => JSON.parse(docker('exec', tool, 'node', '/app/deployment-state.mjs', action, JSON.stringify(value)))
+  const host = (action, value) => {
+    // New backup directories must belong to the viewer, not the root tool.
+    // Root may inspect an existing interrupted lock before deciding ownership.
+    const freshChatLock = action === 'chat-lock' && (!value.resume || !host('exists', { path: `${value.directory}/.backup-lock` }).exists)
+    return JSON.parse(docker('exec', ...(freshChatLock ? ['--user', viewer.Config.User || '0'] : []), tool,
+      'node', '/app/deployment-state.mjs', action, JSON.stringify(value)))
+  }
   const save = (path, value) => {
     const file = join(work, 'state.json')
     writeFileSync(file, JSON.stringify({ path, value }), { mode: 0o600 })
@@ -94,6 +110,12 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
     return JSON.parse(docker('exec', tool, 'node', '/app/deployment-state.mjs', 'save', '@/app/deployment-input.json'))
   }
   const read = path => host('read', { path })
+  const resumeChatLock = () => {
+    if (!state.chatLock) return
+    try { host('chat-lock', { ...state.chatLock, resume: true }) }
+    catch { preserveState = true; throw new Error('Managed Chat backup lock unavailable') }
+    retained = true
+  }
   const phase = value => {
     state.phase = value
     state.protection = { unresolved: !['complete', 'rejected'].includes(value), stagingVolume: volume,
@@ -175,7 +197,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
         const fields = ['config', 'host'].flatMap(group => Object.keys(actual[group]).filter(key => !same(actual[group][key], baseline[group][key])).map(key => `${group}.${key}`))
         if (!same(actual.mounts, baseline.mounts)) fields.push('mounts')
         if (actual.image !== baseline.image) fields.push('image')
-        throw new Error(`Previous runtime differs for ${name}: ${fields.join(', ')}`)
+        throw new Error(`Managed previous runtime differs for ${name}: ${fields.join(', ')}`)
       }
     }
     return restored
@@ -199,9 +221,8 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
         const live = current.find(c => service(c) === 'viewer')
         if (env(live, 'CHAT_ENABLED') !== String(chatEnabled)) throw new Error('Chat flag changed')
         if (!chatEnabled && current.find(c => service(c) === 'centrifugo')?.State.Running) throw new Error('Disabled broker started')
-        const health = JSON.parse(docker('exec', live.Id, 'node', '-e',
-          "fetch('http://127.0.0.1:3000/api/health',{signal:AbortSignal.timeout(2000)}).then(async r=>{if(!r.ok)process.exit(1);console.log(JSON.stringify(await r.json()))}).catch(()=>process.exit(1))"))
-        if (health.status !== 'ok' || health.version !== version || health.chat?.status !== (chatEnabled ? 'healthy' : 'disabled')) throw new Error('Application acceptance failed')
+        const health = applicationHealth(docker, live.Id)
+        if (!applicationAccepted(health, version, chatEnabled)) throw new Error('Application acceptance failed')
         checkHistory(chatEnabled)
         healthy = true
         break
@@ -286,6 +307,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
       staged = { attempt: state.stagedAttempt }
       activeModel = state.candidateRelease ? read(`${state.candidateRelease.source}/resolved-compose.json`) : undefined
       owned = true; retained = true
+      cancelChatTrial(target)
       ownershipRecorded = host('exists', { path: `/stage/deployments/${attempt}-ownership.json` }).exists
       const marker = `${dirname(env(viewer, 'AUTH_DB_PATH'))}/.maintenance-backup.json`
       if (state.completion && !host('exists', { path: marker }).exists) {
@@ -296,8 +318,9 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
         const selected = recovery === 'previous' ? previous : { source: state.candidateRelease?.source }
         const current = read('/stage/current.json')
         if (current.source !== selected.source || current.tree !== host('tree', { path: current.source }).digest ||
-            !same(current.model, read(`${current.source}/resolved-compose.json`))) throw new Error('Managed completed release differs')
+            !same(current.model, chatModel(read(`${current.source}/resolved-compose.json`), current.chatEnabled))) throw new Error('Managed completed release differs')
         if (backupReceipt && !host('exists', { path: `${dirname(env(viewer, 'AUTH_DB_PATH'))}/.maintenance-completed-${backupReceipt.attempt}.json` }).exists) throw new Error('Managed completion evidence is missing')
+        resumeChatLock()
         acceptanceHistory = current.migrations
         checkHistory()
         verifyRestoredRuntime(current.runtime)
@@ -313,8 +336,8 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
           save('/stage/current.json', current)
         } else {
           const live = containers(project).find(c => service(c) === 'viewer')
-          const health = JSON.parse(docker('exec', live.Id, 'node', '-e', "fetch('http://127.0.0.1:3000/api/health').then(async r=>{if(!r.ok)process.exit(1);console.log(JSON.stringify(await r.json()))})"))
-          if (health.status !== 'ok' || health.version !== current.version || health.chat?.status !== (current.chatEnabled ? 'healthy' : 'disabled')) throw new Error('Application acceptance failed')
+          const health = applicationHealth(docker, live.Id)
+          if (!applicationAccepted(health, current.version, current.chatEnabled)) throw new Error('Application acceptance failed')
           await verifyProxy(async (path, headers) => {
             const response = await fetch(new URL(path, url || `https://${env(initial.find(c => service(c) === 'caddy'), 'PUBLIC_HOSTNAME')}/`), { headers, redirect: 'manual', signal: AbortSignal.timeout(2000) })
             return { status: response.status, headers: Object.fromEntries(response.headers), body: await response.text() }
@@ -323,11 +346,13 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
         preserveState = false
         state.result = 'recovered'; state.version = current.version
         state.nextAction = 'Completed release verified. No migrations or database replacement repeated.'
+        if (state.chatLock) host('chat-unlock', state.chatLock)
         phase('complete'); retained = false
         return state
       }
       if (!backupReceipt) {
         if (recovery !== 'previous' || restore !== 'none') { preserveState = true; throw new Error('Managed preparation recovery requires previous release and no restore') }
+        resumeChatLock()
         if (previous.tree !== host('tree', { path: previous.source }).digest) throw new Error('Managed previous files changed')
         checkHistory()
         const stageOwner = docker('ps', '-aq', '--filter', `name=^/${project}-stage-operation$`)
@@ -341,6 +366,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
         await accept(previous.model, previous.version, previous.chatEnabled, previous.runtime)
         previous.runtime = verifyRestoredRuntime(previous.runtime)
         save('/stage/current.json', previous)
+        if (state.chatLock) host('chat-unlock', state.chatLock)
         state.result = 'recovered'; state.version = previous.version
         state.nextAction = 'Previous release passed acceptance. Preparation was cancelled.'
         state.completion = { source: previous.source }
@@ -411,8 +437,19 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
     }
     phase('baseline')
     previous = read('/stage/current.json')
+    if (chatAction) {
+      state.chatEnabled = previous.chatEnabled
+      state.previousRelease = { version: previous.version, source: previous.source }
+      save(`/stage/deployments/${attempt}-previous.json`, previous)
+      state.migrations = previous.migrations
+      state.chatLock = { attempt, directory: env(viewer, 'AUTH_BACKUP_DIR') || '/app/.data/backups', authPath: env(viewer, 'AUTH_DB_PATH') }
+      phase('chat-lock')
+      host('chat-lock', state.chatLock)
+      chatLocked = true
+      phase('chat-validation')
+    }
     if (previous.format !== 1 || previous.result !== 'active' || !previous.source?.startsWith('/stage/') || previous.source.includes('..') ||
-        previous.tree !== host('tree', { path: previous.source }).digest || !same(previous.model, read(`${previous.source}/resolved-compose.json`))) throw new Error('Verified managed baseline is missing or changed')
+        previous.tree !== host('tree', { path: previous.source }).digest || !same(previous.model, chatModel(read(`${previous.source}/resolved-compose.json`), previous.chatEnabled))) throw new Error('Verified managed baseline is missing or changed')
     if (initial.length !== Object.keys(previous.runtime).length || initial.some(c => !same(runtimeIdentity(c), previous.runtime[service(c)]))) throw new Error('Managed runtime differs from its verified baseline')
     if (!same(previous.model.services.viewer.entrypoint, ['node']) || !same(previous.model.services.viewer.command, ['server.js'])) throw new Error('Managed baseline must suppress startup migrations')
     if (Object.values(previous.model.services).some(config => config.restart !== 'no')) throw new Error('Managed baseline must disable restart retries')
@@ -422,6 +459,22 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
     state.previousRelease = { version: previous.version, source: previous.source }
     save(`/stage/deployments/${attempt}-previous.json`, previous)
     state.migrations = previous.migrations
+    if (chatAction) {
+      phase('chat-changing')
+      const report = await changeChat({ cancelTrial: () => cancelChatTrial(target), action: chatAction, current: previous, docker, containers: () => containers(project), compose, read, save, host, tool, info, databaseState })
+      state.chatEnabled = report.chatEnabled
+      state.capacity = report.capacity
+      state.completion = { source: previous.source }
+      state.result = report.failed ? 'failed-disabled' : 'active'
+      state.reason = report.reason
+      state.nextAction = report.failed ? 'Repair the Chat prerequisite and retry enable.' : 'Chat state saved.'
+      phase('complete')
+      host('chat-unlock', state.chatLock)
+      chatLocked = false
+      if (report.failed) process.exitCode = 1
+      return { ...state, chat: report.chat }
+    }
+    cancelChatTrial(target)
     phase('staging')
     const record = await selectedRelease(tag)
     staged = await stageOrStatus({ action: 'prepare', target, tag, record, project, directory, deploymentAttempt: attempt, onState: value => { state.staging = { attempt: value.attempt, source: `/stage/${value.attempt}/source`, images: value.requiredImages ?? Object.values(value.images) }; phase('staging') } })
@@ -501,7 +554,19 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
     state.reason = /^(Verified managed|Managed |Candidate |Credential |Database |Application |Required |Public |Docker )/.test(error.message) ? error.message : 'Deployment check failed'
     state.result = 'rejected'
     state.nextAction = 'Repair the failed preflight and run a new deployment.'
-    if (backupReceipt && !recovery) {
+    if (chatAction && chatLocked) {
+      retained = true
+      // Do not recreate services from files or a runtime that failed verification.
+      // Stop both token issuance and cached connections, retaining the recorded flag.
+      let live = initial
+      try { live = containers(project) } catch { /* Fall back to the last known identities. */ }
+      for (const name of ['centrifugo', 'viewer']) {
+        try { docker('stop', '-t', '2', live.find(c => service(c) === name).Id) } catch { /* Recovery must verify both stopped services. */ }
+      }
+      state.chat = { status: 'unavailable' }
+      state.result = 'chat-recovery-required'
+      state.nextAction = 'Chat validation or cleanup failed. Broker and viewer shutdown requested. Repair drift, then recover the previous release with no database restore.'
+    } else if (backupReceipt && !recovery) {
       retained = true
       state.result = 'maintenance-required'
       state.nextAction = 'Keep maintenance active. Inspect the private attempt record and both database histories. Use explicit recovery; do not restore databases automatically.'
@@ -555,14 +620,15 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
 }
 async function main() {
   const [action, target, ...args] = process.argv.slice(2)
+  const chatAction = action?.startsWith('chat-') ? action.slice(5) : undefined
   const tag = action === 'managed' ? args.shift() : undefined
-  const options = { target, tag, project: 'mediamtx-viewer', directory: join(homedir(), '.local/share/mediamtx-deployments') }
+  const options = { target, tag, chatAction, project: 'mediamtx-viewer', directory: join(homedir(), '.local/share/mediamtx-deployments') }
   while (args.length) {
     const key = args.shift(), value = args.shift()
     if (!['--project', '--directory', '--url', '--release', '--restore', '--confirm'].includes(key) || !value) throw new Error('Invalid deployment option')
     options[key.slice(2)] = key === '--directory' ? resolve(value) : value
   }
-  if (!['managed', 'recover'].includes(action) || !/^[a-zA-Z0-9_@.:-]+$/.test(target ?? '') || target.startsWith('-') || action === 'managed' && !/^v\d+\.\d+\.\d+$/.test(tag ?? '') || !/^[a-z0-9][a-z0-9_-]*$/.test(options.project)) throw new Error('Usage: deploy.sh managed TARGET TAG [--project NAME] [--directory PATH] [--url URL]')
+  if (!['managed', 'recover', 'chat-enable', 'chat-disable', 'chat-health'].includes(action) || !/^[a-zA-Z0-9_@.:-]+$/.test(target ?? '') || target.startsWith('-') || action === 'managed' && !/^v\d+\.\d+\.\d+$/.test(tag ?? '') || !/^[a-z0-9][a-z0-9_-]*$/.test(options.project)) throw new Error('Usage: deploy.sh managed TARGET TAG [--project NAME] [--directory PATH] [--url URL]')
   if (action === 'recover') {
     if (!['previous', 'candidate'].includes(options.release) || !['none', 'auth', 'chat', 'both'].includes(options.restore)) throw new Error('Recovery requires --release previous|candidate --restore none|auth|chat|both. Replacement can discard later data and requires --confirm discard-later-data.')
     if (options.restore !== 'none' && options.confirm !== 'discard-later-data') throw new Error('Database replacement can discard later data; use --confirm discard-later-data')

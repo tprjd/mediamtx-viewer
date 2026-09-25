@@ -118,7 +118,7 @@ migrating a development database to make the unit tests pass. Actual database
 failures must still produce the route's `503` response.
 
 After the focused tests pass, run `npm test` for the full suite. Local tests do
-not replace the [capacity and rollout checks](chat-rollout.md).
+not replace the [release and Chat enable checks](chat-rollout.md).
 
 ## Clear one Channel's Chat history
 
@@ -194,7 +194,7 @@ Stop the viewer before replacing authentication storage. Use the same manifest a
 
 ## Verify a restore before rollout
 
-Run `npx playwright test --project=chat-chromium --grep 'restore drill'` with Docker available. The drill uses an encrypted older set, blocks Chat during a failed Centrifugo operation, retries the restore, and checks expiry deletion and live delivery after reconnect. It also checks the existing account session and continued video progress without a player reset. The media fixture and MediaMTX status server are local test fixtures. Run the production capacity gate with a real Channel before enabling Chat.
+Run `npx playwright test --project=chat-chromium --grep 'restore drill'` with Docker available. The drill uses an encrypted older set, blocks Chat during a failed Centrifugo operation, retries the restore, and checks expiry deletion and live delivery after reconnect. It also checks the existing account session and continued video progress without a player reset. The media fixture and MediaMTX status server are local test fixtures. Use the verified-release Chat enable command in [Chat rollout](chat-rollout.md). The capacity target remains unverified.
 
 Chat cleanup also runs at application startup and once per hour, including when Chat is disabled. Each daily backup runs cleanup before taking the Chat snapshot. Maintenance backups apply cleanup only to the snapshot. Messages, retained originals of removed messages, and queued content expire seven days after submission. Private notes expire seven days after the moderation action. Structured Chat moderation records and active bans remain until an authorized action clears them.
 

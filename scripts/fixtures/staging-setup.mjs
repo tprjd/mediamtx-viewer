@@ -96,10 +96,20 @@ export async function stagingFixture(work, { chat = false, managed = false, medi
     const bin = join(directory, 'bin')
     mkdirSync(bin)
     writeFileSync(join(directory, 'fault'), '')
+    writeFileSync(join(directory, 'trial-units.json'), JSON.stringify([]))
+    writeFileSync(join(bin, 'systemctl'), `#!/usr/bin/env node
+const fs=require('fs'), path=${JSON.stringify(join(directory, 'trial-units.json'))};
+const units=JSON.parse(fs.readFileSync(path,'utf8')), args=process.argv.slice(2), unit=args.at(-1);
+if(args[0]==='show') {console.log(units.includes(unit)?'loaded':'not-found');if(!units.includes(unit))process.exit(1)}
+else if(args[0]==='stop') fs.writeFileSync(path,JSON.stringify(units.filter(name=>name!==unit)));
+else process.exit(1);
+`, { mode: 0o700 })
+    writeFileSync(join(bin, 'sudo'), '#!/bin/sh\n[ "$1" != "-n" ] || shift\nexec "$@"\n', { mode: 0o700 })
     const realDocker = run('which', ['docker'])
     writeFileSync(join(bin, 'docker'), `#!/usr/bin/env node
 const {spawnSync}=require('node:child_process');
 const args=process.argv.slice(2);
+const chatFault=require('fs').readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8');
 if(args.includes('flock')) {const child=require('node:child_process').spawn(${JSON.stringify(realDocker)},args,{stdio:'inherit'});child.on('exit',code=>process.exit(code??1));return}
 if(args.some(value=>value.includes('fixture-private')))throw new Error('Private value entered Docker arguments');
 // Architecture is a controlled host/registry measurement. Containers use the
@@ -127,6 +137,7 @@ if(ref && args.includes('inspect')) {
  if(r.status)process.exit(r.status);
  const v=JSON.parse(r.stdout);v[0].Architecture='arm64';v[0].RepoDigests=[require('fs').readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8')==='digest'?'wrong':ref];
  if(require('fs').readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8')==='architecture')v[0].Architecture='amd64';
+ if(chatFault==='image-source')v[0].Config.Labels['org.frankerzspam.source']='0'.repeat(64);
  require('fs').writeFileSync(1,JSON.stringify(v));process.exit(0);
 }
 if(args.includes('image') && args.includes('inspect') && !ref) {
@@ -141,11 +152,26 @@ if(args.includes('pull') && !ref) {
 if(require('fs').readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8')==='host-space' && args.includes('/app/stage-host.mjs') && args.includes('check')) {
  const input=JSON.parse(args.at(-1));input.imageBytes=4000000000000000;args[args.length-1]=JSON.stringify(input);
 }
+if(args.includes('/app/stage-host.mjs') && args.includes('check') && ['host-memory','host-cpu'].includes(chatFault)) {
+ const measurement=chatFault==='host-memory'
+  ? "if(path==='/proc/meminfo')return 'MemAvailable: 0 kB';"
+  : "if(path==='/proc/stat')return 'cpu '+(++sample*100)+' 0 0 0 0 0 0 0';";
+ const preload="import fs from 'node:fs';import {syncBuiltinESMExports} from 'node:module';let sample=0;const read=fs.readFileSync;fs.readFileSync=(path,...args)=>{"+measurement+"return read(path,...args)};syncBuiltinESMExports();";
+ args.splice(args.indexOf('node')+1,0,'--import','data:text/javascript,'+encodeURIComponent(preload));
+}
+if(chatFault==='database-limit' && args.includes('--input-type=module') && args.some(a=>a.includes('Chat runtime storage check failed'))) {
+ const input=JSON.parse(args.at(-1));input.databaseLimitBytes=1;args[args.length-1]=JSON.stringify(input);
+}
 if(args.includes('compose') && (args.includes('up') || args.includes('run'))) {
  const fs=require('fs'), index=args.indexOf('-f')+1;
  const model=JSON.parse(fs.readFileSync(args[index],'utf8'));
  const failure=fs.readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8');
  const candidate=model.services.viewer.environment.FIXTURE_VERSION==='1.2.3';
+ if(chatFault==='chat-cleanup' && args.includes('up') && args.includes('viewer')) {
+  if(model.services.viewer.environment.CHAT_ENABLED==='false')process.exit(1);
+  model.services.viewer.environment.FIXTURE_FAILURE='degraded-chat';
+ }
+ if(chatFault==='broker-health' && args.includes('centrifugo'))model.services.centrifugo.healthcheck={test:['CMD','node','-e','process.exit(1)'],interval:'1s',timeout:'1s',retries:1};
  if(args.includes('up') && (failure==='rollback-failure' || candidate && ['activation-failure','interrupt-rollback'].includes(failure)))process.exit(1);
  if(candidate && failure==='wrong-version')model.services.viewer.environment.FIXTURE_VERSION='wrong';
  if(candidate && ['degraded-chat','migration-history','volume-ownership'].includes(failure))model.services.viewer.environment.FIXTURE_FAILURE=failure;
@@ -156,6 +182,10 @@ if(args.includes('compose') && (args.includes('up') || args.includes('run'))) {
 if(ref)args[args.indexOf(ref)]=${JSON.stringify(image)};
 const r=spawnSync(${JSON.stringify(realDocker)},args,{encoding:'utf8'});
 const failure=require('fs').readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8');
+if(!r.status && failure==='interrupt-chat-lock' && args.includes('/app/deployment-state.mjs') && args.includes('save')) {
+ const saved=spawnSync(${JSON.stringify(realDocker)},['exec',args[1],'cat','/stage/deployment-status.json'],{encoding:'utf8'});
+ if(!saved.status && JSON.parse(saved.stdout).phase==='chat-lock'){process.kill(process.ppid,'SIGKILL');process.exit(0)}
+}
 if(!r.status && failure==='interrupt-owner-creation' && args.includes('create') && args.some(a=>a.endsWith('-deploy-operation'))) {process.kill(process.ppid,'SIGKILL');process.exit(0)}
 if(!r.status && failure==='interrupt-staging' && args.includes('cp') && args.at(-1).includes('-stage-operation:/stage/') && args.at(-1).endsWith('/source')) {process.kill(process.ppid,'SIGKILL');process.exit(0)}
 if(!r.status && failure==='interrupt-maintenance' && args.includes('stop') && args.includes('10')) {process.kill(process.ppid,'SIGKILL');process.exit(0)}
