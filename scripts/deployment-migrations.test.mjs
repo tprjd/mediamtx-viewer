@@ -129,4 +129,3 @@ it('rejects an acknowledgement from another attempt before any migration', async
     expect((await (await fetch(`${url}/_fixture-health`)).json()).version).toBe('fixture')
   }, { managed: true, migrations: { 'migrations/900_no_permission.sql': 'CREATE TABLE must_not_run (id);' } })
 }, 240000)
-

@@ -9,7 +9,7 @@ it('enables Chat without capacity reports and preserves its state across activat
     const units = join(directory, 'trial-units.json')
     writeFileSync(units, JSON.stringify(['chat-capacity-rollback.timer', 'chat-capacity-rollback.service']))
     const deployed = await command('managed')
-    expect(deployed.status, deployed.stderr).toBe(0)
+    expect(deployed.status, deployed.stderr + deployed.diagnostic).toBe(0)
     expect(JSON.parse(readFileSync(units, 'utf8'))).toEqual([])
     writeFileSync(units, JSON.stringify(['chat-capacity-rollback.timer', 'chat-capacity-rollback.service']))
     const enabled = await command('chat-enable')
@@ -59,7 +59,7 @@ it('cancels only obsolete trial units when explicitly disabling Chat', async () 
 it('rejects retained enable safeguards and leaves Chat safely disabled', async () => {
   await stagingFixture(async ({ command, fault, project, viewer }) => {
     const deployed = await command('managed')
-    expect(deployed.status, deployed.stderr).toBe(0)
+    expect(deployed.status, deployed.stderr + deployed.diagnostic).toBe(0)
     for (const failure of ['stale', 'checks', 'tag', 'digest', 'image-source', 'architecture', 'host-architecture',
       'host-memory', 'host-cpu', 'host-space', 'database-limit', 'broker-health', 'degraded-chat']) {
       fault(failure)
@@ -103,7 +103,7 @@ it.each(['chat-enable', 'chat-disable'])('stops Chat safely on baseline drift du
 it('stops the replacement viewer when failed-enable cleanup also fails', async () => {
   await stagingFixture(async ({ command, project, viewer, fault }) => {
     const deployed = await command('managed')
-    expect(deployed.status, deployed.stderr).toBe(0)
+    expect(deployed.status, deployed.stderr + deployed.diagnostic).toBe(0)
     const original = inspect(viewer).Id
     fault('chat-cleanup')
     const result = await command('chat-enable')

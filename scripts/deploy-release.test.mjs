@@ -88,4 +88,3 @@ it('verifies a fresh MediaMTX health result after publishing its ports', async (
     expect(health.Log.some(check => check.ExitCode === 0 && Date.parse(check.Start) >= Date.parse(media.State.StartedAt))).toBe(true)
   }, { managed: true, mediaPorts: true })
 }, 240000)
-

@@ -155,10 +155,13 @@ if(args.includes('pull') && !ref) {
 if(require('fs').readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8')==='host-space' && args.includes('/app/stage-host.mjs') && args.includes('check')) {
  const input=JSON.parse(args.at(-1));input.imageBytes=4000000000000000;args[args.length-1]=JSON.stringify(input);
 }
-if(args.includes('/app/stage-host.mjs') && args.includes('check') && ['host-memory','host-cpu'].includes(chatFault)) {
- const measurement=chatFault==='host-memory'
-  ? "if(path==='/proc/meminfo')return 'MemAvailable: 0 kB';"
-  : "if(path==='/proc/stat')return 'cpu '+(++sample*100)+' 0 0 0 0 0 0 0';";
+if(args.includes('/app/stage-host.mjs') && args.includes('check')) {
+ // Independent fixtures share the test runner, not the deployment host's load.
+ // Keep both rejection cases while making healthy measurements deterministic.
+ const measurement="if(path==='/proc/meminfo')return 'MemAvailable: "+(chatFault==='host-memory'?0:8388608)+" kB';"
+  +(chatFault==='host-cpu'
+   ? "if(path==='/proc/stat')return 'cpu '+(++sample*100)+' 0 0 0 0 0 0 0';"
+   : "if(path==='/proc/stat')return 'cpu 0 0 0 '+(++sample*100)+' 0 0 0 0';");
  const preload="import fs from 'node:fs';import {syncBuiltinESMExports} from 'node:module';let sample=0;const read=fs.readFileSync;fs.readFileSync=(path,...args)=>{"+measurement+"return read(path,...args)};syncBuiltinESMExports();";
  args.splice(args.indexOf('node')+1,0,'--import','data:text/javascript,'+encodeURIComponent(preload));
 }

@@ -87,4 +87,3 @@ it('recovers an attempt interrupted before host tool initialization', async () =
     expect((await fetch(url)).status).toBe(200)
   }, { managed: true })
 }, 240000)
-
