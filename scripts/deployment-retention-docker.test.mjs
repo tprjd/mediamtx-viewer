@@ -54,7 +54,7 @@ it('does not rotate successful history after a failed activation or accept clean
     fault('activation-failure')
     const failed = await command('managed')
     expect(failed.status).not.toBe(0)
-    expect(JSON.parse(failed.stderr).result).toBe('failed-rolled-back')
+    expect(JSON.parse(failed.stderr).result, failed.stderr + failed.diagnostic).toBe('failed-rolled-back')
     fault('')
     const cleanup = await command('cleanup')
     expect(cleanup.status).not.toBe(0)

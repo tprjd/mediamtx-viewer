@@ -3,6 +3,7 @@ import {
   test,
   type Locator,
   type Page,
+  type Request,
   type BrowserContext,
 } from '@playwright/test'
 import Database from 'better-sqlite3'
@@ -162,21 +163,27 @@ async function waitForCentrifugo(): Promise<void> {
     .toBe(true)
 }
 
-async function scrollChatToTop(log: Locator): Promise<void> {
+async function loadOlderChatHistory(log: Locator): Promise<void> {
   await expect(log).toHaveAttribute('aria-busy', 'false')
-  await log.evaluate((element) => {
-    // Match a reader's scroll input so pending prepend corrections stop.
-    element.dispatchEvent(new WheelEvent('wheel', { deltaY: -1000 }))
-    if (
-      element.scrollTop === 0 &&
-      element.scrollHeight > element.clientHeight
-    ) {
-      element.scrollTop = 1
-      element.dispatchEvent(new Event('scroll'))
-    }
-    element.scrollTop = 0
-    element.dispatchEvent(new Event('scroll'))
-  })
+  const page = log.page()
+  let requested = false
+  const observe = (request: Request) => {
+    if (request.url().includes('/chat/messages?before=')) requested = true
+  }
+  page.on('request', observe)
+  try {
+    // Keep scrolling while the virtual list settles its initial measurements.
+    // A synthetic one-shot scroll can be overwritten by those measurements.
+    await expect(async () => {
+      if (!requested) {
+        await log.hover()
+        await page.mouse.wheel(0, -await log.evaluate(element => element.scrollHeight))
+      }
+      expect(requested).toBe(true)
+    }).toPass({ timeout: 5000, intervals: [100, 250] })
+  } finally {
+    page.off('request', observe)
+  }
 }
 
 function seedRetainedChatHistory(
@@ -778,7 +785,7 @@ test('browses retained Chat history without losing the reading position', async 
     await route.continue()
   })
 
-  await scrollChatToTop(log)
+  await loadOlderChatHistory(log)
   await firstPageRequested
   const anchor = chat.locator(`[data-message-id="${prefix}-106"]`)
   await expect(anchor).toBeVisible()
@@ -800,7 +807,7 @@ test('browses retained Chat history without losing the reading position', async 
   const finalPageResponse = page.waitForResponse((response) =>
     response.url().includes('/chat/messages?before='),
   )
-  await scrollChatToTop(log)
+  await loadOlderChatHistory(log)
   await finalPageRequested
   const finalAnchor = chat.locator(`[data-message-entry-id="${prefix}-6"]`)
   await expect(finalAnchor).toBeVisible()
@@ -814,7 +821,8 @@ test('browses retained Chat history without losing the reading position', async 
       return Math.abs(finalAnchorTopAfter - finalAnchorTopBefore)
     })
     .toBeLessThan(12)
-  await scrollChatToTop(log)
+  await log.hover()
+  await page.mouse.wheel(0, -await log.evaluate(element => element.scrollHeight))
   await expect(
     chat.getByText('This is the start of the last seven days.'),
   ).toBeVisible()
@@ -870,7 +878,7 @@ test('browses retained Chat history without losing the reading position', async 
   const reopenedOlderPageResponse = page.waitForResponse((response) =>
     response.url().includes('/chat/messages?before='),
   )
-  await scrollChatToTop(reopenedLog)
+  await loadOlderChatHistory(reopenedLog)
   await reopenedOlderPageResponse
   const readingContent = `${prefix} arrived while reading reopened history`
   const readingResponse = await postChat(page, readingContent)
@@ -2099,4 +2107,26 @@ test('global Chat rollback closes the connection and keeps playback and retained
   const history = await page.request.get('/api/channels/live/chat/messages')
   expect((await history.json()).messages.some((message: {content?: string}) => message.content === 'Retained through rollout')).toBe(true)
   await assertPlaybackContinues()
+})
+
+test('loads older Chat messages across repeated reopenings', async ({ page }) => {
+  const prefix = `reopen-${randomUUID()}`
+  seedRetainedChatHistory(prefix, true)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await signInAsAdministrator(page)
+  const chat = page.getByRole('complementary', { name: 'Chat' })
+  const log = chat.getByRole('log', { name: 'Chat messages' })
+  await expect(chat.getByText(`${prefix} retained 205`, { exact: true })).toBeVisible()
+  for (let visit = 0; visit < 3; visit++) {
+    await chat.getByRole('button', { name: 'Close Chat' }).click()
+    const latest = page.waitForResponse(response => response.url().endsWith('/api/channels/live/chat/messages'))
+    await page.getByRole('button', { name: 'Open Chat' }).click()
+    await latest
+    await expect(chat.getByText(`${prefix} retained 205`, { exact: true })).toBeVisible()
+    await expect(log).toHaveAttribute('data-at-bottom', 'true')
+    const older = page.waitForResponse(response => response.url().includes('/chat/messages?before='), { timeout: 5000 })
+    await loadOlderChatHistory(log)
+    await older
+    await expect(log).toHaveAttribute('data-at-bottom', 'false')
+  }
 })

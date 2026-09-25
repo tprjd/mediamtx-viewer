@@ -113,4 +113,11 @@ export async function startManagedBaseline({ source, directory, image, project, 
   }
   return { url, key }
 }
-function inspectImage(image) { return JSON.parse(docker('image', 'inspect', image))[0].Id }
+function inspectImage(image) {
+  try { return JSON.parse(docker('image', 'inspect', image))[0].Id }
+  catch {
+    // Fresh hosted runners do not have the external service images cached.
+    docker('pull', image)
+    return JSON.parse(docker('image', 'inspect', image))[0].Id
+  }
+}

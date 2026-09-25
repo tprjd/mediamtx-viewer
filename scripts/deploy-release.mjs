@@ -45,6 +45,8 @@ function recoveryIdentity(runtime, privatePorts = false) {
   }
   value.config.Env?.sort()
   value.host.Binds?.sort()
+  // Compose can omit the empty default options when it recreates a named volume.
+  for (const mount of value.host.Mounts ?? []) if (mount.Type === 'volume') mount.VolumeOptions ??= {}
   value.host.Mounts?.sort((a, b) => a.Target.localeCompare(b.Target))
   return value
 }
@@ -659,7 +661,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
         retained = false
       } catch (recoveryError) {
         state.recoveryFailedPhase = state.phase
-        state.recoveryReason = /^(Previous |Public |Required |Database |Docker )/.test(recoveryError.message) ? recoveryError.message : 'Recovery check failed'
+        state.recoveryReason = /^(Managed previous runtime differs|Previous |Public |Required |Database |Docker )/.test(recoveryError.message) ? recoveryError.message : 'Recovery check failed'
         try { stop(); docker('start', `maintenance-proxy-${backupReceipt.attempt}`) } catch { /* Retain all recovery evidence and the owner. */ }
       }
     } else if (recovery && owned) {

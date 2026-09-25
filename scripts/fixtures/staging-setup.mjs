@@ -175,7 +175,10 @@ if(args.includes('compose') && (args.includes('up') || args.includes('run'))) {
   model.services.viewer.environment.FIXTURE_FAILURE='degraded-chat';
  }
  if(chatFault==='broker-health' && args.includes('centrifugo'))model.services.centrifugo.healthcheck={test:['CMD','node','-e','process.exit(1)'],interval:'1s',timeout:'1s',retries:1};
- if(args.includes('up') && (failure==='rollback-failure' || candidate && ['activation-failure','interrupt-rollback'].includes(failure)))process.exit(1);
+ if(args.includes('up') && (failure==='rollback-failure' || candidate && failure==='interrupt-rollback'))process.exit(1);
+ if(args.includes('up') && candidate && failure==='activation-failure' && !fs.existsSync(args[index]+'.activation-failed')) {
+  fs.writeFileSync(args[index]+'.activation-failed','');process.exit(1);
+ }
  if(candidate && failure==='wrong-version')model.services.viewer.environment.FIXTURE_VERSION='wrong';
  if(candidate && ['degraded-chat','migration-history','volume-ownership'].includes(failure))model.services.viewer.environment.FIXTURE_FAILURE=failure;
  if(candidate && failure==='unhealthy-service')model.services.thumbnailer.healthcheck={test:['CMD','node','-e','process.exit(1)'],interval:'1s',timeout:'1s',retries:1};
