@@ -100,6 +100,7 @@ export async function stagingFixture(work, { chat = false, managed = false, medi
     writeFileSync(join(bin, 'docker'), `#!/usr/bin/env node
 const {spawnSync}=require('node:child_process');
 const args=process.argv.slice(2);
+if(args.includes('flock')) {const child=require('node:child_process').spawn(${JSON.stringify(realDocker)},args,{stdio:'inherit'});child.on('exit',code=>process.exit(code??1));return}
 if(args.some(value=>value.includes('fixture-private')))throw new Error('Private value entered Docker arguments');
 // Architecture is a controlled host/registry measurement. Containers use the
 // native test CPU, so the same command suite runs on ARM64 and x64 runners.
@@ -145,7 +146,7 @@ if(args.includes('compose') && (args.includes('up') || args.includes('run'))) {
  const model=JSON.parse(fs.readFileSync(args[index],'utf8'));
  const failure=fs.readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8');
  const candidate=model.services.viewer.environment.FIXTURE_VERSION==='1.2.3';
- if(args.includes('up') && (failure==='rollback-failure' || candidate && failure==='activation-failure'))process.exit(1);
+ if(args.includes('up') && (failure==='rollback-failure' || candidate && ['activation-failure','interrupt-rollback'].includes(failure)))process.exit(1);
  if(candidate && failure==='wrong-version')model.services.viewer.environment.FIXTURE_VERSION='wrong';
  if(candidate && ['degraded-chat','migration-history','volume-ownership'].includes(failure))model.services.viewer.environment.FIXTURE_FAILURE=failure;
  if(candidate && failure==='unhealthy-service')model.services.thumbnailer.healthcheck={test:['CMD','node','-e','process.exit(1)'],interval:'1s',timeout:'1s',retries:1};
@@ -155,6 +156,30 @@ if(args.includes('compose') && (args.includes('up') || args.includes('run'))) {
 if(ref)args[args.indexOf(ref)]=${JSON.stringify(image)};
 const r=spawnSync(${JSON.stringify(realDocker)},args,{encoding:'utf8'});
 const failure=require('fs').readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8');
+if(!r.status && failure==='interrupt-owner-creation' && args.includes('create') && args.some(a=>a.endsWith('-deploy-operation'))) {process.kill(process.ppid,'SIGKILL');process.exit(0)}
+if(!r.status && failure==='interrupt-staging' && args.includes('cp') && args.at(-1).includes('-stage-operation:/stage/') && args.at(-1).endsWith('/source')) {process.kill(process.ppid,'SIGKILL');process.exit(0)}
+if(!r.status && failure==='interrupt-maintenance' && args.includes('stop') && args.includes('10')) {process.kill(process.ppid,'SIGKILL');process.exit(0)}
+if(!r.status && ((failure==='interrupt-helper-cleanup' && args.includes('rm') && args.some(a=>a.startsWith('maintenance-tool-'))) ||
+ (failure==='interrupt-proxy-cleanup' && args.includes('rm') && args.some(a=>a.startsWith('maintenance-proxy-'))) ||
+ (failure==='interrupt-auth' && args.includes('run') && args.some(a=>a.endsWith('-auth'))) ||
+ (failure==='interrupt-chat-running' && args.includes('run') && args.some(a=>a.endsWith('-chat'))) ||
+ (failure==='interrupt-chat' && args.includes('wait') && args.some(a=>a.endsWith('-chat'))) ||
+ (failure==='interrupt-rollback' && args.includes('up') && args.includes('viewer')) ||
+ (failure==='interrupt-activation' && args.includes('up') && args.includes('viewer')) ||
+ (failure==='interrupt-completion' && args.includes('/app/scripts/maintenance-host.mjs') && args.includes('finish')))) {process.kill(process.ppid,'SIGKILL');process.exit(0)}
+if(!r.status && failure==='stale-acknowledgement' && args.includes('/app/scripts/maintenance-host.mjs') && args.includes('phase') && JSON.parse(args.at(-1)).phase==='held') {
+ const helper=args[args.indexOf('exec')+1];
+ spawnSync(${JSON.stringify(realDocker)},['exec',helper,'node','/app/scripts/maintenance-host.mjs','phase',JSON.stringify({acknowledgement:{deploymentAttempt:'old-attempt',attempt:'old-backup',backupId:'old-set'}})],{stdio:'ignore'});
+}
+if(!r.status && failure==='interrupt-inflight' && args.includes('cp') && args.some(a=>a.includes('/deployment-backups/') && a.endsWith('auth.sqlite.enc'))) {
+ process.kill(process.ppid,'SIGKILL');
+ while(require('fs').readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8')==='interrupt-inflight')Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,50);
+}
+if(!r.status && failure==='pause-transfer' && args.includes('cp') && args.some(a=>a.includes('/deployment-backups/') && a.endsWith('auth.sqlite.enc'))) {
+ require('fs').writeFileSync(${JSON.stringify(join(directory, 'paused'))},'paused');
+ while(require('fs').readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8')==='pause-transfer')Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,50);
+}
+if(!r.status && failure==='interrupt-transfer' && args.includes('cp') && args.some(a=>a.includes('/deployment-backups/') && a.endsWith('auth.sqlite.enc'))) {process.kill(process.ppid,'SIGKILL');process.exit(0)}
 if(!r.status && failure==='transfer-failure' && args.includes('cp') && args.some(a=>a.includes('/deployment-backups/') && a.endsWith('chat.sqlite.enc')))process.exit(1);
 if(!r.status && ['pending-migrations','static-proxy'].includes(failure) && args.includes('cp') && args.at(-1).includes('-stage-operation:/stage/') && args.at(-1).endsWith('/source')) {
  const [container,path]=args.at(-1).split(':');

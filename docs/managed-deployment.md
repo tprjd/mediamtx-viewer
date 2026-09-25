@@ -77,6 +77,8 @@ The command reports one of these deployment results:
 | --- | --- | --- |
 | `active` | Zero | The selected release passed acceptance. |
 | `recovered` | Zero | The explicitly selected recovery passed acceptance. |
+| `in-progress` | Nonzero status query | Wait for the active owner. |
+| `interrupted` | Nonzero | Inspect the abandoned attempt and select explicit recovery. |
 | `rejected` | Nonzero | Correct the failed preflight or backup check. |
 | `failed-rolled-back` | Nonzero | The previous release passed rollback checks. Repair the candidate before retrying. |
 | `maintenance-required` | Nonzero | Keep access closed. Inspect the failed phase and recovery records before explicit recovery. |
@@ -99,8 +101,9 @@ changed existing records, and uncertain process completion keep maintenance acti
 
 If rollback fails or migration state is uncertain, the command retains maintenance,
 its exclusive operation owner, and recovery files. Do not delete the owner or
-maintenance marker to force another deployment. Reconnect and reboot recovery
-is separate work in ticket 06. Retention cleanup is separate work in ticket 08.
+maintenance marker to force another deployment. Use the
+[interruption recovery procedure](deployment-recovery.md) after a lost connection
+or host restart. Retention cleanup is separate work in ticket 08.
 
 ## Recover while maintenance is active
 
@@ -153,10 +156,11 @@ remain available for inspection and another explicit recovery choice.
 Run the command tests with a local Docker engine, SOPS, and age:
 
 ```sh
-npx vitest run scripts/deploy-release.test.mjs
+npx vitest run scripts/deploy-release.test.mjs scripts/deployment-restart.test.mjs
 ```
 
 The fixtures use real container lifecycle operations, SQLite databases, encrypted
 backup transfer, and HTTP requests. They control GitHub and registry responses.
 They never connect to Oracle or send Discord notifications. A missing Docker
-engine fails the tests.
+engine fails the tests. The restart test creates a separate privileged Docker
+daemon and restarts it. It does not restart your existing Docker daemon.

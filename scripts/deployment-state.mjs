@@ -33,7 +33,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
     const [action, json] = process.argv.slice(2), input = JSON.parse(json.startsWith('@') ? readFileSync(json.slice(1), 'utf8') : json)
     let result = {}
-    if (action === 'read') result = JSON.parse(readFileSync(input.path, 'utf8'))
+    if (action === 'exists') result = { exists: existsSync(input.path) }
+    else if (action === 'read') result = JSON.parse(readFileSync(input.path, 'utf8'))
     else if (action === 'save') save(input.path, input.value)
     else if (action === 'ownership') {
       const entries = {}

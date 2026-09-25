@@ -13,7 +13,7 @@ export async function prepareManagedSource({ source, directory, image, project, 
   for (const folder of ['migrations', 'chat-migrations']) cpSync(folder, join(source, folder), { recursive: true })
   const listener = createServer()
   await new Promise(resolve => listener.listen(0, '127.0.0.1', resolve))
-  const port = listener.address().port
+  const port = Number(process.env.DEPLOY_FIXTURE_PORT || listener.address().port)
   await new Promise(resolve => listener.close(resolve))
   writeFileSync(join(directory, 'port'), String(port))
   writeFileSync(join(source, 'deploy/oracle/Caddyfile'), proxyConfiguration('candidate'))
@@ -25,7 +25,7 @@ export async function prepareManagedSource({ source, directory, image, project, 
       CHAT_DATABASE_LIMIT_BYTES: '2147483648', CHAT_MINIMUM_FREE_BYTES: '10737418240', FIXTURE_VERSION: '1.2.3' },
       volumes: ['auth_data:/data', 'thumbnail_data:/thumbnails'] },
     caddy: { image: 'caddy:2.11.4-alpine', environment: { PUBLIC_HOSTNAME: ':80', AUTH_BACKUP_KEY: key },
-      ports: [`127.0.0.1:${port}:80`], volumes: ['./Caddyfile:/etc/caddy/Caddyfile:ro', 'caddy_data:/data', 'caddy_config:/config'] },
+      ports: [`${process.env.DEPLOY_FIXTURE_PORT ? '0.0.0.0' : '127.0.0.1'}:${port}:80`], volumes: ['./Caddyfile:/etc/caddy/Caddyfile:ro', 'caddy_data:/data', 'caddy_config:/config'] },
     mediamtx: { image: 'bluenviron/mediamtx:1.20.1', volumes: ['./secrets/mediamtx.yml:/mediamtx.yml:ro'], environment: { MTX_UDPREADBUFFERSIZE: '0' } },
     'mediamtx-health': idle,
     thumbnailer: { ...idle, volumes: ['thumbnail_data:/thumbnails'] },
@@ -82,7 +82,7 @@ export async function startManagedBaseline({ source, directory, image, project, 
   writeFileSync(path, JSON.stringify(model))
   docker('compose', '-p', project, '-f', path, 'up', '-d', '--no-build', '--pull', 'never', ...Object.keys(model.services).filter(name => chat || name !== 'centrifugo'))
   if (!chat) docker('compose', '-p', project, '-f', path, 'create', '--no-build', 'centrifugo')
-  const url = `http://127.0.0.1:${readFileSync(join(directory, 'port'), 'utf8')}`
+  const url = process.env.DEPLOY_FIXTURE_URL || `http://127.0.0.1:${readFileSync(join(directory, 'port'), 'utf8')}`
   for (let n = 0; n < 200; n++) {
     try { if ((await fetch(`${url}/_fixture-health`)).ok && [undefined, 'healthy'].includes(inspect(`${project}-mediamtx-health-1`).State.Health?.Status)) break } catch {}
     await delay(100)

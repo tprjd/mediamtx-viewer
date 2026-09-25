@@ -1,15 +1,17 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { closeSync, constants, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import { stageOrStatus } from './stage-release.mjs'
 import { selectedRelease } from './stage-release-source.mjs'
-import { maintenanceBackup, caddyConfiguration } from './maintenance-backup.mjs'
+import { maintenanceBackup, caddyConfiguration, acknowledgeBackup } from './maintenance-backup.mjs'
 import { verifyProxy } from './deployment-proxy.mjs'
 import { runtimeIdentity } from './deployment-state.mjs'
+
+import { assertDeploymentOwner, setDeploymentOwner, ownerProgram, deploymentStdio } from './deployment-connection.mjs'
 
 const scripts = dirname(fileURLToPath(import.meta.url))
 function canonical(value) {
@@ -36,7 +38,8 @@ function recoveryIdentity(runtime, privatePorts = false) {
 }
 const same = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b))
 function docker(...args) {
-  try { return execFileSync('docker', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 120000, maxBuffer: 32 * 1024 ** 2 }).trim() }
+  assertDeploymentOwner(args)
+  try { return execFileSync('docker', args, { encoding: 'utf8', stdio: deploymentStdio(), timeout: 120000, maxBuffer: 32 * 1024 ** 2 }).trim() }
   catch { throw new Error('Docker deployment operation failed') }
 }
 const service = c => c.Config.Labels?.['com.docker.compose.service']
@@ -56,7 +59,33 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
   let attempt = randomUUID()
   const work = mkdtempSync(join(tmpdir(), 'deploy-release-'))
   let state = { attempt, project, release: tag, phase: 'baseline', result: 'in-progress' }
-  let owned = false, backupReceipt, previous, migrationBaseline, activeModel, staged, retained = false, ownershipRecorded = false, acceptanceHistory, migrationProcess, recoveryOwned = false
+  let connection, connectionFd, preserveState = false
+  let owned = false, backupReceipt, previous, migrationBaseline, activeModel, staged, retained = false, ownershipRecorded = false, acceptanceHistory, migrationProcess
+  const createTool = () => {
+    docker('create', '--name', tool, '--label', `org.frankerzspam.deployment=${project}`, '--label', `org.frankerzspam.deployment-state=${JSON.stringify(state)}`, '--network', 'none', '--user', '0',
+      '--volumes-from', viewer.Id, '-v', `${volume}:/stage`, '--mount', `type=bind,source=${info.DockerRootDir},target=/docker-storage,readonly`, '--entrypoint', 'node', viewer.Image, '-e', 'setInterval(()=>{},1000)')
+    docker('start', tool)
+  }
+  const claim = () => new Promise((resolve, reject) => {
+    const token = randomUUID()
+    const pipe = join(work, 'connection')
+    execFileSync('mkfifo', [pipe])
+    connectionFd = openSync(pipe, constants.O_RDWR)
+    const input = openSync(pipe, constants.O_RDONLY)
+    connection = spawn('docker', ['exec', '-i', tool, 'flock', '-n', '/stage/operation.lock', 'node', '--input-type=module', '-e', ownerProgram, 'hold', token], { stdio: [input, 'pipe', 'pipe'] })
+    closeSync(input)
+    connection.once('error', reject)
+    connection.once('exit', () => reject(new Error('Managed operation has an active owner')))
+    connection.stdout.once('data', data => {
+      if (data.toString().trim() !== 'owned') return reject(new Error('Managed ownership is uncertain'))
+      setDeploymentOwner({ tool, token, input: connectionFd })
+      owned = true
+      try {
+        for (const file of ['deployment-state.mjs', 'deployment-databases.mjs', 'stage-host.mjs']) docker('cp', join(scripts, file), `${tool}:/app/${file}`)
+        resolve()
+      } catch (error) { retained = true; preserveState = true; reject(error) }
+    })
+  })
   const host = (action, value) => JSON.parse(docker('exec', tool, 'node', '/app/deployment-state.mjs', action, JSON.stringify(value)))
   const save = (path, value) => {
     const file = join(work, 'state.json')
@@ -65,13 +94,26 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
     return JSON.parse(docker('exec', tool, 'node', '/app/deployment-state.mjs', 'save', '@/app/deployment-input.json'))
   }
   const read = path => host('read', { path })
-  const phase = value => { state.phase = value; save(`/stage/deployments/${attempt}.json`, state); save('/stage/deployment-status.json', state) }
+  const phase = value => {
+    state.phase = value
+    state.protection = { unresolved: !['complete', 'rejected'].includes(value), stagingVolume: volume,
+      sources: [state.previousRelease?.source, state.candidateRelease?.source, state.staging?.source].filter(Boolean),
+      images: [...new Set([...Object.values(previous?.model?.services ?? {}).map(config => config.image), ...Object.values(activeModel?.services ?? {}).map(config => config.image), ...Object.values(state.staging?.images ?? {})])],
+      backups: state.backup ? [state.backup] : [] }
+    save(`/stage/deployments/${attempt}.json`, state)
+    save('/stage/deployment-status.json', state)
+  }
+  const finish = source => {
+    state.completion = { source }
+    phase('completion')
+    maintenance('finish')
+  }
   const compose = (model, ...args) => {
     const file = join(work, 'compose.json')
     writeFileSync(file, JSON.stringify(model), { mode: 0o600 })
     return docker('compose', '--project-name', project, '-f', file, ...args)
   }
-  const maintenance = (action, value) => JSON.parse(docker('exec', `maintenance-tool-${backupReceipt.attempt}`, 'node', '/app/scripts/maintenance-host.mjs', action, ...(value ? [JSON.stringify(value)] : [])))
+  const maintenance = (action, value = { attempt: backupReceipt.attempt }) => JSON.parse(docker('exec', `maintenance-tool-${backupReceipt.attempt}`, 'node', '/app/scripts/maintenance-host.mjs', action, ...(value ? [JSON.stringify(value)] : [])))
   const databaseState = (requireDrained = false, validation = {}) => JSON.parse(docker('exec', tool, 'node', '/app/deployment-databases.mjs', JSON.stringify({
     requireDrained, paths: { auth: env(viewer, 'AUTH_DB_PATH'), chat: env(viewer, 'CHAT_DB_PATH') }, ...validation,
   })))
@@ -195,7 +237,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
     }
     compose(privateModel, 'stop', '-t', '2', 'caddy')
     phase('opening-proxy')
-    docker('stop', '-t', '2', `maintenance-proxy-${backupReceipt.attempt}`)
+    if (backupReceipt) docker('stop', '-t', '2', `maintenance-proxy-${backupReceipt.attempt}`)
     compose(model, 'up', '-d', '--no-build', '--pull', 'never', '--no-deps', 'caddy')
     const opened = containers(project).find(c => service(c) === 'caddy')
     if (!opened?.State.Running || opened.Image !== proxy.Image) throw new Error('Public proxy failed to start')
@@ -222,22 +264,110 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
   }
   try {
     if (recovery) {
-      // The retained deployment owner blocks new deployments. This second atomic
-      // name prevents two operators from recovering that owner at the same time.
-      docker('create', '--name', `${project}-recovery-operation`, '--network', 'none', '--entrypoint', 'node', viewer.Image, '-e', 'process.exit(0)')
-      recoveryOwned = true
-      const saved = read('/stage/deployment-status.json')
-      if (saved.result !== 'maintenance-required' || !saved.backup || !saved.candidateRelease) throw new Error('Managed recovery requires a failed deployment with a verified backup')
+      // Restart the private tool only. Managed application containers never restart here.
+      if (!docker('ps', '-aq', '--filter', `name=^/${tool}$`)) {
+        state = JSON.parse(docker('run', '--rm', '--user', '0', '--network', 'none', '-v', `${volume}:/stage:ro`, '--entrypoint', 'cat', viewer.Image, '/stage/deployment-status.json'))
+        attempt = state.attempt
+        createTool()
+      }
+      else docker('start', tool)
+      await claim()
+      const bootstrap = JSON.parse(JSON.parse(docker('inspect', tool))[0].Config.Labels['org.frankerzspam.deployment-state'])
+      let saved = host('exists', { path: '/stage/deployment-status.json' }).exists ? read('/stage/deployment-status.json') : bootstrap
+      if (saved.attempt !== bootstrap.attempt && (saved.phase === 'complete' || saved.result === 'rejected')) saved = bootstrap
       state = saved; attempt = state.attempt
-      previous = read(`/stage/deployments/${attempt}-previous.json`)
+      if (state.result === 'rejected') { preserveState = true; retained = false; throw new Error('Managed preflight was rejected. Repair it and run a new deployment.') }
+      previous = read(state.previousRelease ? `/stage/deployments/${attempt}-previous.json` : '/stage/current.json')
+      if (!state.previousRelease) save(`/stage/deployments/${attempt}-previous.json`, previous)
+      state.previousRelease ??= { version: previous.version, source: previous.source }
+      state.chatEnabled ??= previous.chatEnabled
       backupReceipt = state.backup
-      migrationBaseline = state.migrations
+      migrationBaseline = state.migrations ?? previous.migrations
       staged = { attempt: state.stagedAttempt }
+      activeModel = state.candidateRelease ? read(`${state.candidateRelease.source}/resolved-compose.json`) : undefined
       owned = true; retained = true
+      ownershipRecorded = host('exists', { path: `/stage/deployments/${attempt}-ownership.json` }).exists
+      const marker = `${dirname(env(viewer, 'AUTH_DB_PATH'))}/.maintenance-backup.json`
+      if (state.completion && !host('exists', { path: marker }).exists) {
+        // Completed attempts have no maintenance owner. A rejected repeat must
+        // leave their accepted services and durable result untouched.
+        preserveState = true; retained = false
+        if (restore !== 'none') throw new Error('Managed completion recovery cannot replace databases')
+        const selected = recovery === 'previous' ? previous : { source: state.candidateRelease?.source }
+        const current = read('/stage/current.json')
+        if (current.source !== selected.source || current.tree !== host('tree', { path: current.source }).digest ||
+            !same(current.model, read(`${current.source}/resolved-compose.json`))) throw new Error('Managed completed release differs')
+        if (backupReceipt && !host('exists', { path: `${dirname(env(viewer, 'AUTH_DB_PATH'))}/.maintenance-completed-${backupReceipt.attempt}.json` }).exists) throw new Error('Managed completion evidence is missing')
+        acceptanceHistory = current.migrations
+        checkHistory()
+        verifyRestoredRuntime(current.runtime)
+        const running = containers(project).every(c => c.State.Running === (current.chatEnabled || service(c) !== 'centrifugo') &&
+          !c.State.Paused && !c.State.Restarting && (!c.State.Running || !c.State.Health || c.State.Health.Status === 'healthy'))
+        if (!running) {
+          retained = true
+          const completedBackup = backupReceipt
+          backupReceipt = undefined
+          try { await accept(current.model, current.version, current.chatEnabled, current.runtime) }
+          finally { backupReceipt = completedBackup }
+          current.runtime = verifyRestoredRuntime(current.runtime)
+          save('/stage/current.json', current)
+        } else {
+          const live = containers(project).find(c => service(c) === 'viewer')
+          const health = JSON.parse(docker('exec', live.Id, 'node', '-e', "fetch('http://127.0.0.1:3000/api/health').then(async r=>{if(!r.ok)process.exit(1);console.log(JSON.stringify(await r.json()))})"))
+          if (health.status !== 'ok' || health.version !== current.version || health.chat?.status !== (current.chatEnabled ? 'healthy' : 'disabled')) throw new Error('Application acceptance failed')
+          await verifyProxy(async (path, headers) => {
+            const response = await fetch(new URL(path, url || `https://${env(initial.find(c => service(c) === 'caddy'), 'PUBLIC_HOSTNAME')}/`), { headers, redirect: 'manual', signal: AbortSignal.timeout(2000) })
+            return { status: response.status, headers: Object.fromEntries(response.headers), body: await response.text() }
+          })
+        }
+        preserveState = false
+        state.result = 'recovered'; state.version = current.version
+        state.nextAction = 'Completed release verified. No migrations or database replacement repeated.'
+        phase('complete'); retained = false
+        return state
+      }
+      if (!backupReceipt) {
+        if (recovery !== 'previous' || restore !== 'none') { preserveState = true; throw new Error('Managed preparation recovery requires previous release and no restore') }
+        if (previous.tree !== host('tree', { path: previous.source }).digest) throw new Error('Managed previous files changed')
+        checkHistory()
+        const stageOwner = docker('ps', '-aq', '--filter', `name=^/${project}-stage-operation$`)
+        if (stageOwner) {
+          const container = JSON.parse(docker('inspect', stageOwner))[0]
+          if (container.Config.Labels['org.frankerzspam.deployment-attempt'] !== attempt) throw new Error('Managed staging owner differs')
+          docker('rm', '-f', stageOwner)
+        }
+        state.recovery = { release: recovery, databases: restore, possibleDataLoss: false }
+        phase('recovery-activation')
+        await accept(previous.model, previous.version, previous.chatEnabled, previous.runtime)
+        previous.runtime = verifyRestoredRuntime(previous.runtime)
+        save('/stage/current.json', previous)
+        state.result = 'recovered'; state.version = previous.version
+        state.nextAction = 'Previous release passed acceptance. Preparation was cancelled.'
+        state.completion = { source: previous.source }
+        phase('complete'); retained = false
+        return state
+      }
       migrationProcess = state.migrationProcess
+      const completing = Boolean(state.completion)
       stopMigration()
       stop()
+      docker('start', `maintenance-tool-${backupReceipt.attempt}`)
       docker('start', `maintenance-proxy-${backupReceipt.attempt}`)
+      if (!completing) {
+        const backupState = maintenance('state')
+        if (backupState.attempt !== backupReceipt.attempt || backupState.deploymentAttempt !== attempt) throw new Error('Managed backup owner differs')
+        if (backupState.hostManifest) {
+          const verified = await acknowledgeBackup(`maintenance-tool-${backupReceipt.attempt}`, join(directory, 'backups'), attempt)
+          backupReceipt = state.backup = { ...backupReceipt, backupId: verified.backupId, hostManifest: verified.hostManifest,
+            workstationManifest: verified.workstationManifest, acknowledged: true }
+        } else {
+          if (restore !== 'none' || recovery !== 'previous') throw new Error('Managed recovery has no completed backup')
+          checkHistory()
+          maintenance('phase', { phase: 'held' })
+        }
+      } else if (restore !== 'none') throw new Error('Managed completion recovery cannot replace databases')
+      observe()
+
       state.recovery = { release: recovery, databases: restore, possibleDataLoss: restore !== 'none' }
       phase('recovery-validation')
       const selected = recovery === 'previous' ? previous : {
@@ -245,12 +375,13 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
         tree: state.candidateRelease.tree, model: read(`${state.candidateRelease.source}/resolved-compose.json`),
         chatEnabled: state.chatEnabled,
       }
+      if (completing && read('/stage/current.json').source !== selected.source) throw new Error('Managed completion requires the accepted release')
       if (!selected.tree || host('tree', { path: selected.source }).digest !== selected.tree || !same(selected.model, read(`${selected.source}/resolved-compose.json`))) throw new Error('Managed recovery files changed')
       if (restore !== 'none' && confirm !== 'discard-later-data') throw new Error('Database replacement can discard later data; use --confirm discard-later-data')
       const helper = `maintenance-tool-${backupReceipt.attempt}`
       for (const file of ['deployment-restore.mjs', 'backup-operation.mjs', 'database-backups.mjs', 'chat-retention.mjs', 'chat-restore-references.mjs']) docker('cp', join(scripts, file), `${helper}:/app/scripts/${file}`)
       phase('recovery-databases')
-      docker('exec', helper, 'node', '/app/scripts/deployment-restore.mjs', JSON.stringify({
+      if (!completing) docker('exec', helper, 'node', '/app/scripts/deployment-restore.mjs', JSON.stringify({
         selected: restore === 'none' ? [] : restore === 'both' ? ['auth', 'chat'] : [restore],
         paths: { auth: env(viewer, 'AUTH_DB_PATH'), chat: env(viewer, 'CHAT_DB_PATH') },
         expected: host('migration-names', { path: selected.source }), manifest: backupReceipt.hostManifest, maintenanceAttempt: backupReceipt.attempt,
@@ -262,19 +393,22 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
       if (recovery === 'previous') verifyRestoredRuntime(selected.runtime)
       save('/stage/current.json', { ...selected, format: 1, result: 'active', migrations: acceptanceHistory,
         runtime: Object.fromEntries(containers(project).map(c => [service(c), runtimeIdentity(c)])) })
-      maintenance('finish')
+      finish(selected.source)
       state.result = 'recovered'; state.version = selected.version
       state.nextAction = 'Recovery passed acceptance.'
       phase('complete')
       retained = false
       return state
     }
-    // The atomic Docker name is an exclusive host-side owner, including during preparation.
-    docker('create', '--name', tool, '--label', `org.frankerzspam.deployment=${project}`, '--network', 'none', '--user', '0',
-      '--volumes-from', viewer.Id, '-v', `${volume}:/stage`, '--mount', `type=bind,source=${info.DockerRootDir},target=/docker-storage,readonly`, '--entrypoint', 'node', viewer.Image, '-e', 'setInterval(()=>{},1000)')
-    owned = true
-    for (const file of ['deployment-state.mjs', 'deployment-databases.mjs', 'stage-host.mjs']) docker('cp', join(scripts, file), `${tool}:/app/${file}`)
-    docker('start', tool)
+    createTool()
+    await claim()
+    if (host('exists', { path: '/stage/deployment-status.json' }).exists) {
+      const saved = read('/stage/deployment-status.json')
+      if (saved.phase !== 'complete' && saved.result !== 'rejected') {
+        preserveState = true; retained = true
+        throw Object.assign(new Error('Managed attempt is unresolved'), { report: saved })
+      }
+    }
     phase('baseline')
     previous = read('/stage/current.json')
     if (previous.format !== 1 || previous.result !== 'active' || !previous.source?.startsWith('/stage/') || previous.source.includes('..') ||
@@ -286,9 +420,11 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
     if (!['true', 'false'].includes(chat) || previous.chatEnabled !== (chat === 'true')) throw new Error('Managed Chat state is uncertain')
     state.chatEnabled = previous.chatEnabled
     state.previousRelease = { version: previous.version, source: previous.source }
+    save(`/stage/deployments/${attempt}-previous.json`, previous)
+    state.migrations = previous.migrations
     phase('staging')
     const record = await selectedRelease(tag)
-    staged = await stageOrStatus({ action: 'prepare', target, tag, record, project, directory })
+    staged = await stageOrStatus({ action: 'prepare', target, tag, record, project, directory, deploymentAttempt: attempt, onState: value => { state.staging = { attempt: value.attempt, source: `/stage/${value.attempt}/source`, images: value.requiredImages ?? Object.values(value.images) }; phase('staging') } })
     state.stagedAttempt = staged.attempt
     state.candidateRelease = { tag, version: record.version, source: `/stage/${staged.attempt}/source` }
     activeModel = read(`/stage/${staged.attempt}/source/resolved-compose.json`)
@@ -317,14 +453,17 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
     state.migrations = migrationBaseline
     // Keep the resolved model, secrets, scripts, images, and volume identities in private host storage.
     save(`/stage/deployments/${attempt}-previous.json`, previous)
+    state.candidateRelease.tree = host('tree', { path: state.candidateRelease.source }).digest
     phase('maintenance-backup')
-    backupReceipt = await maintenanceBackup({ project, directory: join(directory, 'backups'), url, hold: true })
+    backupReceipt = await maintenanceBackup({ project, directory: join(directory, 'backups'), url, hold: true, deploymentAttempt: attempt, onState: backup => { state.backup = backup; phase('maintenance-backup') } })
     state.backup = backupReceipt
     phase('stopping-writers')
     stop(unchanged)
     checkHistory()
     // The backup receipt is produced only after encrypted workstation verification and acknowledgement.
-    if (maintenance('state').phase !== 'held' || !backupReceipt.backupId || !backupReceipt.workstationManifest) throw new Error('Workstation acknowledgement is missing')
+    const held = maintenance('state')
+    if (held.phase !== 'held' || !backupReceipt.backupId || !backupReceipt.workstationManifest ||
+        !same(held.acknowledgement, { deploymentAttempt: attempt, attempt: backupReceipt.attempt, backupId: backupReceipt.backupId })) throw new Error('Workstation acknowledgement is missing')
     phase('activation-preflight')
     const budget = { databases: { auth: env(viewer, 'AUTH_DB_PATH'), chat: env(viewer, 'CHAT_DB_PATH') },
       stageBytes: 64 * 1024 ** 2, files: 1000, imageBytes: 0,
@@ -352,10 +491,11 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
       tree: host('tree', { path: `/stage/${staged.attempt}/source` }).digest, migrations: acceptanceHistory, chatEnabled: previous.chatEnabled,
       runtime: Object.fromEntries(containers(project).map(c => [service(c), runtimeIdentity(c)])) }
     save('/stage/current.json', current)
-    maintenance('finish')
+    finish(current.source)
     phase('complete')
     return state
   } catch (error) {
+    if (preserveState) throw error
     if (!recovery) state.failedPhase = state.phase
     else state.recoveryFailedPhase = state.phase
     state.reason = /^(Verified managed|Managed |Candidate |Credential |Database |Application |Required |Public |Docker )/.test(error.message) ? error.message : 'Deployment check failed'
@@ -380,7 +520,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
         await accept(previous.model, previous.version, previous.chatEnabled, previous.runtime)
         previous.runtime = verifyRestoredRuntime(previous.runtime)
         save('/stage/current.json', previous)
-        maintenance('finish')
+        finish(previous.source)
         state.result = 'failed-rolled-back'
         state.nextAction = 'Previous release restored. Repair the selected release before another deployment.'
         retained = false
@@ -401,15 +541,16 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
         if (report.result === 'maintenance-retained') { retained = true; state.result = 'maintenance-required'; state.nextAction = report.nextAction }
       } catch { /* Controlled preflight failure. */ }
     }
-    if (owned) { try { phase(state.result) } catch { retained = true } }
+    if (owned) { try { phase(state.result === 'failed-rolled-back' ? 'complete' : state.result) } catch { retained = true } }
     throw Object.assign(new Error('Deployment failed'), { report: state })
   } finally {
     rmSync(work, { recursive: true, force: true })
-    if (recoveryOwned) { try { docker('rm', '-f', `${project}-recovery-operation`) } catch {} }
     if (owned && !retained) {
       if (backupReceipt) for (const id of [`maintenance-tool-${backupReceipt.attempt}`, `maintenance-proxy-${backupReceipt.attempt}`]) { try { docker('rm', '-f', id) } catch {} }
       try { docker('rm', '-f', tool) } catch { /* A remaining owner requires inspection. */ }
     }
+    setDeploymentOwner(undefined)
+    if (connectionFd !== undefined) closeSync(connectionFd)
   }
 }
 async function main() {

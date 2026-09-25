@@ -51,7 +51,7 @@ it.each([false, true])('stages the committed release privately with Chat=%s whil
     docker('create', '--name', `${project}-stage-operation`, '--label', `org.frankerzspam.staging=${project}`,
       '--label', 'org.frankerzspam.staging-state={"attempt":"disconnected-before-save","release":"v1.2.3","images":{"viewer":"fixture-digest"}}', image)
     const interrupted = await command('status')
-    expect(interrupted.status, interrupted.stderr).toBe(0)
+    expect(interrupted.status, interrupted.stderr).not.toBe(0)
     expect(JSON.parse(interrupted.stdout)).toMatchObject({ attempt: 'disconnected-before-save', release: 'v1.2.3', images: { viewer: 'fixture-digest' }, result: 'in-progress-or-interrupted' })
     docker('rm', `${project}-stage-operation`)
     const { writeFileSync } = await import('node:fs')
@@ -87,7 +87,7 @@ it('rejects release, download, configuration, and storage failures before mainte
     docker('create', '--name', `${project}-stage-operation`, '--label', `org.frankerzspam.staging=${project}`,
       '--label', 'org.frankerzspam.staging-state={"attempt":"disconnected-before-save","release":"v1.2.3","images":{"viewer":"fixture-digest"}}', image)
     const interrupted = await command('status')
-    expect(interrupted.status, interrupted.stderr).toBe(0)
+    expect(interrupted.status, interrupted.stderr).not.toBe(0)
     expect(JSON.parse(interrupted.stdout)).toMatchObject({ attempt: 'disconnected-before-save', release: 'v1.2.3', images: { viewer: 'fixture-digest' }, result: 'in-progress-or-interrupted' })
     docker('rm', `${project}-stage-operation`)
     const { writeFileSync } = await import('node:fs')

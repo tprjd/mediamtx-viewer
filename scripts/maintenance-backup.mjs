@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
-import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,10 +8,13 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { backupKey } from './database-backups.mjs'
 import { requireSpace, verifyBackupSet } from './backup-verification.mjs'
 
+import { assertDeploymentOwner, deploymentStdio } from './deployment-connection.mjs'
+
 const scripts = dirname(fileURLToPath(import.meta.url))
 function docker(...args) {
+  assertDeploymentOwner(args)
   try {
-    return execFileSync('docker', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 120000, maxBuffer: 16 * 1024 * 1024 }).trim()
+    return execFileSync('docker', args, { encoding: 'utf8', stdio: deploymentStdio(), timeout: 120000, maxBuffer: 16 * 1024 * 1024 }).trim()
   } catch { throw new Error('Docker operation failed') }
 }
 const inspect = id => JSON.parse(docker('inspect', id))[0]
@@ -147,7 +150,7 @@ async function resume(helper, state) {
   }
 }
 
-export async function maintenanceBackup({ project, directory, url, hold = false }) {
+export async function maintenanceBackup({ project, directory, url, hold = false, deploymentAttempt, onState = () => {} }) {
   backupKey()
   directory = resolve(directory)
   privateDirectory(directory)
@@ -185,13 +188,14 @@ export async function maintenanceBackup({ project, directory, url, hold = false 
       (bindings ?? []).flatMap(binding => ['-p', `${binding.HostIp ? `${binding.HostIp.includes(':') ? `[${binding.HostIp}]` : binding.HostIp}:` : ''}${binding.HostPort}:${port}`]))
     if (!ports.length) throw new Error('No public proxy ports')
     writeFileSync(join(temporary, 'Caddyfile'), `{\n admin off\n persist_config off\n}\n${hostname} {\n header Retry-After 60\n header Cache-Control no-store\n respond "Maintenance in progress. Try again later." 503\n}\n`, { mode: 0o600 })
-    docker('create', '--name', maintenance, ...labels, '--restart', 'unless-stopped', '--volumes-from', caddy.Id,
+    docker('create', '--name', maintenance, ...labels, '--restart', 'always', '--volumes-from', caddy.Id,
       ...ports, '--entrypoint', 'caddy', caddy.Image, 'run', '--config', '/tmp/maintenance.Caddyfile', '--adapter', 'caddyfile')
     docker('cp', join(temporary, 'Caddyfile'), `${maintenance}:/tmp/maintenance.Caddyfile`)
-    state = { attempt, project, helper, maintenance, viewer: viewer.Id, caddy: caddy.Id, caddyImage: caddy.Image, caddyConfig, caddyFile, url, chatEnabled, version,
+    state = { attempt, deploymentAttempt, project, helper, maintenance, viewer: viewer.Id, caddy: caddy.Id, caddyImage: caddy.Image, caddyConfig, caddyFile, url, chatEnabled, version,
       containers: runtime.containers.filter(container => container.Id !== caddy.Id).map(container => ({
         id: container.Id, image: container.Image, startedAt: container.State.StartedAt, running: container.State.Running,
       })) }
+    onState({ attempt, deploymentAttempt, acknowledged: false })
     host(helper, 'begin', state)
     began = true
     requireSpace(directory, host(helper, 'state').measurement.requiredBytes)
@@ -205,24 +209,15 @@ export async function maintenanceBackup({ project, directory, url, hold = false 
     phase = 'snapshot'
     // Recheck space for the frozen database and WAL sizes before copying.
     const snapshot = host(helper, 'snapshot')
+    onState({ ...receipt(snapshot), acknowledged: false })
     phase = 'transfer'
-    const copy = join(directory, attempt)
-    privateDirectory(copy)
-    requireSpace(copy, snapshot.measurement.requiredBytes)
-    for (const file of ['auth.sqlite.enc', 'chat.sqlite.enc', 'manifest.json']) {
-      docker('cp', `${helper}:${join(dirname(snapshot.hostManifest), file)}`, join(copy, file))
-      chmodSync(join(copy, file), 0o600)
-    }
-    const workstationManifest = join(copy, 'manifest.json')
     phase = 'workstation-verification'
-    const manifest = await verifyBackupSet(workstationManifest)
-    state = { ...snapshot, workstationManifest, backupId: manifest.id, phase: 'verified' }
-    // This acknowledgement exists only after workstation decryption and validation.
-    host(helper, 'phase', { workstationManifest, backupId: manifest.id, phase: 'verified' })
+    state = await acknowledgeBackup(helper, directory, deploymentAttempt)
     if (hold) {
       host(helper, 'phase', { phase: 'held' })
       keep = true
-      return { ...receipt(state), result: 'verified-maintenance', nextAction: 'Consume the verified phase or run resume with this attempt' }
+      onState({ ...receipt(state), acknowledged: true })
+      return { ...receipt(state), result: 'verified-maintenance', nextAction: deploymentAttempt ? 'Use managed deployment recovery for this attempt.' : 'Consume the verified phase or run resume with this attempt' }
     }
     phase = 'resuming'
     await resume(helper, state)
@@ -253,8 +248,29 @@ export async function maintenanceBackup({ project, directory, url, hold = false 
     }
   }
 }
+export async function acknowledgeBackup(helper, directory, deploymentAttempt) {
+  const snapshot = host(helper, 'state')
+  if (snapshot.deploymentAttempt !== deploymentAttempt || !snapshot.hostManifest) throw new Error('Managed backup identity differs')
+  const copy = join(directory, snapshot.attempt)
+  privateDirectory(copy)
+  requireSpace(copy, snapshot.measurement.requiredBytes)
+  for (const file of ['auth.sqlite.enc', 'chat.sqlite.enc', 'manifest.json']) {
+    const destination = join(copy, file)
+    // Never replace an existing workstation copy or its evidence.
+    if (!existsSync(destination)) docker('cp', `${helper}:${join(dirname(snapshot.hostManifest), file)}`, destination)
+    chmodSync(destination, 0o600)
+  }
+  const workstationManifest = join(copy, 'manifest.json')
+  const manifest = await verifyBackupSet(workstationManifest)
+  const hostManifest = JSON.parse(docker('exec', helper, 'cat', snapshot.hostManifest))
+  if (manifest.id !== hostManifest.id) throw new Error('Managed backup set differs')
+  host(helper, 'phase', { workstationManifest, backupId: manifest.id,
+    acknowledgement: { deploymentAttempt, attempt: snapshot.attempt, backupId: manifest.id }, phase: 'held' })
+  return { ...snapshot, workstationManifest, backupId: manifest.id, phase: 'held' }
+}
+
 function receipt(state) {
-  return { attempt: state.attempt, backupId: state.backupId, hostManifest: state.hostManifest,
+  return { attempt: state.attempt, deploymentAttempt: state.deploymentAttempt, acknowledged: Boolean(state.workstationManifest && state.backupId), backupId: state.backupId, hostManifest: state.hostManifest,
     workstationManifest: state.workstationManifest, chatEnabled: state.chatEnabled, version: state.version }
 }
 async function main() {
@@ -270,6 +286,7 @@ async function main() {
   if (command === 'resume' && /^[a-f0-9-]{36}$/.test(options.attempt ?? '')) {
     const helper = `maintenance-tool-${options.attempt}`
     const state = host(helper, 'state')
+    if (state.deploymentAttempt) throw new Error('Managed deployment maintenance requires deploy.sh recover')
     if (state.project !== options.project || state.attempt !== options.attempt || state.phase !== 'held') throw new Error('No matching verified maintenance phase')
     host(helper, 'claim-resume')
     try {

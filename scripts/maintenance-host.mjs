@@ -92,7 +92,7 @@ try {
       }
       const manifest = await createBackupSet({ authPath: join(work, 'auth.sqlite'), chatPath: join(work, 'chat.sqlite'),
         directory: join(root, 'deployment-backups'), deployment: true })
-      result = { ...read(), hostManifest: manifest, phase: 'copied-on-host' }
+      result = { ...read(), hostManifest: manifest, backupId: JSON.parse(readFileSync(manifest, 'utf8')).id, phase: 'copied-on-host' }
       save(result)
     } finally { rmSync(work, { recursive: true, force: true }) }
   } else if (command === 'claim-resume') {
@@ -105,8 +105,22 @@ try {
     if (!state.frozen && state.phase !== 'entering-maintenance') throw new Error('Unknown database state')
     if (state.frozen && JSON.stringify(state.frozen) !== JSON.stringify(await fingerprints())) throw new Error('Database state changed')
   } else if (command === 'finish') {
-    rmSync(marker)
-    rmSync(lock, { recursive: true })
+    const attempt = argument ? JSON.parse(argument).attempt : read().attempt
+    const completed = join(root, `.maintenance-completed-${attempt}.json`)
+    if (existsSync(marker)) {
+      if (read().attempt !== attempt) throw new Error('Maintenance owner differs')
+      writeFileSync(completed, JSON.stringify({ attempt }), { mode: 0o600, flush: true })
+      const completionDirectory = openSync(root, 'r')
+      try { fsyncSync(completionDirectory) } finally { closeSync(completionDirectory) }
+      // Keep the marker until the old lock is gone. New scheduled work still
+      // refuses this marker, even if it acquires the just-released lock.
+      rmSync(lock, { recursive: true, force: true })
+      const lockDirectory = openSync(paths.directory, 'r')
+      try { fsyncSync(lockDirectory) } finally { closeSync(lockDirectory) }
+      rmSync(marker)
+      const markerDirectory = openSync(root, 'r')
+      try { fsyncSync(markerDirectory) } finally { closeSync(markerDirectory) }
+    } else if (!existsSync(completed)) throw new Error('Maintenance completion is unknown')
   } else if (command === 'cancel-preflight') {
     if (read().phase !== 'prepared') throw new Error('Maintenance already started')
     rmSync(marker)

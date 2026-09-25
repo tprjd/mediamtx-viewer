@@ -8,9 +8,12 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { selectedRelease } from './stage-release-source.mjs'
 import { validateMediaMtxContract } from './validate-streaming-contract.mjs'
 
+import { assertDeploymentOwner, deploymentStdio } from './deployment-connection.mjs'
+
 const scripts = dirname(fileURLToPath(import.meta.url))
 function run(bin, args, options = {}) {
-  try { const result = execFileSync(bin, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 120000, maxBuffer: 32 * 1024 ** 2, ...options }); return typeof result === 'string' ? result.trim() : result }
+  if (bin === 'docker') assertDeploymentOwner(args)
+  try { const result = execFileSync(bin, args, { encoding: 'utf8', stdio: deploymentStdio(), timeout: 120000, maxBuffer: 32 * 1024 ** 2, ...options }); return typeof result === 'string' ? result.trim() : result }
   catch (error) {
     const detail = error.stderr?.toString().trim()
     if (/^(Host (measurement|memory|bytes)|Runtime storage|Database integrity|Chat runtime)[A-Za-z0-9 ()_-]*$/.test(detail ?? '')) throw new Error(detail)
@@ -60,7 +63,7 @@ async function main() {
   }
 }
 
-export async function stageOrStatus({ action, target, record, tag, project, directory }) {
+export async function stageOrStatus({ action, target, record, tag, project, directory, deploymentAttempt, onState = () => {} }) {
   const endpoint = target === 'local' ? process.env.DOCKER_HOST || JSON.parse(run('docker', ['context', 'inspect']))[0].Endpoints.docker.Host : `ssh://${target}`
   const docker = (...args) => run('docker', ['--host', endpoint, ...args])
   const inspect = id => JSON.parse(docker('inspect', id))[0]
@@ -74,10 +77,39 @@ export async function stageOrStatus({ action, target, record, tag, project, dire
     const deployment = docker('ps', '-aq', '--filter', `name=^/${project}-deploy-operation$`)
     try {
       docker('volume', 'inspect', volume)
-      const saved = JSON.parse(docker('run', '--rm', '--user', '0', '--network', 'none', '--mount', `type=volume,source=${volume},target=/stage,readonly`, '--entrypoint', 'cat', viewer.Image, '/stage/deployment-status.json'))
-      return { ...saved, ...(deployment ? { operationHeld: true } : {}) }
+      let saved = JSON.parse(docker('run', '--rm', '--user', '0', '--network', 'none', '--mount', `type=volume,source=${volume},target=/stage,readonly`, '--entrypoint', 'cat', viewer.Image, '/stage/deployment-status.json'))
+      if (deployment) {
+        const bootstrap = JSON.parse(inspect(deployment).Config.Labels['org.frankerzspam.deployment-state'] || '{}')
+        if (bootstrap.attempt && saved.attempt !== bootstrap.attempt && (saved.phase === 'complete' || saved.result === 'rejected')) saved = bootstrap
+      }
+      let owner = 'none'
+      if (deployment) {
+        owner = inspect(deployment).State.Running
+          ? docker('exec', deployment, 'sh', '-c', 'flock -n /stage/operation.lock -c "echo abandoned" || echo active')
+          : 'abandoned'
+      }
+      const resolved = ['active', 'recovered', 'failed-rolled-back', 'rejected'].includes(saved.result) && saved.phase === 'complete'
+      if (!resolved && owner === 'none') owner = 'abandoned'
+      const result = !resolved && owner === 'abandoned' && !['maintenance-required', 'rejected'].includes(saved.result) ? 'interrupted' : saved.result
+      let observedMigrations = { auth: null, chat: null }
+      try {
+        observedMigrations = JSON.parse(docker('run', '--rm', '--network', 'none', '--volumes-from', viewer.Id,
+          '--entrypoint', 'node', viewer.Image, '--input-type=module', '-e', readFileSync(join(scripts, 'deployment-databases.mjs'), 'utf8'),
+          JSON.stringify({ paths: { auth: envValue(viewer, 'AUTH_DB_PATH'), chat: envValue(viewer, 'CHAT_DB_PATH') } })))
+      } catch { /* Missing or unreadable records are unknown, never an empty history. */ }
+      const observedServices = containers.filter(c => !c.Config.Labels['org.frankerzspam.maintenance']).map(c => ({ service: service(c), id: c.Id, image: c.Image, running: c.State.Running, paused: c.State.Paused, restarting: c.State.Restarting }))
+      return { ...saved, result, owner, observedMigrations, observedServices, operationHeld: Boolean(deployment),
+        nextAction: owner === 'active' ? 'Wait for the active operation. Recovery cannot take its lock.'
+          : !resolved && deployment ? 'Inspect both database histories and protected files. Run recover with an explicit release and database choice.' : saved.nextAction }
+
     } catch {
-      if (deployment) return { project, result: 'in-progress-or-interrupted', nextAction: 'Inspect the managed deployment owner before recovery.' }
+      if (deployment) {
+        const container = inspect(deployment)
+        const owner = container.State.Running ? docker('exec', deployment, 'sh', '-c', 'flock -n /stage/operation.lock -c "echo abandoned" || echo active') : 'abandoned'
+        return { ...JSON.parse(container.Config.Labels['org.frankerzspam.deployment-state'] || '{}'), project, owner,
+          result: owner === 'active' ? 'in-progress' : 'interrupted',
+          nextAction: owner === 'active' ? 'Wait for the active operation.' : 'Recover the original attempt with previous release and no database restore.' }
+      }
     }
     const readStatus = () => {
       // Never create a volume while reading status.
@@ -94,6 +126,11 @@ export async function stageOrStatus({ action, target, record, tag, project, dire
       return { ...state, project, result: 'in-progress-or-interrupted', nextAction: 'Inspect the staging owner. Do not remove its lock while preparation is running.' }
     }
     return readStatus()
+  }
+  const deploymentOwner = docker('ps', '-aq', '--filter', `name=^/${project}-deploy-operation$`)
+  if (deploymentOwner) {
+    const saved = JSON.parse(docker('exec', deploymentOwner, 'cat', '/stage/deployment-status.json'))
+    if (!deploymentAttempt || saved.attempt !== deploymentAttempt) throw new Error('Unresolved managed deployment blocks preparation')
   }
   const names = ['viewer', 'caddy', 'centrifugo', 'mediamtx', 'mediamtx-health', 'thumbnailer', 'discord-notifier']
   if (containers.length !== names.length || names.some(name => containers.filter(container => service(container) === name).length !== 1)) throw new Error('Existing service state is incomplete or unsupported')
@@ -122,7 +159,7 @@ export async function stageOrStatus({ action, target, record, tag, project, dire
   let owned = false
   try {
     // Atomic Docker name allocation is the host-side operation lock. A lost client leaves it in place.
-    docker('create', '--name', lock, '--label', `org.frankerzspam.staging=${project}`, '--label', `org.frankerzspam.staging-state=${JSON.stringify(state)}`, '--network', 'none', '--user', '0',
+    docker('create', '--name', lock, '--label', `org.frankerzspam.staging=${project}`, '--label', `org.frankerzspam.deployment-attempt=${deploymentAttempt ?? ''}`, '--label', `org.frankerzspam.staging-state=${JSON.stringify(state)}`, '--network', 'none', '--user', '0',
       '--volumes-from', `${viewer.Id}:ro`, '--mount', `type=volume,source=${volume},target=/stage`,
       '--mount', `type=bind,source=${info.DockerRootDir},target=/docker-storage,readonly`, '--entrypoint', 'node', viewer.Image, '-e', 'setInterval(()=>{},1000)')
     owned = true
@@ -131,7 +168,7 @@ export async function stageOrStatus({ action, target, record, tag, project, dire
     docker('start', lock)
     // /app is the application's package root and contains better-sqlite3.
     const checkedHost = (action, value) => JSON.parse(docker('exec', lock, 'node', '/app/stage-host.mjs', action, JSON.stringify(value)))
-    const save = () => checkedHost('save', state)
+    const save = () => { onState(state); return checkedHost('save', state) }
     save()
     const source = join(work, 'source')
     run('git', ['init', '-q', source])
@@ -214,6 +251,7 @@ export async function stageOrStatus({ action, target, record, tag, project, dire
     }
     let measure = measureHost()
     workstationSpace(work, measure.backupBytes + budget.stageBytes, size.files * 2 + 10000)
+    state.requiredImages = Object.values(model.services).map(config => config.image)
     state.phase = 'images'; save()
     let viewerOwner
     for (const [name, config] of Object.entries(model.services)) {
@@ -229,6 +267,8 @@ export async function stageOrStatus({ action, target, record, tag, project, dire
         if (![viewerOwner.uid, viewerOwner.gid].every(value => Number.isSafeInteger(value) && value >= 0)) throw new Error('Viewer file ownership is unknown')
       }
       config.image = image.RepoDigests?.find(ref => ref.startsWith(config.image.split('@')[0].replace(/:[^/:]+$/, '') + '@')) || image.Id
+      state.requiredImages = Object.values(model.services).map(config => config.image)
+      save()
     }
     // Downloaded images now consume measured free space. Do not reserve them twice.
     budget.imageBytes = 0
@@ -287,6 +327,6 @@ export async function stageOrStatus({ action, target, record, tag, project, dire
 }
 function safeReason(error) { return error instanceof SyntaxError ? 'Malformed release or configuration data' : error.code ? 'File or host operation failed' : error.message }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { console.log(JSON.stringify(await main())) }
+  try { const report = await main(); console.log(JSON.stringify(report)); if (process.argv[2] === 'status' && !['active', 'recovered', 'ready'].includes(report.result)) process.exitCode = 1 }
   catch (error) { console.error(JSON.stringify(error.report || { result: 'rejected', release: /^v\d+\.\d+\.\d+$/.test(process.argv[4] ?? '') ? process.argv[4] : undefined, reason: safeReason(error) })); process.exitCode = 1 }
 }

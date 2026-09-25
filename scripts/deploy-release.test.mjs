@@ -1,6 +1,9 @@
 // @vitest-environment node
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import { expect, it } from 'vitest'
-import { stagingFixture, inspect, docker } from './fixtures/staging-setup.mjs'
+import { stagingFixture, inspect, docker, run } from './fixtures/staging-setup.mjs'
 
 it('rejects an unmanaged installation before changing live state', async () => {
   await stagingFixture(async ({ command, viewer }) => {
@@ -67,6 +70,8 @@ it.each(['transfer-failure', 'backup-key'])('rejects %s without activating the s
     const result = await command('managed')
     expect(result.status).not.toBe(0)
     expect(JSON.parse(result.stderr), result.stderr + result.diagnostic).toMatchObject({ result: 'rejected', failedPhase: failure === 'transfer-failure' ? 'maintenance-backup' : failure === 'backup-key' ? 'staging' : 'migration-preflight' })
+    const recovery = await command('recover', {}, ['--release', 'previous', '--restore', 'none'])
+    expect(recovery.status).not.toBe(0)
     expect(inspect(viewer).Id).toBe(before.Id)
     expect(inspect(viewer).State.StartedAt).toBe(before.State.StartedAt)
     expect(inspect(viewer).State.Paused).toBe(false)
@@ -184,4 +189,162 @@ it('restores only Chat offline, retains replaced files, and purges expired messa
     expect(contents.files.some(file => file.startsWith('auth.sqlite.pre-restore-'))).toBe(false)
     expect(contents.files).toContain('chat.sqlite.generation')
   }, { managed: true, chat: true, migrations: { 'chat-migrations/900_ok.sql': 'CREATE TABLE committed (id);' } })
+}, 240000)
+
+it('recovers the original attempt after loss before workstation acknowledgement', async () => {
+  await stagingFixture(async ({ command, fault, url }) => {
+    fault('interrupt-transfer')
+    expect((await command('managed')).status).not.toBe(0)
+    const status = await command('status')
+    expect(status.status).not.toBe(0)
+    const report = JSON.parse(status.stdout)
+    expect(report).toMatchObject({ result: 'interrupted', owner: 'abandoned', phase: 'maintenance-backup' })
+    expect(report.backup.attempt).toBeTruthy()
+    expect(report.backup.acknowledged).toBe(false)
+    expect((await fetch(url)).status).toBe(503)
+    expect((await command('managed')).status).not.toBe(0)
+    fault('')
+    const recovered = await command('recover', {}, ['--release', 'previous', '--restore', 'none'])
+    expect(recovered.status, recovered.stderr + recovered.diagnostic).toBe(0)
+    expect(JSON.parse(recovered.stdout)).toMatchObject({ attempt: report.attempt, result: 'recovered' })
+    expect((await fetch(url)).status).toBe(200)
+  }, { managed: true })
+}, 240000)
+
+it.each(['interrupt-chat', 'interrupt-activation', 'interrupt-completion', 'interrupt-helper-cleanup', 'interrupt-proxy-cleanup'])('reconciles %s without repeating committed migrations', async failure => {
+  await stagingFixture(async ({ command, fault, url, project }) => {
+    fault(failure)
+    expect((await command('managed')).status).not.toBe(0)
+    const report = JSON.parse((await command('status')).stdout)
+    expect(report.owner).toBe('abandoned')
+    if (failure === 'interrupt-chat') expect(() => run(process.execPath, ['scripts/maintenance-backup.mjs', 'resume', '--project', project, '--attempt', report.backup.attempt])).toThrow(/deploy.sh recover/)
+    fault('')
+    const recovered = await command('recover', {}, ['--release', 'candidate', '--restore', 'none'])
+    expect(recovered.status, recovered.stderr + recovered.diagnostic).toBe(0)
+    expect(JSON.parse(recovered.stdout)).toMatchObject({ attempt: report.attempt, result: 'recovered' })
+    expect((await fetch(url)).status).toBe(200)
+    const repeated = await command('recover', {}, ['--release', 'candidate', '--restore', 'none'])
+    expect(repeated.status, repeated.stderr + repeated.diagnostic).toBe(0)
+    expect(JSON.parse(repeated.stdout)).toMatchObject({ attempt: report.attempt, result: 'recovered' })
+    const wrongChoice = await command('recover', {}, ['--release', 'previous', '--restore', 'none'])
+    expect(wrongChoice.status).not.toBe(0)
+    expect((await fetch(url)).status).toBe(200)
+    expect(JSON.parse((await command('status')).stdout)).toMatchObject({ attempt: report.attempt, result: 'recovered' })
+  }, { managed: true, migrations: {
+    'migrations/900_once.sql': 'CREATE TABLE once_auth (id INTEGER PRIMARY KEY); INSERT INTO once_auth VALUES (1);',
+    'chat-migrations/900_once.sql': 'CREATE TABLE once_chat (id INTEGER PRIMARY KEY); INSERT INTO once_chat VALUES (1);',
+  } })
+}, 240000)
+
+it('does not steal an active deployment or let a scheduled backup remove its files', async () => {
+  await stagingFixture(async ({ command, fault, directory, url }) => {
+    fault('pause-transfer')
+    const pending = command('managed')
+    try {
+      for (let n = 0; n < 600 && !existsSync(join(directory, 'paused')); n++) await delay(100)
+      expect(existsSync(join(directory, 'paused'))).toBe(true)
+      const status = await command('status')
+      expect(status.status).not.toBe(0)
+      const report = JSON.parse(status.stdout)
+      expect(report.owner).toBe('active')
+      expect((await command('recover', {}, ['--release', 'previous', '--restore', 'none'])).status).not.toBe(0)
+      expect((await command('managed')).status).not.toBe(0)
+      expect((await command('prepare')).status).not.toBe(0)
+      expect(() => docker('exec', `maintenance-tool-${report.backup.attempt}`, 'node', '/app/scripts/backup-auth.mjs')).toThrow()
+      expect(JSON.parse((await command('status')).stdout)).toMatchObject({ attempt: report.attempt, owner: 'active' })
+      expect((await fetch(url)).status).toBe(503)
+    } finally { fault('') }
+    const result = await pending
+    expect(result.status, result.stderr + result.diagnostic).toBe(0)
+  }, { managed: true })
+}, 240000)
+
+it.each(['interrupt-staging', 'interrupt-maintenance', 'interrupt-rollback'])('recovers the previous release after %s', async failure => {
+  await stagingFixture(async ({ command, fault, url }) => {
+    fault(failure)
+    expect((await command('managed')).status).not.toBe(0)
+    const report = JSON.parse((await command('status')).stdout)
+    expect(report.owner).toBe('abandoned')
+    fault('')
+    const recovered = await command('recover', {}, ['--release', 'previous', '--restore', 'none'])
+    expect(recovered.status, recovered.stderr + recovered.diagnostic).toBe(0)
+    expect(JSON.parse(recovered.stdout)).toMatchObject({ attempt: report.attempt, result: 'recovered', version: 'fixture' })
+    expect((await fetch(url)).status).toBe(200)
+  }, { managed: true })
+}, 240000)
+
+it.each(['auth', 'chat'])('requires explicit recovery after termination during %s migration', async database => {
+  await stagingFixture(async ({ command, fault, url }) => {
+    fault(database === 'auth' ? 'interrupt-auth' : 'interrupt-chat-running')
+    expect((await command('managed')).status).not.toBe(0)
+    const report = JSON.parse((await command('status')).stdout)
+    expect(report).toMatchObject({ owner: 'abandoned', phase: `migration-${database}` })
+    expect((await fetch(url)).status).toBe(503)
+    expect((await command('managed')).status).not.toBe(0)
+    fault('')
+    const recovered = await command('recover', {}, ['--release', 'previous', '--restore', database, '--confirm', 'discard-later-data'])
+    expect(recovered.status, recovered.stderr + recovered.diagnostic).toBe(0)
+    expect(JSON.parse(recovered.stdout)).toMatchObject({ attempt: report.attempt, result: 'recovered' })
+  }, { managed: true, migrations: {
+    [`${database === 'auth' ? 'migrations' : 'chat-migrations'}/900_once.sql`]: 'CREATE TABLE once_migration (id INTEGER PRIMARY KEY); INSERT INTO once_migration VALUES (1);',
+    [`${database === 'auth' ? 'migrations' : 'chat-migrations'}/901_slow.sql`]: 'WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<100000000) SELECT sum(x) FROM n;',
+  } })
+}, 240000)
+
+it('allows a new deployment after a completed automatic rollback', async () => {
+  await stagingFixture(async ({ command, fault }) => {
+    fault('activation-failure')
+    const failed = await command('managed')
+    expect(JSON.parse(failed.stderr)).toMatchObject({ result: 'failed-rolled-back' })
+    fault('')
+    const next = await command('managed')
+    expect(next.status, next.stderr + next.diagnostic).toBe(0)
+    expect(JSON.parse(next.stdout).attempt).not.toBe(JSON.parse(failed.stderr).attempt)
+  }, { managed: true })
+}, 240000)
+
+it('rejects an acknowledgement from another attempt before any migration', async () => {
+  await stagingFixture(async ({ command, fault, url }) => {
+    fault('stale-acknowledgement')
+    const result = await command('managed')
+    expect(result.status).not.toBe(0)
+    expect(JSON.parse(result.stderr)).toMatchObject({ result: 'failed-rolled-back',
+      migrationChanges: { auth: { added: [] }, chat: { added: [] } } })
+    expect((await (await fetch(`${url}/_fixture-health`)).json()).version).toBe('fixture')
+  }, { managed: true, migrations: { 'migrations/900_no_permission.sql': 'CREATE TABLE must_not_run (id);' } })
+}, 240000)
+
+it('recovers an attempt interrupted before host tool initialization', async () => {
+  await stagingFixture(async ({ command, fault, url }) => {
+    fault('interrupt-owner-creation')
+    expect((await command('managed')).status).not.toBe(0)
+    const report = JSON.parse((await command('status')).stdout)
+    expect(report.attempt).toBeTruthy()
+    expect(report.owner).toBe('abandoned')
+    fault('')
+    const recovered = await command('recover', {}, ['--release', 'previous', '--restore', 'none'])
+    expect(recovered.status, recovered.stderr + recovered.diagnostic).toBe(0)
+    expect(JSON.parse(recovered.stdout)).toMatchObject({ attempt: report.attempt, result: 'recovered' })
+    expect((await fetch(url)).status).toBe(200)
+  }, { managed: true })
+}, 240000)
+
+it('keeps the lock while an in-flight Docker client outlives the workstation process', async () => {
+  await stagingFixture(async ({ command, fault }) => {
+    fault('interrupt-inflight')
+    let report
+    try {
+      expect((await command('managed')).status).not.toBe(0)
+      report = JSON.parse((await command('status')).stdout)
+      expect(report.owner).toBe('active')
+      expect((await command('recover', {}, ['--release', 'previous', '--restore', 'none'])).status).not.toBe(0)
+    } finally { fault('') }
+    for (let n = 0; n < 30; n++) {
+      if (JSON.parse((await command('status')).stdout).owner === 'abandoned') break
+      await delay(100)
+    }
+    const recovered = await command('recover', {}, ['--release', 'previous', '--restore', 'none'])
+    expect(recovered.status, recovered.stderr + recovered.diagnostic).toBe(0)
+    expect(JSON.parse(recovered.stdout).attempt).toBe(report.attempt)
+  }, { managed: true })
 }, 240000)
