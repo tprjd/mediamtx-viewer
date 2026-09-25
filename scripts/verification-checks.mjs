@@ -1,7 +1,7 @@
 export const verificationCommands = [
   ['lint', 'npm', ['run', 'lint']],
   ['type', 'npm', ['run', 'typecheck']],
-  ['test', 'npm', ['test']],
+  ['test', 'npm', ['test', '--', '--reporter=verbose']],
   ['browser', 'npx', ['playwright', 'test', '--workers=2']],
   ['restore', 'npm', ['run', 'chat:restore-drill']],
   ['build', 'npm', ['run', 'build', '--', '--webpack']],
