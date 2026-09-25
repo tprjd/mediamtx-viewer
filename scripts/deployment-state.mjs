@@ -34,6 +34,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const [action, json] = process.argv.slice(2), input = JSON.parse(json.startsWith('@') ? readFileSync(json.slice(1), 'utf8') : json)
     let result = {}
     if (action === 'exists') result = { exists: existsSync(input.path) }
+    else if (action === 'reset-adoption') {
+      if (existsSync('/stage/current.json')) throw new Error('Adoption already completed')
+      rmSync('/stage/baseline', { recursive: true, force: true })
+      mkdirSync('/stage/baseline/source', { recursive: true, mode: 0o700 })
+    }
     else if (action === 'read') result = JSON.parse(readFileSync(input.path, 'utf8'))
     else if (action === 'save') saveDeploymentState(input.path, input.value)
     else if (action === 'chat-lock') {

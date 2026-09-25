@@ -87,3 +87,7 @@ npx vitest run scripts/deployment-retention-docker.test.mjs
 The Docker tests use isolated projects and real deployment commands. They do not
 connect to Oracle. Also run the existing deployment, recovery, and backup suites
 before release.
+
+The [adopted installation](adopt-installation.md) is the previous release for
+the first successful managed deployment. Its captured files and exact images
+receive the same retention protection without a GitHub verification claim.

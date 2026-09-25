@@ -5,12 +5,13 @@ import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeF
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
+import { hostJobFixture } from './host-jobs.mjs'
 import { requiredChecks } from '../verification-checks.mjs'
 export const run = (bin, args, options = {}) => execFileSync(bin, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options }).trim()
 export const docker = (...args) => run('docker', args)
 export const inspect = id => JSON.parse(docker('inspect', id))[0]
 
-export async function stagingFixture(work, { chat = false, managed = false, mediaPorts = false, migrations = {} } = {}) {
+export async function stagingFixture(work, { chat = false, managed = false, legacy = false, mediaPorts = false, migrations = {} } = {}) {
   const endpoint = process.env.DOCKER_HOST ?? JSON.parse(docker('context', 'inspect'))[0].Endpoints.docker.Host
   if (!endpoint.startsWith('unix://') && !/^tcp:\/\/(localhost|127\.0\.0\.1):/.test(endpoint)) throw new Error('Staging tests require local Docker')
   docker('info')
@@ -86,7 +87,7 @@ export async function stagingFixture(work, { chat = false, managed = false, medi
     let managedOptions = {}
     if (managed) {
       const { startManagedBaseline } = await import('./deployment-setup.mjs')
-      managedOptions = await startManagedBaseline({ source, directory, image, project, chat, migrations })
+      managedOptions = await startManagedBaseline({ source, directory, image, project, chat, legacy, migrations })
     }
     if (managed && Object.keys(migrations).length) {
       docker('tag', image, `${project}:base`)
@@ -105,12 +106,14 @@ else if(args[0]==='stop') fs.writeFileSync(path,JSON.stringify(units.filter(name
 else process.exit(1);
 `, { mode: 0o700 })
     writeFileSync(join(bin, 'sudo'), '#!/bin/sh\n[ "$1" != "-n" ] || shift\nexec "$@"\n', { mode: 0o700 })
+    if (legacy) hostJobFixture(directory, bin)
     const realDocker = run('which', ['docker'])
     writeFileSync(join(bin, 'docker'), `#!/usr/bin/env node
 const {spawnSync}=require('node:child_process');
 const args=process.argv.slice(2);
 const chatFault=require('fs').readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8');
 if(args.includes('flock')) {const child=require('node:child_process').spawn(${JSON.stringify(realDocker)},args,{stdio:'inherit'});child.on('exit',code=>process.exit(code??1));return}
+if(args[0]==='cp' && args.includes('-')){const result=spawnSync(${JSON.stringify(realDocker)},args,{stdio:'inherit'});process.exit(result.status??1)}
 if(args.some(value=>value.includes('fixture-private')))throw new Error('Private value entered Docker arguments');
 // Architecture is a controlled host/registry measurement. Containers use the
 // native test CPU, so the same command suite runs on ARM64 and x64 runners.

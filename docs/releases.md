@@ -20,7 +20,7 @@ Do not change the version for documentation or planning changes.
 5. Create the annotated tag with `git tag -a vX.Y.Z -m "Release vX.Y.Z"`.
 6. Push the release commit and tag with `git push origin main vX.Y.Z`.
 7. Wait for the **Verified ARM64 release** workflow to pass. Confirm that the GitHub release contains `release.json` and that both container images can be pulled anonymously.
-8. Follow the [deployment procedure](../deploy/oracle/README.md). The existing VM-build deployment remains the default until the managed deployment tickets are complete.
+8. Follow the [deployment procedure](../deploy/oracle/README.md). Adopt an existing installation once, then select its verified tag explicitly. Tag publication never activates Oracle.
 9. Confirm that the header and `/api/health` show the release version.
 
 `lib/app-version.ts` derives `APP_VERSION` from `package.json`. Keep that file
@@ -65,5 +65,5 @@ with test-only runtime configuration. It does not publish or deploy them.
 To stage a published release without activation, follow
 [Prepare a selected release](deployment-preparation.md). Use
 `sh deploy/oracle/deploy.sh prepare TARGET vX.Y.Z`, then inspect it with
-`sh deploy/oracle/deploy.sh status TARGET`. This opt-in path keeps the current
-services running and leaves the existing deployment procedure as the default.
+`sh deploy/oracle/deploy.sh status TARGET`. Preparation keeps the current services running. Activate explicitly with
+`sh deploy/oracle/deploy.sh TARGET vX.Y.Z`.

@@ -156,6 +156,8 @@ The job keeps the newest complete set from each of seven days. A second backup o
 Install the daily timer on the Oracle host after you set `AUTH_BACKUP_KEY` in `deploy/oracle/secrets/caddy.env` and encrypt the updated secrets:
 
 ```sh
+sudo install -d -m 755 /usr/local/libexec
+sudo install -m 755 deploy/oracle/active-backup.sh /usr/local/libexec/mediamtx-active-backup
 sudo install -m 644 deploy/oracle/mediamtx-backup.service deploy/oracle/mediamtx-backup.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now mediamtx-backup.timer
@@ -163,7 +165,7 @@ sudo systemctl start mediamtx-backup.service
 sudo journalctl -u mediamtx-backup.service -n 20
 ```
 
-The service uses `/home/ubuntu/mediamtx-viewer`. Change its paths if the deployment uses another directory. The timer runs daily at 03:00 UTC, with up to five minutes of delay. Remove any earlier authentication backup schedule to prevent duplicate jobs.
+The service selects the active viewer and Caddy containers by Compose project. It runs the active image's backup code and reads the key from Caddy without printing it. It rejects an active or unresolved deployment owner. Change the project argument in the service for a nondefault project. The timer runs daily at 03:00 UTC, with up to five minutes of delay. Remove any earlier authentication backup schedule to prevent duplicate jobs.
 
 For a stable pair with stopped writers and a verified workstation copy, use the
 [maintenance backup command](maintenance-backups.md). Deployment sets are separate

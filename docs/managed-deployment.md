@@ -1,14 +1,14 @@
 # Deploy a release and recover from migration failure
 
-This opt-in command stages a verified release, creates a maintenance backup,
+The deployment command stages a verified release, creates a maintenance backup,
 and activates the selected images. It preserves the effective Chat state.
-The existing VM-build procedure remains the default.
+Select a verified tag with `deploy.sh TARGET vX.Y.Z`. Working-directory uploads and VM builds are retired.
 
 ## Check the prerequisites
 
-Use this command only with a verified managed baseline. It rejects an unmanaged
-installation. Adoption of an existing installation is separate work in ticket 09.
-Do not create a baseline record by hand to bypass this check.
+Use this command with a checked managed baseline. For an existing installation,
+follow [adoption](adopt-installation.md) first. Adoption records the actual legacy
+state without claiming GitHub verification. Do not create a baseline record by hand.
 
 The baseline contains the exact service images, resolved Compose model, private
 configuration and scripts, environment, volume mounts, and both migration histories. Before activation, the command also records
@@ -27,7 +27,7 @@ mode `0700`. Keep encryption keys separate from backup copies.
 Run this command from the repository:
 
 ```sh
-sh deploy/oracle/deploy.sh managed ubuntu@your-host vX.Y.Z
+sh deploy/oracle/deploy.sh ubuntu@your-host vX.Y.Z
 ```
 
 Use `--project NAME` for a different Compose project. Use `--directory PATH`

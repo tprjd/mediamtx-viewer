@@ -156,8 +156,8 @@ with a nonzero status. This check does not authorize deployment or alter the hos
 Host deployment sets live in `deployment-backups` beside the databases.
 Workstation sets live under the selected private directory. Daily rotation only
 uses `AUTH_BACKUP_DIR` and keeps its existing seven-day policy. A second daily
-backup cannot remove a deployment set. Deployment sets have no automatic cleanup
-in this command. The two-set retention policy belongs to deployment ticket 08.
+backup cannot remove a deployment set. This standalone backup command does not rotate deployment sets. Successful
+managed deployment applies the [two-set retention policy](deployment-retention.md).
 
 ## Run the command tests
 

@@ -1,10 +1,9 @@
 # Prepare a selected release
 
 Preparation downloads and checks a release. It does not enter maintenance,
-activate a release, run migrations, or change the default deployment procedure.
-Use the existing deployment procedure for unmanaged installations. The
-[managed deployment command](managed-deployment.md) is opt-in and requires a
-verified managed baseline.
+activate a release, or run migrations. [Adopt an existing installation](adopt-installation.md)
+before its first managed activation. Use the [selected-tag command](managed-deployment.md)
+to deploy after preparation.
 
 ## Prepare the workstation
 

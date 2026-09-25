@@ -45,7 +45,7 @@ export async function prepareManagedSource({ source, directory, image, project, 
   writeFileSync(join(source, 'deploy/oracle/docker-compose.yml'), JSON.stringify(model))
 }
 
-export async function startManagedBaseline({ source, directory, image, project, chat, migrations: addedMigrations = {} }) {
+export async function startManagedBaseline({ source, directory, image, project, chat, legacy = false, migrations: addedMigrations = {} }) {
   const ids = docker('ps', '-aq', '--filter', `label=com.docker.compose.project=${project}`).split('\n')
   docker('rm', '-f', ...ids)
   const volume = `${project}-deployment-staging`
@@ -99,6 +99,18 @@ export async function startManagedBaseline({ source, directory, image, project, 
     format: 1, result: 'active', version: 'fixture', source: '/stage/baseline/source', tree, model, runtime, migrations, chatEnabled: chat,
   } }))
   docker('rm', '-f', tool)
+  if (legacy) {
+    for (const config of Object.values(model.services)) {
+      config.restart = 'unless-stopped'
+      for (const mount of config.volumes ?? []) if (mount.type === 'bind') mount.source = mount.source.replace(`${root}/baseline/source`, previous)
+    }
+    model.services.viewer.entrypoint = ['sh', '-c']
+    model.services.viewer.command = ['node scripts/migrate.mjs && node scripts/migrate-chat.mjs && exec node server.js']
+    writeFileSync(path, JSON.stringify(model))
+    docker('compose', '-p', project, '-f', path, 'up', '-d', '--no-build', '--pull', 'never', '--wait', ...Object.keys(model.services).filter(name => chat || name !== 'centrifugo'))
+    if (!chat) docker('compose', '-p', project, '-f', path, 'create', '--no-build', '--pull', 'never', 'centrifugo')
+    docker('volume', 'rm', volume)
+  }
   return { url, key }
 }
 function inspectImage(image) { return JSON.parse(docker('image', 'inspect', image))[0].Id }

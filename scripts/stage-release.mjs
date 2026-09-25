@@ -310,7 +310,7 @@ export async function stageOrStatus({ action, target, record, tag, project, dire
     const finalRecord = await selectedRelease(tag)
     if (['format', 'tag', 'version', 'repository', 'commit', 'tagObject', 'sourceFingerprint'].some(key => finalRecord[key] !== record[key]) || ['viewer', 'thumbnailer'].some(name => finalRecord.images[name] !== record.images[name])) throw new Error('Release identity changed during preparation')
     state.result = 'ready'; state.preparedAt = new Date().toISOString(); state.phase = 'prepared'; state.stagingVolume = volume
-    state.nextAction = 'Prepared only. Use the opt-in managed deployment command with a verified managed baseline to activate.'
+    state.nextAction = 'Prepared only. Use deploy.sh TARGET TAG with a checked managed baseline to activate.'
     save()
     return state
   } catch (error) {

@@ -1,7 +1,7 @@
 # Recover an interrupted managed deployment
 
-These commands apply to the opt-in managed deployment. They do not change the
-legacy deployment command or restore databases automatically.
+These commands recover managed deployment and adoption attempts. They never
+restore databases automatically. The old upload and VM-build command is retired.
 
 ## Inspect the attempt
 
@@ -81,3 +81,10 @@ the following: the connection owner is absent, migration processes are stopped,
 the original attempt owns the files, both database histories are known, and the
 selected release passes recovery acceptance. A stale lock alone proves none of
 these facts. The recovery command releases only its own operation after acceptance.
+
+## Interrupted adoption
+
+Use `recover TARGET --release previous --restore none` for an interrupted
+[adoption](adopt-installation.md). Before baseline publication, recovery resumes
+capture under the original owner. After publication, it verifies the recorded
+baseline. It does not invent GitHub evidence or replace databases.

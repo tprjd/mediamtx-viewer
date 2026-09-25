@@ -69,3 +69,7 @@ contract validation, both Compose Chat states, and authenticated WebSocket proxy
 tests. The realtime integration tests use the pinned Centrifugo image. Follow
 [local test troubleshooting](chat-operations.md#troubleshoot-local-chat-tests)
 if Docker is unavailable.
+
+For an existing installation, follow [adoption](adopt-installation.md). Adoption
+preserves the effective Chat state. Explicit enable still requires a deployed
+verified release.

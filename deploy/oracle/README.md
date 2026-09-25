@@ -4,6 +4,21 @@ The OpenTofu module in `terraform/` creates the Oracle VM and network. This
 directory runs the application on that VM with Caddy as the only public HTTP
 entry point.
 
+## Managed deployment
+
+Use [adoption](../../docs/adopt-installation.md) once for the existing installation,
+then deploy a selected verified tag. GitHub builds public ARM64 images. The
+operator controls activation on the existing VM. No tag push deploys Oracle.
+
+Deployment preserves Chat state, creates verified encrypted backups on both
+machines, and retains the current and previous successful releases. Failed
+migrations require explicit recovery. Capacity benchmarks are optional and the
+capacity target remains unverified. See [deployment](../../docs/managed-deployment.md),
+[Chat rollout](../../docs/chat-rollout.md), and [retention](../../docs/deployment-retention.md).
+
+Repository visibility and pricing assumptions remain those in the release policy.
+Complete the required release verification before production activation.
+
 ## One-time secret setup
 
 Create the plaintext files in the git-ignored `secrets/` directory:
@@ -63,35 +78,23 @@ use them.
 
 ## Deploy
 
-From the repository root:
+After [adoption](../../docs/adopt-installation.md), run from the workstation:
 
 ```sh
-./deploy/oracle/deploy.sh ubuntu@$(cd deploy/oracle/terraform && tofu output -raw public_ip)
+./deploy/oracle/deploy.sh ubuntu@SERVER_IP vX.Y.Z
 ```
 
-The script copies the source, decrypts the SOPS-encrypted deployment secrets
-into a temporary directory, validates the staged MediaMTX configuration in an
-isolated container and the Compose model, builds
-the viewer and FFmpeg thumbnail worker on the ARM VM, applies versioned SQLite
-migrations, creates the first administrator when needed, updates the UDP 443,
-TCP 8189, and TCP 1935 UFW rules, and reloads Caddy. The script explicitly
-restarts MediaMTX when the staged configuration differs from the active file.
-Compose can also recreate a service when its image or definition changes.
-The script waits for health checks after the restart. It does not delete unrelated
-remote files, the auth volume, or DNS.
+The command selects a published verified release, downloads exact images and
+configuration, checks resources, creates a maintenance backup, and tracks each
+migration. It opens access only after the selected application and expected Chat
+state pass health checks. Use [recovery](../../docs/deployment-recovery.md) when
+an attempt is interrupted or cannot roll back safely.
 
-The legacy VM-build deployment disables Chat and stops Centrifugo. Managed
-deployment preserves the effective Chat state in its deployment record. On a
-managed installation, use the [Chat commands](../../docs/chat-rollout.md) to enable,
-disable, or inspect Chat without capacity reports. A verified managed baseline is
-required; adoption remains a separate installation step.
-Schedule deployment as maintenance. Viewer recreation can interrupt
-authorization and playback even when MediaMTX stays running.
-
-The deploy also installs `90-mediamtx.conf`, setting the Linux UDP send and
-receive ceilings to 7.5 MB for QUIC and WebRTC. This follows quic-go's current
-Linux recommendation and prevents the HTTP/3 socket from starting with a
-constrained receive buffer.
+The old working-directory upload and VM-build procedure is retired. Deployment
+does not provision infrastructure, change firewall rules, bootstrap accounts, or
+rotate external credentials. Keep the existing network and kernel configuration.
+Schedule deployment as maintenance because viewer recreation can interrupt
+viewing and publishing.
 
 ## DNS and OBS
 
@@ -201,8 +204,8 @@ approval pages remain behind normal account authentication.
 ## Operations
 
 ```sh
-ssh ubuntu@SERVER_IP 'cd /home/ubuntu/mediamtx-viewer && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml ps'
-ssh ubuntu@SERVER_IP 'cd /home/ubuntu/mediamtx-viewer && docker compose --env-file deploy/oracle/secrets/caddy.env -f deploy/oracle/docker-compose.yml logs --tail=100'
+./deploy/oracle/deploy.sh status ubuntu@SERVER_IP
+ssh ubuntu@SERVER_IP 'docker ps --filter label=com.docker.compose.project=mediamtx-viewer'
 ```
 
 Caddy certificate data, the SQLite authentication database, and derived channel
@@ -222,9 +225,7 @@ is excluded from viewer counts.
 Back up SQLite online and encrypt the result with a base64-encoded 32-byte key:
 
 ```sh
-docker compose --env-file deploy/oracle/secrets/caddy.env \
-  -f deploy/oracle/docker-compose.yml exec -T \
-  -e AUTH_BACKUP_KEY='...' viewer node scripts/backup-auth.mjs
+/usr/local/libexec/mediamtx-active-backup mediamtx-viewer
 ```
 
 Set `AUTH_BACKUP_DIR` to persistent storage; the script retains the latest
@@ -232,8 +233,11 @@ seven complete daily sets, each with separate encrypted authentication and Chat
 files and a shared manifest. Install the daily timer and follow the independent
 restore commands in [Chat operations](../../docs/chat-operations.md#back-up-authentication-and-chat).
 
-To roll back the access boundary, copy `Caddyfile.basic-auth` over
+Historical access-boundary fallback: unmanaged installations used to copy `Caddyfile.basic-auth` over
 `Caddyfile` on the VM and reload Caddy. Do not delete `auth_data`; keep the
 account database intact for another attempt. The SSE endpoint requires a Better
 Auth session, so a basic-auth rollback uses the browser's degraded 30-second
 JSON status fallback until the normal Caddyfile is restored.
+
+Managed installations must use the recorded recovery procedure. Do not edit
+captured Caddy files or deploy from the old checkout.
