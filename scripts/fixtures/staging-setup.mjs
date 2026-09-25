@@ -10,7 +10,7 @@ export const run = (bin, args, options = {}) => execFileSync(bin, args, { encodi
 export const docker = (...args) => run('docker', args)
 export const inspect = id => JSON.parse(docker('inspect', id))[0]
 
-export async function stagingFixture(work, { chat = false, managed = false, mediaPorts = false } = {}) {
+export async function stagingFixture(work, { chat = false, managed = false, mediaPorts = false, migrations = {} } = {}) {
   const endpoint = process.env.DOCKER_HOST ?? JSON.parse(docker('context', 'inspect'))[0].Endpoints.docker.Host
   if (!endpoint.startsWith('unix://') && !/^tcp:\/\/(localhost|127\.0\.0\.1):/.test(endpoint)) throw new Error('Staging tests require local Docker')
   docker('info')
@@ -52,6 +52,7 @@ export async function stagingFixture(work, { chat = false, managed = false, medi
       const { prepareManagedSource } = await import('./deployment-setup.mjs')
       await prepareManagedSource({ source, directory, image, project, mediaPorts })
     }
+    for (const [path, sql] of Object.entries(migrations)) writeFileSync(join(source, path), sql)
     const git = (...args) => run('git', ['-C', source, ...args])
     git('init', '-q'); git('add', '.'); git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture')
     git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'tag', '-a', 'v1.2.3', '-m', 'fixture')
@@ -85,7 +86,12 @@ export async function stagingFixture(work, { chat = false, managed = false, medi
     let managedOptions = {}
     if (managed) {
       const { startManagedBaseline } = await import('./deployment-setup.mjs')
-      managedOptions = await startManagedBaseline({ source, directory, image, project, chat })
+      managedOptions = await startManagedBaseline({ source, directory, image, project, chat, migrations })
+    }
+    if (managed && Object.keys(migrations).length) {
+      docker('tag', image, `${project}:base`)
+      writeFileSync(join(directory, 'candidate.Dockerfile'), `FROM ${image}\nCOPY source/migrations /app/migrations\nCOPY source/chat-migrations /app/chat-migrations\n`)
+      docker('build', '-q', '-t', image, '-f', join(directory, 'candidate.Dockerfile'), directory)
     }
     const bin = join(directory, 'bin')
     mkdirSync(bin)
@@ -134,12 +140,12 @@ if(args.includes('pull') && !ref) {
 if(require('fs').readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8')==='host-space' && args.includes('/app/stage-host.mjs') && args.includes('check')) {
  const input=JSON.parse(args.at(-1));input.imageBytes=4000000000000000;args[args.length-1]=JSON.stringify(input);
 }
-if(args.includes('compose') && args.includes('up')) {
+if(args.includes('compose') && (args.includes('up') || args.includes('run'))) {
  const fs=require('fs'), index=args.indexOf('-f')+1;
  const model=JSON.parse(fs.readFileSync(args[index],'utf8'));
  const failure=fs.readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8');
  const candidate=model.services.viewer.environment.FIXTURE_VERSION==='1.2.3';
- if(failure==='rollback-failure' || candidate && failure==='activation-failure')process.exit(1);
+ if(args.includes('up') && (failure==='rollback-failure' || candidate && failure==='activation-failure'))process.exit(1);
  if(candidate && failure==='wrong-version')model.services.viewer.environment.FIXTURE_VERSION='wrong';
  if(candidate && ['degraded-chat','migration-history','volume-ownership'].includes(failure))model.services.viewer.environment.FIXTURE_FAILURE=failure;
  if(candidate && failure==='unhealthy-service')model.services.thumbnailer.healthcheck={test:['CMD','node','-e','process.exit(1)'],interval:'1s',timeout:'1s',retries:1};
@@ -188,8 +194,8 @@ const r=spawnSync(${JSON.stringify(realSops)},args,{stdio:'inherit'});process.ex
         : { id: 1, tag_name: 'v1.2.3', draft: false }))
     })
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
-    const command = (action = 'prepare', extra = {}) => new Promise(resolve => {
-      const child = spawn('sh', ['deploy/oracle/deploy.sh', action, 'local', ...(['prepare', 'managed'].includes(action) ? ['v1.2.3'] : []), '--project', project, '--directory', join(directory, 'copies'), ...(action === 'managed' && managedOptions.url ? ['--url', managedOptions.url] : [])], {
+    const command = (action = 'prepare', extra = {}, flags = []) => new Promise(resolve => {
+      const child = spawn('sh', ['deploy/oracle/deploy.sh', action, 'local', ...(['prepare', 'managed'].includes(action) ? ['v1.2.3'] : []), '--project', project, '--directory', join(directory, 'copies'), ...flags, ...(['managed', 'recover'].includes(action) && managedOptions.url ? ['--url', managedOptions.url] : [])], {
         env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, DOCKER_HOST: endpoint,
           AUTH_BACKUP_KEY: managedOptions.key, GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`, SOPS_AGE_KEY_FILE: keys,
           GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: `url.${source}.insteadOf`, GIT_CONFIG_VALUE_0: 'https://github.com/tprjd/mediamtx-viewer.git', STAGE_FAULT: fault, ...extra },
@@ -214,6 +220,7 @@ const r=spawnSync(${JSON.stringify(realSops)},args,{stdio:'inherit'});process.ex
       try { docker('volume', 'rm', name) } catch { /* Not created before an early failure. */ }
     }
     try { docker('image', 'rm', `${project}:previous`) } catch {}
+    try { docker('image', 'rm', `${project}:base`) } catch {}
     try { docker('image', 'rm', image) } catch { /* Build failed. */ }
     rmSync(directory, { recursive: true, force: true })
   }

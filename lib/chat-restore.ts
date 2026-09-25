@@ -10,9 +10,7 @@ import {
 } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { setImmediate } from 'node:timers/promises'
 import {
-  CHAT_OWNER_PROTECTION_ACTOR,
   closeChatDatabase,
 } from '@/lib/chat-database'
 import { getDatabase } from '@/lib/auth/database'
@@ -24,47 +22,11 @@ import {
   clearChatRecoveryHistory,
   reconnectChatParticipant,
 } from '@/lib/chat-realtime'
+import { validateChatReferences } from '@/scripts/chat-restore-references.mjs'
 import { purgeExpiredChat } from '@/scripts/chat-retention.mjs'
 
 const state = globalThis as typeof globalThis & {
   chatRestoreRunning?: boolean
-}
-async function validateChatReferences(
-  database: Database.Database,
-): Promise<void> {
-  const auth = getDatabase()
-  const account = auth.prepare('SELECT 1 FROM user WHERE id = ?')
-  const channel = auth.prepare('SELECT 1 FROM channel WHERE id = ?')
-  let checked = 0
-  for (const row of database
-    .prepare(
-      `
-    SELECT account_id AS id FROM chat_participant UNION SELECT account_id FROM chat_message
-    UNION SELECT account_id FROM chat_restriction
-    UNION SELECT actor_account_id FROM chat_moderation_record
-      WHERE actor_account_id != ? OR action != 'reversal' OR actor_role IS NOT NULL
-    UNION SELECT target_account_id FROM chat_moderation_record`,
-    )
-    .iterate(CHAT_OWNER_PROTECTION_ACTOR) as Iterable<{ id: string }>) {
-    if (!account.get(row.id))
-      throw new Error('Chat account reference is missing')
-    if (++checked % 500 === 0) await setImmediate()
-  }
-  for (const row of database
-    .prepare('SELECT channel_id AS id FROM chat_room')
-    .iterate() as Iterable<{ id: string }>) {
-    if (!channel.get(row.id))
-      throw new Error('Chat Channel reference is missing')
-    if (++checked % 500 === 0) await setImmediate()
-  }
-  if (
-    database
-      .prepare(
-        'SELECT 1 FROM chat_moderation_record m LEFT JOIN chat_room r ON r.id = m.room_id WHERE r.id IS NULL LIMIT 1',
-      )
-      .get()
-  )
-    throw new Error('Chat room reference is missing')
 }
 
 export async function restoreChat(): Promise<void> {
@@ -90,7 +52,7 @@ export async function restoreChat(): Promise<void> {
     ])
     restored = new Database(candidate, { fileMustExist: true })
     restored.pragma('foreign_keys = ON')
-    await validateChatReferences(restored)
+    await validateChatReferences(restored, getDatabase())
     const channels = new Set(previousRooms)
     // Authentication retains Channel identities even if the live Chat file is lost.
     for (const { id } of getDatabase()

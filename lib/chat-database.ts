@@ -1,3 +1,4 @@
+import { CHAT_OWNER_PROTECTION_ACTOR } from '@/scripts/chat-restore-references.mjs'
 import 'server-only'
 
 import Database from 'better-sqlite3'
@@ -12,7 +13,7 @@ import { getDatabase } from '@/lib/auth/database'
 import { chatControlChannel } from '@/lib/chat-realtime'
 
 // This reserved actor identifies a policy change, never a human account.
-export const CHAT_OWNER_PROTECTION_ACTOR = 'system:channel-owner-protection'
+export { CHAT_OWNER_PROTECTION_ACTOR }
 
 const globalDatabase = globalThis as typeof globalThis & {
   chatDatabase?: Database.Database

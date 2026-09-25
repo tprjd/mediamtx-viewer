@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createServer } from 'node:net'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -45,7 +45,7 @@ export async function prepareManagedSource({ source, directory, image, project, 
   writeFileSync(join(source, 'deploy/oracle/docker-compose.yml'), JSON.stringify(model))
 }
 
-export async function startManagedBaseline({ source, directory, image, project, chat }) {
+export async function startManagedBaseline({ source, directory, image, project, chat, migrations: addedMigrations = {} }) {
   const ids = docker('ps', '-aq', '--filter', `label=com.docker.compose.project=${project}`).split('\n')
   docker('rm', '-f', ...ids)
   const volume = `${project}-deployment-staging`
@@ -54,6 +54,7 @@ export async function startManagedBaseline({ source, directory, image, project, 
   docker('run', '-d', '--name', tool, '--user', '0', '--label', `org.frankerzspam.staging=${project}`, '-v', `${volume}:/stage`, image, 'node', '-e', 'setInterval(()=>{},1000)')
   const previous = join(directory, 'previous')
   cpSync(source, previous, { recursive: true })
+  for (const path of Object.keys(addedMigrations)) rmSync(join(previous, path))
   mkdirSync(join(previous, 'deploy/oracle/secrets'), { recursive: true })
   cpSync('deploy/oracle/mediamtx.yml.example', join(previous, 'deploy/oracle/secrets/mediamtx.yml'))
   writeFileSync(join(previous, 'scripts/discord-notifier.mjs'), '// previous mounted notifier script\n')

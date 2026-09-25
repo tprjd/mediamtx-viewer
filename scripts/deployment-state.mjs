@@ -52,6 +52,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         if (stat.uid !== expected.uid || stat.gid !== expected.gid || stat.mode !== expected.mode) throw new Error('Persistent volume ownership changed')
       }
     }
+    else if (action === 'migration-names') result = Object.fromEntries([['auth', 'migrations'], ['chat', 'chat-migrations']].map(([name, folder]) => [name, readdirSync(join(input.path, folder)).filter(file => file.endsWith('.sql')).sort()]))
     else if (action === 'tree') result = { digest: treeDigest(input.path) }
     else throw new Error('Unknown deployment state action')
     console.log(JSON.stringify(result))

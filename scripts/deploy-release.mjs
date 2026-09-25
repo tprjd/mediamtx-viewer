@@ -46,16 +46,17 @@ function containers(project) {
   return ids.length ? JSON.parse(docker('inspect', ...ids)).filter(c => !c.Config.Labels['org.frankerzspam.maintenance']) : []
 }
 
-async function deploy({ target, tag, project, directory, url }) {
+async function deploy({ target, tag, project, directory, url, recovery, restore, confirm }) {
   if (target !== 'local') process.env.DOCKER_HOST = `ssh://${target}`
   const volume = `${project}-deployment-staging`, tool = `${project}-deploy-operation`
   try { docker('volume', 'inspect', volume) } catch { throw new Error('A verified managed baseline is required. Complete managed adoption before deployment.') }
   const initial = containers(project), viewer = initial.find(c => service(c) === 'viewer')
   if (!viewer) throw new Error('Managed viewer is missing')
   const info = JSON.parse(docker('info', '--format', '{{json .}}'))
-  const attempt = randomUUID(), work = mkdtempSync(join(tmpdir(), 'deploy-release-'))
-  const state = { attempt, project, release: tag, phase: 'baseline', result: 'in-progress' }
-  let owned = false, backupReceipt, previous, migrationBaseline, activeModel, staged, retained = false, ownershipRecorded = false
+  let attempt = randomUUID()
+  const work = mkdtempSync(join(tmpdir(), 'deploy-release-'))
+  let state = { attempt, project, release: tag, phase: 'baseline', result: 'in-progress' }
+  let owned = false, backupReceipt, previous, migrationBaseline, activeModel, staged, retained = false, ownershipRecorded = false, acceptanceHistory, migrationProcess, recoveryOwned = false
   const host = (action, value) => JSON.parse(docker('exec', tool, 'node', '/app/deployment-state.mjs', action, JSON.stringify(value)))
   const save = (path, value) => {
     const file = join(work, 'state.json')
@@ -71,10 +72,47 @@ async function deploy({ target, tag, project, directory, url }) {
     return docker('compose', '--project-name', project, '-f', file, ...args)
   }
   const maintenance = (action, value) => JSON.parse(docker('exec', `maintenance-tool-${backupReceipt.attempt}`, 'node', '/app/scripts/maintenance-host.mjs', action, ...(value ? [JSON.stringify(value)] : [])))
-  const databaseState = (requireDrained = false) => JSON.parse(docker('exec', tool, 'node', '/app/deployment-databases.mjs', JSON.stringify({
-    requireDrained, paths: { auth: env(viewer, 'AUTH_DB_PATH'), chat: env(viewer, 'CHAT_DB_PATH') }, previous: previous.source, candidate: `/stage/${staged.attempt}/source`,
+  const databaseState = (requireDrained = false, validation = {}) => JSON.parse(docker('exec', tool, 'node', '/app/deployment-databases.mjs', JSON.stringify({
+    requireDrained, paths: { auth: env(viewer, 'AUTH_DB_PATH'), chat: env(viewer, 'CHAT_DB_PATH') }, ...validation,
   })))
-  const checkHistory = (requireDrained = false) => { if (!same(databaseState(requireDrained), migrationBaseline)) throw new Error('Database migration history changed or is uncertain') }
+  const checkHistory = (requireDrained = false) => { if (!same(databaseState(requireDrained), acceptanceHistory ?? migrationBaseline)) throw new Error('Database migration history changed or is uncertain') }
+  const observe = () => {
+    const after = databaseState()
+    state.migrationChanges = Object.fromEntries(['auth', 'chat'].map(name => [name, {
+      known: after[name] !== null,
+      added: after[name]?.filter(row => !migrationBaseline[name].some(old => old.name === row.name)).map(row => row.name) ?? [],
+      changed: after[name] === null || migrationBaseline[name].some(old => !after[name].some(row => same(row, old))),
+    }]))
+    return after
+  }
+  const stopMigration = () => {
+    if (!migrationProcess) return
+    const id = docker('ps', '-aq', '--filter', `name=^/${migrationProcess}$`)
+    if (id) {
+      let current = JSON.parse(docker('inspect', id))[0]
+      if (current.State.Running) docker('kill', id)
+      current = JSON.parse(docker('inspect', id))[0]
+      if (current.State.Running || current.State.Restarting) throw new Error('Database migration process completion is uncertain')
+      docker('rm', id)
+    }
+    migrationProcess = undefined
+  }
+  const migrate = name => {
+    migrationProcess = `${project}-migration-${attempt}-${name}`
+    state.migrationProcess = migrationProcess
+    state.migrationChanges = Object.fromEntries(['auth', 'chat'].map(database => [database, { known: false, added: [], changed: null }]))
+    phase(`migration-${name}`)
+    try {
+      const model = structuredClone(activeModel)
+      model.services.viewer.image = JSON.parse(docker('image', 'inspect', model.services.viewer.image))[0].Id
+      model.services.viewer.pull_policy = 'never'
+      compose(model, 'run', '-d', '--no-deps', '--name', migrationProcess, '--entrypoint', 'node', 'viewer',
+        name === 'auth' ? 'scripts/migrate.mjs' : 'scripts/migrate-chat.mjs')
+      const exitCode = docker('wait', migrationProcess)
+      state.migrationExitCodes = { ...state.migrationExitCodes, [name]: exitCode }
+      if (exitCode !== '0') throw new Error('Database migration failed')
+    } finally { stopMigration() }
+  }
   const stop = (preserve = []) => {
     let failed = false
     for (const c of containers(project)) {
@@ -183,9 +221,57 @@ async function deploy({ target, tag, project, directory, url }) {
 
   }
   try {
+    if (recovery) {
+      // The retained deployment owner blocks new deployments. This second atomic
+      // name prevents two operators from recovering that owner at the same time.
+      docker('create', '--name', `${project}-recovery-operation`, '--network', 'none', '--entrypoint', 'node', viewer.Image, '-e', 'process.exit(0)')
+      recoveryOwned = true
+      const saved = read('/stage/deployment-status.json')
+      if (saved.result !== 'maintenance-required' || !saved.backup || !saved.candidateRelease) throw new Error('Managed recovery requires a failed deployment with a verified backup')
+      state = saved; attempt = state.attempt
+      previous = read(`/stage/deployments/${attempt}-previous.json`)
+      backupReceipt = state.backup
+      migrationBaseline = state.migrations
+      staged = { attempt: state.stagedAttempt }
+      owned = true; retained = true
+      migrationProcess = state.migrationProcess
+      stopMigration()
+      stop()
+      docker('start', `maintenance-proxy-${backupReceipt.attempt}`)
+      state.recovery = { release: recovery, databases: restore, possibleDataLoss: restore !== 'none' }
+      phase('recovery-validation')
+      const selected = recovery === 'previous' ? previous : {
+        source: state.candidateRelease.source, version: state.candidateRelease.version,
+        tree: state.candidateRelease.tree, model: read(`${state.candidateRelease.source}/resolved-compose.json`),
+        chatEnabled: state.chatEnabled,
+      }
+      if (!selected.tree || host('tree', { path: selected.source }).digest !== selected.tree || !same(selected.model, read(`${selected.source}/resolved-compose.json`))) throw new Error('Managed recovery files changed')
+      if (restore !== 'none' && confirm !== 'discard-later-data') throw new Error('Database replacement can discard later data; use --confirm discard-later-data')
+      const helper = `maintenance-tool-${backupReceipt.attempt}`
+      for (const file of ['deployment-restore.mjs', 'backup-operation.mjs', 'database-backups.mjs', 'chat-retention.mjs', 'chat-restore-references.mjs']) docker('cp', join(scripts, file), `${helper}:/app/scripts/${file}`)
+      phase('recovery-databases')
+      docker('exec', helper, 'node', '/app/scripts/deployment-restore.mjs', JSON.stringify({
+        selected: restore === 'none' ? [] : restore === 'both' ? ['auth', 'chat'] : [restore],
+        paths: { auth: env(viewer, 'AUTH_DB_PATH'), chat: env(viewer, 'CHAT_DB_PATH') },
+        expected: host('migration-names', { path: selected.source }), manifest: backupReceipt.hostManifest, maintenanceAttempt: backupReceipt.attempt,
+      }))
+      acceptanceHistory = databaseState(false, { expected: selected.source })
+      if (!acceptanceHistory.auth || !acceptanceHistory.chat) throw new Error('Database recovery state is uncertain')
+      phase('recovery-activation')
+      await accept(selected.model, selected.version, selected.chatEnabled, recovery === 'previous' ? selected.runtime : undefined)
+      if (recovery === 'previous') verifyRestoredRuntime(selected.runtime)
+      save('/stage/current.json', { ...selected, format: 1, result: 'active', migrations: acceptanceHistory,
+        runtime: Object.fromEntries(containers(project).map(c => [service(c), runtimeIdentity(c)])) })
+      maintenance('finish')
+      state.result = 'recovered'; state.version = selected.version
+      state.nextAction = 'Recovery passed acceptance.'
+      phase('complete')
+      retained = false
+      return state
+    }
     // The atomic Docker name is an exclusive host-side owner, including during preparation.
     docker('create', '--name', tool, '--label', `org.frankerzspam.deployment=${project}`, '--network', 'none', '--user', '0',
-      '--volumes-from', `${viewer.Id}:ro`, '-v', `${volume}:/stage`, '--mount', `type=bind,source=${info.DockerRootDir},target=/docker-storage,readonly`, '--entrypoint', 'node', viewer.Image, '-e', 'setInterval(()=>{},1000)')
+      '--volumes-from', viewer.Id, '-v', `${volume}:/stage`, '--mount', `type=bind,source=${info.DockerRootDir},target=/docker-storage,readonly`, '--entrypoint', 'node', viewer.Image, '-e', 'setInterval(()=>{},1000)')
     owned = true
     for (const file of ['deployment-state.mjs', 'deployment-databases.mjs', 'stage-host.mjs']) docker('cp', join(scripts, file), `${tool}:/app/${file}`)
     docker('start', tool)
@@ -199,10 +285,12 @@ async function deploy({ target, tag, project, directory, url }) {
     const chat = env(viewer, 'CHAT_ENABLED')
     if (!['true', 'false'].includes(chat) || previous.chatEnabled !== (chat === 'true')) throw new Error('Managed Chat state is uncertain')
     state.chatEnabled = previous.chatEnabled
+    state.previousRelease = { version: previous.version, source: previous.source }
     phase('staging')
     const record = await selectedRelease(tag)
     staged = await stageOrStatus({ action: 'prepare', target, tag, record, project, directory })
     state.stagedAttempt = staged.attempt
+    state.candidateRelease = { tag, version: record.version, source: `/stage/${staged.attempt}/source` }
     activeModel = read(`/stage/${staged.attempt}/source/resolved-compose.json`)
     activeModel.services.viewer.entrypoint = ['node']
     activeModel.services.viewer.command = ['server.js']
@@ -224,7 +312,7 @@ async function deploy({ target, tag, project, directory, url }) {
     }
     save(`/stage/${staged.attempt}/source/resolved-compose.json`, activeModel)
     phase('migration-preflight')
-    migrationBaseline = databaseState()
+    migrationBaseline = databaseState(false, { previous: previous.source, candidate: `/stage/${staged.attempt}/source` })
     if (!same(migrationBaseline, previous.migrations)) throw new Error('Database migration history differs from the managed baseline')
     state.migrations = migrationBaseline
     // Keep the resolved model, secrets, scripts, images, and volume identities in private host storage.
@@ -251,29 +339,40 @@ async function deploy({ target, tag, project, directory, url }) {
     }))]
     host('ownership', { paths: volumePaths, destination: `/stage/deployments/${attempt}-ownership.json` })
     ownershipRecorded = true
+    state.candidateRelease.tree = host('tree', { path: state.candidateRelease.source }).digest
+    migrate('auth')
+    migrate('chat')
+    acceptanceHistory = observe()
+    if (Object.values(state.migrationChanges).some(change => !change.known || change.changed) ||
+        !same(databaseState(false, { expected: `/stage/${staged.attempt}/source` }), acceptanceHistory)) throw new Error('Database migration result is uncertain')
     phase('activation')
     await accept(activeModel, record.version, previous.chatEnabled)
     state.result = 'active'; state.version = record.version
     const current = { format: 1, result: 'active', version: record.version, source: `/stage/${staged.attempt}/source`, model: activeModel,
-      tree: host('tree', { path: `/stage/${staged.attempt}/source` }).digest, migrations: migrationBaseline, chatEnabled: previous.chatEnabled,
+      tree: host('tree', { path: `/stage/${staged.attempt}/source` }).digest, migrations: acceptanceHistory, chatEnabled: previous.chatEnabled,
       runtime: Object.fromEntries(containers(project).map(c => [service(c), runtimeIdentity(c)])) }
     save('/stage/current.json', current)
     maintenance('finish')
     phase('complete')
     return state
   } catch (error) {
-    state.failedPhase = state.phase
+    if (!recovery) state.failedPhase = state.phase
+    else state.recoveryFailedPhase = state.phase
     state.reason = /^(Verified managed|Managed |Candidate |Credential |Database |Application |Required |Public |Docker )/.test(error.message) ? error.message : 'Deployment check failed'
     state.result = 'rejected'
     state.nextAction = 'Repair the failed preflight and run a new deployment.'
-    if (backupReceipt) {
+    if (backupReceipt && !recovery) {
       retained = true
       state.result = 'maintenance-required'
       state.nextAction = 'Keep maintenance active. Inspect the private attempt record and both database histories. Use explicit recovery; do not restore databases automatically.'
       try {
         phase('checking-rollback')
+        stopMigration()
         stop()
         docker('start', `maintenance-proxy-${backupReceipt.attempt}`)
+        const after = observe()
+        if (!same(after, migrationBaseline)) throw new Error('Database migration history changed or is uncertain')
+        acceptanceHistory = migrationBaseline
         checkHistory()
         if (ownershipRecorded) host('check-ownership', { path: `/stage/deployments/${attempt}-ownership.json` })
         if (previous.tree !== host('tree', { path: previous.source }).digest) throw new Error('Previous files changed')
@@ -290,6 +389,11 @@ async function deploy({ target, tag, project, directory, url }) {
         state.recoveryReason = /^(Previous |Public |Required |Database |Docker )/.test(recoveryError.message) ? recoveryError.message : 'Recovery check failed'
         try { stop(); docker('start', `maintenance-proxy-${backupReceipt.attempt}`) } catch { /* Retain all recovery evidence and the owner. */ }
       }
+    } else if (recovery && owned) {
+      retained = true
+      state.result = 'maintenance-required'
+      state.nextAction = 'Recovery failed. Keep maintenance active and inspect the database and release choices.'
+      try { stop(); docker('start', `maintenance-proxy-${backupReceipt.attempt}`) } catch {}
     } else {
       // The backup command owns failures before it returns a verified receipt.
       try {
@@ -301,6 +405,7 @@ async function deploy({ target, tag, project, directory, url }) {
     throw Object.assign(new Error('Deployment failed'), { report: state })
   } finally {
     rmSync(work, { recursive: true, force: true })
+    if (recoveryOwned) { try { docker('rm', '-f', `${project}-recovery-operation`) } catch {} }
     if (owned && !retained) {
       if (backupReceipt) for (const id of [`maintenance-tool-${backupReceipt.attempt}`, `maintenance-proxy-${backupReceipt.attempt}`]) { try { docker('rm', '-f', id) } catch {} }
       try { docker('rm', '-f', tool) } catch { /* A remaining owner requires inspection. */ }
@@ -308,14 +413,20 @@ async function deploy({ target, tag, project, directory, url }) {
   }
 }
 async function main() {
-  const [action, target, tag, ...args] = process.argv.slice(2)
+  const [action, target, ...args] = process.argv.slice(2)
+  const tag = action === 'managed' ? args.shift() : undefined
   const options = { target, tag, project: 'mediamtx-viewer', directory: join(homedir(), '.local/share/mediamtx-deployments') }
   while (args.length) {
     const key = args.shift(), value = args.shift()
-    if (!['--project', '--directory', '--url'].includes(key) || !value) throw new Error('Invalid deployment option')
+    if (!['--project', '--directory', '--url', '--release', '--restore', '--confirm'].includes(key) || !value) throw new Error('Invalid deployment option')
     options[key.slice(2)] = key === '--directory' ? resolve(value) : value
   }
-  if (action !== 'managed' || !/^[a-zA-Z0-9_@.:-]+$/.test(target ?? '') || target.startsWith('-') || !/^v\d+\.\d+\.\d+$/.test(tag ?? '') || !/^[a-z0-9][a-z0-9_-]*$/.test(options.project)) throw new Error('Usage: deploy.sh managed TARGET TAG [--project NAME] [--directory PATH] [--url URL]')
+  if (!['managed', 'recover'].includes(action) || !/^[a-zA-Z0-9_@.:-]+$/.test(target ?? '') || target.startsWith('-') || action === 'managed' && !/^v\d+\.\d+\.\d+$/.test(tag ?? '') || !/^[a-z0-9][a-z0-9_-]*$/.test(options.project)) throw new Error('Usage: deploy.sh managed TARGET TAG [--project NAME] [--directory PATH] [--url URL]')
+  if (action === 'recover') {
+    if (!['previous', 'candidate'].includes(options.release) || !['none', 'auth', 'chat', 'both'].includes(options.restore)) throw new Error('Recovery requires --release previous|candidate --restore none|auth|chat|both. Replacement can discard later data and requires --confirm discard-later-data.')
+    if (options.restore !== 'none' && options.confirm !== 'discard-later-data') throw new Error('Database replacement can discard later data; use --confirm discard-later-data')
+    options.recovery = options.release
+  }
   return deploy(options)
 }
 try { console.log(JSON.stringify(await main())) }

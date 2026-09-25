@@ -2,7 +2,7 @@
 set -eu
 
 case "${1:-}" in
-  managed)
+  managed|recover)
     script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
     exec node "$script_dir/../../scripts/deploy-release.mjs" "$@"
     ;;
