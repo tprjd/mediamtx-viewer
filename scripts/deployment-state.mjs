@@ -22,7 +22,7 @@ export function runtimeIdentity(container) {
   return { image: container.Image, config: container.Config, host: container.HostConfig,
     mounts: container.Mounts.map(({ Type, Name, Source, Destination, RW }) => ({ Type, Name, Source, Destination, RW })).sort((a, b) => a.Destination.localeCompare(b.Destination)) }
 }
-function save(path, value) {
+export function saveDeploymentState(path, value) {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
   writeFileSync(`${path}.next`, JSON.stringify(value), { mode: 0o600, flush: true })
   renameSync(`${path}.next`, path)
@@ -35,7 +35,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     let result = {}
     if (action === 'exists') result = { exists: existsSync(input.path) }
     else if (action === 'read') result = JSON.parse(readFileSync(input.path, 'utf8'))
-    else if (action === 'save') save(input.path, input.value)
+    else if (action === 'save') saveDeploymentState(input.path, input.value)
     else if (action === 'chat-lock') {
       const { acquireBackupOperation } = await import('./backup-operation.mjs')
       const lock = join(input.directory, '.backup-lock')
@@ -44,7 +44,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
             JSON.parse(readFileSync(join(lock, 'chat-owner.json'), 'utf8')).attempt !== input.attempt) throw new Error('Chat lock owner differs')
       } else {
         const release = acquireBackupOperation(input.directory, input.authPath)
-        try { save(join(lock, 'chat-owner.json'), { attempt: input.attempt }) }
+        try { saveDeploymentState(join(lock, 'chat-owner.json'), { attempt: input.attempt }) }
         catch (error) { release(); throw error }
       }
     } else if (action === 'chat-unlock') {
@@ -62,7 +62,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         if (stat.isDirectory()) for (const name of readdirSync(path)) visit(join(path, name))
       }
       for (const path of input.paths) visit(path)
-      save(input.destination, { roots: input.paths, entries })
+      saveDeploymentState(input.destination, { roots: input.paths, entries })
     } else if (action === 'check-ownership') {
       const { roots, entries } = JSON.parse(readFileSync(input.path, 'utf8'))
       for (const [path, expected] of Object.entries(entries)) {

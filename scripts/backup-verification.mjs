@@ -4,8 +4,9 @@ import { backupKey, decryptDatabaseBackup, readBackupManifest } from './database
 
 export function requireSpace(path, bytes, files = 32) {
   const space = statfsSync(path)
-  if (!Number.isSafeInteger(bytes) || bytes < 0 || space.bavail * space.bsize < bytes ||
-      (space.files > 0 && space.ffree < files)) throw new Error('Insufficient backup space')
+  const available = space.bavail * space.bsize
+  if (![bytes, files, available, space.files, space.ffree].every(Number.isSafeInteger) || bytes < 0 || files < 0 ||
+      available < bytes || space.files <= 0 || space.ffree < files) throw new Error('Insufficient backup space')
 }
 
 export async function verifyBackupSet(manifestPath, key = backupKey()) {

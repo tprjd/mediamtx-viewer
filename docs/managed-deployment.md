@@ -103,7 +103,9 @@ If rollback fails or migration state is uncertain, the command retains maintenan
 its exclusive operation owner, and recovery files. Do not delete the owner or
 maintenance marker to force another deployment. Use the
 [interruption recovery procedure](deployment-recovery.md) after a lost connection
-or host restart. Retention cleanup is separate work in ticket 08.
+or host restart. After successful acceptance, [retention cleanup](deployment-retention.md)
+keeps the current and previous successful releases and two verified deployment
+backup sets on each machine.
 
 ## Recover while maintenance is active
 

@@ -12,6 +12,8 @@ import { verifyProxy } from './deployment-proxy.mjs'
 import { runtimeIdentity } from './deployment-state.mjs'
 import { applicationHealth, applicationAccepted, changeChat, chatHealth, chatModel } from './deployment-chat.mjs'
 import { cancelChatTrial } from './cancel-chat-trial.mjs'
+import { cleanupDeployment } from './deployment-cleanup.mjs'
+import { requireSpace } from './backup-verification.mjs'
 
 import { assertDeploymentOwner, setDeploymentOwner, ownerProgram, deploymentStdio } from './deployment-connection.mjs'
 
@@ -53,7 +55,7 @@ function containers(project) {
   return ids.length ? JSON.parse(docker('inspect', ...ids)).filter(c => !c.Config.Labels['org.frankerzspam.maintenance']) : []
 }
 
-async function deploy({ target, tag, project, directory, url, recovery, restore, confirm, chatAction }) {
+async function deploy({ target, tag, project, directory, url, recovery, restore, confirm, chatAction, cleanup }) {
   if (target !== 'local') process.env.DOCKER_HOST = `ssh://${target}`
   const volume = `${project}-deployment-staging`, tool = `${project}-deploy-operation`
   try { docker('volume', 'inspect', volume) } catch { throw new Error('A verified managed baseline is required. Complete managed adoption before deployment.') }
@@ -92,6 +94,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
       owned = true
       try {
         for (const file of ['deployment-state.mjs', 'backup-operation.mjs', 'deployment-databases.mjs', 'stage-host.mjs']) docker('cp', join(scripts, file), `${tool}:/app/${file}`)
+        for (const file of ['deployment-retention.mjs', 'deployment-state.mjs', 'backup-verification.mjs', 'database-backups.mjs', 'backup-operation.mjs', 'chat-retention.mjs']) docker('cp', join(scripts, file), `${tool}:/app/scripts/${file}`)
         resolve()
       } catch (error) { retained = true; preserveState = true; reject(error) }
     })
@@ -110,6 +113,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
     return JSON.parse(docker('exec', tool, 'node', '/app/deployment-state.mjs', 'save', '@/app/deployment-input.json'))
   }
   const read = path => host('read', { path })
+  const clean = record => cleanupDeployment({ docker, tool, directory, authPath: env(viewer, 'AUTH_DB_PATH'), read, save, attempt, record })
   const resumeChatLock = () => {
     if (!state.chatLock) return
     try { host('chat-lock', { ...state.chatLock, resume: true }) }
@@ -348,6 +352,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
         state.nextAction = 'Completed release verified. No migrations or database replacement repeated.'
         if (state.chatLock) host('chat-unlock', state.chatLock)
         phase('complete'); retained = false
+        if (!state.chatLock) state.retention = await clean(true)
         return state
       }
       if (!backupReceipt) {
@@ -371,6 +376,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
         state.nextAction = 'Previous release passed acceptance. Preparation was cancelled.'
         state.completion = { source: previous.source }
         phase('complete'); retained = false
+        if (!state.chatLock) state.retention = await clean(true)
         return state
       }
       migrationProcess = state.migrationProcess
@@ -424,6 +430,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
       state.nextAction = 'Recovery passed acceptance.'
       phase('complete')
       retained = false
+      state.retention = await clean(true)
       return state
     }
     createTool()
@@ -434,6 +441,17 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
         preserveState = true; retained = true
         throw Object.assign(new Error('Managed attempt is unresolved'), { report: saved })
       }
+    }
+    if (cleanup) {
+      preserveState = true
+      const completed = read('/stage/deployment-status.json')
+      if (completed.phase !== 'complete' || !['active', 'recovered'].includes(completed.result)) throw new Error('Managed cleanup requires a successful deployment or recovery')
+      const current = read('/stage/current.json')
+      if (!applicationAccepted(applicationHealth(docker, viewer.Id), current.version, current.chatEnabled)) throw new Error('Application acceptance failed')
+      attempt = completed.attempt
+      const retention = await clean(true)
+      if (retention.status !== 'complete') process.exitCode = 1
+      return { result: 'cleanup', retention }
     }
     phase('baseline')
     previous = read('/stage/current.json')
@@ -517,6 +535,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
     const held = maintenance('state')
     if (held.phase !== 'held' || !backupReceipt.backupId || !backupReceipt.workstationManifest ||
         !same(held.acknowledgement, { deploymentAttempt: attempt, attempt: backupReceipt.attempt, backupId: backupReceipt.backupId })) throw new Error('Workstation acknowledgement is missing')
+    requireSpace(join(directory, 'backups'), 64 * 1024 ** 2, 1000)
     phase('activation-preflight')
     const budget = { databases: { auth: env(viewer, 'AUTH_DB_PATH'), chat: env(viewer, 'CHAT_DB_PATH') },
       stageBytes: 64 * 1024 ** 2, files: 1000, imageBytes: 0,
@@ -546,6 +565,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
     save('/stage/current.json', current)
     finish(current.source)
     phase('complete')
+    state.retention = await clean(true)
     return state
   } catch (error) {
     if (preserveState) throw error
@@ -622,13 +642,13 @@ async function main() {
   const [action, target, ...args] = process.argv.slice(2)
   const chatAction = action?.startsWith('chat-') ? action.slice(5) : undefined
   const tag = action === 'managed' ? args.shift() : undefined
-  const options = { target, tag, chatAction, project: 'mediamtx-viewer', directory: join(homedir(), '.local/share/mediamtx-deployments') }
+  const options = { target, tag, chatAction, cleanup: action === 'cleanup', project: 'mediamtx-viewer', directory: join(homedir(), '.local/share/mediamtx-deployments') }
   while (args.length) {
     const key = args.shift(), value = args.shift()
     if (!['--project', '--directory', '--url', '--release', '--restore', '--confirm'].includes(key) || !value) throw new Error('Invalid deployment option')
     options[key.slice(2)] = key === '--directory' ? resolve(value) : value
   }
-  if (!['managed', 'recover', 'chat-enable', 'chat-disable', 'chat-health'].includes(action) || !/^[a-zA-Z0-9_@.:-]+$/.test(target ?? '') || target.startsWith('-') || action === 'managed' && !/^v\d+\.\d+\.\d+$/.test(tag ?? '') || !/^[a-z0-9][a-z0-9_-]*$/.test(options.project)) throw new Error('Usage: deploy.sh managed TARGET TAG [--project NAME] [--directory PATH] [--url URL]')
+  if (!['managed', 'recover', 'cleanup', 'chat-enable', 'chat-disable', 'chat-health'].includes(action) || !/^[a-zA-Z0-9_@.:-]+$/.test(target ?? '') || target.startsWith('-') || action === 'managed' && !/^v\d+\.\d+\.\d+$/.test(tag ?? '') || !/^[a-z0-9][a-z0-9_-]*$/.test(options.project)) throw new Error('Usage: deploy.sh managed TARGET TAG [--project NAME] [--directory PATH] [--url URL]')
   if (action === 'recover') {
     if (!['previous', 'candidate'].includes(options.release) || !['none', 'auth', 'chat', 'both'].includes(options.restore)) throw new Error('Recovery requires --release previous|candidate --restore none|auth|chat|both. Replacement can discard later data and requires --confirm discard-later-data.')
     if (options.restore !== 'none' && options.confirm !== 'discard-later-data') throw new Error('Database replacement can discard later data; use --confirm discard-later-data')

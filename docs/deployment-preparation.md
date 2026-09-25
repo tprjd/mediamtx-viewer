@@ -90,7 +90,8 @@ Caddy and MediaMTX checks run in separate containers with no network access,
 public ports, or live database mounts. Compose and Streaming contract checks
 use the selected release configuration. Failed checks leave the current services
 running. Failed staging files remain private on the host for inspection. Retention
-and cleanup after successful deployment are separate work.
+cleanup runs only after successful deployment. See the
+[retention and disk guidance](deployment-retention.md).
 
 ## Run the command tests
 
