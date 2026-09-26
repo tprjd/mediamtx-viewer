@@ -172,20 +172,15 @@ async function loadOlderChatHistory(log: Locator): Promise<void> {
   }
   page.on('request', observe)
   try {
-    // Virtuoso can reach the top during its initial measurements before it is
-    // ready to request history. Move away from the top before trying again.
+    // Scroll in viewport-sized steps so Virtuoso can measure and render each
+    // range before the first item enters view.
     await expect(async () => {
       if (!requested) {
-        const atTop = await log.evaluate(element => element.scrollTop <= 2)
-        if (atTop) {
-          await log.evaluate(element => { element.scrollTop = element.scrollHeight })
-          await expect(log).toHaveAttribute('data-at-bottom', 'true')
-        }
         await log.hover()
-        await page.mouse.wheel(0, -await log.evaluate(element => element.scrollHeight))
+        await page.mouse.wheel(0, -await log.evaluate(element => element.clientHeight))
       }
       expect(requested).toBe(true)
-    }).toPass({ timeout: 10_000, intervals: [100, 250] })
+    }).toPass({ timeout: 15_000, intervals: [100, 250] })
   } finally {
     page.off('request', observe)
   }
@@ -875,6 +870,12 @@ test('browses retained Chat history without losing the reading position', async 
     reopenedChat.getByText(incomingContent, { exact: true }),
   ).toBeVisible()
   await expect(reopenedLog).toHaveAttribute('data-at-bottom', 'true')
+  await expect.poll(() => reopenedLog.evaluate(element =>
+    element.scrollTop + element.clientHeight >= element.scrollHeight - 2,
+  )).toBe(true)
+  await page.evaluate(() => new Promise<void>(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  }))
   await expect(
     reopenedChat.getByRole('button', { name: 'New messages' }),
   ).toHaveCount(0)
