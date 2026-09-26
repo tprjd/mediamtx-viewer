@@ -2,6 +2,11 @@ nextjs-portal {
   display: none !important;
 }
 
+/* Both the local Playwright image and CI install this font on Ubuntu 24.04. */
+body {
+  font-family: "Liberation Sans", sans-serif !important;
+}
+
 [data-theater-mode='true'] video {
   opacity: 0 !important;
 }

@@ -172,15 +172,20 @@ async function loadOlderChatHistory(log: Locator): Promise<void> {
   }
   page.on('request', observe)
   try {
-    // Keep scrolling while the virtual list settles its initial measurements.
-    // A synthetic one-shot scroll can be overwritten by those measurements.
+    // Virtuoso can reach the top during its initial measurements before it is
+    // ready to request history. Move away from the top before trying again.
     await expect(async () => {
       if (!requested) {
+        const atTop = await log.evaluate(element => element.scrollTop <= 2)
+        if (atTop) {
+          await log.evaluate(element => { element.scrollTop = element.scrollHeight })
+          await expect(log).toHaveAttribute('data-at-bottom', 'true')
+        }
         await log.hover()
         await page.mouse.wheel(0, -await log.evaluate(element => element.scrollHeight))
       }
       expect(requested).toBe(true)
-    }).toPass({ timeout: 5000, intervals: [100, 250] })
+    }).toPass({ timeout: 10_000, intervals: [100, 250] })
   } finally {
     page.off('request', observe)
   }
