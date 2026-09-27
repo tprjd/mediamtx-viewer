@@ -171,11 +171,40 @@ export function ChatTranscript({
 
   useEffect(() => {
     if (initialPositionSetRef.current || entries.length === 0) return
-    const frame = requestAnimationFrame(() => {
-      virtuosoRef.current?.scrollToIndex({ align: 'end', index: 'LAST' })
+    let frame = 0
+    let attempts = 0
+    let stableFrames = 0
+    const region = regionRef.current
+    const stopForReader = () => {
       initialPositionSetRef.current = true
-    })
-    return () => cancelAnimationFrame(frame)
+      cancelAnimationFrame(frame)
+    }
+    const inputEvents = ['wheel', 'touchstart', 'pointerdown', 'keydown']
+    for (const event of inputEvents) region?.addEventListener(event, stopForReader)
+    const pinToLiveEnd = () => {
+      const scroller = scrollerRef.current
+      if (scroller) {
+        // Message measurements can increase the height after the first jump.
+        scroller.scrollTop = scroller.scrollHeight
+        const lastItem = scroller.querySelector(`[data-index="${entries.length - 1}"]`)
+        const atBottom = scroller.scrollTop + scroller.clientHeight >=
+          scroller.scrollHeight - 2
+        stableFrames = lastItem && atBottom && scroller.dataset.atBottom === 'true'
+          ? stableFrames + 1
+          : 0
+        if (stableFrames >= 2) {
+          initialPositionSetRef.current = true
+          return
+        }
+      }
+      if (++attempts < 120) frame = requestAnimationFrame(pinToLiveEnd)
+      else initialPositionSetRef.current = true
+    }
+    frame = requestAnimationFrame(pinToLiveEnd)
+    return () => {
+      cancelAnimationFrame(frame)
+      for (const event of inputEvents) region?.removeEventListener(event, stopForReader)
+    }
   }, [entries.length])
 
   return (

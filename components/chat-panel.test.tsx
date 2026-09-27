@@ -126,8 +126,8 @@ vi.mock('react-virtuoso', async (importOriginal) => {
           ? React.createElement(components.EmptyPlaceholder)
           : visibleData.map((entry, offset) =>
               React.createElement(
-                React.Fragment,
-                { key: visibleStart + offset },
+                'div',
+                { key: visibleStart + offset, 'data-index': visibleStart + offset },
                 itemContent(visibleStart + offset, entry),
               ),
             ),
@@ -470,6 +470,7 @@ describe('live Chat delivery', () => {
       clientHeight: { configurable: true, value: 200 },
       scrollHeight: { configurable: true, value: 800 },
     })
+    fireEvent.wheel(log)
     fireEvent.scroll(log, { target: { scrollTop: 0 } })
 
     await waitFor(() => {
