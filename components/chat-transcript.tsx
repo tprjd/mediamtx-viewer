@@ -203,6 +203,7 @@ export function ChatTranscript({
         defaultItemHeight={72}
         firstItemIndex={firstItemIndex}
         followOutput="auto"
+        initialTopMostItemIndex={{ index: 'LAST', align: 'end' }}
         itemContent={(_index, entry) => {
           if (entry.kind === 'submission') {
             return (
