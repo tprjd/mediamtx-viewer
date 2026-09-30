@@ -33,6 +33,10 @@ try {
 
   const checks = JSON.parse(readFileSync(`${output}/checks.json`, 'utf8'))
   validateChecks(checks, identity.sourceFingerprint)
+  if (checks.repository !== repository || checks.commit !== identity.commit || checks.runId !== process.env.GITHUB_RUN_ID ||
+      !/^[1-9]\d*$/.test(checks.runAttempt ?? '') || Number(checks.runAttempt) > Number(process.env.GITHUB_RUN_ATTEMPT)) {
+    throw new Error('Source checks do not belong to this release workflow')
+  }
 
   let references = previous?.images
   if (!references) {

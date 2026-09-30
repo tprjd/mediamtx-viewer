@@ -28,8 +28,9 @@ as the runtime version source.
 
 ## Verify public images
 
-The release workflow runs all non-capacity rollout checks on the standard
-`ubuntu-24.04` x64 runner. Playwright Chromium on Linux ARM64 cannot decode the
+The release workflow runs all non-capacity rollout checks in independent jobs on
+standard `ubuntu-24.04` x64 runners. Local and hosted commands use the same
+verification groups. Playwright Chromium on Linux ARM64 cannot decode the
 H.264 test media. After the checks pass, the standard `ubuntu-24.04-arm` runner
 validates the source fingerprint and builds both Linux ARM64 images. It checks
 their layers for excluded private files and starts both images. The
@@ -61,6 +62,22 @@ original `release.json` unchanged. A moved tag or changed image identity fails.
 For local ARM64 image verification, run `node scripts/release-images.mjs`. This
 builds temporary local images, checks the image layers, and starts the images
 with test-only runtime configuration. It does not publish or deploy them.
+
+For development, follow [Run verification](verification.md). Branch checks never
+publish images. Release publication requires every group, regardless of branch
+path filters. The collector checks each report against the latest job for that
+group, its workflow run, commit, source fingerprint, and required commands.
+
+Use **Re-run failed jobs** to retry a failed group without repeating successful
+groups. Successful jobs from an earlier attempt keep their original report and
+job identity. A newer failed or cancelled job cannot fall back to an older success.
+If the required reports have expired or are older than 24 hours, rerun all jobs.
+Reports remain available for seven days. The source-verification job summary
+shows setup, check, and total job time for each group.
+
+Publication and refresh runs do not cancel one another. A newer manual validation
+of the same ref cancels an obsolete validation run. All jobs check out the event's
+commit so a moving branch cannot change the source between jobs.
 
 To stage a published release without activation, follow
 [Prepare a selected release](deployment-preparation.md). Use

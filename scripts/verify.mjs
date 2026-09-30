@@ -68,7 +68,7 @@ export function combineGroups(reports) {
   for (const group of groups) {
     const report = reports.find(item => item.group === group)
     const expected = verificationGroups[group].commands.map(([name]) => name)
-    if (!report || report.version !== 1 || !report.passed || report.commit !== first.commit || report.sourceFingerprint !== first.sourceFingerprint ||
+    if (!report || report.version !== 1 || report.passed !== true || report.commit !== first.commit || report.sourceFingerprint !== first.sourceFingerprint ||
       report.checks.length !== expected.length || expected.some((name, index) => report.checks[index]?.name !== name || report.checks[index]?.passed !== true) ||
       !Number.isFinite(Date.parse(report.startedAt)) || !Number.isFinite(Date.parse(report.finishedAt)) || Date.parse(report.finishedAt) < Date.parse(report.startedAt)) {
       throw new Error(`Incomplete or mismatched verification group: ${group}`)

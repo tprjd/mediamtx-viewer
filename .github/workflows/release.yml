@@ -15,69 +15,91 @@ on:
         type: string
         default: ''
 
-# Serialize publication and refresh. Never cancel an in-progress publication.
+# Publication and refresh never cancel each other. Obsolete test validation can stop.
 concurrency:
-  group: verified-release
-  cancel-in-progress: false
+  group: ${{ inputs.mode == 'validation' && format('release-validation-{0}', github.ref) || 'verified-release' }}
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'validation' }}
 
 permissions:
   contents: read
+  actions: read
 
 env:
   CI: '1'
   NEXT_TELEMETRY_DISABLED: '1'
 
 jobs:
-  verification:
-    # Playwright's Linux ARM64 Chromium cannot decode the H.264 test media.
+  plan:
     runs-on: ubuntu-24.04
-    # Full Docker activation and recovery checks exceed the former 30-minute limit.
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.groups.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - id: groups
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync } from 'node:fs'
+          import { verificationGroups } from './scripts/verification-checks.mjs'
+          appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify({ group: Object.keys(verificationGroups) })}\n`)
+          JS
+
+  verify:
+    name: Verify (${{ matrix.group }})
+    needs: plan
+    # The browser fixtures require H.264 decoding on x64 Linux.
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/verify
+        with:
+          group: ${{ matrix.group }}
+
+  verification:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       evidence-id: ${{ steps.evidence.outputs.artifact-id }}
     steps:
-      - name: Check out selected source
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ inputs.mode == 'refresh' && inputs.tag || github.ref }}
-          fetch-depth: 0
+          ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Set up Node
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Install staging test encryption tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y age
-          go install github.com/getsops/sops/v3/cmd/sops@v3.13.3
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-      - name: Install test browser
-        run: npx playwright install --with-deps chromium
-      - name: Run release checks
-        run: |
-          mkdir -p .data/release
-          node scripts/chat-capacity/checks.mjs .data/release/checks.json
-      - name: Save browser failure details
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: browser-failure-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            test-results/**/error-context.md
-            test-results/**/trace.zip
-          retention-days: 1
-          if-no-files-found: ignore
+          pattern: checks-${{ github.run_id }}-*
+          merge-multiple: true
+          path: .data/verification
+      - name: Verify job provenance and combine results
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/collect-verification.mjs
       - name: Transfer completed verification
         id: evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: source-verification-${{ github.run_id }}-${{ github.run_attempt }}
           path: .data/release/checks.json
-          retention-days: 1
+          retention-days: 7
           if-no-files-found: error
 
   release:
@@ -94,7 +116,7 @@ jobs:
       - name: Check out selected source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ inputs.mode == 'refresh' && inputs.tag || github.ref }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Set up Node
@@ -125,7 +147,7 @@ jobs:
         with:
           name: release-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: .data/release/*.json
-          retention-days: 1
+          retention-days: 7
           if-no-files-found: ignore
       - name: Log out of the registry
         if: always()
