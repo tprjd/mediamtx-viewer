@@ -65,7 +65,7 @@ it('creates a release record only after complete evidence and never replaces an 
   const result = run(...args)
   expect(result.status, result.stderr).toBe(0)
   const record = JSON.parse(readFileSync(join(directory, '.data/release.json'), 'utf8'))
-  expect(record).toMatchObject({ format: 1, tag: 'v1.2.3', version: '1.2.3', repository: 'owner/viewer', images: { viewer: `ghcr.io/owner/viewer/viewer@sha256:${'1'.repeat(64)}` } })
+  expect(record).toMatchObject({ format: 2, tag: 'v1.2.3', version: '1.2.3', repository: 'owner/viewer', images: { viewer: `ghcr.io/owner/viewer/viewer@sha256:${'1'.repeat(64)}` } })
   expect(run(...args).status).not.toBe(0)
 })
 
@@ -87,9 +87,10 @@ it.each(['missing-check', 'failed-check', 'stale', 'future', 'source', 'architec
   expect(() => readFileSync(join(directory, '.data/release.json'))).toThrow()
 })
 
-it('refreshes verification for the same images without changing the published record', () => {
+it.each([1, 2])('refreshes format %s without changing the published policy or images', format => {
   const { directory, run, checks, images, write } = evidenceFixture()
   expect(run('record', 'v1.2.3', '.data/checks.json', '.data/images.json', '.data/release.json').status).toBe(0)
+  write('release.json', { ...JSON.parse(readFileSync(join(directory, '.data/release.json'), 'utf8')), format })
   const original = readFileSync(join(directory, '.data/release.json'), 'utf8')
   checks.finishedAt = new Date().toISOString()
   write('checks.json', checks)
@@ -98,6 +99,7 @@ it('refreshes verification for the same images without changing the published re
   expect(readFileSync(join(directory, '.data/release.json'), 'utf8')).toBe(original)
   const result = JSON.parse(readFileSync(join(directory, '.data/refreshed.json'), 'utf8'))
   expect(result.images).toEqual(JSON.parse(original).images)
+  expect(result.format).toBe(format)
   images.viewer.reference = `ghcr.io/owner/viewer/viewer@sha256:${'9'.repeat(64)}`
   write('images.json', images)
   expect(run('refresh', '.data/release.json', '.data/checks.json', '.data/images.json', '.data/invalid.json').status).not.toBe(0)

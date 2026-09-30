@@ -12,7 +12,7 @@ export const run = (bin, args, options = {}) => execFileSync(bin, args, { encodi
 export const docker = (...args) => run('docker', args)
 export const inspect = id => JSON.parse(docker('inspect', id))[0]
 
-export async function stagingFixture(work, { chat = false, managed = false, legacy = false, mediaPorts = false, migrations = {} } = {}) {
+export async function stagingFixture(work, { chat = false, managed = false, legacy = false, mediaPorts = false, migrations = {}, releaseFormat = 1, verificationAgeMs = 0 } = {}) {
   const endpoint = process.env.DOCKER_HOST ?? JSON.parse(docker('context', 'inspect'))[0].Endpoints.docker.Host
   if (!endpoint.startsWith('unix://') && !/^tcp:\/\/(localhost|127\.0\.0\.1):/.test(endpoint)) throw new Error('Staging tests require local Docker')
   docker('info')
@@ -62,10 +62,10 @@ export async function stagingFixture(work, { chat = false, managed = false, lega
     const fingerprint = run(process.execPath, [resolve('scripts/chat-capacity/source.mjs')], { cwd: source })
     stagingImage(directory, endpoint, image, commit, fingerprint)
     // The controlled registry boundary supplies these digests. All containers are real Docker containers.
-    record = { format: 1, repository: 'tprjd/mediamtx-viewer', tag: 'v1.2.3', version: '1.2.3', commit,
+    record = { format: releaseFormat, repository: 'tprjd/mediamtx-viewer', tag: 'v1.2.3', version: '1.2.3', commit,
       tagObject: git('rev-parse', 'v1.2.3'), sourceFingerprint: fingerprint,
       images: Object.fromEntries(['viewer', 'thumbnailer'].map(name => [name, `ghcr.io/tprjd/mediamtx-viewer/${name}@sha256:${'d'.repeat(64)}`])),
-      verification: { version: 1, passed: true, sourceFingerprint: fingerprint, finishedAt: new Date().toISOString(), runId: '1', runAttempt: '1', checks: requiredChecks.map(name => ({ name, passed: true })) } }
+      verification: { version: 1, passed: true, sourceFingerprint: fingerprint, finishedAt: new Date(Date.now() - verificationAgeMs).toISOString(), runId: '1', runAttempt: '1', checks: requiredChecks.map(name => ({ name, passed: true })) } }
     writeFileSync(join(directory, 'active.conf'), 'unchanged active configuration', { mode: 0o644 })
     for (const name of volumes) docker('volume', 'create', `${project}_${name}`)
     for (const service of ['viewer', 'caddy', 'centrifugo', 'mediamtx', 'mediamtx-health', 'thumbnailer', 'discord-notifier']) {

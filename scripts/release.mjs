@@ -21,12 +21,25 @@ export function identifyRelease(tag) {
 
 const readJSON = path => JSON.parse(readFileSync(path, 'utf8'))
 
-export function validateChecks(checks, fingerprint, now = Date.now()) {
-  const age = now - Date.parse(checks.finishedAt)
-  if (checks.version !== 1 || checks.passed !== true || !Number.isFinite(age) || age < 0 || age > 86_400_000 ||
+function checkEvidence(checks, fingerprint, now, maxAge) {
+  const age = now - Date.parse(checks?.finishedAt)
+  if (checks?.version !== 1 || checks.passed !== true || !Number.isFinite(age) || age < 0 || age > maxAge ||
       checks.sourceFingerprint !== fingerprint ||
-      requiredChecks.some(name => !checks.checks?.some(check => check.name === name && check.passed === true)) ||
+      !Array.isArray(checks.checks) ||
+      requiredChecks.some(name => !checks.checks.some(check => check?.name === name && check.passed === true)) ||
       checks.checks.some(check => check.passed !== true)) throw new Error('Incomplete, stale, or mismatched verification')
+}
+
+// Creating or refreshing a release still requires recent source verification.
+export function validateChecks(checks, fingerprint, now = Date.now()) {
+  checkEvidence(checks, fingerprint, now, 86_400_000)
+}
+
+// Format 2 binds durable evidence to the published source and image identities.
+// Format 1 retains its original expiry rule; unsupported formats fail closed.
+export function validateReleaseEvidence(record, now = Date.now()) {
+  if (![1, 2].includes(record?.format)) throw new Error('Unsupported release record format')
+  checkEvidence(record.verification, record.sourceFingerprint, now, record.format === 2 ? Infinity : 86_400_000)
 }
 
 function imageReference(reference, repository, name) {
@@ -48,7 +61,7 @@ export function createReleaseRecord(tag, checks, images) {
     }
   }
   return {
-    format: 1,
+    format: 2,
     ...identity,
     repository,
     sourceFingerprint: fingerprint,
@@ -58,7 +71,9 @@ export function createReleaseRecord(tag, checks, images) {
 }
 
 export function refreshReleaseRecord(previous, checks, images) {
+  if (![1, 2].includes(previous?.format)) throw new Error('Unsupported release record format')
   const next = createReleaseRecord(previous.tag, checks, images)
+  next.format = previous.format
   for (const key of ['format', 'tag', 'version', 'repository', 'commit', 'tagObject', 'sourceFingerprint']) {
     if (previous[key] !== next[key]) throw new Error('Published release identity changed')
   }

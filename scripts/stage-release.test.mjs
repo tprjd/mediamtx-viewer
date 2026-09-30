@@ -44,6 +44,23 @@ const runningIdentities = project => docker('ps', '-aq', '--filter', `label=com.
   const container = inspect(id)
   return { id, image: container.Image, startedAt: container.State.StartedAt, running: container.State.Running, paused: container.State.Paused }
 }).sort((a, b) => a.id.localeCompare(b.id))
+
+it('requires fresh host checks for a durable release older than 24 hours', async () => {
+  await stagingFixture(async ({ command, fault, project }) => {
+    const before = runningIdentities(project)
+    fault('host-space')
+    const rejected = await command('prepare')
+    expect(rejected.status).not.toBe(0)
+    expect(JSON.parse(rejected.stderr).reason).toContain('Host bytes')
+    expect(runningIdentities(project)).toEqual(before)
+    fault('')
+    const ready = await command('prepare')
+    expect(ready.status, ready.stderr).toBe(0)
+    expect(JSON.parse(ready.stdout).result).toBe('ready')
+    expect(runningIdentities(project)).toEqual(before)
+  }, { releaseFormat: 2, verificationAgeMs: 2 * 86400000 })
+}, 120000)
+
 it.each([false, true])('stages the committed release privately with Chat=%s while services and data remain available', async chat => {
   await stagingFixture(async ({ command, viewer, source, project, image, fault }) => {
     const before = inspect(viewer)

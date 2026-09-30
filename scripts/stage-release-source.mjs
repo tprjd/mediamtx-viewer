@@ -1,5 +1,5 @@
 import { githubReleaseClient } from './release-publication.mjs'
-import { validateChecks } from './release.mjs'
+import { validateReleaseEvidence } from './release.mjs'
 
 export async function selectedRelease(tag) {
   if (!/^v\d+\.\d+\.\d+$/.test(tag ?? '')) throw new Error('Select a vX.Y.Z release tag')
@@ -9,7 +9,7 @@ export async function selectedRelease(tag) {
   if (release.draft || release.tag_name !== tag) throw new Error('Release is not published')
   const original = await client.downloadRecord(release)
   const repository = process.env.GITHUB_REPOSITORY.toLowerCase()
-  if (original?.format !== 1 || original.tag !== tag || `v${original.version}` !== tag || original.repository !== repository ||
+  if (![1, 2].includes(original?.format) || original.tag !== tag || `v${original.version}` !== tag || original.repository !== repository ||
       !/^[a-f0-9]{40}$/.test(original.commit ?? '') || !/^[a-f0-9]{40}$/.test(original.tagObject ?? '') ||
       !/^[a-f0-9]{64}$/.test(original.sourceFingerprint ?? '')) throw new Error('Invalid release identity')
   for (const name of ['viewer', 'thumbnailer']) {
@@ -35,9 +35,10 @@ export async function selectedRelease(tag) {
     if (assets.length < 100) break
   }
   for (const record of records.sort((a, b) => Date.parse(b.verification?.finishedAt) - Date.parse(a.verification?.finishedAt))) {
-    try { validateChecks(record.verification, original.sourceFingerprint) } catch { continue }
+    try { validateReleaseEvidence(record) } catch { continue }
     await client.requireSuccessfulWorkflow(record)
     return record
   }
-  throw new Error('Required verification is incomplete or older than 24 hours. Run Verified ARM64 release in refresh mode from the selected tag; do not rebuild or replace its images.')
+  if (original.format === 1) throw new Error('Required legacy verification is incomplete or older than 24 hours. Run Verified ARM64 release in refresh mode from the selected tag; do not rebuild or replace its images.')
+  throw new Error('Required release verification is missing, incomplete, or mismatched. Restore valid evidence for this release or select another verified release.')
 }

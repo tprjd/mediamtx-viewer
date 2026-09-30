@@ -32,7 +32,13 @@ enter the release. SOPS decrypts the secrets from that committed source on the
 workstation. The command checks the source fingerprint, tag object, commit,
 version, workflow evidence, and exact application image digests.
 
-If verification is older than 24 hours, run **Verified ARM64 release** with mode
+Format-2 release evidence does not expire solely because time passes. Preparation
+still checks current images, configuration, host resources, and database state.
+Missing evidence, unavailable workflow records, draft releases, and moved identities
+are rejected. See [release evidence policy](releases.md#verify-public-images).
+
+For a legacy format-1 record with verification older than 24 hours, run
+**Verified ARM64 release** with mode
 `refresh`. Select the release tag in both the tag input and **Use workflow from**.
 This tests the existing images without rebuilding or replacing them.
 

@@ -41,7 +41,7 @@ Images are published under `ghcr.io/tprjd/mediamtx-viewer/viewer` and
 image digests, source identity, and verification evidence. An image tag alone
 does not establish release readiness. A record is ready only after its exact workflow attempt completes successfully.
 Run `GITHUB_REPOSITORY=tprjd/mediamtx-viewer node scripts/release-publication.mjs ready release.json`
-to check this condition. Deployment must also validate the record and its freshness.
+to check this condition. Deployment must also validate the release record and current operational state.
 
 GitHub can create a new package with private visibility. If the anonymous-pull
 check fails, open each package's settings and set its visibility to **Public**.
@@ -53,11 +53,33 @@ To verify the workflow before cutting a release, run **Verified ARM64 release**
 manually with mode `validation`. It builds and publishes test images and saves
 verification evidence, but creates no deployable release or production deployment.
 
-To refresh an existing release's 24-hour verification evidence, run the workflow
+To refresh a legacy format-1 release's 24-hour verification evidence, run the workflow
 with mode `refresh` and its tag. Select that same tag in the **Use workflow from**
 field, so the workflow run identifies the release commit. It pulls and tests the recorded images without
 rebuilding them. It appends a uniquely named verification asset and leaves the
 original `release.json` unchanged. A moved tag or changed image identity fails.
+
+New releases use record format 2. Their successful test evidence remains valid
+for the exact commit, annotated tag object, source fingerprint, and image digests.
+A delay before deployment does not require another full test run. This evidence
+does not prove current host readiness or current vulnerability status.
+
+Format-1 records retain the 24-hour rule. A refresh preserves the record format;
+it does not convert old evidence to the new policy. Unknown formats, missing
+records, invalid timestamps, failed or inaccessible workflow evidence, moved
+tags, and changed identities are rejected. Creating or refreshing either format
+still requires source checks completed within the previous 24 hours.
+
+To revoke a release for future preparation and activation, change its GitHub
+release to a draft or remove the published release. Both actions make selection
+fail. Removing its evidence or exact workflow run also blocks selection. These
+actions do not stop an already running deployment or invalidate a retained local
+rollback record. Recovery remains subject to database compatibility and fresh
+runtime checks.
+
+Each deployment checks image availability and identity, resolved configuration,
+host resources and disk space, database state, a verified maintenance backup,
+and candidate runtime health. Durable test evidence cannot bypass these checks.
 
 For local ARM64 image verification, run `node scripts/release-images.mjs`. This
 builds temporary local images, checks the image layers, and starts the images

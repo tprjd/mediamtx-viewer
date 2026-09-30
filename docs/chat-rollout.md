@@ -15,9 +15,11 @@ Use `local` when you run on the Linux Docker host. Add `--project NAME` for a di
 project. The equivalent deployment commands are `chat-enable`, `chat-health`,
 and `chat-disable` in `deploy/oracle/deploy.sh`.
 
-Enable checks the current release's successful non-capacity verification. The
-verification must be less than 24 hours old and match the source and exact images.
-To refresh expired evidence, follow [release verification](releases.md#verify-public-images).
+Enable checks the current release's successful non-capacity verification against
+its source and exact images. Format-2 evidence remains valid for that identity.
+Legacy format-1 evidence must be less than 24 hours old. Follow
+[release verification](releases.md#verify-public-images) to refresh legacy evidence.
+Missing, revoked, or inaccessible release evidence blocks enable.
 The command requires a Linux ARM64 host, at least 1 GiB available memory, and no
 more than 70% sampled CPU use. It checks database integrity, the outbox, current
 service health, free bytes, and free inodes. It preserves the runtime database
