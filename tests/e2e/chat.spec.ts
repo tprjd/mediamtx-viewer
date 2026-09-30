@@ -658,8 +658,10 @@ test('changes message text size without losing the reading position', async ({ p
   await page.reload()
   await expect(body).toHaveCSS('font-size', '16px')
   await expect(lastRow.locator('time')).toBeVisible()
-  await log.evaluate(element => { element.scrollTop -= 800 })
+  await log.hover()
+  await page.mouse.wheel(0, -800)
   await expect(log).toHaveAttribute('data-at-bottom', 'false')
+  await settleResize()
   const anchor = await log.evaluate(element => {
     const top = element.getBoundingClientRect().top
     const row = Array.from(element.querySelectorAll<HTMLElement>('[data-message-entry-id]'))
