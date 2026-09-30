@@ -4,11 +4,11 @@ export default defineConfig({
   testDir: './tests/e2e',
   globalTeardown: './tests/e2e/global-teardown.ts',
   fullyParallel: true,
-  retries: 1,
+  retries: 0,
   reporter: 'html',
   use: {
     baseURL: 'http://localhost:3199',
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
   },
   projects: [
     {

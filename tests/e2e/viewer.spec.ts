@@ -143,6 +143,8 @@ test('opens accessible Channel drawers on narrow home and watch pages', async ({
     .getByRole('link', { name: /Watch Live stream by power, live/ })
     .click()
   await expect(page).toHaveURL('/watch/live')
+  // The URL can change while the loading page is still visible.
+  await expect(page.getByRole('heading', { name: 'Live stream', level: 1, exact: true })).toBeVisible()
   await expect(drawer).toBeHidden()
 
   await page.getByRole('button', { name: 'Open Channel drawer' }).click()

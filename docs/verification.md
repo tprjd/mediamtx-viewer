@@ -34,6 +34,6 @@ GitHub runs **Branch verification** for pull requests to `main`, pushes to `main
 
 Each verification group has its own job. Changes limited to components, hooks, public assets, browser tests, or documentation omit Docker acceptance. Unknown inputs and deployment dependencies run all groups. Select a manual run with `full` enabled to run every group. The **Branch checks** job reports the combined result. Branch jobs cannot publish images.
 
-Release tags and explicit release validation still require every group. Keep the full release workflow separate from branch checks. Reports and browser failure traces remain available for seven days.
+Release tags and explicit release validation still require every group. Keep the full release workflow separate from branch checks. Reports and browser failure traces remain available for seven days. Browser checks use zero retries and retain the trace from the first failed attempt.
 
 Source fingerprints cover the shared GitHub action as well as workflow files. They exclude `next-env.d.ts`, which Next.js regenerates for each test build directory. The Next.js version and compiler configuration remain fingerprint inputs.
