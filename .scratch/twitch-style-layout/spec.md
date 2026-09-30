@@ -1,6 +1,6 @@
 # Spec: Twitch-style layout
 
-Status: implemented
+Status: complete
 
 ## Problem Statement
 
@@ -100,3 +100,7 @@ Restructure the information architecture of the two viewer-facing pages, keeping
 - The watch page currently tracks only the watched channel through the events hook; seeding it with all channels is the one behavioral change to that page's data flow.
 
 Implementation completed in commits `4421042`, `979ce67`, `aae828b`, and `e372f59`.
+
+## Status update, 2026-09-30
+
+All implementation issues in this spec are recorded as resolved. This status update records their completion. Further validation is deferred at the user's request.

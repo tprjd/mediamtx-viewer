@@ -1,6 +1,6 @@
 # Spec: Twitch-style interface refinement
 
-Status: ready-for-agent
+Status: complete
 
 ## Problem Statement
 
@@ -167,3 +167,7 @@ Keep the interface dark, compact, and flat. Remove the ambient glows and card-li
 - The current source already uses approximately 240 pixels for the expanded rail, 64 pixels for the collapsed rail, and 340 pixels for chat. The main layout change removes the centered page caps and pins the side panels to the viewport.
 - The present UI inventory is stale. It says that the application has no footer and describes home sections that no longer render. Update the inventory when implementation makes the new interface the current state.
 - The design discussion did not change a domain term or make a hard-to-reverse architecture choice. No glossary or ADR update is required.
+
+## Status update, 2026-09-30
+
+All implementation issues in this spec are recorded as resolved. This status update records their completion. Further validation is deferred at the user's request.
