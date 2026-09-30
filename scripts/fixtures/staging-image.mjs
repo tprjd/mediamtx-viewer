@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const built = new Map()
+const worker = randomUUID()
 const docker = (...args) => execFileSync('docker', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 
 // Reuse only immutable image inputs. Each scenario still creates its own image
@@ -16,7 +17,8 @@ export function stagingImage(directory, endpoint, image, commit, fingerprint) {
       .filter(entry => entry.isFile()).map(entry => join(entry.parentPath, entry.name)))].sort()
   for (const file of files) hash.update(file).update('\0').update(readFileSync(file)).update('\0')
   const key = `${endpoint}:${hash.digest('hex')}`
-  const base = `mediamtx-test-base:${key.split(':').at(-1)}`
+  // BuildKit can reuse layers, but concurrent workers must not export the same tag.
+  const base = `mediamtx-test-base:${key.split(':').at(-1)}-${worker}`
   if (!built.has(key)) {
     writeFileSync(join(directory, 'base.Dockerfile'), recipe)
     docker('build', '-q', '-t', base, '-f', join(directory, 'base.Dockerfile'), '.')

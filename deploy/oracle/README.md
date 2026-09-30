@@ -78,6 +78,14 @@ use them.
 
 ## Deploy
 
+For deployment through GitHub, open **Actions > Deploy MediaMTX** in the private
+[deployment repository](https://github.com/tprjd/mediamtx-deployment). Select
+`main`, operation `deploy`, and a verified release tag. Select `adopt` only for
+the first managed deployment. The dedicated Mac runner must be awake and
+connected. Keys and encrypted backup copies stay on the Mac. Release builds
+remain in this public repository; public pull requests cannot use the private
+deployment runner.
+
 After [adoption](../../docs/adopt-installation.md), run from the workstation:
 
 ```sh

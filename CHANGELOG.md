@@ -10,6 +10,7 @@ All notable changes to this project are documented here.
 - Add managed deployment with verified maintenance backups, controlled migrations, rollback, and recovery after interruption.
 - Add adoption of existing installations and retention of two successful releases and two deployment backup sets.
 - Add focused local verification commands and independent GitHub verification jobs.
+- Add manual GitHub deployment through a private workflow and a dedicated Mac runner that retains keys and backup copies locally.
 
 ### Changed
 
@@ -23,6 +24,7 @@ All notable changes to this project are documented here.
 - Preserve the live Chat position through layout changes and repeated reopening.
 - Isolate authentication databases during production builds to prevent SQLite lock failures.
 - Correct browser fixtures for playback, navigation, Chat readiness, and mobile touch positioning.
+- Give parallel Docker test workers separate image tags while preserving build-layer reuse.
 
 ## [0.12.0] - 2026-09-24
 

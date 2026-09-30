@@ -15,12 +15,12 @@ Do not change the version for documentation or planning changes.
 
 1. Update the version in both `package.json` and `package-lock.json`.
 2. Add a dated Keep a Changelog entry to `CHANGELOG.md`.
-3. Run `npm run lint`, `npm test`, and `npm run build`. Fix failures before tagging.
+3. Run `npm run lint`, `npm run test:fast`, and `npm run build`. Run the focused verification groups for changed behavior and fix failures before tagging. The release workflow runs the complete test set, including all Docker groups, before publication. Do not repeat the entire Docker suite locally when the release workflow will run it.
 4. Commit the release changes with a Conventional Commits message, such as `chore: release vX.Y.Z`.
 5. Create the annotated tag with `git tag -a vX.Y.Z -m "Release vX.Y.Z"`.
 6. Push the release commit and tag with `git push origin main vX.Y.Z`.
 7. Wait for the **Verified ARM64 release** workflow to pass. Confirm that the GitHub release contains `release.json` and that both container images can be pulled anonymously.
-8. Follow the [deployment procedure](../deploy/oracle/README.md). Adopt an existing installation once, then select its verified tag explicitly. Tag publication never activates Oracle.
+8. Start **Deploy MediaMTX** in the private [deployment repository](https://github.com/tprjd/mediamtx-deployment), or follow the [workstation deployment procedure](../deploy/oracle/README.md). Adopt an existing installation once, then select its verified tag explicitly. Tag publication never activates Oracle.
 9. Confirm that the header and `/api/health` show the release version.
 
 `lib/app-version.ts` derives `APP_VERSION` from `package.json`. Keep that file
