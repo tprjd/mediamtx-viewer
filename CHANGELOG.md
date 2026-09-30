@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented here.
 
+## [1.0.0] - 2026-09-30
+
+### Added
+
+- Publish verified Linux ARM64 viewer and thumbnailer images with release evidence bound to their exact source and image digests.
+- Add managed deployment with verified maintenance backups, controlled migrations, rollback, and recovery after interruption.
+- Add adoption of existing installations and retention of two successful releases and two deployment backup sets.
+- Add focused local verification commands and independent GitHub verification jobs.
+
+### Changed
+
+- **Breaking:** Retire working-directory uploads and VM builds. Adopt the existing installation, then deploy a selected verified release tag.
+- Use verified release evidence and current runtime checks for Chat operations instead of mandatory capacity benchmarks.
+- Retain format-2 release evidence without an age-based source test rerun. Keep fresh deployment checks and the format-1 expiry policy.
+- Separate branch verification from release publication, cache build inputs, and reuse successful jobs during workflow reruns.
+
+### Fixed
+
+- Preserve the live Chat position through layout changes and repeated reopening.
+- Isolate authentication databases during production builds to prevent SQLite lock failures.
+- Correct browser fixtures for playback, navigation, Chat readiness, and mobile touch positioning.
+
 ## [0.12.0] - 2026-09-24
 
 ### Added
