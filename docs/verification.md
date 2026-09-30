@@ -25,3 +25,11 @@ Use x64 Linux to reproduce hosted browser behavior. macOS screenshots and Linux 
 The required groups and commands are defined in `scripts/verification-checks.mjs`. Docker test membership is defined in `scripts/test-groups.json`. When a new test starts Docker, add it to that list so fast verification stays independent of Docker.
 
 Local reports support diagnosis. They do not authorize a GitHub release or production deployment.
+
+GitHub runs **Branch verification** for pull requests to `main`, pushes to `main`, and the current deployment feature branch. When that feature branch has an open pull request, its push run leaves testing to the pull-request run. New updates cancel obsolete runs of the same event and branch.
+
+Each verification group has its own job. Changes limited to components, hooks, public assets, browser tests, or documentation omit Docker acceptance. Unknown inputs and deployment dependencies run all groups. Select a manual run with `full` enabled to run every group. The **Branch checks** job reports the combined result. Branch jobs cannot publish images.
+
+Release tags and explicit release validation still require every group. Keep the full release workflow separate from branch checks. Reports and browser failure traces remain available for seven days.
+
+Source fingerprints cover the shared GitHub action as well as workflow files. They exclude `next-env.d.ts`, which Next.js regenerates for each test build directory. The Next.js version and compiler configuration remain fingerprint inputs.

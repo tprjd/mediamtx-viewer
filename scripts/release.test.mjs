@@ -119,3 +119,17 @@ it('fingerprints the thumbnailer and deployment inputs without reading secret bu
   writeFileSync(join(folder, 'thumbnailer.Dockerfile'), 'FROM node:24-alpine\nRUN echo changed\n')
   expect(fingerprint()).not.toBe(before)
 })
+
+it('ignores generated Next declarations but detects compiler configuration changes', () => {
+  const { directory } = repository()
+  const fingerprint = () => execFileSync(process.execPath, [command, 'fingerprint'], { cwd: directory, encoding: 'utf8' }).trim()
+  const before = fingerprint()
+  writeFileSync(join(directory, 'next-env.d.ts'), 'import "./.next-e2e/dev/types/routes.d.ts";\n')
+  expect(fingerprint()).toBe(before)
+  writeFileSync(join(directory, 'tsconfig.json'), '{"compilerOptions":{"strict":true}}')
+  expect(fingerprint()).not.toBe(before)
+  const configured = fingerprint()
+  mkdirSync(join(directory, '.github/actions/verify'), { recursive: true })
+  writeFileSync(join(directory, '.github/actions/verify/action.yml'), 'name: changed verification\n')
+  expect(fingerprint()).not.toBe(configured)
+})

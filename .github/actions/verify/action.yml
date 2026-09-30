@@ -1,0 +1,64 @@
+name: Run a verification group
+description: Run the same verification command locally and on a hosted runner
+inputs:
+  group:
+    description: Group from scripts/verification-checks.mjs
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      with:
+        node-version: '24'
+        cache: npm
+    - shell: bash
+      run: npm ci
+    - name: Select tools
+      id: tools
+      shell: bash
+      env:
+        VERIFY_GROUP: ${{ inputs.group }}
+      run: |
+        node --input-type=module <<'JS'
+        import { appendFileSync } from 'node:fs'
+        import { verificationGroups } from './scripts/verification-checks.mjs'
+        const { tools } = verificationGroups[process.env.VERIFY_GROUP]
+        appendFileSync(process.env.GITHUB_OUTPUT, `browser=${tools.includes('chromium')}\nencryption=${tools.includes('sops')}\n`)
+        JS
+    - name: Install staging tools
+      if: steps.tools.outputs.encryption == 'true'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y age
+        go install github.com/getsops/sops/v3/cmd/sops@v3.13.3
+        echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+    - name: Install Chromium
+      if: steps.tools.outputs.browser == 'true'
+      shell: bash
+      run: npx playwright install --with-deps chromium
+    - name: Run checks
+      shell: bash
+      env:
+        VERIFY_GROUP: ${{ inputs.group }}
+        CI: '1'
+        NEXT_TELEMETRY_DISABLED: '1'
+      run: node scripts/verify.mjs "$VERIFY_GROUP" ".data/verification/$VERIFY_GROUP-$GITHUB_RUN_ATTEMPT.json"
+    - name: Save results
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: checks-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}
+        path: .data/verification/${{ inputs.group }}-${{ github.run_attempt }}.json
+        retention-days: 7
+        if-no-files-found: ignore
+    - name: Save browser failure details
+      if: failure() && steps.tools.outputs.browser == 'true'
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: browser-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}
+        path: |
+          test-results/**/error-context.md
+          test-results/**/trace.zip
+        retention-days: 7
+        if-no-files-found: ignore

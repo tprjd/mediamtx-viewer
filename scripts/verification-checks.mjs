@@ -17,9 +17,9 @@ const command = name => verificationCommands.find(([key]) => key === name)
 export const verificationGroups = {
   static: { commands: ['lint', 'type', 'streaming-contract'].map(command), tools: [] },
   unit: { commands: [['test', 'npm', ['run', 'test:fast', '--', '--reporter=verbose', '--bail=1']]], tools: [] },
-  docker: { commands: [['test', 'npm', ['run', 'test:docker', '--', '--reporter=verbose', '--bail=1']]], tools: ['docker', 'age', 'age-keygen', 'sops'] },
   browser: { commands: [command('browser')], tools: ['docker', 'chromium'] },
   restore: { commands: [command('restore')], tools: ['docker', 'chromium'] },
   build: { commands: [command('build')], tools: [] },
   configuration: { commands: [command('deployment')], tools: ['docker'] },
+  docker: { commands: [['test', 'npm', ['run', 'test:docker', '--', '--reporter=verbose', '--bail=1']]], tools: ['docker', 'age', 'age-keygen', 'sops'] },
 }

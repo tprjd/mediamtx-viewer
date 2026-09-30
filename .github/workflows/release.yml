@@ -3,7 +3,6 @@ name: Verified ARM64 release
 on:
   push:
     tags: ['v*']
-    branches: ['feat/verified-arm64-releases']
   workflow_dispatch:
     inputs:
       mode:

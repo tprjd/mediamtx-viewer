@@ -1,0 +1,77 @@
+name: Branch verification
+
+on:
+  push:
+    branches: ['main', 'feat/verified-arm64-releases']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Include all deployment acceptance tests
+        type: boolean
+        default: true
+
+# Keep push deduplication separate from PR runs so a skipped push cannot cancel a PR.
+concurrency:
+  group: branch-checks-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.plan.outputs.run }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci-plan.mjs
+
+  verify:
+    name: Check (${{ matrix.group }})
+    needs: plan
+    if: needs.plan.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/verify
+        with:
+          group: ${{ matrix.group }}
+
+  result:
+    name: Branch checks
+    if: always()
+    needs: [plan, verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require selected checks
+        env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          SHOULD_RUN: ${{ needs.plan.outputs.run }}
+          CHECK_RESULT: ${{ needs.verify.result }}
+        run: |
+          test "$PLAN_RESULT" = success
+          if [ "$SHOULD_RUN" = true ]; then test "$CHECK_RESULT" = success; fi
