@@ -10,13 +10,14 @@ import Database from 'better-sqlite3'
 import { execFile, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 
 const centrifugoContainer = 'mediamtx-viewer-e2e-centrifugo'
 const chatDatabasePath = resolve('.data/e2e-chat.sqlite')
 const authDatabasePath = resolve('.data/e2e-chat-auth.sqlite')
+const administratorSessionPath = resolve('.data/e2e-chat-session.json')
 
 test.describe.configure({ mode: 'serial' })
 
@@ -262,11 +263,18 @@ let administratorCookies:
   | undefined
 
 async function signInAsAdministrator(page: Page) {
+  // Repetitions use fresh workers. Reuse the fixture session across workers so
+  // a Chat reliability check does not exhaust the real sign-in rate limit.
+  if (!administratorCookies) {
+    try { administratorCookies = JSON.parse(readFileSync(administratorSessionPath, 'utf8')) }
+    catch { /* No session from this fixture yet. */ }
+  }
   if (administratorCookies) {
     await page.context().addCookies(administratorCookies)
     await page.goto('/watch/live')
-    await expect(page).toHaveURL('/watch/live')
-    return
+    if (new URL(page.url()).pathname === '/watch/live') return
+    administratorCookies = undefined
+    await page.context().clearCookies()
   }
   await page.goto('/login?returnTo=/watch/live')
   await page.getByLabel('Username').fill('power')
@@ -274,6 +282,7 @@ async function signInAsAdministrator(page: Page) {
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL('/watch/live', { timeout: 15_000 })
   administratorCookies = await page.context().cookies()
+  writeFileSync(administratorSessionPath, JSON.stringify(administratorCookies), { mode: 0o600 })
 }
 
 test('integrates theater Chat with player controls at desktop and touch widths', async ({ page, browser }) => {
@@ -955,6 +964,15 @@ test('browses retained Chat history without losing the reading position', async 
     'data-theater-mode',
     'true',
   )
+  // A layout change can leave a small gap below the live end without reader input.
+  const layoutGap = await reopenedLog.evaluate(element => {
+    element.scrollTop -= 8
+    return element.scrollHeight - element.clientHeight - element.scrollTop
+  })
+  expect(layoutGap).toBeGreaterThan(2)
+  await expect.poll(() => reopenedLog.evaluate(element =>
+    element.scrollTop + element.clientHeight >= element.scrollHeight - 2,
+  )).toBe(true)
   const theaterLiveContent = `${prefix} arrived in theater mode`
   const theaterLiveResponse = await postChat(page, theaterLiveContent)
   expect(theaterLiveResponse.ok()).toBe(true)
@@ -964,6 +982,9 @@ test('browses retained Chat history without losing the reading position', async 
   await expect
     .poll(() => reopenedLog.getAttribute('data-at-bottom'))
     .toBe('true')
+  await expect(reopenedChat.getByRole('status')).toContainText(
+    theaterLiveContent,
+  )
 })
 
 test('delivers one accepted Chat message to another active participant', async ({

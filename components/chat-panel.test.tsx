@@ -471,6 +471,7 @@ describe('live Chat delivery', () => {
       scrollHeight: { configurable: true, value: 800 },
     })
     fireEvent.wheel(log)
+    fireEvent.wheel(log, { deltaY: -400 })
     fireEvent.scroll(log, { target: { scrollTop: 0 } })
 
     await waitFor(() => {
@@ -541,6 +542,7 @@ describe('live Chat delivery', () => {
     })
     await nextAnimationFrame()
 
+    fireEvent.wheel(log, { deltaY: -400 })
     fireEvent.scroll(log, { target: { scrollTop: 0 } })
     await waitFor(() => expect(log).toHaveAttribute('data-at-bottom', 'false'))
     await waitFor(() => expect(getStatus()).toHaveAttribute('aria-live', 'off'))

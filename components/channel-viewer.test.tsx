@@ -194,6 +194,7 @@ describe('ChannelViewer', () => {
 
   afterEach(() => {
     cleanup()
+    vi.restoreAllMocks()
     window.localStorage.clear()
     vi.unstubAllGlobals()
   })
@@ -302,6 +303,13 @@ describe('ChannelViewer', () => {
   })
 
   it('loads plain-text messages and adds a successful send to the transcript', async () => {
+    // VirtuosoMockContext supplies item sizes, but its initial scroll also reads
+    // the scroller's DOM dimensions. JSDOM has no layout engine.
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(272)
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(272)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      { height: 272, width: 320, top: 0, bottom: 272, left: 0, right: 320, x: 0, y: 0, toJSON: () => ({}) },
+    )
     mocks.useChannelEvents.mockReturnValue({
       channels: [{ ...channel, status: liveStatus }],
       statusDelayed: false,
@@ -381,7 +389,7 @@ describe('ChannelViewer', () => {
     await waitFor(() => {
       expect(within(chat).getByText('hello Chat')).toBeInTheDocument()
     })
-    expect(within(chat).getByRole('button', { name: 'Administrator' })).toBeInTheDocument()
+    expect(await within(chat).findByRole('button', { name: 'Administrator' })).toBeInTheDocument()
     expect(fetcher).toHaveBeenNthCalledWith(
       2,
       '/api/channels/live/chat/messages',

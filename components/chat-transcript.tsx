@@ -91,6 +91,9 @@ export function ChatTranscript({
   const textSize = useChatTextSize()
   const regionRef = useRef<HTMLDivElement | null>(null)
   const initialPositionSetRef = useRef(false)
+  const readerNavigatedRef = useRef(false)
+  const liveEndFrameRef = useRef<number | null>(null)
+  const touchStartYRef = useRef<number | null>(null)
   const virtuosoRef = useRef<VirtuosoHandle | null>(null)
   const scrollerRef = useRef<HTMLElement | null>(null)
   const historyAnchorRef = useRef<{ id: string; top: number } | null>(null)
@@ -103,6 +106,47 @@ export function ChatTranscript({
     ],
     [historyExhausted, messages, submissions],
   )
+  useEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY < 0) readerNavigatedRef.current = true
+    }
+    const onTouchStart = (event: TouchEvent) => {
+      touchStartYRef.current = event.touches[0]?.clientY ?? null
+    }
+    const onTouchMove = (event: TouchEvent) => {
+      if (touchStartYRef.current !== null &&
+        (event.touches[0]?.clientY ?? touchStartYRef.current) >
+          touchStartYRef.current) {
+        readerNavigatedRef.current = true
+      }
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target === scroller) readerNavigatedRef.current = true
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (['ArrowUp', 'PageUp', 'Home'].includes(event.key) ||
+        (event.key === ' ' && event.shiftKey)) {
+        readerNavigatedRef.current = true
+      }
+    }
+    scroller.addEventListener('wheel', onWheel)
+    scroller.addEventListener('touchstart', onTouchStart)
+    scroller.addEventListener('touchmove', onTouchMove)
+    scroller.addEventListener('pointerdown', onPointerDown)
+    scroller.addEventListener('keydown', onKeyDown)
+    return () => {
+      scroller.removeEventListener('wheel', onWheel)
+      scroller.removeEventListener('touchstart', onTouchStart)
+      scroller.removeEventListener('touchmove', onTouchMove)
+      scroller.removeEventListener('pointerdown', onPointerDown)
+      scroller.removeEventListener('keydown', onKeyDown)
+      if (liveEndFrameRef.current !== null) {
+        cancelAnimationFrame(liveEndFrameRef.current)
+      }
+    }
+  }, [])
   const handleStartReached = useCallback(() => {
     const scroller = scrollerRef.current
     if (initialPositionSetRef.current && scroller &&
@@ -159,15 +203,40 @@ export function ChatTranscript({
       for (const event of inputEvents) scroller?.removeEventListener(event, cancel)
     }
   }, [firstItemIndex, textSize])
-  const handleAtBottomChange = useCallback(
-    (nextAtBottom: boolean) => {
+  const pinToLiveEnd = useCallback(() => {
+    if (liveEndFrameRef.current !== null || !initialPositionSetRef.current) return
+    let attempts = 0
+    const pin = () => {
+      liveEndFrameRef.current = null
+      if (readerNavigatedRef.current) return
+      const scroller = scrollerRef.current
+      if (!scroller || scroller.clientHeight === 0) return
+      scroller.scrollTop = scroller.scrollHeight
+      const lastItem = scroller.querySelector(`[data-index="${entries.length - 1}"]`)
+      const atBottom = scroller.scrollTop + scroller.clientHeight >=
+        scroller.scrollHeight - 2
+      if (lastItem && atBottom && scroller.dataset.atBottom === 'true') return
+      if (++attempts < 120) liveEndFrameRef.current = requestAnimationFrame(pin)
+    }
+    liveEndFrameRef.current = requestAnimationFrame(pin)
+  }, [entries.length])
+  const handleAtBottomChange = useCallback((nextAtBottom: boolean) => {
+    if (nextAtBottom) readerNavigatedRef.current = false
+    if (nextAtBottom || readerNavigatedRef.current ||
+      !initialPositionSetRef.current) {
       onAtBottomChange(nextAtBottom)
-    },
-    [onAtBottomChange],
-  )
+    } else {
+      // Resizing or measuring messages can move the scroller off the live end.
+      pinToLiveEnd()
+    }
+  }, [onAtBottomChange, pinToLiveEnd])
   const scrollToLiveEnd = useCallback(() => {
+    readerNavigatedRef.current = false
     virtuosoRef.current?.scrollToIndex({ align: 'end', index: 'LAST' })
   }, [])
+  const followOutput = useCallback((isAtBottom: boolean) =>
+    !readerNavigatedRef.current || isAtBottom ? 'auto' : false,
+  [])
 
   useEffect(() => {
     if (initialPositionSetRef.current || entries.length === 0) return
@@ -183,7 +252,7 @@ export function ChatTranscript({
     for (const event of inputEvents) region?.addEventListener(event, stopForReader)
     const pinToLiveEnd = () => {
       const scroller = scrollerRef.current
-      if (scroller) {
+      if (scroller && scroller.clientHeight > 0) {
         // Message measurements can increase the height after the first jump.
         scroller.scrollTop = scroller.scrollHeight
         const lastItem = scroller.querySelector(`[data-index="${entries.length - 1}"]`)
@@ -231,7 +300,7 @@ export function ChatTranscript({
         data-realtime-state={realtimeState}
         defaultItemHeight={72}
         firstItemIndex={firstItemIndex}
-        followOutput="auto"
+        followOutput={followOutput}
         initialTopMostItemIndex={{ index: 'LAST', align: 'end' }}
         itemContent={(_index, entry) => {
           if (entry.kind === 'submission') {

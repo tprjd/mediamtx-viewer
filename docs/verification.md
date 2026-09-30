@@ -12,6 +12,8 @@ For a focused Chat history check, run:
 CI=1 npx playwright test tests/e2e/chat.spec.ts --project=chat-chromium --grep 'browses retained Chat history' --workers=2 --retries=0
 ```
 
+For repeated Chat checks, add `--repeat-each=10 --workers=1`. Chat scenarios share a seeded database, so concurrent repetitions can overwrite each other's fixtures.
+
 Run `npm run verify` for all required release source checks. This includes the production build, browser suite, independent restore drill, configuration checks, and both Vitest groups. The independent restore drill intentionally repeats its browser scenario in a fresh browser run.
 
 Install and start Docker with Compose v2 before Docker, browser, restore, or configuration checks. Deployment tests accept only a local Docker endpoint. They create isolated fixtures and do not connect to Oracle.
