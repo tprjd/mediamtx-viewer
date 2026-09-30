@@ -41,3 +41,5 @@ Source fingerprints cover the shared GitHub action as well as workflow files. Th
 The administrator browser project runs after the desktop and mobile viewer projects because it changes their shared Channel database. To run it alone, use `npx playwright test --project=administrator-chromium --no-deps --workers=1`. Chat uses a separate database.
 
 Browser fixtures run a production standalone build, so page compilation cannot delay a click or consume a rate-limit window during a test. The two fixture servers share immutable build files and use separate databases. Local runs reuse the build only when the source fingerprint and Node platform/version match. The independent restore job prepares its own build on a fresh hosted runner.
+
+Next.js build workers use separate in-memory authentication databases when they load route modules. They do not open the runtime database during a build. The running server still uses `AUTH_DB_PATH` and persistent storage.

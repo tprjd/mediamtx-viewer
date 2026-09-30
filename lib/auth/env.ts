@@ -21,7 +21,8 @@ const configuredTrustedOrigins = (process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? '')
 export const authEnvironment = {
   baseUrl,
   trustedOrigins: [...new Set([baseUrl, ...configuredTrustedOrigins])],
-  databasePath: process.env.AUTH_DB_PATH ?? '.data/auth.sqlite',
+  // Build workers import route modules in parallel; they must not share a file.
+  databasePath: isBuildPhase() ? ':memory:' : process.env.AUTH_DB_PATH ?? '.data/auth.sqlite',
   mediaMtxRtmpPort: parsePort(process.env.MEDIAMTX_RTMP_PORT, 1935),
   internalSecret:
     process.env.INTERNAL_AUTH_SECRET ??
