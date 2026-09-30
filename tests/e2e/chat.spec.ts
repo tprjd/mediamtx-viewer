@@ -1334,6 +1334,10 @@ test('enforces the account limit across tabs and requires a manual send after th
   await signInAsAdministrator(page)
   const otherTab = await context.newPage()
   await otherTab.goto('/watch/live')
+  const chat = otherTab.getByRole('complementary', { name: 'Chat' })
+  const input = chat.getByRole('textbox', { name: 'Chat message' })
+  await expect(input).toBeEnabled()
+  await input.fill('keep this rate-limited draft')
   for (let index = 0; index < 3; index += 1) {
     expect(
       (
@@ -1346,14 +1350,11 @@ test('enforces the account limit across tabs and requires a manual send after th
       ).status(),
     ).toBe(201)
   }
-  const chat = otherTab.getByRole('complementary', { name: 'Chat' })
-  const input = chat.getByRole('textbox', { name: 'Chat message' })
   let sends = 0
   otherTab.on('request', (request) => {
     if (request.method() === 'POST' && request.url().endsWith('/chat/messages'))
       sends += 1
   })
-  await input.fill('keep this rate-limited draft')
   await input.press('Enter')
   await expect(chat.getByText(/Try again in \d+ seconds/)).toBeVisible()
   await expect(

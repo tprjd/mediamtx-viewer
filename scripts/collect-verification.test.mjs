@@ -50,3 +50,16 @@ it('does not fall back to an older success after a newer job fails', () => {
   jobs.push({ ...jobs[0], id: 99, run_attempt: 2, conclusion: 'failure' })
   expect(() => selectReports(reports, jobs, identity, now)).toThrow('No successful latest job')
 })
+
+it('resolves GitHub copies of retained jobs to their original execution reports', () => {
+  const { reports, jobs, identity, now } = fixture()
+  const original = jobs.find(job => job.name === 'Verify (unit)')
+  original.steps = [{ number: 1, name: 'Run checks', status: 'completed', conclusion: 'success',
+    started_at: original.started_at, completed_at: original.completed_at }]
+  const retained = { ...original, id: 100, run_attempt: 2 }
+  jobs.push(retained)
+  const selected = selectReports(reports, jobs, identity, now).find(report => report.group === 'unit')
+  expect(selected).toMatchObject({ runAttempt: '1', jobId: original.id, retainedJobId: 100 })
+  retained.steps = [{ ...retained.steps[0], started_at: new Date(now).toISOString() }]
+  expect(() => selectReports(reports, jobs, identity, now)).toThrow('Missing, stale, or mismatched report for unit')
+})

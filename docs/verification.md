@@ -37,3 +37,7 @@ Each verification group has its own job. Changes limited to components, hooks, p
 Release tags and explicit release validation still require every group. Keep the full release workflow separate from branch checks. Reports and browser failure traces remain available for seven days. Browser checks use zero retries and retain the trace from the first failed attempt.
 
 Source fingerprints cover the shared GitHub action as well as workflow files. They exclude `next-env.d.ts`, which Next.js regenerates for each test build directory. The Next.js version and compiler configuration remain fingerprint inputs.
+
+The administrator browser project runs after the desktop and mobile viewer projects because it changes their shared Channel database. To run it alone, use `npx playwright test --project=administrator-chromium --no-deps --workers=1`. Chat uses a separate database.
+
+Browser fixtures run a production standalone build, so page compilation cannot delay a click or consume a rate-limit window during a test. The two fixture servers share immutable build files and use separate databases. Local runs reuse the build only when the source fingerprint and Node platform/version match. The independent restore job prepares its own build on a fresh hosted runner.

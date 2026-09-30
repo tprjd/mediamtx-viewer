@@ -93,6 +93,8 @@ group, its workflow run, commit, source fingerprint, and required commands.
 Use **Re-run failed jobs** to retry a failed group without repeating successful
 groups. Successful jobs from an earlier attempt keep their original report and
 job identity. A newer failed or cancelled job cannot fall back to an older success.
+GitHub may copy retained jobs into a new attempt with new job IDs. The collector
+matches their unchanged execution and step timestamps to the original report.
 If the required reports have expired or are older than 24 hours, rerun all jobs.
 Reports remain available for seven days. The source-verification job summary
 shows setup, check, and total job time for each group.

@@ -13,13 +13,19 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: '**/chat.spec.ts',
+      testIgnore: ['**/chat.spec.ts', '**/account.spec.ts'],
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'mobile',
-      testIgnore: '**/chat.spec.ts',
+      testIgnore: ['**/chat.spec.ts', '**/account.spec.ts'],
       use: { ...devices['Pixel 7'] },
+    },
+    {
+      name: 'administrator-chromium',
+      testMatch: '**/account.spec.ts',
+      dependencies: ['chromium', 'mobile'],
+      use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'chat-chromium',
@@ -44,14 +50,14 @@ export default defineConfig({
     },
     {
       command:
-        'AUTH_DB_PATH=.data/e2e-auth.sqlite npm run auth:migrate && AUTH_DB_PATH=.data/e2e-auth.sqlite ADMIN_USERNAME=power ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=e2e-administrator-password npm run auth:bootstrap && AUTH_DB_PATH=.data/e2e-auth.sqlite E2E_FIXTURES=1 node scripts/bootstrap-e2e-channels.mjs && AUTH_DB_PATH=.data/e2e-auth.sqlite NEXT_DIST_DIR=.next-e2e BETTER_AUTH_URL=http://localhost:3199 BETTER_AUTH_SECRET=e2e-better-auth-secret-at-least-32-characters INTERNAL_AUTH_SECRET=e2e-internal-auth-secret-at-least-32-characters MEDIAMTX_AUTH_SECRET=e2e-mediamtx-auth-secret-at-least-32-characters MEDIAMTX_API_URL=http://[::1]:3997 MEDIAMTX_HLS_URL=http://localhost:3997 npm run dev -- --hostname ::1 --port 3199',
+        'AUTH_DB_PATH=.data/e2e-auth.sqlite npm run auth:migrate && AUTH_DB_PATH=.data/e2e-auth.sqlite ADMIN_USERNAME=power ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=e2e-administrator-password npm run auth:bootstrap && AUTH_DB_PATH=.data/e2e-auth.sqlite E2E_FIXTURES=1 node scripts/bootstrap-e2e-channels.mjs && AUTH_DB_PATH=.data/e2e-auth.sqlite BETTER_AUTH_URL=http://localhost:3199 BETTER_AUTH_SECRET=e2e-better-auth-secret-at-least-32-characters INTERNAL_AUTH_SECRET=e2e-internal-auth-secret-at-least-32-characters MEDIAMTX_AUTH_SECRET=e2e-mediamtx-auth-secret-at-least-32-characters MEDIAMTX_API_URL=http://[::1]:3997 MEDIAMTX_HLS_URL=http://localhost:3997 node scripts/e2e-server.mjs 3199',
       url: 'http://[::1]:3199',
       reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
+      timeout: 240_000,
     },
     {
       command:
-        'AUTH_DB_PATH=.data/e2e-chat-auth.sqlite npm run auth:migrate && CHAT_DB_PATH=.data/e2e-chat.sqlite npm run chat:migrate && AUTH_DB_PATH=.data/e2e-chat-auth.sqlite ADMIN_USERNAME=power ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=e2e-administrator-password npm run auth:bootstrap && AUTH_DB_PATH=.data/e2e-chat-auth.sqlite E2E_FIXTURES=1 node scripts/bootstrap-e2e-channels.mjs && AUTH_DB_PATH=.data/e2e-chat-auth.sqlite CHAT_DB_PATH=.data/e2e-chat.sqlite CHAT_ENABLED=true CHAT_DATABASE_LIMIT_BYTES=33554432 CHAT_TAG_HMAC_SECRET=e2e-chat-tag-secret-that-is-at-least-32-characters CENTRIFUGO_API_KEY=e2e-centrifugo-api-key-that-is-at-least-32-characters CENTRIFUGO_API_URL=http://127.0.0.1:3800/api CENTRIFUGO_TOKEN_HMAC_SECRET=e2e-centrifugo-token-secret-that-is-at-least-32-characters NEXT_PUBLIC_CENTRIFUGO_WEBSOCKET_URL=ws://127.0.0.1:3800/connection/websocket NEXT_DIST_DIR=.next-e2e-chat BETTER_AUTH_URL=http://localhost:3299 BETTER_AUTH_SECRET=e2e-chat-better-auth-secret-at-least-32-characters INTERNAL_AUTH_SECRET=e2e-chat-internal-secret-at-least-32-characters MEDIAMTX_AUTH_SECRET=e2e-chat-mediamtx-secret-at-least-32-characters MEDIAMTX_API_URL=http://[::1]:3997 MEDIAMTX_HLS_URL=http://localhost:3997 npm run dev -- --hostname ::1 --port 3299',
+        'AUTH_DB_PATH=.data/e2e-chat-auth.sqlite npm run auth:migrate && CHAT_DB_PATH=.data/e2e-chat.sqlite npm run chat:migrate && AUTH_DB_PATH=.data/e2e-chat-auth.sqlite ADMIN_USERNAME=power ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=e2e-administrator-password npm run auth:bootstrap && AUTH_DB_PATH=.data/e2e-chat-auth.sqlite E2E_FIXTURES=1 node scripts/bootstrap-e2e-channels.mjs && AUTH_DB_PATH=.data/e2e-chat-auth.sqlite CHAT_DB_PATH=.data/e2e-chat.sqlite CHAT_ENABLED=true CHAT_DATABASE_LIMIT_BYTES=33554432 CHAT_TAG_HMAC_SECRET=e2e-chat-tag-secret-that-is-at-least-32-characters CENTRIFUGO_API_KEY=e2e-centrifugo-api-key-that-is-at-least-32-characters CENTRIFUGO_API_URL=http://127.0.0.1:3800/api CENTRIFUGO_TOKEN_HMAC_SECRET=e2e-centrifugo-token-secret-that-is-at-least-32-characters NEXT_PUBLIC_CENTRIFUGO_WEBSOCKET_URL=ws://127.0.0.1:3800/connection/websocket BETTER_AUTH_URL=http://localhost:3299 BETTER_AUTH_SECRET=e2e-chat-better-auth-secret-at-least-32-characters INTERNAL_AUTH_SECRET=e2e-chat-internal-secret-at-least-32-characters MEDIAMTX_AUTH_SECRET=e2e-chat-mediamtx-secret-at-least-32-characters MEDIAMTX_API_URL=http://[::1]:3997 MEDIAMTX_HLS_URL=http://localhost:3997 node scripts/e2e-server.mjs 3299',
       url: 'http://[::1]:3299',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

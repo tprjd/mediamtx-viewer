@@ -9,6 +9,8 @@ import { githubReleaseClient } from './release-publication.mjs'
 
 export function selectReports(reports, jobs, identity, now = Date.now()) {
   const selected = []
+  const executionKey = job => JSON.stringify([job.started_at, job.completed_at,
+    job.steps?.map(step => [step.number, step.name, step.status, step.conclusion, step.started_at, step.completed_at])])
   for (const group of Object.keys(verificationGroups)) {
     const candidates = jobs.filter(job => job.name === `Verify (${group})`)
     const attempt = Math.max(...candidates.map(job => job.run_attempt))
@@ -18,15 +20,27 @@ export function selectReports(reports, jobs, identity, now = Date.now()) {
       String(job.run_id) !== identity.runId || job.status !== 'completed' || job.conclusion !== 'success') {
       throw new Error(`No successful latest job for ${group}`)
     }
-    const matches = reports.filter(report => report.group === group && Number(report.runAttempt) === attempt)
+    // GitHub creates new job IDs for retained successes and assigns the current
+    // run_attempt, but preserves the original execution and step timestamps.
+    // Resolve that execution to its first attempt rather than inventing a report
+    // for work which was not run again.
+    const execution = candidates.filter(candidate => Number.isSafeInteger(candidate.run_attempt) && candidate.run_attempt >= 1 &&
+      candidate.status === 'completed' && candidate.conclusion === 'success' &&
+      String(candidate.run_id) === identity.runId && executionKey(candidate) === executionKey(job))
+      .sort((a, b) => a.run_attempt - b.run_attempt)[0]
+    if (!Number.isFinite(Date.parse(execution.started_at)) || !Number.isFinite(Date.parse(execution.completed_at)) ||
+      (execution.run_attempt < attempt && !job.steps?.length)) throw new Error(`Missing execution identity for ${group}`)
+    const matches = reports.filter(report => report.group === group && Number(report.runAttempt) === execution.run_attempt)
     const report = matches[0]
     const age = now - Date.parse(report?.finishedAt)
     if (matches.length !== 1 || report.runId !== identity.runId || report.repository?.toLowerCase() !== identity.repository ||
       report.commit !== identity.commit || report.sourceFingerprint !== identity.sourceFingerprint || report.job !== 'verify' ||
-      !Number.isFinite(age) || age < 0 || age > 86400000) throw new Error(`Missing, stale, or mismatched report for ${group}`)
+      !Number.isFinite(age) || age < 0 || age > 86400000 ||
+      Date.parse(report.startedAt) < Date.parse(execution.started_at) - 1000 ||
+      Date.parse(report.finishedAt) > Date.parse(execution.completed_at) + 1000) throw new Error(`Missing, stale, or mismatched report for ${group}`)
     const expected = verificationGroups[group].commands.map(([, bin, args]) => [bin, ...args])
     if (JSON.stringify(report.checks?.map(check => check.command)) !== JSON.stringify(expected)) throw new Error(`Wrong commands for ${group}`)
-    selected.push({ ...report, jobId: job.id, jobStartedAt: job.started_at, jobFinishedAt: job.completed_at })
+    selected.push({ ...report, jobId: execution.id, retainedJobId: job.id, jobStartedAt: job.started_at, jobFinishedAt: job.completed_at })
   }
   // Validate the complete group set, including checks and source identity.
   combineGroups(selected)
