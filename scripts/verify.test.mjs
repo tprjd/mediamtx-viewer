@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { combineGroups, runGroup } from './verify.mjs'
 import { verificationGroups, requiredChecks } from './verification-checks.mjs'
+import testGroups from './test-groups.json' with { type: 'json' }
 
 const reports = () => Object.entries(verificationGroups).map(([group, definition]) => ({
   version: 1, group, commit: 'a'.repeat(40), sourceFingerprint: 'b'.repeat(64), passed: true,
@@ -12,9 +13,16 @@ const reports = () => Object.entries(verificationGroups).map(([group, definition
   checks: definition.commands.map(([name]) => ({ name, passed: true })),
 }))
 
+it('assigns every Docker file to exactly one hosted partition', () => {
+  const files = Object.entries(verificationGroups).filter(([group]) => group.startsWith('docker-'))
+    .flatMap(([, definition]) => definition.commands.map(([, , args]) => args[3]))
+  expect(files.sort()).toEqual([...testGroups.docker].sort())
+  expect(new Set(files).size).toBe(files.length)
+})
+
 it('requires both test partitions and every other check before combining evidence', () => {
   expect(combineGroups(reports()).checks).toEqual(requiredChecks.map(name => ({ name, passed: true })))
-  expect(() => combineGroups(reports().filter(report => report.group !== 'docker'))).toThrow()
+  expect(() => combineGroups(reports().filter(report => !report.group.startsWith('docker-')))).toThrow()
   for (const mutate of [
     values => { values[1].passed = false },
     values => { values[1].sourceFingerprint = 'wrong' },

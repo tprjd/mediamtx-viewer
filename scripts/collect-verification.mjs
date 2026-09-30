@@ -39,6 +39,7 @@ export function verificationSummary(reports) {
   const rows = reports.map(report => `| ${report.group} | ${seconds(Date.parse(report.startedAt) - Date.parse(report.jobStartedAt))} | ${seconds(report.durationMs)} | ${seconds(duration(report))} | ${report.runAttempt} |`)
   return ['## Source verification', '', '| Group | Setup seconds | Check seconds | Job seconds | Attempt |', '| --- | ---: | ---: | ---: | ---: |', ...rows, '',
     `Total source runner time: ${seconds(reports.reduce((sum, report) => sum + duration(report), 0))} seconds.`,
+    `Source wall time (including queue gaps and reruns): ${seconds(Math.max(...reports.map(report => Date.parse(report.jobFinishedAt))) - Math.min(...reports.map(report => Date.parse(report.jobStartedAt))))} seconds.`,
     'Successful jobs from earlier attempts retain their original reports.', ''].join('\n')
 }
 

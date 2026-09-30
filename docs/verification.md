@@ -18,11 +18,15 @@ Run `npm run verify` for all required release source checks. This includes the p
 
 Install and start Docker with Compose v2 before Docker, browser, restore, or configuration checks. Deployment tests accept only a local Docker endpoint. They create isolated fixtures and do not connect to Oracle.
 
-Install `age`, including `age-keygen`, and SOPS before the Docker group. On macOS, use `brew install age sops`. For browser and restore checks, run `npx playwright install --with-deps chromium`.
+Install `age`, including `age-keygen`, and SOPS before the Docker groups. On macOS, use `brew install age sops`. For browser and restore checks, run `npx playwright install --with-deps chromium`.
 
 Use x64 Linux to reproduce hosted browser behavior. macOS screenshots and Linux screenshots can differ. The current Linux ARM64 Chromium cannot decode the H.264 test media. Final application images require separate native Linux ARM64 verification.
 
 The required groups and commands are defined in `scripts/verification-checks.mjs`. Docker test membership is defined in `scripts/test-groups.json`. When a new test starts Docker, add it to that list so fast verification stays independent of Docker.
+
+Each Docker test file has a `docker-<name>` verification group. For example, run `npm run verify -- docker-stage-release` to check staging. The full command requires every partition. Hosted workflows run at most six groups at once on separate machines. Local `verify` runs groups in sequence.
+
+Staging scenarios reuse the common fixture image when its input files and Docker endpoint match. Scenario state stays separate. Local fixture base images have the repository name `mediamtx-test-base`; remove those images when no tests are running if you need to reclaim disk space.
 
 Local reports support diagnosis. They do not authorize a GitHub release or production deployment.
 

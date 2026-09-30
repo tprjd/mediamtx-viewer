@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { hostJobFixture } from './host-jobs.mjs'
 import { requiredChecks } from '../verification-checks.mjs'
+import { stagingImage } from './staging-image.mjs'
 export const run = (bin, args, options = {}) => execFileSync(bin, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options }).trim()
 export const docker = (...args) => run('docker', args)
 export const inspect = id => JSON.parse(docker('inspect', id))[0]
@@ -59,9 +60,7 @@ export async function stagingFixture(work, { chat = false, managed = false, lega
     git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'tag', '-a', 'v1.2.3', '-m', 'fixture')
     const commit = git('rev-parse', 'HEAD')
     const fingerprint = run(process.execPath, [resolve('scripts/chat-capacity/source.mjs')], { cwd: source })
-    writeFileSync(join(directory, 'Dockerfile'), readFileSync('scripts/fixtures/maintenance/Dockerfile', 'utf8') + '\nRUN cp scripts/fixtures/maintenance/server.mjs server.js && chown 1001:1001 /data\nUSER 1001\n')
-    docker('build', '-q', '-t', image, '--label', `org.opencontainers.image.revision=${commit}`, '--label', `org.frankerzspam.source=${fingerprint}`,
-      '-f', join(directory, 'Dockerfile'), '.')
+    stagingImage(directory, endpoint, image, commit, fingerprint)
     // The controlled registry boundary supplies these digests. All containers are real Docker containers.
     record = { format: 1, repository: 'tprjd/mediamtx-viewer', tag: 'v1.2.3', version: '1.2.3', commit,
       tagObject: git('rev-parse', 'v1.2.3'), sourceFingerprint: fingerprint,

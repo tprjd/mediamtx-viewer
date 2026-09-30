@@ -75,6 +75,17 @@ If the required reports have expired or are older than 24 hours, rerun all jobs.
 Reports remain available for seven days. The source-verification job summary
 shows setup, check, and total job time for each group.
 
+Docker acceptance has one job per test file, with at most six verification jobs
+running at once. Staging scenarios reuse immutable fixture layers. Hosted setup
+downloads SOPS 3.13.3 and checks its pinned SHA-256 before installation.
+
+The ARM64 image job caches BuildKit layers separately for each image and
+architecture. It can restore layers from an earlier source version; BuildKit
+checks each build input before reuse. Cache hits still require layer inspection,
+runtime health checks, publication, and anonymous digest pulls. A missing cache
+causes a full build. Source verification reports include total runner time and
+elapsed time across the selected jobs.
+
 Publication and refresh runs do not cancel one another. A newer manual validation
 of the same ref cancels an obsolete validation run. All jobs check out the event's
 commit so a moving branch cannot change the source between jobs.

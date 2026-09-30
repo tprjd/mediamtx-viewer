@@ -1,3 +1,5 @@
+import testGroups from './test-groups.json' with { type: 'json' }
+
 export const verificationCommands = [
   ['lint', 'npm', ['run', 'lint']],
   ['type', 'npm', ['run', 'typecheck']],
@@ -13,7 +15,7 @@ export const requiredChecks = verificationCommands.map(([name]) => name)
 
 const command = name => verificationCommands.find(([key]) => key === name)
 
-// Both test groups must pass before the complete "test" check passes.
+// Every test partition must pass before the complete "test" check passes.
 export const verificationGroups = {
   static: { commands: ['lint', 'type', 'streaming-contract'].map(command), tools: [] },
   unit: { commands: [['test', 'npm', ['run', 'test:fast', '--', '--reporter=verbose', '--bail=1']]], tools: [] },
@@ -21,5 +23,9 @@ export const verificationGroups = {
   restore: { commands: [command('restore')], tools: ['docker', 'chromium'] },
   build: { commands: [command('build')], tools: [] },
   configuration: { commands: [command('deployment')], tools: ['docker'] },
-  docker: { commands: [['test', 'npm', ['run', 'test:docker', '--', '--reporter=verbose', '--bail=1']]], tools: ['docker', 'age', 'age-keygen', 'sops'] },
+  ...Object.fromEntries(testGroups.docker.map(file => [
+    `docker-${file.split('/').at(-1).replace(/\.(?:integration\.)?test\.(?:mjs|ts)$/, '')}`,
+    { commands: [['test', 'npm', ['run', 'test:docker', '--', file, '--reporter=verbose', '--bail=1']]],
+      tools: file.startsWith('lib/') ? ['docker'] : ['docker', 'age', 'age-keygen', 'sops'] },
+  ])),
 }

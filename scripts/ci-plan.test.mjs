@@ -11,7 +11,7 @@ it('runs full verification for unknown inputs and deployment dependencies', () =
 
 it('omits only Docker acceptance for known frontend changes and honors full validation', () => {
   const paths = ['components/chat-transcript.tsx', 'tests/e2e/chat.spec.ts']
-  expect(branchGroups(paths)).not.toContain('docker')
+  expect(branchGroups(paths).some(group => group.startsWith('docker-'))).toBe(false)
   expect(branchGroups(paths)).toEqual(expect.arrayContaining(['static', 'unit', 'browser', 'restore', 'build', 'configuration']))
   expect(branchGroups(paths, true)).toEqual(Object.keys(verificationGroups))
 })

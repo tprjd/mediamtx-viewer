@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -104,11 +104,19 @@ export function buildImages(repository, suffix, identity) {
     }
     for (const name of ['viewer', 'thumbnailer']) {
       const reference = `${repository}/${name}:${suffix}`
-      execFileSync('docker', ['build', '--platform', 'linux/arm64', '-t', reference,
+      const cache = process.env.RELEASE_BUILD_CACHE && join(process.env.RELEASE_BUILD_CACHE, `linux-arm64-${name}`)
+      const build = cache ? ['buildx', 'build', '--load',
+        ...(existsSync(join(cache, 'index.json')) ? ['--cache-from', `type=local,src=${cache}`] : []),
+        '--cache-to', `type=local,dest=${cache}-next,mode=max`] : ['build']
+      execFileSync('docker', [...build, '--platform', 'linux/arm64', '-t', reference,
         '--build-arg', `SOURCE_FINGERPRINT=${identity.sourceFingerprint}`, '--build-arg', `SOURCE_REVISION=${identity.commit}`,
         '--build-arg', `SOURCE_REPOSITORY=${identity.repositoryUrl}`,
         '--build-arg', 'MEDIAMTX_HLS_URL=http://mediamtx:8888', '--build-arg', 'MEDIAMTX_WEBRTC_URL=http://mediamtx:8889',
         '-f', name === 'viewer' ? 'Dockerfile' : 'deploy/oracle/thumbnailer.Dockerfile', '.'], { stdio: 'inherit' })
+      if (cache) {
+        rmSync(cache, { recursive: true, force: true })
+        renameSync(`${cache}-next`, cache)
+      }
       references[name] = reference
     }
     return { references, canary }
