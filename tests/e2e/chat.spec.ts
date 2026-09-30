@@ -1212,6 +1212,9 @@ test('keeps submission text styles through failure, retry, and acceptance at bot
   await signInAsAdministrator(page)
   const chat = page.getByRole('complementary', { name: 'Chat' })
   const input = chat.getByRole('textbox', { name: 'Chat message' })
+  // The control subscription refreshes access and temporarily disables input.
+  await expect(chat.getByRole('log')).toHaveAttribute('data-realtime-state', 'connected')
+  await expect(input).toBeEnabled()
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 900 })
     if (width === 390) {
@@ -1231,6 +1234,7 @@ test('keeps submission text styles through failure, retry, and acceptance at bot
       return route.continue()
     })
     await input.fill(content)
+    await expect(input).toHaveValue(content)
     await input.press('Enter')
     const text = chat.getByRole('log').getByText(content, { exact: true })
     const appearance = () => text.evaluate((element) => {
@@ -1278,6 +1282,9 @@ test('shows Sending immediately and retries failed requests with one submission 
   await signInAsAdministrator(page)
   const chat = page.getByRole('complementary', { name: 'Chat' })
   const input = chat.getByRole('textbox', { name: 'Chat message' })
+  // The control subscription refreshes access and temporarily disables input.
+  await expect(chat.getByRole('log')).toHaveAttribute('data-realtime-state', 'connected')
+  await expect(input).toBeEnabled()
   const content = `retry-${randomUUID()}`
   const keys: string[] = []
   let release: () => void = () => undefined
@@ -1299,6 +1306,7 @@ test('shows Sending immediately and retries failed requests with one submission 
     }
   })
   await input.fill(content)
+  await expect(input).toHaveValue(content)
   await input.press('Enter')
   await expect(
     chat.getByRole('log').getByText(content, { exact: true }),
