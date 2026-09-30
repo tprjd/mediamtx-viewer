@@ -517,10 +517,12 @@ test('uses Chat settings and badge explanations across desktop and mobile layout
   await page.setViewportSize({ width: 1440, height: 900 })
   await prepareChatPlayback(page)
   await signInAsAdministrator(page)
+  const chat = page.getByRole('complementary', { name: 'Chat', exact: true })
+  await expect(chat.getByRole('log')).toHaveAttribute('data-realtime-state', 'connected')
+  await expect(chat.getByRole('textbox', { name: 'Chat message' })).toBeEnabled()
   const response = await postChat(page, 'A compact message with a visible role badge')
   expect(response.status()).toBe(201)
   const { message } = await response.json()
-  const chat = page.getByRole('complementary', { name: 'Chat', exact: true })
   const row = chat.locator(`[data-message-id="${message.id}"]`)
   const badge = row.getByRole('button', { name: 'Administrator', exact: true })
   await expect(badge).toBeVisible()
@@ -602,9 +604,16 @@ test('uses Chat settings and badge explanations across desktop and mobile layout
   })
   try {
     const touch = await touchContext.newPage()
+    await prepareChatPlayback(touch)
     await touch.goto('http://localhost:3299/watch/live')
+    const assertTouchPlaybackContinues = await observePlayback(touch)
     await touch.getByRole('button', { name: 'Chat', exact: true }).tap()
+    // Finish initial access refresh and composer focus before tapping another control.
+    await expect(touch.getByRole('log')).toHaveAttribute('data-realtime-state', 'connected')
+    await expect(touch.getByRole('textbox', { name: 'Chat message' })).toBeFocused()
     const touchBadge = touch.getByRole('button', { name: 'Administrator', exact: true })
+    // Complete positioning before the tap; scrolling dismisses a Radix tooltip.
+    await touchBadge.evaluate(element => element.scrollIntoView({ behavior: 'instant', block: 'center' }))
     await touchBadge.tap()
     await expect(touch.getByRole('tooltip')).toContainText('Moderates Chat across all channels.')
     await touchBadge.tap()
@@ -612,6 +621,7 @@ test('uses Chat settings and badge explanations across desktop and mobile layout
     await touch.getByRole('button', { name: 'Chat settings' }).tap()
     await touch.getByRole('menuitemcheckbox', { name: /Show timestamps/ }).tap()
     await expect(touch.locator(`[data-message-id="${message.id}"] time`)).toHaveCount(0)
+    await assertTouchPlaybackContinues()
   } finally {
     await touchContext.close()
   }
@@ -684,6 +694,7 @@ test('changes message text size without losing the reading position', async ({ p
   })
   try {
     const touch = await touchContext.newPage()
+    await prepareChatPlayback(touch)
     await touch.goto('http://localhost:3299/watch/live')
     await touch.getByRole('button', { name: 'Chat', exact: true }).tap()
     const touchBody = touch.locator(`[data-message-id="${prefix}-205"] [class*="chatMessageBody"]`)
