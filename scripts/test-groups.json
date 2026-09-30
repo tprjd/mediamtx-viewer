@@ -1,0 +1,15 @@
+{
+  "docker": [
+    "lib/chat-realtime.integration.test.ts",
+    "scripts/database-backups.test.mjs",
+    "scripts/stage-release.test.mjs",
+    "scripts/deploy-release.test.mjs",
+    "scripts/deployment-migrations.test.mjs",
+    "scripts/deployment-recovery.test.mjs",
+    "scripts/deployment-ownership.test.mjs",
+    "scripts/deployment-restart.test.mjs",
+    "scripts/deployment-retention-docker.test.mjs",
+    "scripts/adoption-docker.test.mjs",
+    "scripts/chat-deployment.test.mjs"
+  ]
+}

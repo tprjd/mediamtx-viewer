@@ -23,7 +23,10 @@
     "test:e2e": "playwright test",
     "chat:capacity": "node scripts/chat-capacity/run.mjs",
     "chat:rollout-checks": "node scripts/chat-capacity/checks.mjs",
-    "validate:chat-deployment": "node scripts/validate-chat-deployment.mjs"
+    "validate:chat-deployment": "node scripts/validate-chat-deployment.mjs",
+    "test:fast": "TEST_SUITE=fast vitest run",
+    "test:docker": "TEST_SUITE=docker vitest run",
+    "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
     "@better-auth/utils": "0.4.2",
