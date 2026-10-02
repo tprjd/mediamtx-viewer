@@ -1,10 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
-import { ArrowUpRight, LockKeyhole, RadioTower } from 'lucide-react'
+import { ArrowUpRight, RadioTower } from 'lucide-react'
 
 import { AccountSessions, ProfileNameForm } from './account-details'
-import { ChangePasswordForm } from '@/components/auth/change-password-form'
+import { AccountSignInMethods } from '@/components/auth/account-sign-in-methods'
+import { getSignInMethods } from '@/lib/auth/sign-in-methods'
+import { providerErrorMessage } from '@/lib/auth/provider-messages'
 import { requireActiveSession } from '@/lib/auth/session'
 import { listUserSessions } from '@/lib/auth/store'
 import { getOwnedChannel } from '@/lib/channels'
@@ -14,7 +16,7 @@ export const metadata: Metadata = { title: 'Account' }
 export const dynamic = 'force-dynamic'
 
 interface AccountPageProps {
-  searchParams: Promise<{ notice?: string; error?: string }>
+  searchParams: Promise<{ notice?: string; error?: string; providerResult?: string }>
 }
 
 export default async function AccountPage({ searchParams }: AccountPageProps) {
@@ -33,7 +35,8 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
         <p><strong>{session.user.name}</strong><span aria-hidden="true">·</span>{session.user.email}</p>
       </header>
       {params.notice && <p className="notice-banner" role="status">{params.notice}</p>}
-      {params.error && <p className="error-banner" role="alert">{params.error}</p>}
+      {params.providerResult === 'linked' && <p className="notice-banner" role="status">Provider linked. You can now use it to sign in.</p>}
+      {params.error && <p className="error-banner" role="alert">{params.providerResult === 'error' ? providerErrorMessage(params.error) : params.error}</p>}
       <div className={styles.columns}>
         <div className={styles.settings}>
           <ProfileNameForm key={session.user.name} name={session.user.name} />
@@ -46,11 +49,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
               {channel ? 'Manage channel' : 'Channel status'} <ArrowUpRight aria-hidden="true" />
             </Link>
           </section>
-          <section className={styles.card}>
-            <h2><LockKeyhole aria-hidden="true" /> Change password</h2>
-            <p>Changing it signs out every other browser session.</p>
-            <ChangePasswordForm />
-          </section>
+          <AccountSignInMethods methods={getSignInMethods(session.user.id)} />
         </div>
         <AccountSessions sessions={sessions} />
       </div>

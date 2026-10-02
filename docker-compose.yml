@@ -18,6 +18,10 @@ services:
       CHAT_TAG_HMAC_SECRET: ${CHAT_TAG_HMAC_SECRET:-}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-development-only-secret-change-before-production}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
       INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-development-only-secret-change-before-production}
       MEDIAMTX_AUTH_SECRET: ${MEDIAMTX_AUTH_SECRET:-development-only-secret-change-before-production}
       MEDIAMTX_API_URL: http://host.docker.internal:9997

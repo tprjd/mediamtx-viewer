@@ -72,7 +72,7 @@ function UserCard({
             <h3>{user.name}</h3>
             {user.role === 'admin' && <span className={`${styles.roleBadge}`}>Admin</span>}
           </div>
-          <p>@{user.username} · {user.email}</p>
+          <p>{user.username ? `@${user.username} · ` : ''}{user.email}</p>
         </div>
         <span
           className={`${styles.activationBadge} ${

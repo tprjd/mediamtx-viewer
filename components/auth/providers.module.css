@@ -1,0 +1,6 @@
+.signIn { margin-top: 1.5rem; }
+.buttons { display: grid; gap: 0.65rem; }
+.divider { margin: 1.25rem 0 0; text-align: center; color: var(--muted); font-size: 0.8rem; }
+.methods { list-style: none; margin: 1.25rem 0; padding: 0; }
+.methods li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding: 0.75rem 0; border-bottom: 1px solid var(--line); }
+.methods small { display: block; margin-top: 0.25rem; color: var(--muted); }

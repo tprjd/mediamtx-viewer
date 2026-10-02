@@ -3,6 +3,8 @@ import Link from 'next/link'
 import styles from '../auth.module.css'
 
 import { RegisterForm } from '@/components/auth/register-form'
+import { ProviderSignIn } from '@/components/auth/provider-sign-in'
+import { configuredProviders } from '@/lib/auth/oauth'
 import { getRegistrationOpen } from '@/lib/auth/store'
 
 export const metadata: Metadata = { title: 'Request access' }
@@ -19,6 +21,7 @@ export default function RegisterPage() {
         {registrationOpen ? (
           <>
             <p>An administrator must activate your account before you can sign in.</p>
+            <ProviderSignIn providers={configuredProviders()} />
             <RegisterForm />
           </>
         ) : (

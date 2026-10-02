@@ -1,10 +1,12 @@
 import { APIError, betterAuth } from 'better-auth'
-import { createAuthMiddleware } from 'better-auth/api'
+import { createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
 import { admin, username } from 'better-auth/plugins'
 
 import { getDatabase } from '@/lib/auth/database'
 import { authEnvironment } from '@/lib/auth/env'
 import { getRegistrationOpen, getUserStatus } from '@/lib/auth/store'
+import { socialProviders, validateProviderUser } from '@/lib/auth/oauth'
+import { disconnectProvider } from '@/lib/auth/sign-in-methods'
 
 export const auth = betterAuth({
   appName: 'Home Stream',
@@ -12,6 +14,19 @@ export const auth = betterAuth({
   secret: authEnvironment.secret,
   database: getDatabase(),
   trustedOrigins: authEnvironment.trustedOrigins,
+  socialProviders: socialProviders(),
+  onAPIError: { errorURL: '/login' },
+  account: {
+    encryptOAuthTokens: true,
+    accountLinking: {
+      enabled: true,
+      allowDifferentEmails: true,
+      // Existing password accounts have no email verification flow. The
+      // validateUserInfo policy permits implicit linking only for Google-owned
+      // verified email. Better Auth 1.7.2 otherwise rejects these legacy users.
+      requireLocalEmailVerified: false,
+    },
+  },
   emailAndPassword: {
     enabled: true,
     autoSignIn: false,
@@ -36,6 +51,7 @@ export const auth = betterAuth({
     cookieCache: { enabled: false },
   },
   user: {
+    validateUserInfo: validateProviderUser,
     additionalFields: {
       activationStatus: {
         type: 'string',
@@ -60,6 +76,7 @@ export const auth = betterAuth({
     },
   },
   advanced: {
+    disableOriginCheck: false,
     useSecureCookies: process.env.NODE_ENV === 'production',
     ipAddress: {
       trustedProxies: ['127.0.0.1/32', '172.28.0.0/24'],
@@ -68,6 +85,27 @@ export const auth = betterAuth({
   },
   hooks: {
     before: createAuthMiddleware(async (context) => {
+      if ((context.path === '/sign-in/social' || context.path === '/link-social') && context.body?.idToken) {
+        throw APIError.from('BAD_REQUEST', {
+          code: 'OAUTH_REDIRECT_REQUIRED',
+          message: 'Use the provider redirect to sign in or link an account.',
+        })
+      }
+      if (context.path === '/link-social' || context.path === '/unlink-account') {
+        const session = await getSessionFromCtx(context, { disableRefresh: true })
+        if (!session || getUserStatus(session.user.id) !== 'active') {
+          throw APIError.from('UNAUTHORIZED', { code: 'LINK_SESSION_REQUIRED', message: 'Sign in again to manage providers.' })
+        }
+        if (context.path === '/unlink-account') {
+          if (Date.now() - new Date(session.session.createdAt).getTime() >= context.context.sessionConfig.freshAge * 1000) {
+            throw APIError.from('FORBIDDEN', { code: 'SESSION_NOT_FRESH', message: 'Sign in again before disconnecting a provider.' })
+          }
+          if (typeof context.body?.accountId !== 'string') {
+            throw APIError.from('BAD_REQUEST', { code: 'ACCOUNT_NOT_FOUND', message: 'Provider account not found.' })
+          }
+          return context.json(disconnectProvider(session.user.id, context.body.accountId))
+        }
+      }
       if (
         context.path === '/sign-up/email' &&
         process.env.ALLOW_ADMIN_BOOTSTRAP !== 'true' &&

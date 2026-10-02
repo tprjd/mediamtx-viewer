@@ -183,6 +183,9 @@ temporarily on `/admin/users`, and activate each new account after registration.
 
 ## Accounts and streaming
 
+Google and Discord sign-in are optional. See [provider setup and account linking](docs/provider-sign-in.md)
+for the required credentials, callback URLs, and account rules.
+
 Account activation grants viewing access only. To let someone broadcast, open
 `/admin/users`, enter an immutable channel slug on their active account, and
 select **Grant streaming**. Each account can own one channel.
