@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here.
 
+## [1.2.0] - 2026-10-02
+
+### Added
+
+- Add Google and Discord sign-in and registration, with administrator approval for new accounts.
+- Automatically link matching verified Gmail and Google Workspace addresses to existing accounts.
+- Add manual provider linking in Account settings, including providers with a different email address.
+- Allow provider disconnection when another usable sign-in method remains.
+- Document provider credentials, callback URLs, and deployment configuration.
+
+### Changed
+
+- Hide password controls and empty usernames for accounts that use only provider sign-in.
+
 ## [1.1.0] - 2026-10-02
 
 ### Added
