@@ -199,16 +199,16 @@ test('opens a stable watch URL', async ({ page }) => {
     name: 'Show playback settings',
   })
   await expect(settings).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Balanced' })).toHaveCount(0)
+  await expect(page.getByRole('radio', { name: 'Balanced' })).toBeVisible()
 
   await settings.click()
   await expect(
     page.getByRole('button', { name: 'Hide playback settings' }),
   ).toBeVisible()
-  await expect(page.getByRole('button', { name: /Low \(best-possible\)/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Balanced' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Smooth' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Low latency' })).toBeVisible()
+  await expect(page.getByRole('radio', { name: /Low \(best-possible\)/ })).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'Balanced' })).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'Smooth' })).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'Low latency' })).toHaveCount(0)
 })
 
 test('keeps the selected playback mode when settings closes and reopens', async ({
@@ -216,17 +216,18 @@ test('keeps the selected playback mode when settings closes and reopens', async 
 }) => {
   await page.goto('/watch/live')
 
-  await page.getByRole('button', { name: 'Show playback settings' }).click()
-  const smooth = page.getByRole('button', { name: 'Smooth' })
+  const smooth = page.getByRole('radio', { name: 'Smooth' })
   await smooth.click()
-  await expect(smooth).toHaveAttribute('aria-pressed', 'true')
+  await expect(smooth).toHaveAttribute('aria-checked', 'true')
 
+  await page.getByRole('button', { name: 'Show playback settings' }).click()
   await page.getByRole('button', { name: 'Hide playback settings' }).click()
+  await expect(smooth).toBeVisible()
   await expect(page.getByRole('button', { name: 'Show playback settings' })).toBeVisible()
   await page.getByRole('button', { name: 'Show playback settings' }).click()
 
-  await expect(page.getByRole('button', { name: 'Smooth' })).toHaveAttribute(
-    'aria-pressed',
+  await expect(page.getByRole('radio', { name: 'Smooth' })).toHaveAttribute(
+    'aria-checked',
     'true',
   )
 })
@@ -678,15 +679,15 @@ test('hides fullscreen controls, protocol badge, and cursor when idle', async ({
   await expect(player).not.toHaveCSS('cursor', 'none')
 })
 
-test('keeps all playback modes usable at 320px', async ({ page }) => {
+test('keeps available playback modes usable at 320px', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 760 })
   await page.goto('/watch/live')
 
   await page.getByRole('button', { name: 'Show playback settings' }).click()
-  await expect(page.getByRole('button', { name: /Low \(best-possible\)/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Balanced' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Smooth' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Low latency' })).toBeVisible()
+  await expect(page.getByRole('radio', { name: /Low \(best-possible\)/ })).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'Balanced' })).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'Smooth' })).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'Low latency' })).toHaveCount(0)
   await expect(
     page.getByRole('complementary', { name: 'Channels' }),
   ).toBeHidden()

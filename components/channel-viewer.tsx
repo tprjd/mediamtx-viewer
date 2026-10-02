@@ -35,7 +35,6 @@ interface ChannelViewerProps {
 }
 
 interface PlaybackSettingsProps {
-  controlsTarget: (target: HTMLDivElement | null) => void
   statsTarget: (target: HTMLDivElement | null) => void
   tracks: readonly string[]
 }
@@ -79,7 +78,6 @@ function ChatRestoreControl({
 }
 
 function PlaybackSettings({
-  controlsTarget,
   statsTarget,
   tracks,
 }: PlaybackSettingsProps) {
@@ -97,7 +95,7 @@ function PlaybackSettings({
           <Settings2 aria-hidden="true" />
           <div>
             <strong>Playback settings</strong>
-            <span>Modes, tracks, and live diagnostics</span>
+            <span>Tracks and live diagnostics</span>
           </div>
         </div>
         <Collapsible.Trigger asChild>
@@ -117,7 +115,6 @@ function PlaybackSettings({
         className={styles.playbackSettingsContent}
         id={contentId}
       >
-        <div ref={controlsTarget} className={styles.playbackControlsTarget} />
         <div
           aria-label="Live playback metadata"
           className={styles.watchMetadata}
@@ -270,6 +267,12 @@ export function ChannelViewer({
                   </span>
                 </div>
               </div>
+              {status.live && (
+                <div
+                  ref={setPlaybackControlsTarget}
+                  className={styles.playbackControlsTarget}
+                />
+              )}
               {currentChannel.description && (
                 <p className={styles.watchDescription}>
                   {currentChannel.description}
@@ -277,7 +280,6 @@ export function ChannelViewer({
               )}
               {status.live && (
                 <PlaybackSettings
-                  controlsTarget={setPlaybackControlsTarget}
                   statsTarget={setPlaybackStatsTarget}
                   tracks={status.tracks}
                 />

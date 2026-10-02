@@ -481,7 +481,7 @@ describe('ChannelViewer', () => {
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
   })
 
-  it('keeps common details visible and puts live playback tools in settings', () => {
+  it('keeps playback modes visible while diagnostics stay in settings', () => {
     mocks.useChannelEvents.mockReturnValue({
       channels: [{ ...channel, status: liveStatus }],
       statusDelayed: false,
@@ -503,7 +503,7 @@ describe('ChannelViewer', () => {
       name: 'Show playback settings',
     })
     expect(settings).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('button', { name: 'Balanced' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Balanced' })).toBeVisible()
     expect(screen.queryByLabelText('Playback diagnostics')).toBeNull()
 
     fireEvent.click(settings)
@@ -533,6 +533,8 @@ describe('ChannelViewer', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Hide playback settings' }),
     )
+    expect(screen.getByRole('button', { name: 'Smooth' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Smooth' })).toBePressed()
     fireEvent.click(
       screen.getByRole('button', { name: 'Show playback settings' }),
     )

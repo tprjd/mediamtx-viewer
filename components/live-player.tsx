@@ -1,19 +1,19 @@
 'use client'
 
+import * as RadioGroup from '@radix-ui/react-radio-group'
 import { Gauge, Scale, ShieldCheck } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import styles from './live-player.module.css'
 
 import {
   HlsPlayer,
   isHlsJsSupported,
 } from '@/components/hls-player'
-import { Button } from '@/components/ui/button'
 import { usePlaybackMode } from '@/components/use-playback-mode'
 import { WebRtcPlayer } from '@/components/webrtc-player'
 import type { PlayerTheaterProps } from '@/components/vidstack-player'
-import { hlsPlaybackContract } from '@/lib/streaming-contract'
+import { hlsPlaybackContract, type PlaybackMode } from '@/lib/streaming-contract'
 import type { PublicChannel } from '@/lib/types'
 
 interface LivePlayerProps extends PlayerTheaterProps {
@@ -38,14 +38,11 @@ function tagPlaybackUrl(url: string, viewerId: string | undefined): string {
 interface PlaybackModeControlsProps {
   balancedUnavailable: boolean
   lowLatencyDisabled: boolean
-  mode: ReturnType<typeof usePlaybackMode>['mode']
+  mode: PlaybackMode
   modeExitReason?: string
-  retrySeconds: number
   selectMode: ReturnType<typeof usePlaybackMode>['selectMode']
   ultraLowSupported: boolean
-  ultraLowUnavailableReason?: string
   webrtcAvailable: boolean
-  webrtcUnavailableReason?: string
 }
 
 export function PlaybackModeControls({
@@ -53,67 +50,61 @@ export function PlaybackModeControls({
   lowLatencyDisabled,
   mode,
   modeExitReason,
-  retrySeconds,
   selectMode,
   ultraLowSupported,
-  ultraLowUnavailableReason,
   webrtcAvailable,
-  webrtcUnavailableReason,
 }: PlaybackModeControlsProps) {
+  const labelId = useId()
+  const descriptionId = useId()
+  const modes: { value: PlaybackMode; label: string; accessibleLabel?: string; available: boolean; icon: typeof Gauge }[] = [
+    { value: 'ultra-low', label: 'Low', accessibleLabel: ultraLowContract.label, available: ultraLowSupported, icon: Gauge },
+    { value: 'balanced', label: 'Balanced', available: !balancedUnavailable, icon: Scale },
+    { value: 'smooth', label: 'Smooth', available: true, icon: ShieldCheck },
+    { value: 'webrtc', label: 'Low latency', available: webrtcAvailable && !lowLatencyDisabled, icon: Gauge },
+  ]
+  const availableModes = modes.filter((option) => option.available)
+
   return (
-    <div className={styles.playbackModeSwitch} aria-label="Playback mode">
-      <div>
-        <strong>Playback mode</strong>
-        <span role={modeExitReason ? 'status' : undefined}>
-          {modeExitReason ?? (
-            <>
-              {mode === 'ultra-low' && 'Experimental HLS · shortest buffer.'}
-              {mode === 'balanced' && 'Lower delay with moderate recovery margin.'}
-              {mode === 'smooth' && 'Extra recovery margin for unstable connections.'}
-              {mode === 'webrtc' && 'Lowest delay with less recovery margin.'}
-            </>
-          )}
-        </span>
-      </div>
-      <div className={styles.playbackModeActions}>
-        <Button
-          aria-pressed={mode === 'ultra-low'}
-          disabled={!ultraLowSupported}
-          onClick={() => selectMode('ultra-low')}
-          size="sm"
-          title={ultraLowSupported ? 'Experimental HLS mode' : ultraLowUnavailableReason ?? 'Checking hls.js support'}
-          variant={mode === 'ultra-low' ? 'default' : 'secondary'}
-        >
-          <Gauge className="size-3.5" aria-hidden="true" />
-          {ultraLowSupported ? ultraLowContract.label : `${ultraLowContract.label} unavailable`}
-        </Button>
-        <Button
-          aria-pressed={mode === 'balanced'}
-          disabled={balancedUnavailable}
-          onClick={() => selectMode('balanced')}
-          size="sm"
-          title={balancedUnavailable ? 'This browser does not expose a reliable native HLS live edge' : undefined}
-          variant={mode === 'balanced' ? 'default' : 'secondary'}
-        >
-          <Scale className="size-3.5" aria-hidden="true" />
-          {balancedUnavailable ? 'Balanced unavailable' : 'Balanced'}
-        </Button>
-        <Button aria-pressed={mode === 'smooth'} onClick={() => selectMode('smooth')} size="sm" variant={mode === 'smooth' ? 'default' : 'secondary'}>
-          <ShieldCheck className="size-3.5" aria-hidden="true" />
-          Smooth
-        </Button>
-        <Button
-          aria-pressed={mode === 'webrtc'}
-          disabled={!webrtcAvailable || lowLatencyDisabled}
-          onClick={() => selectMode('webrtc')}
-          title={!webrtcAvailable ? webrtcUnavailableReason : retrySeconds > 0 ? `Low-latency retry available in ${retrySeconds} seconds` : undefined}
-          variant={mode === 'webrtc' ? 'default' : 'secondary'}
-          aria-disabled={!webrtcAvailable}
-        >
-          <Gauge className="size-3.5" aria-hidden="true" />
-          {!webrtcAvailable ? 'Low latency unavailable' : retrySeconds > 0 ? `Try low latency in ${retrySeconds}s` : 'Low latency'}
-        </Button>
-      </div>
+    <div className={styles.playbackModeSwitch}>
+      <strong id={labelId}>Playback mode</strong>
+      <RadioGroup.Root
+        aria-labelledby={labelId}
+        aria-describedby={descriptionId}
+        className={styles.playbackModeActions}
+        orientation="horizontal"
+        value={mode}
+        onValueChange={(value) => {
+          const selected = availableModes.find((option) => option.value === value)
+          if (selected) selectMode(selected.value)
+        }}
+      >
+        {availableModes.map(({ value, label, accessibleLabel, icon: Icon }) => (
+          <RadioGroup.Item
+            aria-label={accessibleLabel}
+            className={styles.playbackModeOption}
+            key={value}
+            title={value === 'ultra-low' ? 'Experimental HLS mode' : undefined}
+            value={value}
+          >
+            <Icon aria-hidden="true" />
+            {label}
+          </RadioGroup.Item>
+        ))}
+      </RadioGroup.Root>
+      <span
+        className={styles.playbackModeDescription}
+        id={descriptionId}
+        role={modeExitReason ? 'status' : undefined}
+      >
+        {modeExitReason ?? (
+          <>
+            {mode === 'ultra-low' && 'Experimental HLS · shortest buffer.'}
+            {mode === 'balanced' && 'Lower delay with moderate recovery margin.'}
+            {mode === 'smooth' && 'Extra recovery margin for unstable connections.'}
+            {mode === 'webrtc' && 'Lowest delay with less recovery margin.'}
+          </>
+        )}
+      </span>
     </div>
   )
 }
@@ -142,15 +133,12 @@ export function LivePlayer({
     mode,
     modeExitReason,
     webrtcAvailable,
-    webrtcUnavailableReason,
     onBalancedUnavailable: handleBalancedUnavailable,
     onUltraLowFailure: handleUltraLowFailure,
     onUltraLowUnavailable: handleUltraLowUnavailable,
     onWebRtcFallback: handleFallback,
-    retrySeconds,
     selectMode,
     ultraLowSupported,
-    ultraLowUnavailableReason,
   } = playback
   const taggedChannel = useMemo<PublicChannel>(
     () => ({
@@ -171,12 +159,9 @@ export function LivePlayer({
       lowLatencyDisabled={lowLatencyDisabled}
       mode={mode}
       modeExitReason={modeExitReason}
-      retrySeconds={retrySeconds}
       selectMode={selectMode}
       ultraLowSupported={ultraLowSupported}
-      ultraLowUnavailableReason={ultraLowUnavailableReason}
       webrtcAvailable={webrtcAvailable}
-      webrtcUnavailableReason={webrtcUnavailableReason}
     />
   ) : null
   const hasExternalControlsTarget = playbackControlsTarget !== undefined

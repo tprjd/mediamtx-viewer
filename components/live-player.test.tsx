@@ -102,11 +102,11 @@ describe('LivePlayer playback mode', () => {
     render(<LivePlayer channel={channel} />)
     act(() => vi.advanceTimersByTime(0))
     expect(screen.getByText('Balanced player')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Low \(best-possible\)/ })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Balanced' })).toBePressed()
-    expect(screen.getByRole('button', { name: 'Smooth' })).toBeEnabled()
+    expect(screen.getByRole('radio', { name: /Low \(best-possible\)/ })).toBeEnabled()
+    expect(screen.getByRole('radio', { name: 'Balanced' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Smooth' })).toBeEnabled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Low latency' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Low latency' }))
 
     expect(screen.getByText('Low-latency player')).toBeInTheDocument()
     expect(window.sessionStorage.getItem('mediamtx-viewer:playback-mode')).toBe(
@@ -132,14 +132,14 @@ describe('LivePlayer playback mode', () => {
 
     render(<ControlsTargetHarness />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Smooth' }))
-    expect(screen.getByRole('button', { name: 'Smooth' })).toBePressed()
+    fireEvent.click(screen.getByRole('radio', { name: 'Smooth' }))
+    expect(screen.getByRole('radio', { name: 'Smooth' })).toBeChecked()
 
     fireEvent.click(screen.getByRole('button', { name: 'Toggle settings' }))
-    expect(screen.queryByRole('button', { name: 'Smooth' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: 'Smooth' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Toggle settings' }))
-    expect(screen.getByRole('button', { name: 'Smooth' })).toBePressed()
+    expect(screen.getByRole('radio', { name: 'Smooth' })).toBeChecked()
   })
 
   it('hides playback mode controls while the Channel is offline', () => {
@@ -159,9 +159,16 @@ describe('LivePlayer playback mode', () => {
       />,
     )
 
-    expect(screen.queryByRole('button', { name: 'Balanced' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Smooth' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Low latency' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: 'Balanced' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: 'Smooth' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: 'Low latency' })).toBeNull()
+  })
+
+  it('hides low latency when the stream tracks are incompatible', () => {
+    render(<LivePlayer channel={{ ...channel, status: { ...channel.status, tracks: ['H264', 'MPEG-4 Audio'] } }} />)
+
+    expect(screen.queryByRole('radio', { name: 'Low latency' })).toBeNull()
+    expect(screen.getByRole('radio', { name: 'Balanced' })).toBeChecked()
   })
 
   it('tags every transport with one viewer identity across mode changes', () => {
@@ -173,7 +180,7 @@ describe('LivePlayer playback mode', () => {
       `/media/hls/live/index.m3u8?frankerzspam_viewer=${viewerId}`,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Low latency' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Low latency' }))
 
     expect(screen.getByTestId('webrtc-player')).toHaveAttribute(
       'data-webrtc-source',
@@ -183,7 +190,7 @@ describe('LivePlayer playback mode', () => {
 
   it('falls back once and prevents automatic protocol oscillation for 60 seconds', () => {
     render(<LivePlayer channel={channel} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Low latency' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Low latency' }))
     fireEvent.click(screen.getByRole('button', { name: 'Simulate fallback' }))
 
     expect(screen.getByText('Smooth player')).toBeInTheDocument()
@@ -191,14 +198,14 @@ describe('LivePlayer playback mode', () => {
       'smooth',
     )
     expect(
-      screen.getByRole('button', { name: 'Try low latency in 60s' }),
-    ).toBeDisabled()
+      screen.queryByRole('radio', { name: 'Low latency' }),
+    ).toBeNull()
 
     act(() => {
       vi.advanceTimersByTime(60_000)
     })
 
-    expect(screen.getByRole('button', { name: 'Low latency' })).toBeEnabled()
+    expect(screen.getByRole('radio', { name: 'Low latency' })).toBeEnabled()
     expect(screen.getByText('Smooth player')).toBeInTheDocument()
   })
 
@@ -216,10 +223,10 @@ describe('LivePlayer playback mode', () => {
     act(() => vi.advanceTimersByTime(0))
 
     expect(screen.getByText('Low (best-possible) player')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Low \(best-possible\)/ })).toBePressed()
+    expect(screen.getByRole('radio', { name: /Low \(best-possible\)/ })).toBeChecked()
   })
 
-  it('disables ultra-low HLS and normalizes its saved mode without hls.js', () => {
+  it('hides ultra-low HLS and normalizes its saved mode without hls.js', () => {
     mocks.isHlsJsSupported.mockReturnValue(false)
     window.sessionStorage.setItem('mediamtx-viewer:playback-mode', 'ultra-low')
     render(<LivePlayer channel={channel} />)
@@ -227,8 +234,8 @@ describe('LivePlayer playback mode', () => {
 
     expect(screen.getByText('Balanced player')).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: /Low \(best-possible\) unavailable/ }),
-    ).toBeDisabled()
+      screen.queryByRole('radio', { name: /Low \(best-possible\)/ }),
+    ).toBeNull()
     expect(window.sessionStorage.getItem('mediamtx-viewer:playback-mode')).toBe(
       'balanced',
     )
@@ -248,7 +255,7 @@ describe('LivePlayer playback mode', () => {
 
   it('remembers an explicit smooth preference', () => {
     render(<LivePlayer channel={channel} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Smooth' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Smooth' }))
 
     expect(screen.getByText('Smooth player')).toBeInTheDocument()
     expect(window.sessionStorage.getItem('mediamtx-viewer:playback-mode')).toBe(
@@ -259,7 +266,7 @@ describe('LivePlayer playback mode', () => {
   it('falls back to balanced when the ultra-low SLO cannot be maintained', () => {
     render(<LivePlayer channel={channel} />)
     act(() => vi.advanceTimersByTime(0))
-    fireEvent.click(screen.getByRole('button', { name: /Low \(best-possible\)/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /Low \(best-possible\)/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Simulate ultra failure' }))
 
     expect(screen.getByText('Balanced player')).toBeInTheDocument()
@@ -274,15 +281,15 @@ describe('LivePlayer playback mode', () => {
   it('falls back to balanced when ultra-low capability disappears', () => {
     render(<LivePlayer channel={channel} />)
     act(() => vi.advanceTimersByTime(0))
-    fireEvent.click(screen.getByRole('button', { name: /Low \(best-possible\)/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /Low \(best-possible\)/ }))
     fireEvent.click(
       screen.getByRole('button', { name: 'Simulate ultra unavailable' }),
     )
 
     expect(screen.getByText('Balanced player')).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: /Low \(best-possible\) unavailable/ }),
-    ).toBeDisabled()
+      screen.queryByRole('radio', { name: /Low \(best-possible\)/ }),
+    ).toBeNull()
   })
 
   it('falls back to smooth when native HLS cannot expose a live edge', () => {
@@ -291,8 +298,8 @@ describe('LivePlayer playback mode', () => {
 
     expect(screen.getByText('Smooth player')).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Balanced unavailable' }),
-    ).toBeDisabled()
+      screen.queryByRole('radio', { name: 'Balanced' }),
+    ).toBeNull()
     expect(window.sessionStorage.getItem('mediamtx-viewer:playback-mode')).toBe(
       'smooth',
     )
