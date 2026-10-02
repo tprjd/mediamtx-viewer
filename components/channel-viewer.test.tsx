@@ -481,7 +481,7 @@ describe('ChannelViewer', () => {
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
   })
 
-  it('keeps playback modes visible while diagnostics stay in settings', () => {
+  it('hides playback status by default and removes it again when hidden', () => {
     mocks.useChannelEvents.mockReturnValue({
       channels: [{ ...channel, status: liveStatus }],
       statusDelayed: false,
@@ -499,24 +499,32 @@ describe('ChannelViewer', () => {
       within(details).getByRole('button', { name: 'Share this stream' }),
     ).toBeInTheDocument()
 
-    const settings = screen.getByRole('button', {
-      name: 'Show playback settings',
-    })
-    expect(settings).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Balanced' })).toBeVisible()
     expect(screen.queryByLabelText('Playback diagnostics')).toBeNull()
+    expect(screen.queryByLabelText('Live playback metadata')).toBeNull()
+    const initialShow = screen.getByRole('button', { name: 'Show playback status' })
+    expect(initialShow).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(initialShow)
 
-    fireEvent.click(settings)
-
-    expect(
-      screen.getByRole('button', { name: 'Hide playback settings' }),
-    ).toHaveAttribute('aria-expanded', 'true')
+    const hide = screen.getByRole('button', { name: 'Hide playback status' })
+    expect(hide).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Balanced' })).toBeVisible()
+    expect(screen.getByLabelText('Playback diagnostics')).toBeVisible()
+    expect(screen.getByText('Opus · AV1')).toBeVisible()
+
+    fireEvent.click(hide)
+
+    const show = screen.getByRole('button', { name: 'Show playback status' })
+    expect(show).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByLabelText('Playback diagnostics')).toBeNull()
+    expect(screen.queryByLabelText('Live playback metadata')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Balanced' })).toBeVisible()
+
+    fireEvent.click(show)
     expect(screen.getByLabelText('Playback diagnostics')).toBeVisible()
     expect(screen.getByText('Opus · AV1')).toBeVisible()
   })
 
-  it('keeps the selected playback mode when settings closes and reopens', () => {
+  it('keeps the selected playback mode when status is hidden and restored', () => {
     mocks.useChannelEvents.mockReturnValue({
       channels: [{ ...channel, status: liveStatus }],
       statusDelayed: false,
@@ -524,19 +532,17 @@ describe('ChannelViewer', () => {
 
     render(<ChannelViewer channel={channel} />)
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Show playback settings' }),
-    )
     fireEvent.click(screen.getByRole('button', { name: 'Smooth' }))
     expect(screen.getByRole('button', { name: 'Smooth' })).toBePressed()
 
+    fireEvent.click(screen.getByRole('button', { name: 'Show playback status' }))
     fireEvent.click(
-      screen.getByRole('button', { name: 'Hide playback settings' }),
+      screen.getByRole('button', { name: 'Hide playback status' }),
     )
     expect(screen.getByRole('button', { name: 'Smooth' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Smooth' })).toBePressed()
     fireEvent.click(
-      screen.getByRole('button', { name: 'Show playback settings' }),
+      screen.getByRole('button', { name: 'Show playback status' }),
     )
 
     expect(screen.getByRole('button', { name: 'Smooth' })).toBePressed()
@@ -562,7 +568,7 @@ describe('ChannelViewer', () => {
       screen.getByRole('button', { name: 'Share this stream' }),
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'Show playback settings' }),
+      screen.queryByRole('button', { name: /playback status/ }),
     ).toBeNull()
     expect(screen.queryByLabelText('Playback diagnostics')).toBeNull()
   })
@@ -580,7 +586,7 @@ describe('ChannelViewer', () => {
     ).toBeNull()
     expect(screen.getByText('Unavailable')).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'Show playback settings' }),
+      screen.queryByRole('button', { name: /playback status/ }),
     ).toBeNull()
     expect(screen.queryByLabelText('Playback diagnostics')).toBeNull()
   })

@@ -1,7 +1,6 @@
 'use client'
 
 import { AlertTriangle, Waves } from 'lucide-react'
-import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { PlaybackRunOverlay } from '@/components/playback-run-overlay'
@@ -95,6 +94,7 @@ interface WebRtcPlayerProps extends PlayerTheaterProps {
   onFallback: () => void
   showStats?: boolean
   statsTarget?: HTMLElement | null
+  summaryTarget?: HTMLElement | null
 }
 
 export function WebRtcPlayer({
@@ -105,6 +105,7 @@ export function WebRtcPlayer({
   onTheaterModeChange,
   showStats = true,
   statsTarget,
+  summaryTarget,
   theaterChatRestoreRef,
   theaterMode,
 }: WebRtcPlayerProps) {
@@ -619,27 +620,18 @@ export function WebRtcPlayer({
         </VidstackPlayer>
       </div>
 
-      {showStats &&
-        (statsTarget
-          ? createPortal(
-              <PlaybackStats
-                peerConnection={peerConnection}
-                playing={playing}
-                protocol="WebRTC"
-                tracks={status.tracks}
-                videoRef={videoRef}
-              />,
-              statsTarget,
-            )
-          : (
-            <PlaybackStats
-              peerConnection={peerConnection}
-              playing={playing}
-              protocol="WebRTC"
-              tracks={status.tracks}
-              videoRef={videoRef}
-            />
-          ))}
+      {(showStats || summaryTarget) && (
+        <PlaybackStats
+          peerConnection={peerConnection}
+          playing={playing}
+          protocol="WebRTC"
+          showStats={showStats}
+          statsTarget={statsTarget}
+          summaryTarget={summaryTarget}
+          tracks={status.tracks}
+          videoRef={videoRef}
+        />
+      )}
     </div>
   )
 }

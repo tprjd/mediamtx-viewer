@@ -195,38 +195,52 @@ test('opens a stable watch URL', async ({ page }) => {
   ).toBeAttached()
   await expect(player.getByRole('button', { name: 'Live' })).toBeAttached()
   await expect(player.locator('video[controls]')).toHaveCount(0)
-  const settings = page.getByRole('button', {
-    name: 'Show playback settings',
-  })
-  await expect(settings).toBeVisible()
-  await expect(page.getByRole('radio', { name: 'Balanced' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Show playback status' })).toBeVisible()
+  await expect(page.getByLabel('Playback diagnostics', { exact: true })).toHaveCount(0)
+  const mobile = (page.viewportSize()?.width ?? 0) <= 600
+  if (mobile) {
+    await expect(page.getByRole('button', { name: 'Playback mode: Balanced' })).toBeVisible()
+    await expect(page.getByRole('radiogroup', { name: 'Playback mode' })).toBeHidden()
+  } else {
+    await expect(page.getByRole('radio', { name: 'Balanced' })).toBeVisible()
+  }
 
-  await settings.click()
-  await expect(
-    page.getByRole('button', { name: 'Hide playback settings' }),
-  ).toBeVisible()
-  await expect(page.getByRole('radio', { name: /Low \(best-possible\)/ })).toBeVisible()
-  await expect(page.getByRole('radio', { name: 'Balanced' })).toBeVisible()
-  await expect(page.getByRole('radio', { name: 'Smooth' })).toBeVisible()
-  await expect(page.getByRole('radio', { name: 'Low latency' })).toHaveCount(0)
+  if (mobile) await page.getByRole('button', { name: /^Playback mode:/ }).click()
+  const role = mobile ? 'menuitemradio' : 'radio'
+  await expect(page.getByRole(role, { name: /Low \(best-possible\)/ })).toBeVisible()
+  await expect(page.getByRole(role, { name: 'Balanced' })).toBeVisible()
+  await expect(page.getByRole(role, { name: 'Smooth' })).toBeVisible()
+  await expect(page.getByRole(role, { name: 'Low latency' })).toHaveCount(0)
 })
 
-test('keeps the selected playback mode when settings closes and reopens', async ({
+test('keeps the selected playback mode when status is hidden and restored', async ({
   page,
 }) => {
   await page.goto('/watch/live')
 
-  const smooth = page.getByRole('radio', { name: 'Smooth' })
+  const mobile = (page.viewportSize()?.width ?? 0) <= 600
+  const trigger = page.getByRole('button', { name: /^Playback mode:/ })
+  if (mobile) await trigger.click()
+  const smooth = page.getByRole(mobile ? 'menuitemradio' : 'radio', { name: 'Smooth' })
   await smooth.click()
-  await expect(smooth).toHaveAttribute('aria-checked', 'true')
+  if (mobile) {
+    await expect(page.getByRole('menu', { name: 'Playback mode' })).toBeHidden()
+    await expect(trigger).toHaveAccessibleName('Playback mode: Smooth')
+  } else {
+    await expect(smooth).toHaveAttribute('aria-checked', 'true')
+  }
 
-  await page.getByRole('button', { name: 'Show playback settings' }).click()
-  await page.getByRole('button', { name: 'Hide playback settings' }).click()
-  await expect(smooth).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Show playback settings' })).toBeVisible()
-  await page.getByRole('button', { name: 'Show playback settings' }).click()
+  await page.getByRole('button', { name: 'Show playback status' }).click()
+  await expect(page.getByLabel('Playback diagnostics', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Hide playback status' }).click()
+  await expect(page.getByLabel('Playback diagnostics', { exact: true })).toHaveCount(0)
+  await expect(page.getByLabel('Current playback measurements')).toBeVisible()
+  await expect(mobile ? trigger : smooth).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Show playback status' })).toBeVisible()
+  await page.getByRole('button', { name: 'Show playback status' }).click()
 
-  await expect(page.getByRole('radio', { name: 'Smooth' })).toHaveAttribute(
+  if (mobile) await trigger.click()
+  await expect(smooth).toHaveAttribute(
     'aria-checked',
     'true',
   )
@@ -683,11 +697,22 @@ test('keeps available playback modes usable at 320px', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 760 })
   await page.goto('/watch/live')
 
-  await page.getByRole('button', { name: 'Show playback settings' }).click()
-  await expect(page.getByRole('radio', { name: /Low \(best-possible\)/ })).toBeVisible()
-  await expect(page.getByRole('radio', { name: 'Balanced' })).toBeVisible()
-  await expect(page.getByRole('radio', { name: 'Smooth' })).toBeVisible()
-  await expect(page.getByRole('radio', { name: 'Low latency' })).toHaveCount(0)
+  const trigger = page.getByRole('button', { name: /^Playback mode:/ })
+  await expect(page.getByLabel('Current playback measurements')).toBeVisible()
+  await expect(page.getByRole('radiogroup', { name: 'Playback mode' })).toBeHidden()
+  await trigger.click()
+  await expect(page.getByRole('menuitemradio', { name: /Low \(best-possible\)/ })).toBeVisible()
+  await expect(page.getByRole('menuitemradio', { name: 'Balanced' })).toBeChecked()
+  await expect(page.getByRole('menuitemradio', { name: 'Smooth' })).toBeVisible()
+  await expect(page.getByRole('menuitemradio', { name: 'Low latency' })).toHaveCount(0)
+  const menuBox = await page.getByRole('menu', { name: 'Playback mode' }).boundingBox()
+  expect(menuBox).not.toBeNull()
+  expect(menuBox!.x).toBeGreaterThanOrEqual(0)
+  expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(320)
+  await page.getByRole('menuitemradio', { name: 'Smooth' }).click()
+  await expect(page.getByRole('menu', { name: 'Playback mode' })).toBeHidden()
+  await expect(trigger).toHaveAccessibleName('Playback mode: Smooth')
+  await page.getByRole('button', { name: 'Show playback status' }).click()
   await expect(
     page.getByRole('complementary', { name: 'Channels' }),
   ).toBeHidden()
@@ -698,7 +723,7 @@ test('keeps available playback modes usable at 320px', async ({ page }) => {
   ).toBeVisible()
   await page.getByRole('button', { name: 'Show playback diagnostics' }).click()
   await expect(
-    page.getByLabel('Playback diagnostics').getByText('Live latency').last(),
+    page.getByLabel('Playback diagnostics', { exact: true }).getByText('Live latency').last(),
   ).toBeVisible()
   const sizes = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
@@ -716,8 +741,8 @@ test('keeps an offline watch page inside a 320px viewport', async ({ page }) => 
   ).toBeVisible()
   await expect(page.getByText('Stream offline')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Share this stream' })).toBeVisible()
-  await expect(page.getByRole('button', { name: /playback settings/i })).toHaveCount(0)
-  await expect(page.getByLabel('Playback diagnostics')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /playback status/i })).toHaveCount(0)
+  await expect(page.getByLabel('Playback diagnostics', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('contentinfo')).toHaveCount(0)
   const sizes = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,

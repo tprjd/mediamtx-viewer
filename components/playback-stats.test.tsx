@@ -83,6 +83,120 @@ describe('sumInboundPacketsLost', () => {
 })
 
 describe('PlaybackStats diagnostics', () => {
+  it('stops frame timing when hidden while keeping the visible measurements live', async () => {
+    vi.useFakeTimers()
+    const video = document.createElement('video')
+    const summaryTarget = document.createElement('div')
+    const videoRef = { current: video }
+    const tracks = ['H264']
+    let frames = 0
+    const requestFrame = vi.fn().mockReturnValue(42)
+    const cancelFrame = vi.fn()
+    Object.defineProperties(video, {
+      videoWidth: { value: 1280 },
+      videoHeight: { value: 720 },
+      requestVideoFrameCallback: { value: requestFrame },
+      cancelVideoFrameCallback: { value: cancelFrame },
+      getVideoPlaybackQuality: {
+        value: () => ({ totalVideoFrames: frames, droppedVideoFrames: 0 }),
+      },
+    })
+    const props = { playing: true, protocol: 'HLS' as const, tracks, videoRef, summaryTarget }
+    const view = render(<PlaybackStats {...props} />)
+    await act(async () => { await Promise.resolve() })
+    expect(requestFrame).toHaveBeenCalledOnce()
+
+    view.rerender(<PlaybackStats {...props} showStats={false} />)
+    await act(async () => { await Promise.resolve() })
+    expect(cancelFrame).toHaveBeenCalledWith(42)
+    expect(screen.queryByLabelText('Playback diagnostics')).toBeNull()
+    frames = 30
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000) })
+    expect(requestFrame).toHaveBeenCalledOnce()
+    expect(within(summaryTarget).getByLabelText('Current frame rate')).toHaveTextContent('30 fps')
+
+    view.rerender(<PlaybackStats {...props} />)
+    await act(async () => { await Promise.resolve() })
+    expect(requestFrame).toHaveBeenCalledTimes(2)
+    expect(screen.getByLabelText('Playback diagnostics')).toBeVisible()
+  })
+
+  it('updates the compact measurements while diagnostics are closed', async () => {
+    vi.useFakeTimers()
+    const video = document.createElement('video')
+    const summaryTarget = document.createElement('div')
+    const videoRef = { current: video }
+    const tracks = ['H264']
+    let frames = 0
+    Object.defineProperties(video, {
+      videoWidth: { value: 1280 },
+      videoHeight: { value: 720 },
+      getVideoPlaybackQuality: {
+        value: () => ({ totalVideoFrames: frames, droppedVideoFrames: 0 }),
+      },
+    })
+    const diagnostics = { liveLatencySeconds: 2.4, targetLatencySeconds: 3, maxLatencySeconds: 6, playbackRate: 1 }
+    const view = render(
+      <PlaybackStats
+        hlsDiagnostics={diagnostics}
+        playing
+        protocol="HLS"
+        showStats={false}
+        summaryTarget={summaryTarget}
+        tracks={tracks}
+        videoRef={videoRef}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    const summary = within(summaryTarget)
+    expect(summary.getByLabelText('Current live delay')).toHaveTextContent('2.4s')
+    expect(summary.getByLabelText('Current resolution')).toHaveTextContent('1280×720')
+    expect(screen.queryByLabelText('Playback diagnostics')).toBeNull()
+
+    frames = 30
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000) })
+    expect(summary.getByLabelText('Current frame rate')).toHaveTextContent('30 fps')
+
+    view.rerender(
+      <PlaybackStats
+        hlsDiagnostics={{ ...diagnostics, liveLatencySeconds: 3.7 }}
+        playing
+        protocol="HLS"
+        showStats={false}
+        summaryTarget={summaryTarget}
+        tracks={tracks}
+        videoRef={videoRef}
+      />,
+    )
+    expect(summary.getByLabelText('Current live delay')).toHaveTextContent('3.7s')
+    expect(summary.getByLabelText('Current frame rate')).toHaveTextContent('30 fps')
+  })
+
+  it('does not show WebRTC network round-trip time as live delay', async () => {
+    const video = document.createElement('video')
+    const summaryTarget = document.createElement('div')
+    const peerConnection = {
+      connectionState: 'connected',
+      getStats: vi.fn().mockResolvedValue(new Map([
+        ['pair', { id: 'pair', type: 'candidate-pair', state: 'succeeded', selected: true, currentRoundTripTime: 0.02 }],
+      ])),
+    } as unknown as RTCPeerConnection
+
+    render(
+      <PlaybackStats
+        peerConnection={peerConnection}
+        playing
+        protocol="WebRTC"
+        showStats={false}
+        summaryTarget={summaryTarget}
+        tracks={[]}
+        videoRef={{ current: video }}
+      />,
+    )
+    await waitFor(() => expect(peerConnection.getStats).toHaveBeenCalled())
+    expect(within(summaryTarget).getByLabelText('Current live delay')).toHaveTextContent('—')
+  })
+
   it('renders HLS edge diagnostics and copies a privacy-safe support snapshot', async () => {
     const video = document.createElement('video')
     const writeText = vi.fn().mockResolvedValue(undefined)

@@ -6,7 +6,6 @@ import Hls, {
   type ErrorData,
   type LevelUpdatedData,
 } from 'hls.js'
-import { createPortal } from 'react-dom'
 import {
   AlertTriangle,
   RotateCcw,
@@ -45,6 +44,7 @@ interface HlsPlayerProps extends PlayerTheaterProps {
   profileExitReason?: string
   showStats?: boolean
   statsTarget?: HTMLElement | null
+  summaryTarget?: HTMLElement | null
 }
 
 interface HlsLatencyProfileConfig {
@@ -183,6 +183,7 @@ export function HlsPlayer({
   profileExitReason,
   showStats = true,
   statsTarget,
+  summaryTarget,
   onOpenChat,
   onTheaterModeChange,
   theaterChatRestoreRef,
@@ -923,27 +924,18 @@ export function HlsPlayer({
         </VidstackPlayer>
       </div>
 
-      {showStats &&
-        (statsTarget
-          ? createPortal(
-              <PlaybackStats
-                hlsDiagnostics={hlsDiagnostics}
-                playing={visibleState === 'playing'}
-                protocol="HLS"
-                tracks={status.tracks}
-                videoRef={videoRef}
-              />,
-              statsTarget,
-            )
-          : (
-            <PlaybackStats
-              hlsDiagnostics={hlsDiagnostics}
-              playing={visibleState === 'playing'}
-              protocol="HLS"
-              tracks={status.tracks}
-              videoRef={videoRef}
-            />
-          ))}
+      {(showStats || summaryTarget) && (
+        <PlaybackStats
+          hlsDiagnostics={hlsDiagnostics}
+          playing={visibleState === 'playing'}
+          protocol="HLS"
+          showStats={showStats}
+          statsTarget={statsTarget}
+          summaryTarget={summaryTarget}
+          tracks={status.tracks}
+          videoRef={videoRef}
+        />
+      )}
     </div>
   )
 }

@@ -1,7 +1,6 @@
 'use client'
 
-import * as Collapsible from '@radix-ui/react-collapsible'
-import { ChevronDown, Clock3, MessageSquare, Settings2, UserRound } from 'lucide-react'
+import { Activity, Clock3, EyeOff, MessageSquare, UserRound } from 'lucide-react'
 import {
   useCallback,
   useEffect,
@@ -34,7 +33,7 @@ interface ChannelViewerProps {
   viewerId?: string
 }
 
-interface PlaybackSettingsProps {
+interface PlaybackStatusProps {
   statsTarget: (target: HTMLDivElement | null) => void
   tracks: readonly string[]
 }
@@ -77,57 +76,44 @@ function ChatRestoreControl({
   )
 }
 
-function PlaybackSettings({
+function PlaybackStatus({
   statsTarget,
   tracks,
-}: PlaybackSettingsProps) {
-  const [open, setOpen] = useState(false)
+}: PlaybackStatusProps) {
+  const [visible, setVisible] = useState(false)
   const contentId = useId()
 
   return (
-    <Collapsible.Root
-      className={styles.playbackSettings}
-      open={open}
-      onOpenChange={setOpen}
-    >
-      <div className={styles.playbackSettingsHeader}>
-        <div className={styles.playbackSettingsLabel}>
-          <Settings2 aria-hidden="true" />
-          <div>
-            <strong>Playback settings</strong>
-            <span>Tracks and live diagnostics</span>
-          </div>
-        </div>
-        <Collapsible.Trigger asChild>
-          <button
-            aria-controls={contentId}
-            className={styles.playbackSettingsTrigger}
-            type="button"
+    <div className={styles.playbackStatus}>
+      <div className={styles.playbackStatusToolbar}>
+        {visible && (
+          <div
+            aria-label="Live playback metadata"
+            className={styles.watchMetadata}
           >
-            <span>
-              {open ? 'Hide playback settings' : 'Show playback settings'}
+            <span className="inline-flex items-center gap-1.5">
+              <Clock3 className="size-3.5" aria-hidden="true" />
+              Live playback
             </span>
-            <ChevronDown aria-hidden="true" />
-          </button>
-        </Collapsible.Trigger>
-      </div>
-      <Collapsible.Content
-        className={styles.playbackSettingsContent}
-        id={contentId}
-      >
-        <div
-          aria-label="Live playback metadata"
-          className={styles.watchMetadata}
+            {tracks.length > 0 && <span>{tracks.join(' · ')}</span>}
+          </div>
+        )}
+        <button
+          aria-controls={visible ? contentId : undefined}
+          aria-expanded={visible}
+          aria-label={visible ? 'Hide playback status' : 'Show playback status'}
+          className={styles.playbackStatusToggle}
+          onClick={() => setVisible((current) => !current)}
+          type="button"
         >
-          <span className="inline-flex items-center gap-1.5">
-            <Clock3 className="size-3.5" aria-hidden="true" />
-            Live playback
-          </span>
-          {tracks.length > 0 && <span>{tracks.join(' · ')}</span>}
-        </div>
-        <div ref={statsTarget} className={styles.playbackStatsTarget} />
-      </Collapsible.Content>
-    </Collapsible.Root>
+          {visible ? <EyeOff aria-hidden="true" /> : <Activity aria-hidden="true" />}
+          {visible ? 'Hide' : 'Show status'}
+        </button>
+      </div>
+      {visible && (
+        <div id={contentId} ref={statsTarget} className={styles.playbackStatsTarget} />
+      )}
+    </div>
   )
 }
 
@@ -256,7 +242,12 @@ export function ChannelViewer({
               <div className={styles.watchIdentity}>
                 <div className={styles.watchTitleRow}>
                   <h1>{currentChannel.title}</h1>
-                  <ShareButton title={currentChannel.title} />
+                  {status.live && (
+                    <div
+                      ref={setPlaybackControlsTarget}
+                      className={styles.playbackControlsTarget}
+                    />
+                  )}
                 </div>
                 <div className={styles.watchInfoRow}>
                   <StatusBadge state={status.state} />
@@ -265,21 +256,16 @@ export function ChannelViewer({
                     <UserRound className="size-3.5" aria-hidden="true" />
                     {currentChannel.ownerName}
                   </span>
+                  <ShareButton title={currentChannel.title} />
                 </div>
               </div>
-              {status.live && (
-                <div
-                  ref={setPlaybackControlsTarget}
-                  className={styles.playbackControlsTarget}
-                />
-              )}
               {currentChannel.description && (
                 <p className={styles.watchDescription}>
                   {currentChannel.description}
                 </p>
               )}
               {status.live && (
-                <PlaybackSettings
+                <PlaybackStatus
                   statsTarget={setPlaybackStatsTarget}
                   tracks={status.tracks}
                 />

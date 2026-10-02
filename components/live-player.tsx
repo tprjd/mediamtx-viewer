@@ -1,15 +1,17 @@
 'use client'
 
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as RadioGroup from '@radix-ui/react-radio-group'
-import { Gauge, Scale, ShieldCheck } from 'lucide-react'
+import { Check, Gauge, Scale, ShieldCheck, SlidersHorizontal } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { useId, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import styles from './live-player.module.css'
 
 import {
   HlsPlayer,
   isHlsJsSupported,
 } from '@/components/hls-player'
+import { Tooltip } from '@/components/ui/tooltip'
 import { usePlaybackMode } from '@/components/use-playback-mode'
 import { WebRtcPlayer } from '@/components/webrtc-player'
 import type { PlayerTheaterProps } from '@/components/vidstack-player'
@@ -36,6 +38,7 @@ function tagPlaybackUrl(url: string, viewerId: string | undefined): string {
 }
 
 interface PlaybackModeControlsProps {
+  summaryTarget: (target: HTMLDivElement | null) => void
   balancedUnavailable: boolean
   lowLatencyDisabled: boolean
   mode: PlaybackMode
@@ -46,6 +49,7 @@ interface PlaybackModeControlsProps {
 }
 
 export function PlaybackModeControls({
+  summaryTarget,
   balancedUnavailable,
   lowLatencyDisabled,
   mode,
@@ -54,57 +58,127 @@ export function PlaybackModeControls({
   ultraLowSupported,
   webrtcAvailable,
 }: PlaybackModeControlsProps) {
-  const labelId = useId()
-  const descriptionId = useId()
-  const modes: { value: PlaybackMode; label: string; accessibleLabel?: string; available: boolean; icon: typeof Gauge }[] = [
-    { value: 'ultra-low', label: 'Low', accessibleLabel: ultraLowContract.label, available: ultraLowSupported, icon: Gauge },
-    { value: 'balanced', label: 'Balanced', available: !balancedUnavailable, icon: Scale },
-    { value: 'smooth', label: 'Smooth', available: true, icon: ShieldCheck },
-    { value: 'webrtc', label: 'Low latency', available: webrtcAvailable && !lowLatencyDisabled, icon: Gauge },
+  const modes: {
+    value: PlaybackMode
+    label: string
+    accessibleLabel?: string
+    description: string
+    available: boolean
+    icon: typeof Gauge
+  }[] = [
+    {
+      value: 'ultra-low',
+      label: 'Low',
+      accessibleLabel: `${ultraLowContract.label}, recommended`,
+      description: `Targets about ${ultraLowContract.targetLatencySeconds}s behind live and adapts to the stream. Recommended for low delay. Try Balanced or Smooth if playback stalls.`,
+      available: ultraLowSupported,
+      icon: Gauge,
+    },
+    {
+      value: 'balanced',
+      label: 'Balanced',
+      description: `Targets about ${hlsPlaybackContract('balanced').targetLatencySeconds}s behind live. Balances delay with room to recover from brief connection drops.`,
+      available: !balancedUnavailable,
+      icon: Scale,
+    },
+    {
+      value: 'smooth',
+      label: 'Smooth',
+      description: `Targets about ${hlsPlaybackContract('smooth').targetLatencySeconds}s behind live. Adds more buffer for unstable connections.`,
+      available: true,
+      icon: ShieldCheck,
+    },
+    {
+      value: 'webrtc',
+      label: 'Low latency',
+      description: 'Uses WebRTC for minimal delay, with no fixed delay target and less room to recover from connection drops.',
+      available: webrtcAvailable && !lowLatencyDisabled,
+      icon: Gauge,
+    },
   ]
   const availableModes = modes.filter((option) => option.available)
+  const currentMode = modes.find((option) => option.value === mode)
+  function handleModeChange(value: string) {
+    const selected = availableModes.find((option) => option.value === value)
+    if (selected) selectMode(selected.value)
+  }
 
   return (
     <div className={styles.playbackModeSwitch}>
-      <strong id={labelId}>Playback mode</strong>
+      <div ref={summaryTarget} className={styles.playbackSummaryTarget} />
       <RadioGroup.Root
-        aria-labelledby={labelId}
-        aria-describedby={descriptionId}
+        aria-label="Playback mode"
         className={styles.playbackModeActions}
         orientation="horizontal"
         value={mode}
-        onValueChange={(value) => {
-          const selected = availableModes.find((option) => option.value === value)
-          if (selected) selectMode(selected.value)
-        }}
+        onValueChange={handleModeChange}
       >
-        {availableModes.map(({ value, label, accessibleLabel, icon: Icon }) => (
-          <RadioGroup.Item
-            aria-label={accessibleLabel}
-            className={styles.playbackModeOption}
+        {availableModes.map(({ value, label, accessibleLabel, description, icon: Icon }) => (
+          <Tooltip
             key={value}
-            title={value === 'ultra-low' ? 'Experimental HLS mode' : undefined}
-            value={value}
+            content={
+              <span className={styles.playbackModeTooltip}>
+                {description}
+                {value === mode && modeExitReason && <span>{modeExitReason}</span>}
+              </span>
+            }
           >
-            <Icon aria-hidden="true" />
-            {label}
-          </RadioGroup.Item>
+            <RadioGroup.Item
+              aria-label={accessibleLabel}
+              className={styles.playbackModeOption}
+              value={value}
+            >
+              <Icon aria-hidden="true" />
+              {label}
+            </RadioGroup.Item>
+          </Tooltip>
         ))}
       </RadioGroup.Root>
-      <span
-        className={styles.playbackModeDescription}
-        id={descriptionId}
-        role={modeExitReason ? 'status' : undefined}
-      >
-        {modeExitReason ?? (
-          <>
-            {mode === 'ultra-low' && 'Experimental HLS · shortest buffer.'}
-            {mode === 'balanced' && 'Lower delay with moderate recovery margin.'}
-            {mode === 'smooth' && 'Extra recovery margin for unstable connections.'}
-            {mode === 'webrtc' && 'Lowest delay with less recovery margin.'}
-          </>
-        )}
-      </span>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <button
+            type="button"
+            className={styles.playbackModeTrigger}
+            aria-label={`Playback mode: ${currentMode?.label ?? mode}`}
+          >
+            <SlidersHorizontal aria-hidden="true" />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            className={styles.playbackModeMenu}
+            align="end"
+            sideOffset={8}
+            collisionPadding={12}
+            aria-label="Playback mode"
+          >
+            <DropdownMenu.Label className={styles.playbackModeMenuLabel}>
+              Playback mode
+            </DropdownMenu.Label>
+            <DropdownMenu.RadioGroup value={mode} onValueChange={handleModeChange}>
+              {availableModes.map(({ value, label, accessibleLabel, description, icon: Icon }) => (
+                <DropdownMenu.RadioItem
+                  key={value}
+                  value={value}
+                  aria-label={accessibleLabel ?? label}
+                  className={styles.playbackModeMenuOption}
+                  data-mode={value}
+                >
+                  <Icon aria-hidden="true" />
+                  <span className={styles.playbackModeMenuCopy}>
+                    <span>{label}</span>
+                    <small>{description}</small>
+                  </span>
+                  <DropdownMenu.ItemIndicator className={styles.playbackModeMenuCheck}>
+                    <Check aria-hidden="true" />
+                  </DropdownMenu.ItemIndicator>
+                </DropdownMenu.RadioItem>
+              ))}
+            </DropdownMenu.RadioGroup>
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+      {modeExitReason && <span className="sr-only" role="status">{modeExitReason}</span>}
     </div>
   )
 }
@@ -120,6 +194,7 @@ export function LivePlayer({
   theaterMode,
   viewerId,
 }: LivePlayerProps) {
+  const [summaryTarget, setSummaryTarget] = useState<HTMLDivElement | null>(null)
   const playback = usePlaybackMode({
     live: channel.status.live,
     preferredPlayback: channel.preferredPlayback,
@@ -155,6 +230,7 @@ export function LivePlayer({
   )
   const playbackModeControls = channel.status.live ? (
     <PlaybackModeControls
+      summaryTarget={setSummaryTarget}
       balancedUnavailable={balancedUnavailable}
       lowLatencyDisabled={lowLatencyDisabled}
       mode={mode}
@@ -188,6 +264,7 @@ export function LivePlayer({
           onTheaterModeChange={onTheaterModeChange}
           showStats={showStats}
           statsTarget={playbackStatsTarget}
+          summaryTarget={channel.status.live ? summaryTarget : null}
           theaterChatRestoreRef={theaterChatRestoreRef}
           theaterMode={theaterMode}
         />
@@ -202,6 +279,7 @@ export function LivePlayer({
           profileExitReason={modeExitReason}
           showStats={showStats}
           statsTarget={playbackStatsTarget}
+          summaryTarget={channel.status.live ? summaryTarget : null}
           onOpenChat={onOpenChat}
           onTheaterModeChange={onTheaterModeChange}
           theaterChatRestoreRef={theaterChatRestoreRef}

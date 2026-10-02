@@ -50,7 +50,7 @@
 
 .watchTitleRow h1 {
   min-width: 0;
-  flex: 1;
+  flex: 1 1 12rem;
   margin: 0;
   overflow: hidden;
   color: white;
@@ -79,113 +79,58 @@
   line-height: 1.55;
 }
 
-.playbackSettings {
+.playbackStatus {
+  display: grid;
+  gap: 0.4rem;
   margin-top: 1rem;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  background: var(--panel);
 }
 
-.playbackSettingsHeader {
+.playbackStatusToolbar {
   display: flex;
-  min-width: 0;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.7rem 0.85rem;
-}
-
-.playbackSettingsLabel {
-  display: flex;
+  gap: 0.75rem;
   min-width: 0;
-  align-items: center;
-  gap: 0.55rem;
 }
 
-.playbackSettingsLabel > svg {
-  width: 1rem;
-  height: 1rem;
-  flex: none;
-  color: var(--accent-soft);
-}
-
-.playbackSettingsLabel > div {
-  display: grid;
-  min-width: 0;
-  gap: 0.18rem;
-}
-
-.playbackSettingsLabel strong {
-  overflow: hidden;
-  color: var(--text);
-  font-size: 0.75rem;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.playbackSettingsLabel span {
-  overflow: hidden;
-  color: var(--text-faint);
-  font-size: 0.68rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.playbackSettingsTrigger {
+.playbackStatusToggle {
   display: inline-flex;
   flex: none;
   min-height: 2rem;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.35rem 0.55rem;
+  margin-left: auto;
+  padding: 0.3rem 0.45rem;
   border: 0;
   border-radius: 0.35rem;
   background: transparent;
-  color: var(--muted);
+  color: var(--text-faint);
   cursor: pointer;
   font: inherit;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   white-space: nowrap;
 }
 
-.playbackSettingsTrigger:hover {
+.playbackStatusToggle:hover {
   background: rgba(255, 255, 255, 0.07);
   color: var(--text);
 }
 
-.playbackSettingsTrigger:focus-visible {
+.playbackStatusToggle:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 1px;
 }
 
-.playbackSettingsTrigger svg {
-  width: 0.9rem;
-  height: 0.9rem;
-  transition: transform 160ms ease;
-}
-
-.playbackSettings[data-state='open'] .playbackSettingsTrigger svg {
-  transform: rotate(180deg);
-}
-
-.playbackSettingsContent {
-  display: grid;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  border-top: 1px solid var(--line);
-}
-
-.playbackSettingsContent[hidden] {
-  display: none;
-}
-
-.playbackSettingsContent[data-state='closed'] {
-  display: none;
+.playbackStatusToggle svg {
+  width: 0.85rem;
+  height: 0.85rem;
 }
 
 .playbackControlsTarget {
+  flex: none;
   min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
 }
 
 .playbackStatsTarget {
@@ -209,11 +154,12 @@
   overflow-wrap: anywhere;
 }
 
-/* Keep the normal watch details readable when a very long title is supplied. */
-.watchTitleRow > :global(button) {
+.watchInfoRow > :global(button) {
   flex: none;
+  margin-left: auto;
 }
 
+.watchTitleRow,
 .watchInfoRow {
   flex-wrap: wrap;
 }
@@ -637,23 +583,7 @@
     min-height: 20rem;
   }
 
-  .playbackSettingsHeader {
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
 
-  .playbackSettingsLabel span {
-    white-space: normal;
-  }
-
-  .playbackSettingsTrigger {
-    min-height: 1.9rem;
-    padding-inline: 0.35rem;
-  }
-
-  .playbackSettingsContent {
-    padding: 0.5rem;
-  }
 }
 
 .theaterLayout {

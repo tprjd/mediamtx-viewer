@@ -1,5 +1,6 @@
 'use client'
 
+import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Copy } from 'lucide-react'
 import { useEffect, useId, useMemo, useState, type RefObject } from 'react'
 import styles from './playback-stats.module.css'
@@ -7,6 +8,9 @@ import styles from './playback-stats.module.css'
 type PlaybackProtocol = 'WebRTC' | 'HLS'
 
 interface PlaybackStatsProps {
+  showStats?: boolean
+  statsTarget?: HTMLElement | null
+  summaryTarget?: HTMLElement | null
   hlsDiagnostics?: HlsPlaybackDiagnostics
   peerConnection?: RTCPeerConnection | null
   playing: boolean
@@ -512,6 +516,9 @@ async function readMetrics(
 }
 
 export function PlaybackStats({
+  showStats = true,
+  statsTarget,
+  summaryTarget,
   hlsDiagnostics,
   peerConnection,
   playing,
@@ -606,12 +613,12 @@ export function PlaybackStats({
         const sample = await readMetrics(video, peerConnection, previous)
         previous = sample.cursor
         if (active) {
-          const framePacing = summarizeFramePacing(frameSamples)
+          const framePacing = showStats ? summarizeFramePacing(frameSamples) : undefined
           setMetrics({
             ...fallbackCodecs,
             ...sample.metrics,
             audioCodec: sample.metrics.audioCodec ?? fallbackCodecs.audioCodec,
-            decodeTimeMs: framePacing.decodeTimeMs ?? sample.metrics.decodeTimeMs,
+            decodeTimeMs: framePacing?.decodeTimeMs ?? sample.metrics.decodeTimeMs,
             framePacing,
             videoCodec: sample.metrics.videoCodec ?? fallbackCodecs.videoCodec,
           })
@@ -621,8 +628,10 @@ export function PlaybackStats({
       }
     }
 
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    scheduleFrameCallback()
+    if (showStats) {
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+      scheduleFrameCallback()
+    }
     void update()
     const timer = window.setInterval(() => void update(), 1_000)
 
@@ -637,7 +646,7 @@ export function PlaybackStats({
         frameVideo.cancelVideoFrameCallback(frameCallbackHandle)
       }
     }
-  }, [fallbackCodecs, peerConnection, playing, videoRef])
+  }, [fallbackCodecs, peerConnection, playing, showStats, videoRef])
 
   const codecs = [metrics.videoCodec, metrics.audioCodec].filter(Boolean).join(' · ')
   const connection = playing ? 'Playing' : 'Waiting'
@@ -695,7 +704,7 @@ export function PlaybackStats({
     }
   }
 
-  return (
+  const diagnostics = showStats ? (
     <div
       aria-label="Playback diagnostics"
       className={`${styles.playbackDiagnostics}`}
@@ -997,5 +1006,26 @@ export function PlaybackStats({
       </div>
       </div>
     </div>
+  ) : null
+
+  return (
+    <>
+      {summaryTarget && createPortal(
+        <span className={styles.playbackInlineSummary} aria-label="Current playback measurements">
+          <span aria-label="Current resolution">{formatResolution(metrics.width, metrics.height)}</span>
+          <span aria-hidden="true">·</span>
+          <span aria-label="Current frame rate">{formatFrameRate(metrics.framesPerSecond)}</span>
+          <span aria-hidden="true">·</span>
+          <span
+            aria-label="Current live delay"
+            title={protocol === 'HLS' ? 'Measured delay behind the live edge' : 'Live delay is unavailable for WebRTC'}
+          >
+            {formatSeconds(playing ? hlsDiagnostics?.liveLatencySeconds : undefined)}
+          </span>
+        </span>,
+        summaryTarget,
+      )}
+      {showStats && (statsTarget ? createPortal(diagnostics, statsTarget) : diagnostics)}
+    </>
   )
 }

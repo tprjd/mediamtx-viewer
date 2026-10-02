@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here.
 
+## [1.1.0] - 2026-10-02
+
+### Added
+
+- Show live resolution, frame rate, and delay beside the playback mode selector.
+- Add a compact mobile playback mode menu with descriptions and delay targets.
+
+### Changed
+
+- Place compact playback mode controls beside the stream title and the share button beside the Channel details.
+- Use dark selected states, highlight Low in green, and explain playback modes in hover tooltips.
+- Replace the playback settings accordion with a status panel that is hidden by default and has a small show/hide button.
+- Remove hidden status content and stop its frame-timing collection while keeping the title measurements live.
+
 ## [1.0.0] - 2026-09-30
 
 ### Added
