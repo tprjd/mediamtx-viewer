@@ -7,9 +7,16 @@ to deploy after preparation.
 
 ## Prepare the workstation
 
-Install Node.js, Git, Docker CLI with Compose, SOPS, and age. The SSH target must
+Install Node.js 24, Git, Docker CLI with Compose, SOPS, and age. Run `npm ci`
+in the application checkout. The SSH target must
 permit Docker commands. Keep the age private key on the workstation at
 `~/.config/sops/age/keys.txt`, or set `SOPS_AGE_KEY_FILE` to its path.
+
+For the dedicated Mac, use the private controller's
+[manual-operation setup](https://github.com/tprjd/mediamtx-deployment#run-manual-operations-on-the-mac).
+It supplies the local keys and backup directory and puts the Docker adapter on
+`PATH`. The adapter prevents helpers based on legacy images from inheriting
+application service ownership. Use it for manual deployment and recovery too.
 
 The selected tag must have a published `release.json` from a successful
 **Verified ARM64 release** workflow attempt. Preparation accepts appended
@@ -68,7 +75,10 @@ A host-side container name locks preparation for the selected Compose project.
 A lost workstation connection leaves that lock in place. Status reports
 `in-progress-or-interrupted` while the lock exists. Do not delete a lock while
 its owner can still run. Managed deployment status takes precedence when a deployment record exists.
-Interrupted-operation recovery is separate work.
+For preparation within a managed deployment, follow
+[managed recovery](deployment-recovery.md). A standalone `prepare` attempt has
+its own staging lock. Inspect that attempt separately; do not treat it as a
+managed deployment or remove an active lock.
 
 Use `--project NAME` with both commands for an installation with a different
 Compose project name. Use `--directory PATH` to choose private workstation

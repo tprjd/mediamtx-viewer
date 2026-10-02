@@ -86,7 +86,13 @@ connected. Keys and encrypted backup copies stay on the Mac. Release builds
 remain in this public repository; public pull requests cannot use the private
 deployment runner.
 
-After [adoption](../../docs/adopt-installation.md), run from the workstation:
+The production installation is already managed. Leave `adopt` off for subsequent
+deployments. A push to `main` or a tag does not start this manual workflow.
+
+For manual operations, complete the
+[workstation setup](../../docs/deployment-preparation.md#prepare-the-workstation).
+Use the private controller's Docker adapter on the dedicated Mac. After
+[adoption](../../docs/adopt-installation.md), run:
 
 ```sh
 ./deploy/oracle/deploy.sh ubuntu@SERVER_IP vX.Y.Z

@@ -83,7 +83,7 @@ Expiry cleanup applies to the Chat snapshot. Maintenance backup creation does
 not purge the live database. Normal runtime cleanup resumes with the application.
 Existing restore-time Chat retention and compatibility checks still apply.
 
-## Keep maintenance active for a later deployment
+## Hold a standalone backup cycle
 
 Add `--hold` to the backup command:
 
@@ -100,10 +100,9 @@ and writers remain frozen. The durable record is
 verified backup locations, container identities, Chat state, phase, and database
 fingerprints. It contains no key or private application configuration.
 
-A later deployment can consume this completed phase while it holds the same
-operation lock. It must validate the marker and frozen container identities
-before migration or activation. A backup file alone is not an activation permit.
-This ticket does not add migration or activation commands.
+[Managed deployment](managed-deployment.md) creates and owns its own held backup
+cycle. Do not start a separate deployment while a standalone cycle is held.
+A backup file alone does not permit activation.
 
 To resume a held cycle without changing the release, run this command:
 
@@ -116,6 +115,9 @@ node scripts/maintenance-backup.mjs resume \
 Resume requires unchanged database files and the original container identities.
 It checks the previous release before ending maintenance. It never restores or
 replaces either database. A completed attempt cannot be resumed a second time.
+This `resume` command accepts only a verified standalone cycle in phase `held`.
+If the backup belongs to a managed deployment, use
+[managed recovery](deployment-recovery.md) instead.
 
 ## Handle a failed cycle
 
@@ -138,7 +140,11 @@ startup migrations. Never select a database restore merely to clear a backup err
 The operation lock remains at `AUTH_BACKUP_DIR/.backup-lock`. Scheduled backups
 and updated explicit restore commands reject an active lock or unresolved marker.
 A workstation disconnect, host restart, or killed process requires operator
-recovery. Automatic reconciliation for those cases belongs to deployment ticket 06.
+recovery. For a managed deployment, follow
+[Recover an interrupted managed deployment](deployment-recovery.md).
+For a standalone cycle, use `resume` only when its verified phase is `held` and
+the original containers and databases are unchanged. Other phases require
+inspection and repair before resumption.
 A killed verification process can leave a private `.verify-*` directory. Remove
 that directory only after you confirm that its process has stopped.
 

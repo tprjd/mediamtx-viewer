@@ -282,20 +282,29 @@ HLS playback sessions.
 
 ## Checks
 
-For release steps, see [Release the application](docs/releases.md).
-
-Start Docker before running `npm test`. The Chat realtime integration suite
-starts a disposable Centrifugo container and requires a reachable Docker daemon.
-It uses the image pinned in `lib/chat-realtime.integration.test.ts`, not a
-production Chat service. See [Chat test troubleshooting](docs/chat-operations.md#troubleshoot-local-chat-tests)
-for startup failures.
+Use Node.js 24. Start with the local checks below. `test:fast` does not require
+Docker.
 
 ```sh
 npm run typecheck
 npm run lint
-npm test
+npm run test:fast
 npm run build
 ```
+
+Run focused verification groups for the behavior you changed. List them with
+`npm run verify -- list`, then run `npm run verify -- GROUP`.
+See [Run verification](docs/verification.md) for prerequisites and examples.
+
+`npm run test:docker` runs the Docker tests. `npm test` runs the complete Vitest
+suite. Start Docker before either command. The Chat realtime tests use a
+disposable Centrifugo container, not production Chat. See
+[Chat test troubleshooting](docs/chat-operations.md#troubleshoot-local-chat-tests)
+for startup failures.
+
+The release workflow runs all required verification groups before publication.
+Do not repeat the full Docker suite locally when that workflow will run it.
+Follow [Release the application](docs/releases.md) to publish a release.
 
 The PowerShell payload source is in
 [`scripts/windows/setup-frankerzspam-obs.ps1`](./scripts/windows/setup-frankerzspam-obs.ps1),
@@ -358,19 +367,30 @@ user can only read usage reports, compute/volume inventory, and metrics. Its key
 is stored as a SOPS-encrypted deployment secret and is never included in the
 image.
 
-The deployment script validates staged MediaMTX configuration, rebuilds the
-stack, and applies database migrations. It explicitly restarts MediaMTX when
-its configuration changes and reloads Caddy. Without a configuration change,
-Compose can still recreate MediaMTX if its image or service definition changes.
-Deployment also disables Chat and stops Centrifugo. Use the
-[Chat rollout procedure](docs/chat-rollout.md) to enable Chat again.
-Viewer recreation can interrupt authorization and playback. Deployment is not
-an uninterrupted operation.
+GitHub builds and verifies the ARM64 images in this public repository. To deploy,
+open **Actions > Deploy MediaMTX > Run workflow** in the private
+[deployment repository](https://github.com/tprjd/mediamtx-deployment).
+Select `main`, operation `deploy`, and the published release tag. Leave `adopt`
+off for the existing production installation, which is already managed.
 
-Run deployment from the repository root:
+GitHub starts the dedicated runner on the Mac. The Mac connects to the existing
+Oracle VM over SSH and deploys the exact release images. The Mac must be awake,
+logged in, and connected. SSH and encryption keys stay on the Mac. Verified
+encrypted backup copies also stay there, outside the Actions checkout.
+
+Deployment checks the release and host, creates a maintenance backup, applies
+tracked migrations, and checks application, Chat, and proxy health before
+opening public access. It preserves the effective Chat state. Use the
+[Chat rollout procedure](docs/chat-rollout.md) for an explicit Chat state change.
+Maintenance interrupts viewing and publishing. A push to `main` or a release
+tag does not activate production.
+
+For manual operations, first prepare the
+[workstation environment](docs/deployment-preparation.md#prepare-the-workstation).
+The deployment command requires a verified tag:
 
 ```sh
-./deploy/oracle/deploy.sh ubuntu@SERVER_IP
+./deploy/oracle/deploy.sh ubuntu@SERVER_IP vX.Y.Z
 ```
 
 ## Persistent data

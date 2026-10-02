@@ -117,8 +117,10 @@ a real database call escaped the test setup. Check the test doubles instead of
 migrating a development database to make the unit tests pass. Actual database
 failures must still produce the route's `503` response.
 
-After the focused tests pass, run `npm test` for the full suite. Local tests do
-not replace the [release and Chat enable checks](chat-rollout.md).
+After the focused tests pass, run the other verification groups affected by
+your change. See [Run verification](verification.md). The release workflow runs
+the full required set before publication. Local tests do not replace the
+[release and Chat enable checks](chat-rollout.md).
 
 ## Clear one Channel's Chat history
 

@@ -24,7 +24,15 @@ mode `0700`. Keep encryption keys separate from backup copies.
 
 ## Deploy the selected tag
 
-Run this command from the repository:
+For production, open **Actions > Deploy MediaMTX > Run workflow** in the private
+[deployment repository](https://github.com/tprjd/mediamtx-deployment).
+Select `main`, operation `deploy`, and the verified tag. Leave `adopt` off for an
+already managed installation. The dedicated Mac connects to Oracle over SSH.
+It keeps the keys and encrypted backup copies outside the Actions checkout.
+
+For manual deployment, complete the
+[workstation setup](deployment-preparation.md#prepare-the-workstation), including
+the private controller's Docker adapter on the dedicated Mac. Run:
 
 ```sh
 sh deploy/oracle/deploy.sh ubuntu@your-host vX.Y.Z

@@ -3,9 +3,21 @@
 These commands recover managed deployment and adoption attempts. They never
 restore databases automatically. The old upload and VM-build command is retired.
 
+## Prepare the Mac environment
+
+The private GitHub workflow supports `status` and `deploy`. Run recovery from
+a terminal on the dedicated Mac. Follow the controller's
+[manual-operation setup](https://github.com/tprjd/mediamtx-deployment#run-manual-operations-on-the-mac)
+before using the commands below. Use the attempt's application tooling and the
+same target, Compose project, and private backup directory as deployment.
+
+Keep the controller's `bin` directory on `PATH` so manual commands use its Docker
+adapter. Load `SOPS_AGE_KEY_FILE` and `AUTH_BACKUP_KEY` from local private storage.
+Do not run the GitHub-only `scripts/deploy.mjs` directly from the terminal.
+
 ## Inspect the attempt
 
-From a fresh workstation connection, run:
+From the prepared workstation environment, run:
 
 ```sh
 sh deploy/oracle/deploy.sh status TARGET --project mediamtx-viewer
