@@ -42,13 +42,12 @@
   transition: opacity 160ms ease;
 }
 
-.mediaPlayer:not([data-fullscreen]):focus-within .mediaControls,
 .mediaControls[data-visible] {
   opacity: 1;
   pointer-events: auto;
 }
 
-.mediaPlayer[data-fullscreen]:not(:has(.mediaControls[data-visible])) {
+.mediaPlayer:not(:has(.mediaControls[data-visible])) {
   cursor: none;
 }
 
@@ -200,7 +199,6 @@
   }
 }
 
-.mediaPlayer:not([data-fullscreen]):focus-within :global(.protocol-badge),
 .mediaPlayer:has(.mediaControls[data-visible]) :global(.protocol-badge) {
   opacity: 1;
 }
