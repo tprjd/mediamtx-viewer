@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth/client'
@@ -9,6 +10,8 @@ import { providerErrorMessage, providerNames } from '@/lib/auth/provider-message
 import { safeReturnTo } from '@/lib/auth/validation'
 import styles from './providers.module.css'
 
+// Brand assets: https://developers.google.com/identity/branding-guidelines
+// and https://discord.com/branding. Keep each provider's logo colors intact.
 export function ProviderSignIn({ providers, returnTo = '/' }: { providers: OAuthProvider[]; returnTo?: string }) {
   const [pending, setPending] = useState<OAuthProvider | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -35,8 +38,23 @@ export function ProviderSignIn({ providers, returnTo = '/' }: { providers: OAuth
     <div className={styles.signIn}>
       <div className={styles.buttons}>
         {providers.map((provider) => (
-          <Button key={provider} variant="secondary" disabled={pending !== null} onClick={() => void signIn(provider)}>
-            {pending === provider ? 'Connecting…' : `Continue with ${providerNames[provider]}`}
+          <Button
+            key={provider}
+            variant="secondary"
+            className={`${styles.providerButton} ${styles[provider]}`}
+            disabled={pending !== null}
+            aria-busy={pending === provider}
+            onClick={() => void signIn(provider)}
+          >
+            <Image
+              src={provider === 'google' ? '/brands/google-g.png' : '/brands/discord-white.svg'}
+              alt=""
+              width={provider === 'google' ? 20 : 24}
+              height={provider === 'google' ? 20 : 18}
+              className={styles.providerLogo}
+              unoptimized
+            />
+            <span>{pending === provider ? 'Connecting…' : `Continue with ${providerNames[provider]}`}</span>
           </Button>
         ))}
       </div>
