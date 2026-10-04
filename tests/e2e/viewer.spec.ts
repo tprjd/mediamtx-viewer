@@ -648,6 +648,7 @@ test('matches the offline watch state', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/watch/alpha')
   await expect(page.getByText('Stream offline')).toBeVisible()
+  await expect(page.getByText('Browser-test directory Channel.')).toBeVisible()
 
   const documentSize = await page.evaluate(() => ({
     clientHeight: document.documentElement.clientHeight,
@@ -867,10 +868,9 @@ test('shows Channel-owner and administrator header actions', async ({ page }) =>
 
 test('registers without administrator approval and requires email verification for publishing and viewing requests', async ({ page }) => {
   await page.context().clearCookies()
-  const username = `new_${randomUUID().replaceAll('-', '').slice(0, 16)}`
+  const username = `e2e_new_${randomUUID().replaceAll('-', '').slice(0, 16)}`
   const email = `${username}@example.test`
-  const database = new Database('.data/e2e-auth.sqlite')
-  database.pragma('foreign_keys = ON')
+  const database = new Database('.data/e2e-auth.sqlite', { readonly: true })
   try {
     await page.goto('/register')
     await expect(page.getByRole('heading', { name: 'Create an account.' })).toBeVisible()
@@ -901,7 +901,8 @@ test('registers without administrator approval and requires email verification f
     expect((await page.request.get('/api/channels/live/thumbnail')).status()).toBe(403)
     expect(database.prepare('SELECT COUNT(*) AS count FROM channel_viewing_request WHERE viewer_id = ?').get(account.id)).toEqual({ count: 0 })
   } finally {
-    database.prepare('DELETE FROM user WHERE email = ?').run(email)
+    // Global teardown removes these accounts after all registration checks end.
+    // External writes here can invalidate another worker's registration snapshot.
     database.close()
   }
 })

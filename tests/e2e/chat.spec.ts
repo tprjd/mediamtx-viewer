@@ -2041,6 +2041,7 @@ test('restore drill keeps authentication and playback available during an indepe
   const chat = page.getByRole('complementary', { name: 'Chat' })
   const retained = `before-backup-${randomUUID()}`
   const later = `after-backup-${randomUUID()}`
+  await expect(chat.getByRole('log')).toHaveAttribute('data-realtime-state', 'connected')
   expect((await postChat(page, retained)).ok()).toBe(true)
   await expect(chat.getByText(retained, { exact: true })).toBeVisible()
   const backupDirectory = mkdtempSync(resolve(tmpdir(), 'chat-restore-drill-'))
