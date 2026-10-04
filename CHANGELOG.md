@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.2.5] - 2026-10-04
+
+### Fixed
+
+- Bundle provider logos as public application assets so signed-out users can load them through the production proxy.
+
 ## [1.2.4] - 2026-10-04
 
 ### Fixed

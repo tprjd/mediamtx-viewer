@@ -8,6 +8,8 @@ import { authClient } from '@/lib/auth/client'
 import type { OAuthProvider } from '@/lib/auth/oauth'
 import { providerErrorMessage, providerNames } from '@/lib/auth/provider-messages'
 import { safeReturnTo } from '@/lib/auth/validation'
+import googleLogo from '@/public/brands/google-g.png'
+import discordLogo from '@/public/brands/discord-white.svg'
 import styles from './providers.module.css'
 
 // Brand assets: https://developers.google.com/identity/branding-guidelines
@@ -47,7 +49,7 @@ export function ProviderSignIn({ providers, returnTo = '/' }: { providers: OAuth
             onClick={() => void signIn(provider)}
           >
             <Image
-              src={provider === 'google' ? '/brands/google-g.png' : '/brands/discord-white.svg'}
+              src={provider === 'google' ? googleLogo : discordLogo}
               alt=""
               width={provider === 'google' ? 20 : 24}
               height={provider === 'google' ? 20 : 18}
