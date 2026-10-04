@@ -58,7 +58,7 @@ const insertUser = database.prepare(`
 `)
 const updateUser = database.prepare(`
   UPDATE user
-  SET name = ?, updatedAt = ?, activationStatus = 'active', disabledAt = NULL
+  SET name = ?, updatedAt = ?, activationStatus = 'active', disabledAt = NULL, administratorApproved = 1, legacyAccess = 1
   WHERE id = ?
 `)
 const insertChannel = database.prepare(`
@@ -88,6 +88,7 @@ database.transaction(() => {
       admin.id,
     )
     updateUser.run(fixture.name, now + index, fixture.id)
+    database.prepare('UPDATE channel SET slug = ?, media_path = ? WHERE owner_user_id = ?').run(fixture.slug, `channels/${fixture.slug}`, fixture.id)
     insertChannel.run(
       `e2e-directory-${fixture.slug}-channel`,
       fixture.id,
@@ -124,10 +125,13 @@ database.transaction(() => {
     .run(now, now, now, admin.id)
   database
     .prepare(
-      `UPDATE user SET activationStatus = 'active', disabledAt = NULL, updatedAt = ?
+      `UPDATE user SET activationStatus = 'active', disabledAt = NULL, administratorApproved = 1, legacyAccess = 1, updatedAt = ?
        WHERE id = 'e2e-chat-participant'`,
     )
     .run(now)
+  // This participant now receives a channel at registration. Keep the unused
+  // channel out of the directory fixtures while retaining account ownership.
+  database.prepare("UPDATE channel SET enabled = 0 WHERE owner_user_id = 'e2e-chat-participant'").run()
   database
     .prepare(
       `INSERT INTO account (

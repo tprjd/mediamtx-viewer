@@ -9,7 +9,7 @@ vi.mock('server-only', () => ({}))
 const session = vi.hoisted(() => ({ accountId: 'owner' as string | null }))
 vi.mock('@/lib/auth/session', () => ({
   getActiveSession: async () =>
-    session.accountId ? { user: { id: session.accountId } } : null,
+    session.accountId ? { user: { id: session.accountId }, session: { id: 'test-session' } } : null,
 }))
 vi.mock('@/lib/mediamtx', () => ({
   getChannelStatus: async () => ({ live: true }),
@@ -128,12 +128,13 @@ beforeAll(async () => {
     expect(result.status, result.stderr.toString()).toBe(0)
   }
   const { getDatabase } = await import('@/lib/auth/database')
+  getDatabase().exec('DROP TRIGGER account_channel_created')
   for (const id of ['admin', 'owner', 'participant']) {
     getDatabase()
       .prepare(
         `INSERT INTO user
-      (id, name, email, emailVerified, createdAt, updatedAt, role, activationStatus)
-      VALUES (?, ?, ?, 0, 0, 0, ?, 'active')`,
+      (id, name, email, emailVerified, legacyAccess, administratorApproved, createdAt, updatedAt, role, activationStatus)
+      VALUES (?, ?, ?, 0, 1, 1, 0, 0, ?, 'active')`,
       )
       .run(id, id, `${id}@test.invalid`, id === 'admin' ? 'admin' : 'user')
   }

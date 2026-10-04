@@ -1,3 +1,5 @@
+import { EmailVerification } from '@/components/auth/email-verification'
+import { getAccountAccess } from '@/lib/viewing-access'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
@@ -24,6 +26,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
     requireActiveSession(),
     searchParams,
   ])
+  const access = getAccountAccess(session.user.id)
   const sessions = listUserSessions(session.user.id)
   const channel = getOwnedChannel(session.user.id)
 
@@ -48,6 +51,10 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
             <Link className={styles.secondaryButton} href="/account/channel">
               {channel ? 'Manage channel' : 'Channel status'} <ArrowUpRight aria-hidden="true" />
             </Link>
+          </section>
+          <section className={styles.card}><h2>Email and viewing access</h2>
+            {access?.emailVerified ? <p>Email verified. Password accounts can recover access by email.</p> : <EmailVerification email={session.user.email} legacy={Boolean(access?.legacyAccess)} buttonClassName={styles.secondaryButton} />}
+            <p>{access?.administratorApproved ? 'An administrator approved your account to watch all channels.' : 'Ask each channel owner for viewing access. Your own channel is always available.'}</p>
           </section>
           <AccountSignInMethods methods={getSignInMethods(session.user.id)} />
         </div>

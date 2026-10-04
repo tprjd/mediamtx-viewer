@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('server-only', () => ({}))
+vi.mock('@/lib/viewing-access', () => ({ canWatchChannel: vi.fn(() => true) }))
 
 vi.mock('@/lib/auth/session', () => ({
   getActiveSession: mocks.getActiveSession,
@@ -76,7 +77,7 @@ function postRequest(content: unknown): Request {
 
 beforeEach(() => {
   process.env.CHAT_ENABLED = 'true'
-  mocks.getActiveSession.mockResolvedValue({ user: { id: 'viewer-id' } })
+  mocks.getActiveSession.mockResolvedValue({ user: { id: 'viewer-id' }, session: { id: 'test-session' } })
   mocks.getChatChannel.mockReturnValue(channel)
   mocks.getChatModeratorRole.mockReturnValue(null)
   mocks.getChannelStatus.mockResolvedValue({ live: true, state: 'live' })

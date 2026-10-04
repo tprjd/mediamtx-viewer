@@ -2,7 +2,7 @@ import type { BetterAuthOptions } from 'better-auth'
 import { getOAuthState, getSessionFromCtx } from 'better-auth/api'
 import { google, verifyGoogleIdToken } from 'better-auth/social-providers'
 
-import { getRegistrationOpen, getUserStatus } from './store'
+import { getUserStatus } from './store'
 
 export type OAuthProvider = 'google' | 'discord'
 
@@ -53,7 +53,6 @@ export const validateProviderUser: NonNullable<NonNullable<BetterAuthOptions['us
   if (!user.email || user.emailVerified !== true) return { error: 'PROVIDER_EMAIL_NOT_VERIFIED' }
 
   if (source.action === 'create-user') {
-    if (!getRegistrationOpen()) return { error: 'REGISTRATION_CLOSED' }
     return
   }
 

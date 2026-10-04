@@ -1,5 +1,7 @@
 'use server'
 
+import { setAdministratorApproval } from '@/lib/viewing-requests'
+import { dispatchAccessRevocations } from '@/lib/access-revocations'
 import { redirect } from 'next/navigation'
 
 import { requireAdminSession } from '@/lib/auth/session'
@@ -8,10 +10,8 @@ import {
   clearAuditEntries,
   createPasswordResetToken,
   disableUser,
-  rejectPendingUser,
   revokeSession,
   revokeUserSessions,
-  setRegistrationOpen,
 } from '@/lib/auth/store'
 import { grantStreaming, setChannelEnabled } from '@/lib/channels'
 import { disconnectChatParticipant } from '@/lib/chat-realtime'
@@ -37,7 +37,7 @@ async function runAdminAction(action: (actorId: string) => void | Promise<void>)
 
 export async function activateAction(userId: string) {
   await runAdminAction((actorId) => activateUser(actorId, userId))
-  redirect(destination('notice', 'Account activated.'))
+  redirect(destination('notice', 'Account restored. Viewing approval is unchanged.'))
 }
 
 export async function disableAction(userId: string) {
@@ -102,11 +102,6 @@ export async function channelEnabledAction(userId: string, formData: FormData) {
   )
 }
 
-export async function rejectAction(userId: string) {
-  await runAdminAction((actorId) => rejectPendingUser(actorId, userId))
-  redirect(destination('notice', 'Registration rejected.'))
-}
-
 export async function revokeAllSessionsAction(userId: string) {
   await runAdminAction((actorId) => {
     revokeUserSessions(actorId, userId)
@@ -117,12 +112,6 @@ export async function revokeAllSessionsAction(userId: string) {
 export async function revokeSessionAction(sessionId: string) {
   await runAdminAction((actorId) => revokeSession(actorId, sessionId))
   redirect(destination('notice', 'Session revoked.'))
-}
-
-export async function registrationAction(formData: FormData) {
-  const open = formData.get('open') === 'true'
-  await runAdminAction((actorId) => setRegistrationOpen(actorId, open))
-  redirect(destination('notice', open ? 'Registration opened.' : 'Registration closed.'))
 }
 
 export async function resetLinkAction(userId: string) {
@@ -146,4 +135,13 @@ export async function clearActivityAction() {
         : `Cleared ${clearedEntries} activity entries.`,
     ),
   )
+}
+
+export async function administratorApprovalAction(userId: string, form: FormData) {
+  const approved = form.get('approved') === 'true'
+  await runAdminAction(async (actorId) => {
+    setAdministratorApproval(actorId, userId, approved)
+    await dispatchAccessRevocations()
+  })
+  redirect(destination('notice', approved ? 'All-channel viewing approved.' : 'Global viewing approval removed. Stored channel approvals remain.'))
 }

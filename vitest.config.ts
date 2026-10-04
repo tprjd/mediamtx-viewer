@@ -20,7 +20,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     ...(suite === 'docker' ? { include: testGroups.docker, maxWorkers: 2 } : {}),
-    exclude: ['tests/e2e/**', 'node_modules/**', '.next/**', '.data/**',
+    exclude: ['tests/e2e/**', 'node_modules/**', '.next*/**', '.data/**',
       ...(suite === 'fast' ? testGroups.docker : [])],
     setupFiles: ['./vitest.setup.ts'],
     coverage: {

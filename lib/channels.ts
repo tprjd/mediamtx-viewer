@@ -2,6 +2,7 @@ import 'server-only'
 
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 
+import { hasVerifiedOrLegacyAccountAccess } from '@/lib/viewing-access'
 import { getDatabase } from '@/lib/auth/database'
 import { recordAudit } from '@/lib/auth/store'
 import {
@@ -96,21 +97,21 @@ const publicColumns = `
   channel.created_at AS createdAt, channel.updated_at AS updatedAt,
   channel_stream_key.token_hint AS tokenHint`
 
-export function getChannels(): Channel[] {
+export function getChannels(viewerId = ''): Channel[] {
   const rows = getDatabase()
     .prepare(
       `SELECT ${publicColumns}
        FROM channel
        JOIN user ON user.id = channel.owner_user_id
        LEFT JOIN channel_stream_key ON channel_stream_key.channel_id = channel.id
-       WHERE channel.enabled = 1 AND user.activationStatus = 'active'
+       WHERE user.activationStatus = 'active' AND (channel.owner_user_id = ? OR (channel.enabled = 1 AND (user.emailVerified = 1 OR user.legacyAccess = 1)))
        ORDER BY channel.created_at ASC`,
     )
-    .all() as ChannelRow[]
+    .all(viewerId) as ChannelRow[]
   return rows.map(toChannel)
 }
 
-export function getChannel(slug: string): Channel | undefined {
+export function getChannel(slug: string, viewerId = ''): Channel | undefined {
   const parsed = channelSlugSchema.safeParse(slug)
   if (!parsed.success) return undefined
   const row = getDatabase()
@@ -120,10 +121,10 @@ export function getChannel(slug: string): Channel | undefined {
        JOIN user ON user.id = channel.owner_user_id
        LEFT JOIN channel_stream_key ON channel_stream_key.channel_id = channel.id
        WHERE channel.slug = ? COLLATE NOCASE
-         AND channel.enabled = 1
+         AND (channel.enabled = 1 OR channel.owner_user_id = ?)
          AND user.activationStatus = 'active'`,
     )
-    .get(parsed.data) as ChannelRow | undefined
+    .get(parsed.data, viewerId) as ChannelRow | undefined
   return row ? toChannel(row) : undefined
 }
 
@@ -346,7 +347,7 @@ export function createOrRotateStreamKey(ownerUserId: string): GeneratedStreamKey
         }
       | undefined
     if (!row) throw new Error('You do not have a channel')
-    if (row.activationStatus !== 'active' || row.enabled !== 1) {
+    if (!hasVerifiedOrLegacyAccountAccess(ownerUserId) || row.enabled !== 1) {
       throw new Error('Streaming is currently disabled')
     }
 
@@ -384,7 +385,7 @@ export function authorizePublish(mediaPath: string, token: string): boolean {
        JOIN user ON user.id = channel.owner_user_id
        WHERE channel_stream_key.token_hash = ?
          AND channel.enabled = 1
-         AND user.activationStatus = 'active'`,
+         AND user.activationStatus = 'active' AND (user.emailVerified = 1 OR user.legacyAccess = 1)`,
     )
     .get(hashStreamKey(token)) as { mediaPath: string } | undefined
   return row?.mediaPath === mediaPath

@@ -73,7 +73,7 @@ export function useChatRealtime({
       minReconnectDelay: 250,
       maxReconnectDelay: 3_000,
       timeout: 3_000,
-      getToken: async () => {
+      getData: async () => {
         const response = await fetch(tokenEndpoint, { cache: 'no-store' })
         const result = (await response.json()) as {
           token?: string
@@ -82,7 +82,7 @@ export function useChatRealtime({
           clearPending?: boolean
           error?: string
         }
-        if (disposed) return ''
+        if (disposed) return {}
         if (response.status === 401 || response.status === 403) {
           throw new UnauthorizedError(result.error ?? 'Chat access denied.')
         }
@@ -93,7 +93,7 @@ export function useChatRealtime({
           handleHistoryCleared(result.clearedThrough!, result.restoreGeneration)
         }
         if (result.clearPending) throw new Error('Chat history is being cleared.')
-        return result.token
+        return { token: result.token }
       },
     })
     client.on('publication', (context) => {
@@ -129,7 +129,6 @@ export function useChatRealtime({
       if (context.code === 4001) {
         restored = true
         // A fresh token is unavailable until restore validation and cleanup finish.
-        client.setToken('')
       }
       setState('connecting')
     })

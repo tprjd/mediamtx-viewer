@@ -64,9 +64,9 @@ Set both values for each provider. An incomplete pair disables that provider. Re
 
 1. Use an existing active account with a matching verified Gmail address to sign in with Google. Check that it retains its name, channel, and access.
 2. Sign in to an existing account and link Discord from Account settings. Check that Discord then signs in to the same account.
-3. Open registration and use a new provider identity. Check that the site reports pending approval.
-4. Activate that account as an administrator, then sign in with the same provider again.
-5. Close registration and check that existing accounts can still sign in.
+3. Register with a new provider identity. Check that the account can sign in and owns a channel.
+4. Grant Administrator approval to that account, then check that it can watch all channels.
+5. Check that an account without Administrator approval needs Channel approval to watch another channel.
 6. Link a second sign-in method and disconnect one provider. Check that the remaining method works.
 
 Automated callback tests use controlled provider responses and test Google signing keys. They do not replace this check with real provider applications.

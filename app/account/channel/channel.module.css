@@ -140,6 +140,8 @@
   margin: 0 0 20px;
 }
 
+.verificationPanel { margin-bottom: 22px; }
+
 .dashboard {
   display: grid;
   grid-template-columns: minmax(0, 1.37fr) minmax(0, 1fr);

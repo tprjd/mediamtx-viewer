@@ -33,14 +33,14 @@ export async function checkChatProxy() {
   })
   auth.keepAliveTimeout = 60000
   auth.on('upgrade', (_request, socket) => socket.destroy())
-  const broker = createServer()
+  const broker = createServer((_request, response) => response.writeHead(201).end('media endpoint'))
   const sockets = new WebSocketServer({server: broker})
   let brokerRequest
   sockets.on('connection', (socket, request) => {
     brokerRequest = request
     socket.send('authenticated')
   })
-  const listen = server => new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  const listen = server => new Promise(resolve => server.listen(0, '0.0.0.0', resolve))
   const close = server => new Promise(resolve => server.close(resolve))
   try {
     await listen(auth)
@@ -52,10 +52,11 @@ export async function checkChatProxy() {
     const configuration = readFileSync('deploy/oracle/Caddyfile', 'utf8')
       .replaceAll('{$PUBLIC_HOSTNAME}', `http://127.0.0.1:${port}`)
       .replaceAll('{$INTERNAL_AUTH_SECRET}', secret)
-      .replaceAll('viewer:3000', `127.0.0.1:${auth.address().port}`)
-      .replaceAll('centrifugo:8000', `127.0.0.1:${broker.address().port}`)
+      .replaceAll('viewer:3000', `host.docker.internal:${auth.address().port}`)
+      .replaceAll('centrifugo:8000', `host.docker.internal:${broker.address().port}`)
+      .replaceAll('mediamtx:8889', `host.docker.internal:${broker.address().port}`)
     writeFileSync(join(directory, 'Caddyfile'), configuration)
-    execFileSync('docker', ['run', '-d', '--rm', '--name', container, '--network', 'host',
+    execFileSync('docker', ['run', '-d', '--rm', '--name', container, '--add-host', 'host.docker.internal:host-gateway', '--publish', `127.0.0.1:${port}:${port}`,
       '-v', `${directory}/Caddyfile:/etc/caddy/Caddyfile:ro`, 'caddy:2.11.4-alpine'], {stdio: 'pipe'})
     const origin = `http://127.0.0.1:${port}`
     const deadline = Date.now() + 10000
@@ -80,6 +81,19 @@ export async function checkChatProxy() {
     assert.equal(await connect('proxy-check=active'), 'authenticated')
     assert.equal(brokerRequest.url, '/connection/websocket')
     assert.equal(brokerRequest.headers.cookie, undefined)
+    for (const cookie of ['', 'proxy-check=inactive', 'proxy-check=active']) {
+      const readAlias = await fetch(`${origin}/publish/whip/channels/test/whep`, {
+        method: 'POST', headers: { cookie }, signal: AbortSignal.timeout(3000),
+      })
+      assert.equal(readAlias.status, 404, 'The public WHIP prefix must not expose WHEP readers')
+    }
+    for (const suffix of ['whip', 'whip/test-session']) {
+      const publisher = await fetch(`${origin}/publish/whip/channels/test/${suffix}`, {
+        method: 'POST', signal: AbortSignal.timeout(3000),
+      })
+      assert.equal(publisher.status, 201, 'WHIP publishing and resource endpoints remain reachable')
+      await publisher.text()
+    }
     const post = () => fetch(`${origin}/capacity-proxy-check`, {
       method: 'POST', headers: {cookie: 'proxy-check=active'}, body: 'proxy check',
       signal: AbortSignal.timeout(3000),

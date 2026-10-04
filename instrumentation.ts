@@ -1,5 +1,7 @@
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { startAccessRevocationDispatcher } = await import('@/lib/access-revocations')
+    startAccessRevocationDispatcher()
     const { startChatRetention } = await import('@/lib/chat-retention')
     await startChatRetention()
     const { startChatOutboxDispatcher } = await import('@/lib/chat-outbox')

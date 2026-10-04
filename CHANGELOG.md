@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented here.
 
+## [2.0.0] - 2026-10-04
+
+### Added
+
+- Open registration with an automatic channel for each account.
+- Persistent channel viewing approvals, request history, revocation, and a 30-minute retry delay.
+- Header notifications with request decisions, unread counts, and a sound preference shared across devices.
+- Email verification and password recovery through configurable SMTP delivery.
+
+### Changed
+
+- Separate Administrator approval for viewing all channels from Account suspension.
+- Hide restricted channel thumbnails and block playback and Chat until the viewer has permission.
+- Preserve existing active accounts' access and create missing channels during migration 007.
+- Require the updated Centrifugo connect and refresh configuration with this viewer version.
+- Require production SMTP configuration before enabling the new email-dependent account flows.
+
+### Fixed
+
+- Hide player controls and the cursor after idle mouse interaction.
+- Keep paused HLS frames stable and resume loading when playback restarts.
+- Recheck the original sign-in session during Chat connection refresh.
+
 ## [1.2.5] - 2026-10-04
 
 ### Fixed

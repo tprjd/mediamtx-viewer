@@ -168,7 +168,7 @@ describe('Centrifugo Chat delivery', () => {
       `ws://127.0.0.1:${port}/connection/websocket`,
       {
         getToken: async () =>
-          createChatConnectionToken({ accountId, channelId, secret: tokenSecret }),
+          createChatConnectionToken({ accountId, channelId, sessionId: 'test-session', secret: tokenSecret }),
         websocket: WebSocket,
       },
     )
@@ -235,6 +235,7 @@ describe('Centrifugo Chat delivery', () => {
         getToken: async () => {
           tokenRequests += 1
           return createChatConnectionToken({
+            sessionId: 'test-session',
             accountId: 'refresh-participant',
             channelId: 'refresh-channel',
             now:
@@ -277,6 +278,7 @@ describe('Centrifugo Chat delivery', () => {
       vi.spyOn(console, 'error'),
     ]
     const token = createChatConnectionToken({
+      sessionId: 'test-session',
       accountId: 'log-participant',
       channelId: 'log-room',
     })

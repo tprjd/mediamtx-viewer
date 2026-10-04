@@ -31,6 +31,7 @@ export async function GET(
       token: createChatConnectionToken({
         accountId: access.accountId,
         channelId: access.channel.id,
+        sessionId: access.sessionId,
       }),
     },
     { headers: responseHeaders },

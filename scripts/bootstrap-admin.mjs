@@ -87,6 +87,8 @@ database.transaction(() => {
        VALUES (?, ?, ?, 'bootstrap_admin', '{}', ?)`,
     )
     .run(randomUUID(), userId, userId, now)
+  database.prepare('DELETE FROM channel WHERE owner_user_id = ?').run(userId)
+  database.prepare('UPDATE user SET administratorApproved = 1, legacyAccess = 1 WHERE id = ?').run(userId)
   database
     .prepare(
       `INSERT INTO channel (

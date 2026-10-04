@@ -24,6 +24,7 @@ describe('Chat realtime credentials', () => {
     const secret = 'test-centrifugo-token-secret-at-least-32-characters'
     const token = createChatConnectionToken({
       accountId: 'participant-id',
+      sessionId: 'session-id',
       channelId: 'stable-channel-id',
       now: new Date('2026-09-11T10:00:00.000Z'),
       secret,
@@ -41,6 +42,7 @@ describe('Chat realtime credentials', () => {
       iat: 1_789_120_800,
       iss: 'frankerzspam-viewer',
       sub: 'participant-id',
+      sid: 'session-id',
     })
     expect(signature).toBe(
       createHmac('sha256', secret)

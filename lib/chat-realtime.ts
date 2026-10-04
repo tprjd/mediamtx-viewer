@@ -11,6 +11,7 @@ const CHAT_TOKEN_LIFETIME_SECONDS = 5 * 60
 interface CreateChatConnectionTokenInput {
   accountId: string
   channelId: string
+  sessionId: string
   now?: Date
   secret?: string
 }
@@ -35,6 +36,7 @@ function encodeJwtPart(value: unknown): string {
 export function createChatConnectionToken({
   accountId,
   channelId,
+  sessionId,
   now = new Date(),
   secret = chatEnvironment.centrifugoTokenHmacSecret,
 }: CreateChatConnectionTokenInput): string {
@@ -50,6 +52,7 @@ export function createChatConnectionToken({
     iat: issuedAt,
     iss: CHAT_TOKEN_ISSUER,
     sub: accountId,
+    sid: sessionId,
   })
   const unsignedToken = `${header}.${payload}`
   const signature = createHmac('sha256', secret)

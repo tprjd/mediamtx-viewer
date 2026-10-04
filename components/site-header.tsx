@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { Suspense } from 'react'
 import styles from './site-header.module.css'
 
+import { NotificationCenter } from '@/components/notification-center'
+import { listNotifications } from '@/lib/viewing-requests'
 import { UserMenu } from '@/components/auth/user-menu'
 import { SessionRenewal } from '@/components/auth/session-renewal'
 import { getActiveSession } from '@/lib/auth/session'
@@ -18,6 +20,7 @@ async function AccountNavigation() {
   return (
     <>
       {session && <SessionRenewal key={session.session.id} />}
+      {session && <NotificationCenter userId={session.user.id} initial={listNotifications(session.user.id)} />}
       <UserMenu
         hasOwnedChannel={hasOwnedChannel}
         user={

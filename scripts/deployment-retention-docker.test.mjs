@@ -38,7 +38,7 @@ it('retains two accepted releases and two encrypted sets on both machines after 
     expect(inventory.gone).toBe(true)
     expect(inventory.ids).toEqual([viewer.Image, viewer.Image])
     const cleanup = await command('cleanup')
-    expect(cleanup.status, cleanup.stderr).toBe(0)
+    expect(cleanup.status, cleanup.stderr + cleanup.diagnostic).toBe(0)
     expect(JSON.parse(cleanup.stdout).retention.registry.cleanup).toBe('disabled')
   }, { managed: true })
 }, 600000)

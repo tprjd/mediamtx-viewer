@@ -5,31 +5,20 @@ import styles from '../auth.module.css'
 import { RegisterForm } from '@/components/auth/register-form'
 import { ProviderSignIn } from '@/components/auth/provider-sign-in'
 import { configuredProviders } from '@/lib/auth/oauth'
-import { getRegistrationOpen } from '@/lib/auth/store'
 
-export const metadata: Metadata = { title: 'Request access' }
+export const metadata: Metadata = { title: 'Create account' }
 export const dynamic = 'force-dynamic'
 
 export default function RegisterPage() {
-  const registrationOpen = getRegistrationOpen()
-
   return (
     <main className={styles.authLayout}>
       <section className={styles.authCard}>
         <p className="eyebrow">Account access</p>
-        <h1>{registrationOpen ? 'Request an account.' : 'Registration is closed.'}</h1>
-        {registrationOpen ? (
-          <>
-            <p>An administrator must activate your account before you can sign in.</p>
-            <ProviderSignIn providers={configuredProviders()} />
-            <RegisterForm />
-          </>
-        ) : (
-          <p>Ask the administrator to open a registration window for you.</p>
-        )}
-        <p className={styles.authFootnote}>
-          Already registered? <Link href="/login">Sign in</Link>
-        </p>
+        <h1>Create an account.</h1>
+        <p>Your channel is created with your account. Verify your email to stream and request permission to watch other channels.</p>
+        <ProviderSignIn providers={configuredProviders()} />
+        <RegisterForm />
+        <p className={styles.authFootnote}>Already registered? <Link href="/login">Sign in</Link></p>
       </section>
     </main>
   )

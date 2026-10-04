@@ -1,5 +1,6 @@
 {
   "docker": [
+    "lib/chat-proxy.integration.test.ts",
     "lib/chat-realtime.integration.test.ts",
     "scripts/database-backups.test.mjs",
     "scripts/stage-release.test.mjs",

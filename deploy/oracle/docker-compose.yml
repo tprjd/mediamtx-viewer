@@ -35,10 +35,13 @@ services:
       CENTRIFUGO_CHANNEL_NAMESPACES: >-
         [{"name":"chat","history_size":300,"history_ttl":"30s","force_recovery":true,"force_positioning":true,"allow_subscribe_for_client":false,"allow_publish_for_client":false,"allow_publish_for_subscriber":false},{"name":"control","allow_subscribe_for_client":false,"allow_publish_for_client":false,"allow_publish_for_subscriber":false}]
       CENTRIFUGO_CLIENT_ALLOWED_ORIGINS: https://${PUBLIC_HOSTNAME:?Set PUBLIC_HOSTNAME in caddy.env}
-      CENTRIFUGO_CLIENT_DISALLOW_ANONYMOUS_CONNECTION_TOKENS: "true"
-      CENTRIFUGO_CLIENT_TOKEN_AUDIENCE: frankerzspam-chat
-      CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY: ${CENTRIFUGO_TOKEN_HMAC_SECRET:?Set CENTRIFUGO_TOKEN_HMAC_SECRET in caddy.env}
-      CENTRIFUGO_CLIENT_TOKEN_ISSUER: frankerzspam-viewer
+      CENTRIFUGO_CLIENT_PROXY_CONNECT_ENABLED: "true"
+      CENTRIFUGO_CLIENT_PROXY_CONNECT_ENDPOINT: http://viewer:3000/api/internal/chat/connect
+      CENTRIFUGO_CLIENT_PROXY_CONNECT_HTTP_STATIC_HEADERS: '{"X-Internal-Auth":"${INTERNAL_AUTH_SECRET}"}'
+      CENTRIFUGO_CLIENT_PROXY_REFRESH_ENABLED: "true"
+      CENTRIFUGO_CLIENT_PROXY_REFRESH_ENDPOINT: http://viewer:3000/api/internal/chat/refresh
+      CENTRIFUGO_CLIENT_PROXY_REFRESH_INCLUDE_CONNECTION_META: "true"
+      CENTRIFUGO_CLIENT_PROXY_REFRESH_HTTP_STATIC_HEADERS: '{"X-Internal-Auth":"${INTERNAL_AUTH_SECRET}"}'
       CENTRIFUGO_ENGINE_TYPE: memory
       CENTRIFUGO_HEALTH_ENABLED: "true"
       CENTRIFUGO_HTTP_API_KEY: ${CENTRIFUGO_API_KEY:?Set CENTRIFUGO_API_KEY in caddy.env}
@@ -172,6 +175,8 @@ services:
     env_file:
       - ./secrets/oci-usage.env
     environment:
+      MEDIAMTX_HLS_URL: http://mediamtx:8888
+      MEDIAMTX_WEBRTC_URL: http://mediamtx:8889
       AUTH_DB_PATH: /data/auth.sqlite
       AUTH_BACKUP_DIR: /data/backups
       CHAT_DB_PATH: /data/chat.sqlite
@@ -182,6 +187,13 @@ services:
       CENTRIFUGO_API_KEY: ${CENTRIFUGO_API_KEY:?Set CENTRIFUGO_API_KEY in caddy.env}
       CENTRIFUGO_API_URL: http://centrifugo:8000/api
       CENTRIFUGO_TOKEN_HMAC_SECRET: ${CENTRIFUGO_TOKEN_HMAC_SECRET:?Set CENTRIFUGO_TOKEN_HMAC_SECRET in caddy.env}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in caddy.env}
       BETTER_AUTH_URL: https://${PUBLIC_HOSTNAME:?Set PUBLIC_HOSTNAME in caddy.env}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}

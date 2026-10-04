@@ -1,6 +1,8 @@
 import { createRequire } from 'node:module'
+import { randomUUID } from 'node:crypto'
+import Database from 'better-sqlite3'
 
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures/viewer-session'
 
 const require = createRequire(import.meta.url)
 const packageJson = require('../../package.json') as { version: string }
@@ -766,11 +768,14 @@ test('returns a useful page for unknown channels', async ({ page }) => {
 })
 
 test('shows username login without a shared browser prompt', async ({ page }) => {
+  await page.context().clearCookies()
   await page.goto('/login')
 
   await expect(page.getByRole('heading', { name: 'Welcome back.' })).toBeVisible()
   await expect(page.getByLabel('Username')).toBeVisible()
   await expect(page.getByLabel('Password')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Forgot password?' })).toHaveAttribute('href', '/forgot-password')
+  await expect(page.getByRole('link', { name: 'Create account' })).toHaveAttribute('href', '/register')
   await expect(
     page.getByRole('button', { name: 'Open Channel drawer' }),
   ).toHaveCount(0)
@@ -780,6 +785,7 @@ test('shows username login without a shared browser prompt', async ({ page }) =>
 })
 
 test('uses a compact full-width header that stays at the top', async ({ page }) => {
+  await page.context().clearCookies()
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/login')
 
@@ -813,6 +819,7 @@ test('uses a compact full-width header that stays at the top', async ({ page }) 
 
 test('matches the shared desktop application frame', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium', 'Desktop frame uses the Chromium baseline.')
+  await page.context().clearCookies()
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/login')
   await expect(page.getByRole('heading', { name: 'Welcome back.' })).toBeVisible()
@@ -839,6 +846,7 @@ test('matches the desktop Channel directory', async ({ page }, testInfo) => {
 })
 
 test('shows Channel-owner and administrator header actions', async ({ page }) => {
+  await page.context().clearCookies()
   await page.goto('/login?returnTo=/')
   await page.getByLabel('Username').fill('power')
   await page.getByLabel('Password').fill('e2e-administrator-password')
@@ -857,10 +865,56 @@ test('shows Channel-owner and administrator header actions', async ({ page }) =>
   await expect(accountControl).toBeFocused()
 })
 
-test('keeps public registration closed by default', async ({ page }) => {
-  await page.goto('/register')
+test('registers without administrator approval and requires email verification for publishing and viewing requests', async ({ page }) => {
+  await page.context().clearCookies()
+  const username = `new_${randomUUID().replaceAll('-', '').slice(0, 16)}`
+  const email = `${username}@example.test`
+  const database = new Database('.data/e2e-auth.sqlite')
+  database.pragma('foreign_keys = ON')
+  try {
+    await page.goto('/register')
+    await expect(page.getByRole('heading', { name: 'Create an account.' })).toBeVisible()
+    await page.getByLabel('Display name').fill('New viewer')
+    await page.getByLabel('Username').fill(username)
+    await page.getByLabel('Email', { exact: true }).fill(email)
+    await page.getByLabel(/^Password/).fill('e2e-new-account-password')
+    await page.getByRole('button', { name: 'Create account' }).click()
+    await expect(page).toHaveURL('/verify-email')
+    await expect(page.getByRole('button', { name: 'Send verification email' })).toBeVisible()
 
-  await expect(
-    page.getByRole('heading', { name: 'Registration is closed.' }),
-  ).toBeVisible()
+    const account = database.prepare('SELECT id, emailVerified, administratorApproved, legacyAccess, activationStatus FROM user WHERE email = ?').get(email) as {
+      id: string; emailVerified: number; administratorApproved: number; legacyAccess: number; activationStatus: string
+    }
+    expect(account).toMatchObject({ emailVerified: 0, administratorApproved: 0, legacyAccess: 0, activationStatus: 'active' })
+    expect(database.prepare('SELECT COUNT(*) AS count FROM channel WHERE owner_user_id = ?').get(account.id)).toEqual({ count: 1 })
+
+    await page.goto('/account/channel')
+    await expect(page.getByRole('heading', { name: "New viewer's channel", exact: true })).toBeVisible()
+    await expect(page.getByText('Verify your email before publishing.', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: /(?:Generate|Rotate) stream key/ })).toHaveCount(0)
+
+    await page.goto('/watch/live')
+    await expect(page.getByRole('heading', { name: 'Ask to watch this channel' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Verify email to request access' })).toBeVisible()
+    await expect(page.locator('video')).toHaveCount(0)
+    expect((await page.request.get('/media/hls/live/index.m3u8')).status()).toBe(403)
+    expect((await page.request.get('/api/channels/live/thumbnail')).status()).toBe(403)
+    expect(database.prepare('SELECT COUNT(*) AS count FROM channel_viewing_request WHERE viewer_id = ?').get(account.id)).toEqual({ count: 0 })
+  } finally {
+    database.prepare('DELETE FROM user WHERE email = ?').run(email)
+    database.close()
+  }
+})
+
+test('opens password recovery from login and explains provider recovery', async ({ page }) => {
+  await page.context().clearCookies()
+  await page.goto('/login')
+  await page.getByRole('link', { name: 'Forgot password?' }).click()
+  await expect(page).toHaveURL('/forgot-password')
+  await expect(page.getByRole('heading', { name: 'Forgot password?' })).toBeVisible()
+  await expect(page.getByLabel('Email', { exact: true })).toBeVisible()
+  await expect(page.getByText(/For Google or Discord accounts, use your provider to recover access/)).toBeVisible()
+  await page.getByLabel('Email', { exact: true }).fill('unknown@example.test')
+  await page.getByRole('button', { name: 'Send reset link' }).click()
+  await expect(page.getByRole('status')).toContainText('If this address belongs to an eligible account')
 })

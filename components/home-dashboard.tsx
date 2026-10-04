@@ -1,5 +1,6 @@
 'use client'
 
+import { LockKeyhole } from 'lucide-react'
 import { RadioTower } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -48,7 +49,7 @@ function ChannelCard({ channel }: { channel: PublicChannel }) {
       style={{ '--accent': channel.accentColor } as CSSProperties}
     >
       <div className={styles.cardMedia}>
-        {channel.poster ? (
+        {channel.viewingAllowed === false ? <LockKeyhole aria-label="Channel approval required" /> : channel.poster ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img alt="" src={channel.poster} />
         ) : (
@@ -67,7 +68,7 @@ function ChannelCard({ channel }: { channel: PublicChannel }) {
               compact={channel.status.state !== 'unavailable'}
               state={channel.status.state}
             />
-            {live && channel.status.viewerCount === null ? (
+            {channel.viewingAllowed === false ? <span className={styles.viewerUnavailable}>Approval required</span> : live && channel.status.viewerCount === null ? (
               <span className={styles.viewerUnavailable}>
                 Viewers unavailable
               </span>

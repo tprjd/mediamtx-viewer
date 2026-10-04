@@ -30,8 +30,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         {params.error && <p className="form-error" role="alert">{providerErrorMessage(params.error)}</p>}
         <ProviderSignIn providers={configuredProviders()} returnTo={returnTo} />
         <LoginForm returnTo={returnTo} />
+        <p className={styles.authFootnote}><Link href="/forgot-password">Forgot password?</Link></p>
         <p className={styles.authFootnote}>
-          Need an account? <Link href="/register">Request access</Link>
+          Need an account? <Link href="/register">Create account</Link>
         </p>
       </section>
     </main>

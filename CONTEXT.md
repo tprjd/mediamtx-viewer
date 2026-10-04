@@ -17,12 +17,28 @@ A username and password used to sign in to one account. They do not grant stream
 _Avoid_: Login credentials, website credentials
 
 **Viewing access**:
-Permission to watch channels, granted through an account's active status.
+Permission to watch a channel through Channel ownership, Administrator approval, or Channel approval.
 _Avoid_: Viewing grant, viewer permission
 
+**Viewing request**:
+An account's explicit request for a Channel owner's permission to watch that Channel. An account can have one pending request per Channel.
+_Avoid_: Registration request, account access request
+
+**Channel approval**:
+A Channel owner's stored, revocable approval that grants one account Viewing access to that Channel across visits and stream restarts.
+_Avoid_: Account approval, session approval
+
 **Streaming access**:
-An administrator-granted permission for an active account to own one channel and publish while that channel is enabled.
+Permission to publish to an account's Channel, subject to email verification, Account suspension, and the Channel's enabled status. Administrator approval is not required.
 _Avoid_: Publishing grant, broadcaster access
+
+**Administrator approval**:
+An administrator's approval that grants an account Viewing access to all channels. It is separate from permission to sign in or stream.
+_Avoid_: Account activation, account enablement
+
+**Account suspension**:
+An administrator-imposed restriction that blocks account use, including publishing, regardless of Administrator approval.
+_Avoid_: Pending approval, unapproved account
 
 ### Publishing
 
@@ -31,7 +47,7 @@ A named live-stream destination owned by one account for publishing and viewing.
 _Avoid_: Stream, broadcast
 
 **Channel owner**:
-The account that manages one channel's metadata and stream key and approves OBS setup for that channel.
+The account that owns and manages one Channel, including its metadata, stream key, OBS setup approval, and Channel approvals.
 _Avoid_: Streamer, publisher
 
 **Publisher**:
@@ -71,7 +87,7 @@ The conversation associated with one Channel and available while that Channel is
 _Avoid_: Stream chat, broadcast chat
 
 **Chat participant**:
-An active account that can read and send messages in Chat rooms.
+An account with Viewing access that can read and send messages in the Channel's Chat room, subject to Chat restrictions and Account suspension.
 _Avoid_: Chatter, chat user
 
 **Chat author tag**:

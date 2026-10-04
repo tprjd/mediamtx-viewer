@@ -4,7 +4,7 @@ import { admin, username } from 'better-auth/plugins'
 
 import { getDatabase } from '@/lib/auth/database'
 import { authEnvironment } from '@/lib/auth/env'
-import { getRegistrationOpen, getUserStatus } from '@/lib/auth/store'
+import { getUserStatus } from '@/lib/auth/store'
 import { socialProviders, validateProviderUser } from '@/lib/auth/oauth'
 import { disconnectProvider } from '@/lib/auth/sign-in-methods'
 
@@ -21,7 +21,7 @@ export const auth = betterAuth({
     accountLinking: {
       enabled: true,
       allowDifferentEmails: true,
-      // Existing password accounts have no email verification flow. The
+      // Legacy password accounts can still have unverified addresses. The
       // validateUserInfo policy permits implicit linking only for Google-owned
       // verified email. Better Auth 1.7.2 otherwise rejects these legacy users.
       requireLocalEmailVerified: false,
@@ -29,7 +29,7 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    autoSignIn: false,
+    autoSignIn: true,
     minPasswordLength: 15,
     maxPasswordLength: 128,
     revokeSessionsOnPasswordReset: true,
@@ -56,7 +56,7 @@ export const auth = betterAuth({
       activationStatus: {
         type: 'string',
         required: true,
-        defaultValue: 'pending',
+        defaultValue: 'active',
         input: false,
       },
       activatedAt: { type: 'date', required: false, input: false },
@@ -106,16 +106,7 @@ export const auth = betterAuth({
           return context.json(disconnectProvider(session.user.id, context.body.accountId))
         }
       }
-      if (
-        context.path === '/sign-up/email' &&
-        process.env.ALLOW_ADMIN_BOOTSTRAP !== 'true' &&
-        !getRegistrationOpen()
-      ) {
-        throw APIError.from('FORBIDDEN', {
-          code: 'REGISTRATION_CLOSED',
-          message: 'Registration is currently closed.',
-        })
-      }
+
     }),
   },
   databaseHooks: {

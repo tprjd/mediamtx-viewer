@@ -6,6 +6,7 @@ export default defineConfig([
   ...nextVitals,
   ...nextTypeScript,
   globalIgnores([
+    '.data/**',
     '.next/**',
     '.next-e2e/**',
     '.next-e2e-chat/**',

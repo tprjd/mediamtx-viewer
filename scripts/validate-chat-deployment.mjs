@@ -19,6 +19,9 @@ for (const enabled of ['false', 'true']) {
     'config', '--format', 'json'],
   {env: {...environment, CHAT_ENABLED: enabled}, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']}))
   const {centrifugo, viewer} = result.services
+  if (viewer.environment.MEDIAMTX_HLS_URL !== 'http://mediamtx:8888' ||
+      viewer.environment.MEDIAMTX_WEBRTC_URL !== 'http://mediamtx:8889')
+    throw new Error('Direct media routes require MediaMTX runtime origins')
   if (viewer.environment.CHAT_ENABLED !== enabled || centrifugo.ports?.length ||
       !/^centrifugo\/centrifugo:v\d+\.\d+\.\d+@sha256:[a-f0-9]{64}$/.test(centrifugo.image) ||
       !centrifugo.healthcheck || viewer.depends_on?.centrifugo)

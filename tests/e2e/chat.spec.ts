@@ -19,6 +19,27 @@ const chatDatabasePath = resolve('.data/e2e-chat.sqlite')
 const authDatabasePath = resolve('.data/e2e-chat-auth.sqlite')
 const administratorSessionPath = resolve('.data/e2e-chat-session.json')
 
+function assignLiveChannel(database: Database.Database, ownerId: string) {
+  database.transaction(() => {
+    const live = database.prepare("SELECT owner_user_id AS owner FROM channel WHERE slug = 'live'").get() as { owner: string }
+    if (live.owner === ownerId) return
+    const other = database.prepare('SELECT id FROM channel WHERE owner_user_id = ?').get(ownerId) as { id: string } | undefined
+    if (other) {
+      // Every participant owns a channel after registration. Swap both owners
+      // through a suspended fixture account to preserve the unique constraint.
+      const temporary = randomUUID()
+      database.prepare(`INSERT INTO user (id, name, email, emailVerified, createdAt, updatedAt, activationStatus)
+        VALUES (?, 'Ownership fixture', ?, 0, 0, 0, 'disabled')`).run(temporary, `${temporary}@example.test`)
+      database.prepare('UPDATE channel SET owner_user_id = ? WHERE id = ?').run(temporary, other.id)
+      database.prepare("UPDATE channel SET owner_user_id = ? WHERE slug = 'live'").run(ownerId)
+      database.prepare('UPDATE channel SET owner_user_id = ? WHERE id = ?').run(live.owner, other.id)
+      database.prepare('DELETE FROM user WHERE id = ?').run(temporary)
+    } else {
+      database.prepare("UPDATE channel SET owner_user_id = ? WHERE slug = 'live'").run(ownerId)
+    }
+  })()
+}
+
 test.describe.configure({ mode: 'serial' })
 
 test.beforeEach(() => {
@@ -1746,11 +1767,7 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
   const original = authDatabase
     .prepare("SELECT owner_user_id AS owner FROM channel WHERE slug = 'live'")
     .get() as { owner: string }
-  authDatabase
-    .prepare(
-      "UPDATE channel SET owner_user_id = 'e2e-chat-participant' WHERE slug = 'live'",
-    )
-    .run()
+  assignLiveChannel(authDatabase, 'e2e-chat-participant')
   authDatabase.close()
   const ownerContext = await browser.newContext()
   const owner = await ownerContext.newPage()
@@ -1802,9 +1819,7 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
 
     // Exercise bans against a participant in another owner's room.
     const ownership = new Database(authDatabasePath)
-    ownership
-      .prepare("UPDATE channel SET owner_user_id = ? WHERE slug = 'live'")
-      .run(original.owner)
+    assignLiveChannel(ownership, original.owner)
     ownership.close()
     const { message } = await (await postChat(owner, 'Ban target')).json()
     await page
@@ -1855,11 +1870,7 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
     await expect(composer).toBeEnabled()
 
     const restoreOwnership = new Database(authDatabasePath)
-    restoreOwnership
-      .prepare(
-        "UPDATE channel SET owner_user_id = 'e2e-chat-participant' WHERE slug = 'live'",
-      )
-      .run()
+    assignLiveChannel(restoreOwnership, 'e2e-chat-participant')
     restoreOwnership.close()
     const panel = owner.getByRole('dialog', {
       name: 'Active Chat restrictions',
@@ -2010,9 +2021,7 @@ test('manages Chat bans, allowed and rejected reversal, current badges, and admi
   } finally {
     await ownerContext.close()
     const restore = new Database(authDatabasePath)
-    restore
-      .prepare("UPDATE channel SET owner_user_id = ? WHERE slug = 'live'")
-      .run(original.owner)
+    assignLiveChannel(restore, original.owner)
     restore
       .prepare(
         "UPDATE user SET role = 'user' WHERE id = 'e2e-chat-participant'",
