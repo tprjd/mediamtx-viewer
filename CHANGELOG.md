@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Changed
+
+- Default to key-only SSH from any IPv4 address for workstations with changing IP addresses.
+- Disable password, keyboard-interactive, empty-password, and direct root SSH login in the VM bootstrap.
+- Document the SSH update for existing VMs and connection checks before deployment recovery.
+
 ## [1.2.1] - 2026-10-04
 
 ### Fixed

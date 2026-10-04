@@ -5,7 +5,7 @@ MediaMTX viewer:
 
 - Dedicated VCN and public subnet
 - Internet gateway and explicit route table
-- Security list exposing HTTPS/HTTP3, ACME HTTP, WebRTC UDP/TCP ICE, and restricted SSH
+- Security list exposing HTTPS/HTTP3, ACME HTTP, WebRTC UDP/TCP ICE, and key-only SSH
 - Always Free-oriented Ampere A1 VM running Ubuntu 24.04
 - Reserved public IPv4 address
 - Exact-instance dynamic group and read-only usage/monitoring policy
@@ -18,7 +18,7 @@ It does not create DNS records or deploy application secrets.
 1. Install Terraform 1.8+ or OpenTofu 1.8+.
 2. Authenticate the OCI CLI profile referenced by `oci_profile`.
 3. Copy `terraform.tfvars.example` to `terraform.tfvars` and fill in the
-   tenancy/compartment OCID and current trusted SSH CIDR.
+   tenancy/compartment OCID. Keep the default SSH CIDR for a changing workstation IP.
 4. Ensure `ssh_public_key_path` points to an existing public key. Never use the
    private key path here.
 
@@ -48,30 +48,58 @@ again. Frankfurt currently exposes three indices: `0`, `1`, and `2`.
 After a successful apply, point the public hostname at the `public_ip` output,
 wait for DNS propagation, and deploy the Docker Compose application stack.
 
-## Updating the deployment IP
+## SSH access with a changing IP
 
-SSH is restricted to one workstation address in both the Oracle security list
-and UFW on the VM. When that address changes:
+The default `ssh_allowed_cidr` is `0.0.0.0/0`. Oracle and UFW accept IPv4 SSH
+connections from any address. OpenSSH requires a public key and disables
+password, keyboard-interactive, empty-password, and direct root login.
+Use the `ubuntu` account with the private key that matches `ssh_public_key_path`.
+A workstation IP change does not require a firewall update.
 
-1. Set `ssh_allowed_cidr` in `terraform.tfvars` to the new `/32`.
-2. Apply only the network rule so cloud-init does not affect the running VM:
+For a fixed deployment address, you can set `ssh_allowed_cidr` to its `/32`.
+That restriction applies in addition to key authentication.
+
+### Update an existing VM
+
+Cloud-init runs at first boot. A Terraform or OpenTofu apply does not update
+OpenSSH or UFW on an existing VM. Keep an SSH session open during this change.
+
+1. Install the SSH settings from `cloud-init.yaml.tftpl` in
+   `/etc/ssh/sshd_config.d/00-mediamtx-key-only.conf` on the VM.
+2. Validate the configuration and reload SSH:
+
+   ```sh
+   sudo /usr/sbin/sshd -t
+   sudo systemctl reload ssh
+   sudo /usr/sbin/sshd -T | grep -E '^(authenticationmethods|pubkeyauthentication|passwordauthentication|kbdinteractiveauthentication|permitemptypasswords|permitrootlogin) '
+   ```
+
+   Confirm `authenticationmethods publickey`, `pubkeyauthentication yes`,
+   and `no` for the other four settings before you open the firewall.
+3. Set `ssh_allowed_cidr = "0.0.0.0/0"` in your existing `terraform.tfvars`.
+4. Apply the Oracle security-list change:
 
    ```sh
    tofu plan -target=oci_core_security_list.viewer -out=tfplan-ssh
    tofu apply tfplan-ssh
    ```
 
-3. Connect over SSH, add the new UFW rule, and remove the previous one only
-   after the new rule succeeds:
+   Inspect the plan. It must not replace the VM or its boot volume.
+5. Allow IPv4 SSH through UFW:
 
    ```sh
-   sudo ufw allow from NEW_IP/32 to any port 22 proto tcp
-   sudo ufw delete allow from OLD_IP/32 to any port 22 proto tcp
+   sudo ufw allow from 0.0.0.0/0 to any port 22 proto tcp
    ```
 
-The instance lifecycle ignores later `user_data` changes because cloud-init is
-first-boot configuration. This prevents an IP rotation from proposing a VM and
-boot-volume replacement.
+6. Open a second SSH connection with your deployment key. Confirm that it works
+   before you close the first connection or remove obsolete `/32` SSH rules.
+
+If your previous IP restriction already blocks SSH, use an existing trusted
+connection or an authenticated Oracle recovery path to update UFW first.
+Changing only the Oracle rule does not bypass the VM firewall.
+
+The instance lifecycle ignores later `user_data` changes. This prevents a
+bootstrap change from replacing the VM and boot volume.
 
 ## Existing-resource import
 

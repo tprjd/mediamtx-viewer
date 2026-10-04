@@ -4,6 +4,11 @@ The OpenTofu module in `terraform/` creates the Oracle VM and network. This
 directory runs the application on that VM with Caddy as the only public HTTP
 entry point.
 
+SSH uses the deployment key and accepts connections from changing workstation
+IP addresses by default. Password and direct root login are disabled. See
+[SSH access](terraform/README.md#ssh-access-with-a-changing-ip) for the
+OpenTofu settings and the update procedure for an existing VM.
+
 ## Managed deployment
 
 Use [adoption](../../docs/adopt-installation.md) once for the existing installation,

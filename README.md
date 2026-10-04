@@ -381,6 +381,11 @@ Oracle VM over SSH and deploys the exact release images. The Mac must be awake,
 logged in, and connected. SSH and encryption keys stay on the Mac. Verified
 encrypted backup copies also stay there, outside the Actions checkout.
 
+The infrastructure default permits key-only SSH from any IPv4 address, so the
+Mac does not need a static public IP. Password and direct root login are disabled.
+Existing VMs need the [SSH configuration update](deploy/oracle/terraform/README.md#update-an-existing-vm)
+before you remove their IP restriction.
+
 Deployment checks the release and host, creates a maintenance backup, applies
 tracked migrations, and checks application, Chat, and proxy health before
 opening public access. It preserves the effective Chat state. Use the

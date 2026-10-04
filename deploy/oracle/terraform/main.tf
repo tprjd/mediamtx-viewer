@@ -63,7 +63,7 @@ resource "oci_core_security_list" "viewer" {
   }
 
   ingress_security_rules {
-    description = "SSH from the deployment workstation"
+    description = "Key-only SSH for deployment"
     protocol    = "6"
     source      = var.ssh_allowed_cidr
     source_type = "CIDR_BLOCK"

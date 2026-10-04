@@ -17,6 +17,18 @@ Do not run the GitHub-only `scripts/deploy.mjs` directly from the terminal.
 
 ## Inspect the attempt
 
+If preflight reports that a managed baseline is required, first check SSH access:
+
+```sh
+ssh -o BatchMode=yes -o ConnectTimeout=10 ubuntu@SERVER_IP true
+```
+
+A failed host connection can produce the same message as a missing baseline.
+If SSH times out, check both the Oracle security list and the VM firewall.
+Older installations can still restrict access to a previous workstation IP.
+Follow the [SSH update procedure](../deploy/oracle/terraform/README.md#update-an-existing-vm).
+Do not adopt an already managed installation again to bypass a connection error.
+
 From the prepared workstation environment, run:
 
 ```sh

@@ -47,12 +47,13 @@ variable "ssh_public_key_path" {
 }
 
 variable "ssh_allowed_cidr" {
-  description = "Single trusted CIDR allowed to reach SSH, normally the deployment workstation's public IP with /32."
+  description = "IPv4 CIDR allowed to reach key-only SSH. The default supports workstations with changing public IP addresses."
   type        = string
+  default     = "0.0.0.0/0"
 
   validation {
-    condition     = can(cidrhost(var.ssh_allowed_cidr, 0))
-    error_message = "ssh_allowed_cidr must be a valid IPv4 or IPv6 CIDR."
+    condition     = can(cidrnetmask(var.ssh_allowed_cidr))
+    error_message = "ssh_allowed_cidr must be a valid IPv4 CIDR."
   }
 }
 

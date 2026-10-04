@@ -12,6 +12,10 @@ in the application checkout. The SSH target must
 permit Docker commands. Keep the age private key on the workstation at
 `~/.config/sops/age/keys.txt`, or set `SOPS_AGE_KEY_FILE` to its path.
 
+Configure key-only SSH with the [infrastructure procedure](../deploy/oracle/terraform/README.md#ssh-access-with-a-changing-ip).
+The default accepts any IPv4 source address and does not require a static
+workstation IP. Keep the SSH private key on the Mac.
+
 For the dedicated Mac, use the private controller's
 [manual-operation setup](https://github.com/tprjd/mediamtx-deployment#run-manual-operations-on-the-mac).
 It supplies the local keys and backup directory and puts the Docker adapter on

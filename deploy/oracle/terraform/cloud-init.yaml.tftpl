@@ -1,6 +1,8 @@
 #cloud-config
 package_update: true
 package_upgrade: true
+ssh_pwauth: false
+disable_root: true
 
 packages:
   - ca-certificates
@@ -12,6 +14,15 @@ packages:
   - ufw
 
 write_files:
+  - path: /etc/ssh/sshd_config.d/00-mediamtx-key-only.conf
+    permissions: "0644"
+    content: |
+      PubkeyAuthentication yes
+      AuthenticationMethods publickey
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitEmptyPasswords no
+      PermitRootLogin no
   - path: /etc/sysctl.d/90-mediamtx.conf
     permissions: "0644"
     content: |
@@ -19,6 +30,7 @@ write_files:
       net.core.wmem_max=7500000
 
 runcmd:
+  - [sh, -ec, "/usr/sbin/sshd -t && systemctl reload ssh"]
   - [systemctl, enable, --now, docker]
   - [usermod, -aG, docker, ubuntu]
   - [sysctl, --system]
