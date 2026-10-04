@@ -201,6 +201,7 @@ export function HlsPlayer({
   const [providerKind, setProviderKind] = useState<VidstackProviderKind>(null)
   const status = channel.status
   const {
+    allowsAutomaticPlay,
     onUserPauseChange,
     onVideoElementChange,
     progress,
@@ -245,6 +246,14 @@ export function HlsPlayer({
         : undefined,
     [sourceUrl, status.live],
   )
+
+  const handleUserPauseChange = (paused: boolean) => {
+    onUserPauseChange(paused)
+    // hls.js can seek to the live edge on playlist refresh even while paused.
+    if (paused) hlsInstance?.stopLoad()
+    else if (allowsAutomaticPlay()) hlsInstance?.startLoad()
+  }
+
   useEffect(() => {
     if (latencyProfile !== 'ultra-low') return
     sloRef.current = createHlsSloState()
@@ -802,7 +811,8 @@ export function HlsPlayer({
       hls.on(Hls.Events.LEVEL_UPDATED, handleLevelUpdated)
       hls.on(Hls.Events.ERROR, handleHlsError)
       publishDiagnostics()
-      beginPlayback()
+      if (run.allowsAutomaticPlay()) beginPlayback()
+      else hls.stopLoad()
     } else if (nativeHls) {
       publishDiagnostics()
       beginPlayback()
@@ -861,7 +871,7 @@ export function HlsPlayer({
           chatOpen={chatOpen}
           onOpenChat={onOpenChat}
           onTheaterModeChange={onTheaterModeChange}
-          onUserPauseChange={onUserPauseChange}
+          onUserPauseChange={handleUserPauseChange}
           onVideoElementChange={onVideoElementChange}
           poster={channel.poster}
           seekableLive

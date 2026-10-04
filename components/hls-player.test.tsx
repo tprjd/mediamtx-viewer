@@ -716,6 +716,24 @@ describe('HlsPlayer recovery', () => {
     expect(mocks.instances).toHaveLength(2)
   })
 
+  it.each(['ultra-low', 'balanced', 'smooth'] as const)(
+    'stops HLS playlist loading on explicit pause in %s and restarts on play',
+    async (mode) => {
+      const video = await renderPlayer(mode)
+      const hls = mocks.instances[0]
+      Object.defineProperty(video, 'paused', { configurable: true, value: false })
+      fireEvent(video, new Event('playing'))
+
+      act(() => mocks.userPauseChange?.(true))
+      expect(hls.stopLoad).toHaveBeenCalledOnce()
+      await act(async () => vi.advanceTimersByTimeAsync(10_000))
+      expect(hls.startLoad).not.toHaveBeenCalled()
+
+      act(() => mocks.userPauseChange?.(false))
+      expect(hls.startLoad).toHaveBeenCalledOnce()
+    },
+  )
+
   it('does not override an explicit user pause during recovery', async () => {
     const video = await renderPlayer()
     Object.defineProperty(video, 'paused', { configurable: true, value: false })
@@ -734,6 +752,23 @@ describe('HlsPlayer recovery', () => {
     })
 
     expect(mocks.instances).toHaveLength(1)
+  })
+
+  it('keeps a replacement HLS provider stopped while the viewer is paused', async () => {
+    const { rerender } = render(<HlsPlayer channel={channel} latencyProfile="balanced" />)
+    await act(async () => Promise.resolve())
+    act(() => mocks.userPauseChange?.(true))
+
+    rerender(<HlsPlayer channel={channel} latencyProfile="smooth" />)
+    await act(async () => Promise.resolve())
+
+    expect(mocks.instances).toHaveLength(2)
+    const replacement = mocks.instances[1]
+    expect(replacement.stopLoad).toHaveBeenCalled()
+    expect(replacement.startLoad).not.toHaveBeenCalled()
+
+    act(() => mocks.userPauseChange?.(false))
+    expect(replacement.startLoad).toHaveBeenCalledOnce()
   })
 
   it('soft-recovers a frozen live edge before recreating the HLS instance', async () => {
