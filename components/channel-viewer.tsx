@@ -1,5 +1,6 @@
 'use client'
 
+import { ViewingGate } from '@/components/viewing-gate'
 import { Activity, Clock3, EyeOff, MessageSquare, UserRound } from 'lucide-react'
 import {
   useCallback,
@@ -150,9 +151,10 @@ export function ChannelViewer({
     eventChannels.find((item) => item.slug === channel.slug) ?? channel
   const status = currentChannel.status
   const railCollapsed = effectivePreference === 'collapsed'
-  const chatOpen = status.live && chatPreference === 'open'
+  const allowed = currentChannel.viewingAllowed !== false && eventChannels.some((item) => item.slug === channel.slug)
+  const chatOpen = allowed && status.live && chatPreference === 'open'
   const theaterMode =
-    theaterState.channelSlug === channel.slug && theaterState.enabled
+    allowed && theaterState.channelSlug === channel.slug && theaterState.enabled
   const setTheaterMode = useCallback(
     (enabled: boolean) => {
       setTheaterState({ channelSlug: channel.slug, enabled })
@@ -195,7 +197,7 @@ export function ChannelViewer({
 
   return (
     <>
-      {status.live && !chatOpen && !theaterMode && (
+      {allowed && status.live && !chatOpen && !theaterMode && (
         <ChatRestoreControl
           buttonRef={(element) => {
             chatRestoreRef.current = element
@@ -219,7 +221,7 @@ export function ChannelViewer({
             className={`${styles.watchMainColumn}${theaterMode ? ` ${styles.theaterMainColumn}` : ''}`}
           >
             <div className={styles.watchPlayerWrap}>
-              <LivePlayer
+              {!allowed ? <ViewingGate slug={channel.slug} owner={currentChannel.ownerName} /> : <LivePlayer
                 chatOpen={chatOpen}
                 channel={currentChannel}
                 onOpenChat={
@@ -233,7 +235,7 @@ export function ChannelViewer({
                 }}
                 theaterMode={theaterMode}
                 viewerId={viewerId}
-              />
+              />}
             </div>
             <section
               className={styles.watchDetails}
@@ -242,7 +244,7 @@ export function ChannelViewer({
               <div className={styles.watchIdentity}>
                 <div className={styles.watchTitleRow}>
                   <h1>{currentChannel.title}</h1>
-                  {status.live && (
+                  {allowed && status.live && (
                     <div
                       ref={setPlaybackControlsTarget}
                       className={styles.playbackControlsTarget}
@@ -264,7 +266,7 @@ export function ChannelViewer({
                   {currentChannel.description}
                 </p>
               )}
-              {status.live && (
+              {allowed && status.live && (
                 <PlaybackStatus
                   statsTarget={setPlaybackStatsTarget}
                   tracks={status.tracks}
@@ -272,7 +274,7 @@ export function ChannelViewer({
               )}
             </section>
           </div>
-          {(chatEnabled || status.live) && (
+          {allowed && (chatEnabled || status.live) && (
             chatEnabled ? (
               <ChatPanel
                 key={currentChannel.slug}

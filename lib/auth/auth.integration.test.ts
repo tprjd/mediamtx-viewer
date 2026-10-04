@@ -1,10 +1,12 @@
 // @vitest-environment node
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHmac, randomUUID } from 'node:crypto'
+
+vi.mock('server-only', () => ({}))
 
 const testDirectory = mkdtempSync(join(tmpdir(), 'mediamtx-auth-test-'))
 const databasePath = join(testDirectory, 'auth.sqlite')
@@ -62,46 +64,25 @@ describe('account approval authentication', () => {
     rmSync(testDirectory, { recursive: true, force: true })
   })
 
-  it('keeps registration closed until an administrator opens it', async () => {
+  it('registers and signs in immediately without administrator approval', async () => {
     const { auth } = await import('@/lib/auth/auth')
-    const closedResponse = await auth.handler(
-      new Request('http://localhost:3000/api/auth/sign-up/email', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
-        body: JSON.stringify({
-          name: 'Friend',
-          username: 'friend_one',
-          email: 'friend@example.com',
-          password: 'a sufficiently long password',
-        }),
-      }),
-    )
-    expect(closedResponse.status).toBe(403)
-    expect(await closedResponse.json()).toMatchObject({ code: 'REGISTRATION_CLOSED' })
-
-    const { setRegistrationOpen } = await import('@/lib/auth/store')
-    setRegistrationOpen('admin-id', true)
-
-    const response = await auth.handler(
-      new Request('http://localhost:3000/api/auth/sign-up/email', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
-        body: JSON.stringify({
-          name: 'Friend',
-          username: 'friend_one',
-          email: 'friend@example.com',
-          password: 'a sufficiently long password',
-        }),
-      }),
-    )
+    const response = await auth.handler(new Request('http://localhost:3000/api/auth/sign-up/email', {
+      method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({ name: 'Friend', username: 'friend_one', email: 'friend@example.com', password: 'a sufficiently long password' }),
+    }))
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({
-      token: null,
-      user: { username: 'friend_one', activationStatus: 'pending' },
-    })
+    expect(await response.json()).toMatchObject({ user: { username: 'friend_one', activationStatus: 'active', emailVerified: false } })
+    expect(response.headers.get('set-cookie')).toContain('better-auth.session_token')
+    const { getDatabase } = await import('@/lib/auth/database')
+    const { getOwnedChannel } = await import('@/lib/channels')
+    const { getAccountAccess, hasVerifiedOrLegacyAccountAccess } = await import('@/lib/viewing-access')
+    const user = getDatabase().prepare("SELECT id FROM user WHERE username = 'friend_one'").get() as { id: string }
+    expect(getOwnedChannel(user.id)).toBeTruthy()
+    expect(getAccountAccess(user.id)?.administratorApproved).toBe(0)
+    expect(hasVerifiedOrLegacyAccountAccess(user.id)).toBe(false)
   })
 
-  it('rejects pending login, then accepts activation and revokes on disable', async () => {
+  it('accepts unapproved login and revokes sessions on suspension', async () => {
     const { auth } = await import('@/lib/auth/auth')
     const loginRequest = () =>
       new Request('http://localhost:3000/api/auth/sign-in/username', {
@@ -114,8 +95,7 @@ describe('account approval authentication', () => {
       })
 
     const pendingResponse = await auth.handler(loginRequest())
-    expect(pendingResponse.status).toBe(403)
-    expect(await pendingResponse.json()).toMatchObject({ code: 'ACCOUNT_PENDING' })
+    expect(pendingResponse.status).toBe(200)
 
     const { activateUser, disableUser, getUserById } = await import('@/lib/auth/store')
     const { getDatabase } = await import('@/lib/auth/database')
@@ -130,7 +110,7 @@ describe('account approval authentication', () => {
     expect(activeResponse.headers.get('set-cookie')).toContain('better-auth.session_token')
     expect(
       getDatabase().prepare('SELECT COUNT(*) AS count FROM session WHERE userId = ?').get(friend.id),
-    ).toMatchObject({ count: 1 })
+    ).toMatchObject({ count: 3 })
 
     disableUser('admin-id', friend.id)
     expect(getUserById(friend.id)?.activationStatus).toBe('disabled')

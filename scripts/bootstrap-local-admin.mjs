@@ -164,6 +164,7 @@ export async function ensureLocalAdministrator({
             now,
             userId,
           )
+        database.prepare('DELETE FROM channel WHERE owner_user_id = ?').run(userId)
       } else {
         database
           .prepare(
@@ -186,6 +187,7 @@ export async function ensureLocalAdministrator({
           )
       }
 
+      database.prepare('UPDATE user SET administratorApproved = 1, legacyAccess = 1 WHERE id = ?').run(userId)
       ensureAccount(database, userId, passwordHash, now)
       ensureChannel(database, userId, now)
       return { userId }

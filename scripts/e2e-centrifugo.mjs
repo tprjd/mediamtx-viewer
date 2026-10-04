@@ -7,9 +7,6 @@ const image =
 const apiKey =
   process.env.CENTRIFUGO_API_KEY ??
   'e2e-centrifugo-api-key-that-is-at-least-32-characters'
-const tokenSecret =
-  process.env.CENTRIFUGO_TOKEN_HMAC_SECRET ??
-  'e2e-centrifugo-token-secret-that-is-at-least-32-characters'
 
 function removeContainer() {
   spawnSync('docker', ['rm', '--force', containerName], { stdio: 'ignore' })
@@ -27,14 +24,14 @@ const started = spawnSync(
     'com.frankerzspam.e2e=true',
     '--publish',
     '127.0.0.1:3800:8000',
-    '--env',
-    `CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY=${tokenSecret}`,
-    '--env',
-    'CENTRIFUGO_CLIENT_TOKEN_AUDIENCE=frankerzspam-chat',
-    '--env',
-    'CENTRIFUGO_CLIENT_TOKEN_ISSUER=frankerzspam-viewer',
-    '--env',
-    'CENTRIFUGO_CLIENT_DISALLOW_ANONYMOUS_CONNECTION_TOKENS=true',
+    '--add-host', 'host.docker.internal:host-gateway',
+    '--env', 'CENTRIFUGO_CLIENT_PROXY_CONNECT_ENABLED=true',
+    '--env', 'CENTRIFUGO_CLIENT_PROXY_CONNECT_ENDPOINT=http://host.docker.internal:3299/api/internal/chat/connect',
+    '--env', 'CENTRIFUGO_CLIENT_PROXY_CONNECT_HTTP_STATIC_HEADERS={"X-Internal-Auth":"e2e-chat-internal-secret-at-least-32-characters"}',
+    '--env', 'CENTRIFUGO_CLIENT_PROXY_REFRESH_ENABLED=true',
+    '--env', 'CENTRIFUGO_CLIENT_PROXY_REFRESH_ENDPOINT=http://host.docker.internal:3299/api/internal/chat/refresh',
+    '--env', 'CENTRIFUGO_CLIENT_PROXY_REFRESH_INCLUDE_CONNECTION_META=true',
+    '--env', 'CENTRIFUGO_CLIENT_PROXY_REFRESH_HTTP_STATIC_HEADERS={"X-Internal-Auth":"e2e-chat-internal-secret-at-least-32-characters"}',
     '--env',
     `CENTRIFUGO_HTTP_API_KEY=${apiKey}`,
     '--env',

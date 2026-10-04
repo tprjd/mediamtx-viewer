@@ -26,6 +26,7 @@ beforeEach(() => {
   mocks.authorizeLiveChat.mockResolvedValue({
     ok: true,
     accountId: 'participant-id',
+    sessionId: 'session-id',
     profileName: 'Participant',
     channel: {
       id: 'stable-channel-id',
@@ -45,6 +46,7 @@ describe('/api/channels/[slug]/chat/token', () => {
     expect(await response.json()).toEqual({ restoreGeneration: 'initial', token: 'connection-token', clearedThrough: 12, clearPending: false })
     expect(mocks.createChatConnectionToken).toHaveBeenCalledWith({
       accountId: 'participant-id',
+      sessionId: 'session-id',
       channelId: 'stable-channel-id',
     })
   })

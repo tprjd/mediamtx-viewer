@@ -13,6 +13,8 @@ vi.mock('@/lib/channel-status-monitor', () => ({
   getChannelStatusMonitor: () => ({ subscribe: mocks.subscribe }),
 }))
 
+vi.mock('server-only', () => ({}))
+
 import { GET } from '@/app/api/channel-events/route'
 
 afterEach(() => {

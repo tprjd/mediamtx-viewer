@@ -1,3 +1,4 @@
+import { hasVerifiedOrLegacyAccountAccess } from '@/lib/viewing-access'
 import { getActiveSession } from '@/lib/auth/session'
 import {
   OBS_SETUP_SCRIPT_FILENAME,
@@ -17,7 +18,7 @@ export async function GET(): Promise<Response> {
     })
   }
   const channel = getOwnedChannel(session.user.id)
-  if (!channel?.enabled) {
+  if (!channel?.enabled || !hasVerifiedOrLegacyAccountAccess(session.user.id)) {
     return new Response('An enabled channel is required.', {
       status: 403,
       headers: { 'Cache-Control': 'private, no-store' },

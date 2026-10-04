@@ -2,7 +2,8 @@
 
 A self-hosted private streaming site for a small group of friends. OBS publishes
 to MediaMTX, authenticated viewers watch through the Next.js interface, and
-administrators approve accounts and grant individual streaming channels.
+anyone can register an account with its own channel. Channel owners approve
+individual viewers; administrators can grant access to every channel.
 
 The production stack runs on an Oracle Cloud VM at
 `https://frankerzspam.duckdns.org/`. Balanced LL-HLS is the default. Viewers can
@@ -13,12 +14,15 @@ HLS profile. (WebRTC retirement is a separate follow-up.)
 ## Features
 
 - Responsive Next.js App Router interface with strict TypeScript
-- Better Auth username accounts, SQLite sessions, and administrator approval
+- Open registration with Better Auth, SQLite sessions, and email verification
+- Persistent channel viewing approvals, separate administrator approval, and account suspension
+- Header notifications with unread counts, request actions, and optional sounds
+- SMTP email verification and password recovery
 - Self-service profile names shown as channel ownership labels
 - Responsive Account settings with session search, filters, pagination, and
   password visibility controls
 - Private channel directory with real-time live/offline status and viewer counts
-- One administrator-granted channel and revocable OBS key per streamer
+- One automatic channel and revocable OBS key per account
 - Downloadable Windows setup that installs or updates OBS and creates managed
   60 fps AV1, HEVC, and H.264 profiles at 1440p and 1080p plus game scenes
 - Multiple simultaneous publishers on isolated MediaMTX paths
@@ -50,17 +54,19 @@ Thumbnail worker ── private API + HLS ──> MediaMTX
                  └── JPEG volume ───────> Next.js thumbnail route
 ```
 
-Caddy asks Next.js to validate the Better Auth session before serving protected
-pages, APIs, or HLS. Media bytes travel directly between OBS and
+Caddy asks Next.js to validate the session and channel approval before serving
+protected pages, APIs, HLS, or WHEP. Direct media routes on the viewer server
+apply the same checks. Media bytes travel directly between OBS and
 MediaMTX instead of passing through Next.js or Caddy (Caddy cannot proxy raw
 TCP; RTMP listens directly on the host on port 1935). RTMPS/1936 is a
 config-ready follow-up once TLS certs are mounted for MediaMTX.
 
 ### Viewing access and session renewal
 
-`lib/auth/session.ts` owns the server-side Viewing access check. Pages, APIs,
-and Caddy authorization use the same active-account rule and read the session
-from the database without extending its expiry. A server-side check must not
+`lib/auth/session.ts` validates active sign-in sessions. `lib/viewing-access.ts`
+checks Channel ownership, Administrator approval, and stored Channel approval.
+Pages, media routes, Chat, thumbnails, and Caddy authorization use these checks.
+Session reads do not extend the session expiry. A server-side check must not
 consume a renewal when its response cannot deliver the renewed browser cookie.
 
 The authenticated site header mounts `SessionRenewal`. It calls Better Auth
@@ -119,6 +125,11 @@ Colors come from the shared theme in `app/theme.css`, including the original
   The field limits remain 120 and 300 characters.
 - **Discord notifications** requires **Save notification setting**. Changing the
   toggle alone does not save the preference.
+- **Your audience** lists pending viewing requests, approved viewers, and past
+  decisions. Approval persists until revoked. Declined or revoked viewers must
+  wait 30 minutes before requesting access again.
+- **Notification sound** saves the account preference immediately across devices.
+  Notifications still arrive when muted. **Preview sound** plays the notification tone.
 - **Open public channel** opens the actual watch page. **End broadcast**
   disconnects the current publisher and connected viewers.
 
@@ -178,8 +189,10 @@ process, and it does not save the selected ports. All listeners bind to
 `127.0.0.1`. The generated MediaMTX configuration uses the selected origins,
 HTTP authorization callback, RTMP port, and WebRTC ICE port.
 
-Registration starts closed. Sign in as the local administrator, enable it
-temporarily on `/admin/users`, and activate each new account after registration.
+Registration is open. New password accounts must verify their email before
+publishing or requesting viewing access. Configure the SMTP settings in
+`.env.example` to deliver verification and password-reset links. See
+[account access and migration](docs/account-access.md).
 
 ## Accounts and streaming
 
@@ -189,11 +202,22 @@ for the required credentials, callback URLs, and account rules.
 Existing accounts can link Discord from **Account settings** after signing in.
 Discord never links accounts automatically by email. Google can automatically
 link matching verified Gmail and Google Workspace addresses. New provider
-registrations still require administrator approval for viewing access.
+registrations create a channel automatically. Viewing other channels requires
+Channel approval or Administrator approval.
 
-Account activation grants viewing access only. To let someone broadcast, open
-`/admin/users`, enter an immutable channel slug on their active account, and
-select **Grant streaming**. Each account can own one channel.
+Each account owns one channel and can publish after email verification, subject
+to Account suspension and the channel being enabled. Existing accounts keep
+their current publishing access during migration. Administrators manage global
+Viewing access and Account suspension separately on `/admin/users`.
+
+Channels without viewing permission show a locked thumbnail. Playback and Chat
+remain blocked until approval. Owners receive viewing requests in the header
+notification center and on the channel page.
+
+**Forgot password?** on the login page sends a single-use reset link to verified
+password-account emails. Existing unverified accounts first verify their email
+while signed in, or use an administrator-generated reset link. Google-only and
+Discord-only accounts recover access through their provider.
 
 Users can change the profile name shown below their stream from `/account`.
 This does not change their sign-in username or immutable channel URL.

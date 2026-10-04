@@ -29,18 +29,19 @@ describe('Windows OBS setup authorization', () => {
     for (const name of readdirSync('migrations').filter((file) => file.endsWith('.sql')).sort()) {
       database.exec(readFileSync(join('migrations', name), 'utf8'))
     }
+    database.exec('DROP TRIGGER account_channel_created')
     const now = Date.now()
     database
       .prepare(
         `INSERT INTO user (
-          id, name, email, emailVerified, createdAt, updatedAt,
+          id, name, email, emailVerified, legacyAccess, administratorApproved, createdAt, updatedAt,
           username, displayUsername, role, banned, activationStatus, activatedAt
         ) VALUES
-          ('admin-id', 'Administrator', 'admin@example.com', 0, ?, ?,
+          ('admin-id', 'Administrator', 'admin@example.com', 0, 1, 1, ?, ?,
            'power', 'power', 'admin', 0, 'active', ?),
-          ('friend-id', 'Friend', 'friend@example.com', 0, ?, ?,
+          ('friend-id', 'Friend', 'friend@example.com', 0, 1, 1, ?, ?,
            'friend', 'friend', 'user', 0, 'active', ?),
-          ('disabled-id', 'Disabled', 'disabled@example.com', 0, ?, ?,
+          ('disabled-id', 'Disabled', 'disabled@example.com', 0, 1, 1, ?, ?,
            'disabled', 'disabled', 'user', 1, 'disabled', NULL)`,
       )
       .run(now, now, now, now, now, now, now, now)

@@ -5,8 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => ({ active: true }))
 
 vi.mock('server-only', () => ({}))
+vi.mock('@/lib/viewing-access', () => ({ canWatchChannel: () => true }))
 vi.mock('@/lib/auth/session', () => ({
-  getActiveSession: vi.fn(async () => ({ user: { id: 'participant-id' } })),
+  getActiveSession: vi.fn(async () => ({ user: { id: 'participant-id' }, session: { id: 'test-session' } })),
 }))
 vi.mock('@/lib/auth/store', () => ({
   getUserById: vi.fn(() => ({

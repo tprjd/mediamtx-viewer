@@ -12,6 +12,8 @@ vi.mock('@/lib/auth/env', () => ({
   getRuntimeConfigurationErrors: configurationErrors,
 }))
 
+vi.mock('server-only', () => ({}))
+
 import { GET } from '@/app/api/internal/authorize/route'
 
 function request(headers: Record<string, string> = {}) {

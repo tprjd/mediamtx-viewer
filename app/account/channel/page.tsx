@@ -1,6 +1,10 @@
+import { ChannelViewingSettings } from '@/components/channel-viewing-settings'
+import { EmailVerification } from '@/components/auth/email-verification'
+import { hasVerifiedOrLegacyAccountAccess, getAccountAccess } from '@/lib/viewing-access'
+import { listViewingRequests } from '@/lib/viewing-requests'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ArrowUpRight, Check, ChevronDown, Download, Pencil, Power, RadioTower, ShieldCheck } from 'lucide-react'
+import { ArrowUpRight, Check, ChevronDown, Download, Mail, Pencil, Power, RadioTower, ShieldCheck } from 'lucide-react'
 
 import {
   disconnectBroadcastAction,
@@ -31,6 +35,8 @@ export default async function ChannelAccountPage({
 }: ChannelAccountPageProps) {
   const [session, params] = await Promise.all([requireActiveSession(), searchParams])
   const channel = getOwnedChannel(session.user.id)
+  const access = getAccountAccess(session.user.id)
+  const publishing = hasVerifiedOrLegacyAccountAccess(session.user.id)
 
   if (!channel) {
     return (
@@ -73,6 +79,7 @@ export default async function ChannelAccountPage({
       {params.notice && <p className="notice-banner">{params.notice}</p>}
       {params.error && <p className="error-banner" role="alert">{params.error}</p>}
 
+      {!access?.emailVerified && <section className={`${channelStyles.panel} ${channelStyles.panelBody} ${channelStyles.verificationPanel}`}><h2><Mail aria-hidden="true" /> Email verification</h2><EmailVerification email={session.user.email} legacy={Boolean(access?.legacyAccess)} buttonClassName={channelStyles.secondaryButton} /></section>}
       <div className={channelStyles.dashboard}>
         <div className={channelStyles.panel}>
           <section className={channelStyles.panelBody}>
@@ -83,7 +90,7 @@ export default async function ChannelAccountPage({
               </div>
               <span className={channelStyles.serviceBadge}>Enhanced RTMP</span>
             </div>
-            {channel.enabled ? (
+            {channel.enabled && publishing ? (
               <StreamKeyManager
                 hasKey={channel.hasStreamKey}
                 keyHint={channel.streamKeyHint}
@@ -91,7 +98,7 @@ export default async function ChannelAccountPage({
                 serverUrl={serverUrl}
               />
             ) : (
-              <p className="error-banner">An administrator has disabled this channel.</p>
+              <p className="error-banner">{publishing ? "An administrator has disabled this channel." : "Verify your email before publishing."}</p>
             )}
           </section>
 
@@ -112,7 +119,7 @@ export default async function ChannelAccountPage({
               Install or update OBS and create managed AV1, HEVC, and H.264
               profiles at 1440p and 1080p with ready-made game and desktop scenes.
             </p>
-            {channel.enabled ? (
+            {channel.enabled && publishing ? (
               <>
                 <div className={channelStyles.installerActions}>
                   <a
@@ -196,6 +203,7 @@ export default async function ChannelAccountPage({
         </div>
       </div>
 
+      <ChannelViewingSettings requests={listViewingRequests(session.user.id)} sound={Boolean(access?.notificationSound)} />
       <section className={channelStyles.broadcastControls}>
         <div>
           <h2><Power aria-hidden="true" /> End broadcast</h2>

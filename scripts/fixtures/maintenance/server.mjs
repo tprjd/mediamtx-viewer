@@ -4,6 +4,7 @@ import { chmodSync, existsSync } from 'node:fs'
 const auth = new Database(process.env.AUTH_DB_PATH)
 auth.exec(`INSERT OR IGNORE INTO user (id, name, email, emailVerified, createdAt, updatedAt, role, activationStatus)
   VALUES ('account', 'Name', 'fixture@example.test', 0, 0, 0, 'admin', 'active');
+  UPDATE channel SET id = 'channel', slug = 'fixture', media_path = 'fixture' WHERE owner_user_id = 'account';
   INSERT OR IGNORE INTO channel (id, owner_user_id, slug, media_path, display_name, title, enabled, created_at, updated_at)
   VALUES ('channel', 'account', 'fixture', 'fixture', 'Fixture', 'Fixture', 1, 0, 0)`)
 auth.close()

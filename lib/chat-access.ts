@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { canWatchChannel } from '@/lib/viewing-access'
 import { assertChatAvailable, isChatRestoring } from '@/lib/chat-maintenance'
 import { getActiveSession } from '@/lib/auth/session'
 import { getUserById } from '@/lib/auth/store'
@@ -15,6 +16,7 @@ export type LiveChatAccess =
       ok: true
       channel: ChatChannel
       accountId: string
+      sessionId: string
       profileName: string
     }
   | { ok: false; status: number; error: string }
@@ -52,6 +54,7 @@ export async function authorizeLiveChat(slug: string): Promise<LiveChatAccess> {
   if (!channel) {
     return { ok: false, status: 404, error: 'Channel not found.' }
   }
+  if (!canWatchChannel(session.user.id, slug)) return { ok: false, status: 403, error: 'Channel approval required.' }
   const status = await getChannelStatus(channel.mediaPath)
   if (!status.live) {
     return {
@@ -68,12 +71,14 @@ export async function authorizeLiveChat(slug: string): Promise<LiveChatAccess> {
       error: 'An active account is required.',
     }
   }
+  if (!canWatchChannel(session.user.id, slug)) return { ok: false, status: 403, error: 'Channel approval required.' }
   if (isChatRestoring())
     return { ok: false, status: 503, error: 'Chat is unavailable.' }
   return {
     ok: true,
     channel,
     accountId: currentAccount.id,
+    sessionId: session.session.id,
     profileName: currentAccount.name,
   }
 }

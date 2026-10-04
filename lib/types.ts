@@ -10,6 +10,7 @@ export interface ChannelStatus {
 }
 
 export interface ChannelLiveUpdate {
+  viewingAllowed?: boolean
   slug: string
   ownerName: string
   title: string
@@ -24,6 +25,7 @@ export interface ChannelStatusSnapshot {
 }
 
 export interface PublicChannel {
+  viewingAllowed?: boolean
   slug: string
   ownerName: string
   title: string

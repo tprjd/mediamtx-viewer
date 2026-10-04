@@ -336,6 +336,10 @@ export async function disconnectAllWebRtcReaders(
   return disconnectWebRtcSessions({}, fetcher)
 }
 
+export async function disconnectChannelReaders(mediaPath: string, fetcher: typeof fetch = fetch): Promise<number> {
+  return disconnectWebRtcSessions({ mediaPath, state: 'read' }, fetcher)
+}
+
 export async function disconnectChannelSessions(
   mediaPath: string,
   fetcher: typeof fetch = fetch,

@@ -10,7 +10,8 @@ import {
 
 import { getDatabase } from '@/lib/auth/database'
 import { authEnvironment } from '@/lib/auth/env'
-import { getUserStatus, recordAudit } from '@/lib/auth/store'
+import { hasVerifiedOrLegacyAccountAccess } from '@/lib/viewing-access'
+import { recordAudit } from '@/lib/auth/store'
 import {
   createOrRotateStreamKey,
   getOwnedChannel,
@@ -246,7 +247,7 @@ export function approveObsSetupSession(
         'That setup code has already been used.',
       )
     }
-    if (getUserStatus(ownerUserId) !== 'active') {
+    if (!hasVerifiedOrLegacyAccountAccess(ownerUserId)) {
       throw new ObsSetupError('unavailable', 'This account is not active.')
     }
     const channel = getOwnedChannel(ownerUserId)
@@ -330,7 +331,7 @@ export function redeemObsSetupSession(
     if (!row.ownerUserId || !row.channelId) {
       throw new ObsSetupError('invalid', 'The OBS setup session is incomplete.')
     }
-    if (getUserStatus(row.ownerUserId) !== 'active') {
+    if (!hasVerifiedOrLegacyAccountAccess(row.ownerUserId)) {
       throw new ObsSetupError('unavailable', 'The account is no longer active.')
     }
     const channel = getOwnedChannel(row.ownerUserId)

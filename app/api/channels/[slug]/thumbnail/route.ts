@@ -1,3 +1,5 @@
+import { getActiveSession } from '@/lib/auth/session'
+import { canWatchChannel } from '@/lib/viewing-access'
 import { readFile, stat } from 'node:fs/promises'
 
 import { getChannel } from '@/lib/channels'
@@ -14,6 +16,9 @@ export async function GET(
   context: ThumbnailRouteContext,
 ): Promise<Response> {
   const { slug } = await context.params
+  const session = await getActiveSession(request.headers)
+  if (!session) return new Response(null, { status: 401 })
+  if (!canWatchChannel(session.user.id, slug)) return new Response(null, { status: 403, headers: { 'Cache-Control': 'no-store' } })
   const channel = getChannel(slug)
   if (!channel) return new Response(null, { status: 404 })
 
@@ -29,7 +34,7 @@ export async function GET(
 
     return new Response(new Uint8Array(contents), {
       headers: {
-        'Cache-Control': 'private, no-cache, max-age=0',
+        'Cache-Control': 'private, no-store, max-age=0',
         'Content-Length': String(contents.byteLength),
         'Content-Type': 'image/jpeg',
         ETag: etag,

@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   useChannelEvents: vi.fn(),
 }))
 
+vi.mock('@/components/viewing-gate', () => ({ ViewingGate: () => <div>Channel approval required</div> }))
+
 vi.mock('@/hooks/use-channel-events', () => ({
   useChannelEvents: mocks.useChannelEvents,
 }))

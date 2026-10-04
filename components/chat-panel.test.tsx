@@ -27,7 +27,7 @@ const realtime = vi.hoisted(() => ({
     connect: ReturnType<typeof vi.fn>
     disconnect: ReturnType<typeof vi.fn>
     emit: (event: string, value: unknown) => void
-    refreshToken: () => Promise<string>
+    refreshToken: () => Promise<{ token?: string }>
   }>,
 }))
 
@@ -35,18 +35,18 @@ vi.mock('centrifuge', () => ({
   UnauthorizedError: class UnauthorizedError extends Error {},
   Centrifuge: class FakeCentrifuge {
     private handlers = new Map<string, Array<(value: unknown) => void>>()
-    private getToken: () => Promise<string>
+    private getData: () => Promise<{ token?: string }>
     connect = vi.fn(() => {
-      void this.getToken()
+      void this.getData()
     })
     disconnect = vi.fn(() => undefined)
     setToken = vi.fn(() => undefined)
 
     constructor(
       _endpoint: string,
-      options: { getToken: () => Promise<string> },
+      options: { getData: () => Promise<{ token?: string }> },
     ) {
-      this.getToken = options.getToken
+      this.getData = options.getData
       realtime.instances.push(this)
     }
 
@@ -61,8 +61,8 @@ vi.mock('centrifuge', () => ({
       for (const callback of this.handlers.get(event) ?? []) callback(value)
     }
 
-    refreshToken(): Promise<string> {
-      return this.getToken()
+    refreshToken(): Promise<{ token?: string }> {
+      return this.getData()
     }
   },
 }))
@@ -273,7 +273,7 @@ describe('live Chat delivery', () => {
     }
   })
 
-  it('gets a new token when Centrifuge requests a token refresh', async () => {
+  it('gets a fresh credential when Centrifuge reconnects', async () => {
     let tokenNumber = 0
     stubChatFetch(
       vi.fn(async (input: RequestInfo | URL) => {
@@ -294,7 +294,7 @@ describe('live Chat delivery', () => {
     )
     await waitFor(() => expect(tokenNumber).toBe(1))
 
-    await expect(realtime.instances[0].refreshToken()).resolves.toBe('token-2')
+    await expect(realtime.instances[0].refreshToken()).resolves.toEqual({ token: 'token-2' })
   })
 
   it('replaces the transcript and connection when the visible Channel changes', async () => {

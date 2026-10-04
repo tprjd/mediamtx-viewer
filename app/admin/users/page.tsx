@@ -1,7 +1,6 @@
 import {
   Clock3,
   KeyRound,
-  RadioTower,
   ShieldCheck,
   UserCheck,
   UserX,
@@ -9,21 +8,19 @@ import {
 import Link from 'next/link'
 
 import {
+  administratorApprovalAction,
   activateAction,
   channelEnabledAction,
   disableAction,
-  grantStreamingAction,
-  registrationAction,
-  rejectAction,
   resetLinkAction,
   revokeAllSessionsAction,
   revokeSessionAction,
 } from '@/app/admin/users/actions'
+import { getAccountAccess } from '@/lib/viewing-access'
 import { ClearActivityControl } from '@/components/admin/clear-activity-control'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { requireAdminSession } from '@/lib/auth/session'
 import {
-  getRegistrationOpen,
   listAuditEntries,
   listUsers,
   listUserSessions,
@@ -45,14 +42,6 @@ function formatDate(date: Date): string {
   }).format(date)
 }
 
-function defaultSlug(user: AuthUser): string {
-  return (user.username ?? user.name)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 64)
-}
-
 function UserCard({
   user,
   currentUserId,
@@ -63,6 +52,7 @@ function UserCard({
   channel?: AdminChannel
 }) {
   const sessions = listUserSessions(user.id)
+  const access = getAccountAccess(user.id)
 
   return (
     <article className={`${styles.userCard}`}>
@@ -83,7 +73,7 @@ function UserCard({
                 : styles.activationDisabled
           }`}
         >
-          {user.activationStatus}
+          {user.activationStatus === 'disabled' ? 'Suspended' : access?.administratorApproved ? 'Viewing approved' : 'By channel approval'}
         </span>
       </div>
 
@@ -93,25 +83,24 @@ function UserCard({
       </p>
 
       <div className={`${styles.adminActions}`}>
-        {user.activationStatus !== 'active' && (
+        {user.activationStatus === 'disabled' && (
           <form action={activateAction.bind(null, user.id)}>
             <Button size="sm" type="submit">
-              <UserCheck className="size-4" aria-hidden="true" /> Activate
+              <UserCheck className="size-4" aria-hidden="true" /> Restore account
             </Button>
           </form>
         )}
         {user.activationStatus === 'active' && user.id !== currentUserId && (
           <form action={disableAction.bind(null, user.id)}>
             <Button size="sm" type="submit" variant="secondary">
-              <UserX className="size-4" aria-hidden="true" /> Disable
+              <UserX className="size-4" aria-hidden="true" /> Suspend account
             </Button>
           </form>
         )}
-        {user.activationStatus === 'pending' && (
-          <form action={rejectAction.bind(null, user.id)}>
-            <Button size="sm" type="submit" variant="ghost">Reject</Button>
-          </form>
-        )}
+        <form action={administratorApprovalAction.bind(null, user.id)}>
+          <input name="approved" type="hidden" value={access?.administratorApproved ? 'false' : 'true'} />
+          <Button size="sm" type="submit" variant="secondary">{access?.administratorApproved ? 'Remove viewing approval' : 'Approve all-channel viewing'}</Button>
+        </form>
         {user.activationStatus !== 'pending' && (
           <form action={resetLinkAction.bind(null, user.id)}>
             <Button size="sm" type="submit" variant="ghost">
@@ -141,27 +130,6 @@ function UserCard({
             </div>
           ))}
         </details>
-      )}
-
-      {user.activationStatus === 'active' && !channel && (
-        <form
-          action={grantStreamingAction.bind(null, user.id)}
-          className={`${styles.streamingGrant}`}
-        >
-          <label>
-            Channel slug
-            <input
-              defaultValue={defaultSlug(user)}
-              maxLength={64}
-              name="slug"
-              pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-              required
-            />
-          </label>
-          <Button size="sm" type="submit" variant="secondary">
-            <RadioTower className="size-4" aria-hidden="true" /> Grant streaming
-          </Button>
-        </form>
       )}
 
       {channel && (
@@ -200,13 +168,13 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
   const users = listUsers()
   const channels = listAdminChannels()
   const channelsByOwner = new Map(channels.map((channel) => [channel.ownerUserId, channel]))
-  const registrationOpen = getRegistrationOpen()
   const auditEntries = listAuditEntries()
   const groups = {
-    pending: users.filter((user) => user.activationStatus === 'pending'),
-    active: users.filter((user) => user.activationStatus === 'active'),
-    disabled: users.filter((user) => user.activationStatus === 'disabled'),
+    unapproved: users.filter((user) => user.activationStatus !== 'disabled' && !getAccountAccess(user.id)?.administratorApproved),
+    approved: users.filter((user) => user.activationStatus !== 'disabled' && getAccountAccess(user.id)?.administratorApproved),
+    suspended: users.filter((user) => user.activationStatus === 'disabled'),
   }
+
   const resetUrl = params.reset
     ? `${process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'}/reset-password?token=${encodeURIComponent(params.reset)}`
     : null
@@ -218,15 +186,9 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
           <p className="eyebrow">Administration</p>
           <h1>Viewer access</h1>
           <Link href="/admin/chat">Chat moderation records</Link>
-          <p>Approve friends, disable access, and revoke database sessions.</p>
+          <p>Approve all-channel viewing, suspend accounts, and revoke sessions. Registration is open to everyone.</p>
         </div>
-        <form action={registrationAction} className={`${styles.registrationControl}`}>
-          <input name="open" type="hidden" value={registrationOpen ? 'false' : 'true'} />
-          <span>Registration is <strong>{registrationOpen ? 'open' : 'closed'}</strong></span>
-          <Button type="submit" variant="secondary">
-            {registrationOpen ? 'Close registration' : 'Open registration'}
-          </Button>
-        </form>
+
       </section>
 
       {params.notice && <p className="notice-banner">{params.notice}</p>}
@@ -239,10 +201,10 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
         </aside>
       )}
 
-      {(['pending', 'active', 'disabled'] as const).map((status) => (
+      {(['unapproved', 'approved', 'suspended'] as const).map((status) => (
         <section className={`${styles.userGroup}`} key={status}>
           <div className={`${styles.userGroupHeading}`}>
-            {status === 'pending' ? <Clock3 /> : status === 'active' ? <UserCheck /> : <UserX />}
+            {status === 'unapproved' ? <Clock3 /> : status === 'approved' ? <UserCheck /> : <UserX />}
             <h2>{status[0].toUpperCase() + status.slice(1)}</h2>
             <span>{groups[status].length}</span>
           </div>

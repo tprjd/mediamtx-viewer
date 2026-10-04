@@ -30,7 +30,9 @@ if (!existsSync(marker) || readFileSync(marker, 'utf8') !== identity || !existsS
 }
 
 const child = spawn(process.execPath, [join(standalone, 'server.js')], {
-  env: { ...env, HOSTNAME: '::1', PORT: port }, stdio: 'inherit',
+  // Centrifugo calls the authorization proxies through Docker's host gateway.
+  // A loopback-only listener accepts browser requests but rejects that callback.
+  env: { ...env, HOSTNAME: '::', PORT: port }, stdio: 'inherit',
 })
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => child.kill(signal))
 child.on('exit', code => { process.exitCode = code ?? 1 })

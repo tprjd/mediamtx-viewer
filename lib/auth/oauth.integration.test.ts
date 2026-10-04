@@ -184,17 +184,17 @@ describe('provider sign-in and account linking', () => {
     expect(await (await request('/list-accounts', undefined, await sessionCookie(userId))).json()).toEqual([])
   })
 
-  it.each(['google', 'discord'] as const)('registers a pending %s account without a username or password, then permits sign-in after approval', async (provider) => {
+  it.each(['google', 'discord'] as const)('registers an active %s account and channel without administrator approval', async (provider) => {
     const { setRegistrationOpen, listUsers, activateUser } = await import('./store')
     const admin = await localAccount(`registration-admin-${provider}@example.com`)
     setRegistrationOpen(admin, true)
     const email = `new-${provider}@example.com`
     profile = { sub: 'new-google', id: '223456789012345678', email, email_verified: true, verified: true, name: 'New user' }
     const response = await callback(provider, await begin(provider))
-    expect(callbackError(response)).toBe('ACCOUNT_PENDING')
-    expect(await (await request('/get-session', undefined, cookies(response))).json()).toBeNull()
+    expect(callbackError(response)).toBeNull()
+    expect(await (await request('/get-session', undefined, cookies(response))).json()).toMatchObject({ user: { activationStatus: 'active' } })
     const user = listUsers().find((candidate) => candidate.email === email)!
-    expect(user).toMatchObject({ username: null, activationStatus: 'pending' })
+    expect(user).toMatchObject({ username: null, activationStatus: 'active' })
     activateUser(admin, user.id)
     setRegistrationOpen(admin, false)
     const approved = await callback(provider, await begin(provider))
@@ -202,15 +202,15 @@ describe('provider sign-in and account linking', () => {
     expect(await (await request('/list-accounts', undefined, cookies(approved))).json()).toEqual([expect.objectContaining({ providerId: provider })])
   })
 
-  it('checks registration again when the provider returns', async () => {
+  it('keeps provider registration open regardless of the old registration setting', async () => {
     const { setRegistrationOpen, listUsers } = await import('./store')
     const admin = await localAccount('closing-admin@example.com')
     setRegistrationOpen(admin, true)
     const flow = await begin('google')
     setRegistrationOpen(admin, false)
     profile = { sub: 'closed-registration', email: 'closed@gmail.com', email_verified: true }
-    expect(callbackError(await callback('google', flow))).toBe('REGISTRATION_CLOSED')
-    expect(listUsers().find((candidate) => candidate.email === profile.email)).toBeUndefined()
+    expect(callbackError(await callback('google', flow))).toBeNull()
+    expect(listUsers().find((candidate) => candidate.email === profile.email)).toBeDefined()
   })
 
   it.each(['pending', 'disabled'])('does not issue a provider session to a %s account', async (status) => {

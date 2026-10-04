@@ -16,7 +16,7 @@ const sessionState = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth/session', () => ({
   getActiveSession: vi.fn(async () =>
-    sessionState.accountId ? { user: { id: sessionState.accountId } } : null,
+    sessionState.accountId ? { user: { id: sessionState.accountId }, session: { id: 'test-session' } } : null,
   ),
 }))
 
@@ -54,18 +54,19 @@ describe('durable Chat messages', () => {
 
     const { getDatabase } = await import('@/lib/auth/database')
     const database = getDatabase()
+    database.exec('DROP TRIGGER account_channel_created')
     const now = Date.now()
     database
       .prepare(
         `INSERT INTO user (
-          id, name, email, emailVerified, createdAt, updatedAt,
+          id, name, email, emailVerified, legacyAccess, administratorApproved, createdAt, updatedAt,
           username, displayUsername, role, banned, activationStatus, activatedAt
         ) VALUES
-          ('admin-id', 'Administrator', 'admin@example.test', 0, ?, ?,
+          ('admin-id', 'Administrator', 'admin@example.test', 0, 1, 1, ?, ?,
            'admin', 'admin', 'admin', 0, 'active', ?),
-          ('owner-id', 'Channel Owner', 'owner@example.test', 0, ?, ?,
+          ('owner-id', 'Channel Owner', 'owner@example.test', 0, 1, 1, ?, ?,
            'owner', 'owner', 'user', 0, 'active', ?),
-          ('viewer-id', 'Original Name', 'viewer@example.test', 0, ?, ?,
+          ('viewer-id', 'Original Name', 'viewer@example.test', 0, 1, 1, ?, ?,
            'viewer', 'viewer', 'user', 0, 'active', ?)`,
       )
       .run(now, now, now, now, now, now, now, now, now)

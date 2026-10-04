@@ -197,6 +197,7 @@ export function disableUser(actorId: string, targetId: string): string | null {
       )
       .run(now, now, targetId)
     database.prepare('DELETE FROM session WHERE userId = ?').run(targetId)
+    database.prepare('INSERT INTO access_revocation (id, user_id, created_at) VALUES (?, ?, ?)').run(randomUUID(), targetId, now)
     const channel = database
       .prepare('SELECT id, media_path AS mediaPath FROM channel WHERE owner_user_id = ?')
       .get(targetId) as { id: string; mediaPath: string } | undefined
@@ -287,6 +288,7 @@ export function createPasswordResetToken(
   const token = randomBytes(32).toString('base64url')
   const database = getDatabase()
   database.transaction(() => {
+    if (!database.prepare("SELECT 1 FROM account WHERE userId = ? AND providerId = 'credential' AND issuer = 'local:credential' AND password IS NOT NULL").get(targetId)) throw new Error('This account uses provider sign-in. Recover access with the provider.')
     database.prepare('DELETE FROM auth_reset_token WHERE user_id = ?').run(targetId)
     database
       .prepare(

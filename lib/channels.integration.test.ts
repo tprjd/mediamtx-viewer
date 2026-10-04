@@ -22,6 +22,7 @@ process.env.INTERNAL_AUTH_SECRET = 'vitest-internal-secret-at-least-32-character
 process.env.MEDIAMTX_AUTH_SECRET = 'vitest-mediamtx-secret-at-least-32-characters'
 
 vi.mock('server-only', () => ({}))
+vi.mock('@/lib/auth/session', () => ({ getActiveSession: async () => ({ user: { id: 'admin-id' } }) }))
 
 describe('account-owned channels', () => {
   beforeAll(async () => {
@@ -33,18 +34,19 @@ describe('account-owned channels', () => {
     for (const name of readdirSync('migrations').filter((file) => file.endsWith('.sql')).sort()) {
       database.exec(readFileSync(join('migrations', name), 'utf8'))
     }
+    database.exec('DROP TRIGGER account_channel_created')
     const now = Date.now()
     database
       .prepare(
         `INSERT INTO user (
-          id, name, email, emailVerified, createdAt, updatedAt,
+          id, name, email, emailVerified, legacyAccess, administratorApproved, createdAt, updatedAt,
           username, displayUsername, role, banned, activationStatus, activatedAt
         ) VALUES
-          ('admin-id', 'Administrator', 'admin@example.com', 0, ?, ?,
+          ('admin-id', 'Administrator', 'admin@example.com', 0, 1, 1, ?, ?,
            'power', 'power', 'admin', 0, 'active', ?),
-          ('friend-id', 'Friend', 'friend@example.com', 0, ?, ?,
+          ('friend-id', 'Friend', 'friend@example.com', 0, 1, 1, ?, ?,
            'friend', 'friend', 'user', 0, 'active', ?),
-          ('second-id', 'Second Friend', 'second@example.com', 0, ?, ?,
+          ('second-id', 'Second Friend', 'second@example.com', 0, 1, 1, ?, ?,
            'second', 'second', 'user', 0, 'active', ?)` ,
       )
       .run(now, now, now, now, now, now, now, now, now)
@@ -64,7 +66,7 @@ describe('account-owned channels', () => {
     )
     const fetcher = vi.spyOn(globalThis, 'fetch')
 
-    await expect(getPublicChannels()).resolves.toEqual([])
+    await expect(getPublicChannels('admin-id')).resolves.toEqual([])
     await expect(loadChannelLiveUpdates()).resolves.toEqual([])
     expect(fetcher).not.toHaveBeenCalled()
   })
@@ -214,7 +216,7 @@ describe('account-owned channels', () => {
                 : [],
             }),
       )
-      const channels = await getPublicChannels()
+      const channels = await getPublicChannels('admin-id')
       const updates = await loadChannelLiveUpdates()
       const poster = state === 'live'
         ? expect.stringMatching(/^\/api\/channels\/friend-channel\/thumbnail\?v=\d+$/)
@@ -230,6 +232,7 @@ describe('account-owned channels', () => {
 
       expect(channels.map(({ slug }) => slug)).toEqual(['friend-channel', 'second-channel'])
       expect(channels[0]).toEqual({
+        viewingAllowed: true,
         slug: 'friend-channel',
         ownerName: 'Friend',
         title: "Friend's stream",
@@ -290,7 +293,7 @@ describe('account-owned channels', () => {
 
     const { getPublicChannels, loadChannelLiveUpdates } = await import('@/lib/channel-reads')
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({ items: [] }))
-    expect((await getPublicChannels()).map(({ slug }) => slug)).toEqual(['second-channel'])
+    expect((await getPublicChannels('admin-id')).map(({ slug }) => slug)).toEqual(['second-channel'])
     expect((await loadChannelLiveUpdates()).map(({ slug }) => slug)).toEqual(['second-channel'])
   })
 })

@@ -45,6 +45,7 @@ export function startChannelRefresh(
     return {
       ...previous,
       ...('playback' in update ? update : { title: update.title, ownerName: update.ownerName }),
+      viewingAllowed: update.viewingAllowed ?? previous.viewingAllowed,
       poster: update.poster ?? undefined,
       status: update.status.state === 'unavailable' && previous.status.state !== 'unavailable'
         ? previous.status : update.status,
@@ -156,6 +157,7 @@ export function startChannelRefresh(
         }
       }
     }
+    if (updates.some((update) => channels.some((channel) => channel.slug === update.slug && channel.viewingAllowed !== update.viewingAllowed))) void poll()
     const bySlug = new Map(updates.map((update) => [update.slug, update]))
     channels = channels.map((channel) => {
       const update = bySlug.get(channel.slug)

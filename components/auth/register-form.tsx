@@ -4,6 +4,7 @@ import { LoaderCircle, UserPlus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
 
+import { sendVerificationAction } from '@/app/verify-email/actions'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth/client'
 import { registrationSchema } from '@/lib/auth/validation'
@@ -39,7 +40,9 @@ export function RegisterForm() {
       setPending(false)
       return
     }
-    router.replace('/registration-pending')
+    await sendVerificationAction()
+    router.replace('/verify-email')
+    router.refresh()
   }
 
   return (
@@ -83,7 +86,7 @@ export function RegisterForm() {
         ) : (
           <UserPlus className="size-4" aria-hidden="true" />
         )}
-        {pending ? 'Creating account…' : 'Request access'}
+        {pending ? 'Creating account…' : 'Create account'}
       </Button>
     </form>
   )

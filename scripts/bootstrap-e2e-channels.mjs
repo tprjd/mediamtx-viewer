@@ -58,7 +58,7 @@ const insertUser = database.prepare(`
 `)
 const updateUser = database.prepare(`
   UPDATE user
-  SET name = ?, updatedAt = ?, activationStatus = 'active', disabledAt = NULL
+  SET name = ?, updatedAt = ?, activationStatus = 'active', disabledAt = NULL, administratorApproved = 1, legacyAccess = 1
   WHERE id = ?
 `)
 const insertChannel = database.prepare(`
@@ -70,11 +70,14 @@ const insertChannel = database.prepare(`
 `)
 const updateChannel = database.prepare(`
   UPDATE channel
-  SET display_name = ?, title = ?, accent_color = ?, enabled = 1, updated_at = ?
+  SET display_name = ?, title = ?, accent_color = ?, enabled = 1, updated_at = ?,
+      description = 'Browser-test directory Channel.', preferred_playback = 'webrtc'
   WHERE owner_user_id = ?
 `)
 
 database.transaction(() => {
+  // Clean interrupted registration checks before the application starts.
+  database.prepare("DELETE FROM user WHERE username GLOB 'e2e_new_*' AND email = username || '@example.test'").run()
   for (const [index, fixture] of fixtures.entries()) {
     insertUser.run(
       fixture.id,
@@ -88,6 +91,7 @@ database.transaction(() => {
       admin.id,
     )
     updateUser.run(fixture.name, now + index, fixture.id)
+    database.prepare('UPDATE channel SET slug = ?, media_path = ? WHERE owner_user_id = ?').run(fixture.slug, `channels/${fixture.slug}`, fixture.id)
     insertChannel.run(
       `e2e-directory-${fixture.slug}-channel`,
       fixture.id,
@@ -124,10 +128,13 @@ database.transaction(() => {
     .run(now, now, now, admin.id)
   database
     .prepare(
-      `UPDATE user SET activationStatus = 'active', disabledAt = NULL, updatedAt = ?
+      `UPDATE user SET activationStatus = 'active', disabledAt = NULL, administratorApproved = 1, legacyAccess = 1, updatedAt = ?
        WHERE id = 'e2e-chat-participant'`,
     )
     .run(now)
+  // This participant now receives a channel at registration. Keep the unused
+  // channel out of the directory fixtures while retaining account ownership.
+  database.prepare("UPDATE channel SET enabled = 0 WHERE owner_user_id = 'e2e-chat-participant'").run()
   database
     .prepare(
       `INSERT INTO account (
@@ -138,6 +145,14 @@ database.transaction(() => {
          password = excluded.password, updatedAt = excluded.updatedAt`,
     )
     .run(randomUUID(), participantPassword, now, now)
+
+  // Seed once before the server starts. External session writes during a Better
+  // Auth registration transaction can invalidate its SQLite WAL snapshot.
+  database.prepare(`INSERT INTO session (id, token, userId, expiresAt, createdAt, updatedAt)
+    VALUES ('e2e-layout-session', ?, 'e2e-directory-alpha-user', ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET token = excluded.token, expiresAt = excluded.expiresAt,
+      createdAt = excluded.createdAt, updatedAt = excluded.updatedAt`)
+    .run(randomUUID(), now + 86_400_000, now, now)
 })()
 
 database.close()

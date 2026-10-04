@@ -1,3 +1,4 @@
+import { canRequestMedia } from '@/lib/viewing-access'
 import { timingSafeEqual } from 'node:crypto'
 
 import { authEnvironment, getRuntimeConfigurationErrors } from '@/lib/auth/env'
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
     return new Response(null, { status: 503, headers: { 'Cache-Control': 'no-store' } })
   }
   if (session) {
+    if (!canRequestMedia(session.user.id, request.headers.get('x-forwarded-uri') ?? '/')) return new Response(null, { status: 403, headers: { 'Cache-Control': 'no-store' } })
     return new Response(null, {
       status: 204,
       headers: {

@@ -20,12 +20,13 @@ beforeAll(async () => {
     expect(result.status, result.stderr.toString()).toBe(0)
   }
   const { getDatabase } = await import('@/lib/auth/database')
+  getDatabase().exec('DROP TRIGGER account_channel_created')
   for (const accountId of ['owner', 'admin']) {
     getDatabase()
       .prepare(
         `INSERT INTO user
-      (id, name, email, emailVerified, createdAt, updatedAt, role, activationStatus)
-      VALUES (?, ?, ?, 0, 0, 0, ?, 'active')`,
+      (id, name, email, emailVerified, legacyAccess, administratorApproved, createdAt, updatedAt, role, activationStatus)
+      VALUES (?, ?, ?, 0, 1, 1, 0, 0, ?, 'active')`,
       )
       .run(
         accountId,

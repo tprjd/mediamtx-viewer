@@ -1,3 +1,6 @@
+import { canSeeChannel, canWatchChannel } from '@/lib/viewing-access'
+import { getPublicChannels } from '@/lib/channel-reads'
+import type { ChannelLiveUpdate } from '@/lib/types'
 import { getActiveSession } from '@/lib/auth/session'
 import {
   getChannelStatusMonitor,
@@ -7,7 +10,7 @@ import {
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const heartbeatIntervalMs = 20_000
+const heartbeatIntervalMs = 5_000
 const encoder = new TextEncoder()
 
 function encodeEvent(
@@ -59,7 +62,14 @@ export async function GET(request: Request): Promise<Response> {
       const send = (event: ChannelMonitorEvent) => {
         if (closed) return
         try {
-          controller.enqueue(encodeEvent(event.type, event.data, event.id))
+          const sanitize = (update: ChannelLiveUpdate): ChannelLiveUpdate => canWatchChannel(session.user.id, update.slug)
+            ? { ...update, viewingAllowed: true }
+            : { ...update, viewingAllowed: false, poster: null, status: { ...update.status, tracks: [], viewerCount: null } }
+          if (event.type === 'channel-status') {
+            if (canSeeChannel(session.user.id, event.data.slug)) controller.enqueue(encodeEvent(event.type, sanitize(event.data), event.id))
+          } else {
+            controller.enqueue(encodeEvent(event.type, { ...event.data, channels: event.data.channels.filter((entry) => canSeeChannel(session.user.id, entry.slug)).map(sanitize) }, event.id))
+          }
         } catch {
           dispose(false)
         }
@@ -78,15 +88,17 @@ export async function GET(request: Request): Promise<Response> {
             return
           }
           unsubscribe = stop
-          heartbeat = setInterval(() => {
-            if (closed) return
+          let refreshing = false
+          heartbeat = setInterval(async () => {
+            if (closed || refreshing) return
+            refreshing = true
             try {
-              controller.enqueue(
-                encodeEvent('heartbeat', { at: new Date().toISOString() }),
-              )
-            } catch {
-              dispose(false)
-            }
+              const current = await getActiveSession(request.headers)
+              if (!current) { dispose(true); return }
+              const channels = await getPublicChannels(current.user.id)
+              if (!closed) controller.enqueue(encodeEvent('directory', { channels: channels.map((entry) => ({ ...entry, discordNotificationsEnabled: false, poster: entry.poster ?? null })), updatedAt: new Date().toISOString() }))
+            } catch { dispose(true) }
+            finally { refreshing = false }
           }, heartbeatIntervalMs)
           heartbeat.unref?.()
         })

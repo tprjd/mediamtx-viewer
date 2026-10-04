@@ -10,6 +10,7 @@ const requestSchema = z
     action: z.enum(['publish', 'read', 'playback', 'api', 'metrics', 'pprof']),
     path: z.string().max(160).default(''),
     token: z.string().max(256).default(''),
+    protocol: z.string().max(32).default(''),
   })
   .passthrough()
 
@@ -36,6 +37,12 @@ export async function POST(request: Request): Promise<Response> {
     return new Response(null, {
       status: authorizePublish(payload.path, payload.token) ? 204 : 401,
     })
+  }
+
+  // The public RTMP port is for publishers. Readers must use the account-
+  // protected HTTP proxies; RTSP remains private for the thumbnail worker.
+  if (payload.action === 'read' && !['hls', 'webrtc', 'rtsp'].includes(payload.protocol)) {
+    return new Response(null, { status: 403 })
   }
 
   if (
