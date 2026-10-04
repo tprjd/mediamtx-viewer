@@ -2,7 +2,12 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [1.2.2] - 2026-10-04
+
+### Fixed
+
+- Configure production Discord sign-in credentials and the registered callback URL.
+- Document Discord client-secret setup and manual linking for existing accounts.
 
 ### Changed
 

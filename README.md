@@ -186,6 +186,11 @@ temporarily on `/admin/users`, and activate each new account after registration.
 Google and Discord sign-in are optional. See [provider setup and account linking](docs/provider-sign-in.md)
 for the required credentials, callback URLs, and account rules.
 
+Existing accounts can link Discord from **Account settings** after signing in.
+Discord never links accounts automatically by email. Google can automatically
+link matching verified Gmail and Google Workspace addresses. New provider
+registrations still require administrator approval for viewing access.
+
 Account activation grants viewing access only. To let someone broadcast, open
 `/admin/users`, enter an immutable channel slug on their active account, and
 select **Grant streaming**. Each account can own one channel.

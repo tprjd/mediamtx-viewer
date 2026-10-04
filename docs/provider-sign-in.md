@@ -22,6 +22,30 @@ For local development, the Google callback is `http://localhost:3000/api/auth/ca
 
 For production, use the public HTTPS origin. Callback URLs must match exactly. These credentials are separate from the Discord notification bot token.
 
+For FrankerzSpam production, register these exact URLs:
+
+- Google: `https://frankerzspam.duckdns.org/api/auth/callback/google`
+- Discord: `https://frankerzspam.duckdns.org/api/auth/callback/discord`
+
+### Discord application settings
+
+Use the FrankerzSpam application in the Discord Developer Portal. Keep **Public
+Client** off because the server stores the client secret. Under **OAuth2**, add
+the Discord callback and select **Save Changes**. Reload the page to confirm
+that the callback is saved.
+
+For a new application, select **Reset Secret** to generate the client secret.
+Save it in the encrypted deployment configuration before you leave the page.
+Resetting an existing application's secret invalidates its previous secret.
+Deploy the replacement credentials before you test sign-in.
+
+Existing site users must first sign in with a method they already use. In
+**Account settings**, select **Link Discord** and authorize the application.
+Discord can then sign in to that same account. A matching Discord email does
+not automatically link accounts.
+
+### Requested permissions
+
 The application requests Google's default `openid`, `email`, and `profile` scopes and Discord's `identify` and `email` scopes. No bot or server-membership permission is needed.
 
 Google exempts requests limited to these basic sign-in scopes from the Testing status restrictions. Users do not need to be listed as test users, and their authorization does not expire after seven days. Additional scopes can change these rules. See [Google's audience and publishing rules](https://support.google.com/cloud/answer/15549945?hl=en).
