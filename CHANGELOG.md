@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.2.4] - 2026-10-04
+
+### Fixed
+
+- Update the login-page screenshot baseline after removing the technical description.
+
 ## [1.2.3] - 2026-10-04
 
 ### Changed
