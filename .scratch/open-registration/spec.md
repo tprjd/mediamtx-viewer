@@ -1,6 +1,6 @@
 # Open registration and channel viewing approval
 
-Status: implemented on 2026-10-04; local checks and SMTP delivery pass; final branch CI pending
+Status: deployed as v2.0.0 on 2026-10-04; required checks and production verification pass
 
 ## Requested behavior
 
@@ -47,15 +47,17 @@ Status: implemented on 2026-10-04; local checks and SMTP delivery pass; final br
 - Migrate active accounts to Administrator approval, pending accounts to signed-in eligibility without Administrator approval, and disabled accounts to Account suspension.
 - Preserve existing channels. Create a channel for each non-suspended account that does not already own one.
 
-## Existing implementation conflict
+## Original implementation conflict
 
-The implementation ties Viewing access and Streaming access to an account's active status.
-The accepted model separates permission to use an account from administrator approval to watch all channels.
-The glossary describes the accepted model. The implementation still uses the previous rules.
+Before this change, Viewing access and Streaming access required an active account.
+Version 2.0.0 separates permission to use an account from Administrator approval to watch all channels.
+The implementation and glossary now use the accepted model.
 
 The repository keeps accepted decisions in maintained guides. Follow that convention instead of adding duplicate ADRs.
 
-## Current implementation facts
+## Implementation facts recorded before development
+
+The following facts describe the old implementation. They explain the scope of this change.
 
 - Pending accounts cannot sign in. The session creation check is in `lib/auth/auth.ts`.
 - Viewing requires active status in `lib/auth/session.ts` and the media proxy authorization checks.
@@ -108,13 +110,14 @@ The maintained [account access guide](../../docs/account-access.md) consolidates
 
 ## Deployment prerequisite
 
-SMTP service credentials and a sender address must be configured before deployment.
+SMTP credentials and the dedicated Gmail sender were configured before deployment.
+The approved test email arrived in the operator's inbox. TLS and authentication also pass from the deployed viewer container.
 
 ## Interview record
 
 The requested behavior above comes from the initial request.
 Recommendations in the interview are proposals until the user accepts them.
-Implementation has not started.
+The interview preceded implementation. Version 2.0.0 now implements the confirmed design.
 
 ### Round 1: account approval
 
@@ -201,3 +204,8 @@ Implementation is a separate task. This planning session does not commit or push
 The separate UI prototype is captured on `codex/prototype-open-registration`.
 The user selected A, with the requirement to retain the existing application layout and controls.
 See [the prototype review issue](issues/01-frontend-access-flow.md) for the source and walkthrough.
+
+## Release verification
+
+The player bugfix merged first, followed by the registration feature.
+[The implementation issue](issues/02-implement-account-access.md#answer) records the final checks and deployment evidence.

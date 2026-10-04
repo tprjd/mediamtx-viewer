@@ -1,7 +1,7 @@
 # Implement open registration and channel approval
 
 Type: task
-Status: claimed
+Status: resolved
 
 Implement the [confirmed spec](../spec.md) and [access guide](../../../docs/account-access.md).
 Use prototype A for the new flows, within the existing application interface.
@@ -50,11 +50,25 @@ Four concurrent registrations pass without external fixture writes.
 A dedicated Gmail sender is configured in the encrypted deployment settings.
 TLS and SMTP authentication pass from both the workstation and production VM.
 The approved test email arrived in the operator's inbox. No second test email was
-sent from the VM. Final branch CI and the verified release workflow must pass
-before deployment. No production deployment or production database migration has
-been performed.
+sent from the VM. Final branch CI and the verified release workflow passed.
+Production now runs v2.0.0 with the account migration applied.
 
 Standards review fixes: separate durable transport completion, independent retry
 batches, accurate account-eligibility naming, and notification pagination continuity.
 Spec review fix: restrict the public WHIP route to publishing endpoints. RTMP reads
 are also rejected. Regression checks cover the access bypasses and retry failures.
+
+## Answer
+
+Deployed [v2.0.0](https://github.com/tprjd/mediamtx-viewer/releases/tag/v2.0.0)
+on 2026-10-04 at [FrankerzSpam](https://frankerzspam.duckdns.org/).
+
+- Merged the player bugfix through [PR #1](https://github.com/tprjd/mediamtx-viewer/pull/1) before the registration feature through [PR #2](https://github.com/tprjd/mediamtx-viewer/pull/2).
+- Updated the package version, changelog, README, and account and deployment guides.
+- [Final branch CI](https://github.com/tprjd/mediamtx-viewer/actions/runs/37227605174) passed. Browser checks finished with 84 passes and 12 planned skips.
+- [Verified ARM64 release](https://github.com/tprjd/mediamtx-viewer/actions/runs/37229106898) passed all required groups for tagged commit `be3cff78064103e5872f31c896e403625747d265`. Both published image digests passed anonymous pull checks.
+- [Production deployment](https://github.com/tprjd/mediamtx-deployment/actions/runs/37230922777) passed. Its final state is `complete`, result `active`, release `v2.0.0`, with no operation held.
+- Migration `007_open_registration.sql` completed. Both account and Chat migration commands returned exit code 0.
+- The live header and internal `/api/health` report version `2.0.0`. Core status is `ok`, Chat is `healthy`, and no faults are reported.
+- The live Channel page shows audience request, approval, and history tabs, plus the notification sound controls. The header shows the notification center.
+- The dedicated Gmail sender delivered the one approved test email. TLS and SMTP authentication also pass using the deployed viewer container's actual settings. No second email was sent.
