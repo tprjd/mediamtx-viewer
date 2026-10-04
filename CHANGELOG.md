@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [1.2.3] - 2026-10-04
+
+### Changed
+
+- Use branded Google and Discord sign-in buttons with provider logos and colors.
+- Remove the technical description from the login page.
+
 ## [1.2.2] - 2026-10-04
 
 ### Fixed
