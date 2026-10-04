@@ -1,6 +1,6 @@
 # Open registration and channel viewing approval
 
-Status: implemented on 2026-10-04; local checks pass, branch CI and SMTP setup pending
+Status: implemented on 2026-10-04; local checks and SMTP delivery pass; final branch CI pending
 
 ## Requested behavior
 

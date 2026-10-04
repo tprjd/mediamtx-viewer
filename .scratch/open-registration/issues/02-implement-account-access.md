@@ -40,9 +40,19 @@ regression checks and a real Centrifugo session-revocation check pass. The viewe
 container now receives both internal media origins at runtime.
 
 Version 2.0.0, the changelog, README, and access documentation are prepared.
-Branch CI and the verified release workflow must pass before deployment.
-Production SMTP and its sender still need configuration. No production deployment
-or production database migration has been performed.
+The first hosted CI run passed all Docker groups. Its browser and restore groups
+found three test fixture problems: the broker could not reach the loopback-only
+fixture server, automatic channels lacked the expected description, and external
+session writes conflicted with registration transactions. These fixtures are fixed.
+Six focused browser checks and the existing Linux offline snapshot pass afterward.
+Four concurrent registrations pass without external fixture writes.
+
+A dedicated Gmail sender is configured in the encrypted deployment settings.
+TLS and SMTP authentication pass from both the workstation and production VM.
+The approved test email arrived in the operator's inbox. No second test email was
+sent from the VM. Final branch CI and the verified release workflow must pass
+before deployment. No production deployment or production database migration has
+been performed.
 
 Standards review fixes: separate durable transport completion, independent retry
 batches, accurate account-eligibility naming, and notification pagination continuity.
