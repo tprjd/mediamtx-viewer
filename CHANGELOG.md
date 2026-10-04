@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [1.2.1] - 2026-10-04
+
+### Fixed
+
+- Configure production Google sign-in credentials and the registered callback URL.
+- Clarify Google's Testing status exception for basic sign-in scopes.
+
 ## [1.2.0] - 2026-10-02
 
 ### Added
