@@ -27,7 +27,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       <section className={styles.authCard}>
         <p className="eyebrow">Private stream</p>
         <h1>Welcome back.</h1>
-        <p>Sign in once to watch pages, HLS, and low-latency WebRTC.</p>
         {params.error && <p className="form-error" role="alert">{providerErrorMessage(params.error)}</p>}
         <ProviderSignIn providers={configuredProviders()} returnTo={returnTo} />
         <LoginForm returnTo={returnTo} />
