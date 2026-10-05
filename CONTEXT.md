@@ -40,6 +40,10 @@ _Avoid_: Account activation, account enablement
 An administrator-imposed restriction that blocks account use, including publishing, regardless of Administrator approval.
 _Avoid_: Pending approval, unapproved account
 
+**Notification inbox**:
+An account's stored notifications about Viewing requests and changes to Viewing access. Reading a notification does not decide its Viewing request.
+_Avoid_: Browser notifications, activity feed
+
 ### Publishing
 
 **Channel**:

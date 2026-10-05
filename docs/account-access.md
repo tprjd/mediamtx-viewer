@@ -201,6 +201,15 @@ The notification center checks for new notifications every five seconds. Browser
 sound requires a prior user interaction. A browser lock and a shared notification
 watermark prevent duplicate sounds across tabs. Muting sound leaves delivery enabled.
 
+`lib/notification-inbox.ts` owns the Notification inbox state, polling, history
+cursor, read actions, Viewing request decisions, and sound eligibility. Its
+`useNotificationInbox` interface gives the header view the current state and the
+`markRead`, `decide`, and `loadOlder` actions.
+It rejects responses that started before a read or decision action. Polling waits
+while that action completes. A delayed history response cannot replace a newer
+history cursor. Closing the page cancels outstanding reads and discards late
+responses and queued sounds.
+
 The public WHIP prefix accepts only publishing endpoints and their session URLs.
 RTMP reads are rejected; RTMP remains available for publishing. Private RTSP reads
 remain available to the thumbnail worker. The MediaMTX authorization callback uses

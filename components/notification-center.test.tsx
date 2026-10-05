@@ -50,3 +50,24 @@ it('keeps displaced stored notifications when the latest page fills', async () =
   expect(screen.getByRole('heading', { name: 'Notification 1' })).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Notification 101' })).toBeInTheDocument()
 })
+
+it('keeps a completed read when an earlier poll returns afterward', async () => {
+  const oldPoll = Promise.withResolvers<Response>()
+  vi.mocked(fetch).mockReturnValueOnce(oldPoll.promise)
+  render(<NotificationCenter userId="viewer" initial={inbox} />)
+  await poll()
+  expect(fetch).toHaveBeenCalledTimes(1)
+  fireEvent.click(screen.getByRole('button', { name: 'Notifications, 1 unread' }))
+
+  inbox = { notifications: [{ ...item(1), readAt: 123 }], unread: 0, sound: true }
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Mark read' }))
+  })
+  expect(screen.getByText('0 unread', { exact: true })).toBeInTheDocument()
+
+  await act(async () => {
+    oldPoll.resolve(Response.json({ notifications: [item(1)], unread: 1, sound: true }))
+  })
+  expect(screen.getByText('0 unread', { exact: true })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Mark read' })).not.toBeInTheDocument()
+})

@@ -1,4 +1,36 @@
 import { expect, test } from '@playwright/test'
+import { randomUUID } from 'node:crypto'
+import Database from 'better-sqlite3'
+
+test('notification inbox polls stored updates and persists Mark read', async ({ page }) => {
+  const database = new Database('.data/e2e-auth.sqlite', { fileMustExist: true })
+  const title = `Inbox check ${randomUUID()}`
+  try {
+    await page.goto('/login?returnTo=/account/channel')
+    await page.getByLabel('Username').fill('power')
+    await page.getByLabel('Password').fill('e2e-administrator-password')
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByRole('heading', { name: 'Download OBS setup' })).toBeVisible()
+    await page.getByRole('button', { name: /^Notifications, / }).click()
+
+    database.prepare(`INSERT INTO account_notification (recipient_id, title, body, created_at)
+      SELECT id, ?, 'Stored viewing access update', ? FROM user WHERE username = 'power'`).run(title, Date.now())
+    const notification = page.getByRole('article').filter({ has: page.getByRole('heading', { name: title }) })
+    await expect(notification).toBeVisible({ timeout: 10_000 })
+    await expect(notification).toHaveAttribute('data-read', 'false')
+    await notification.getByRole('button', { name: 'Mark read', exact: true }).click()
+    await expect(notification).toHaveAttribute('data-read', 'true')
+    expect(database.prepare('SELECT read_at FROM account_notification WHERE title = ?').get(title)).toEqual({ read_at: expect.any(Number) })
+
+    await page.reload()
+    await page.getByRole('button', { name: /^Notifications, / }).click()
+    await expect(notification).toHaveAttribute('data-read', 'true')
+    await expect(notification.getByRole('button', { name: 'Mark read', exact: true })).toHaveCount(0)
+  } finally {
+    database.prepare('DELETE FROM account_notification WHERE title = ?').run(title)
+    database.close()
+  }
+})
 
 test('administrator can manage the owned OBS channel and reveal a key once', async ({
   page,
