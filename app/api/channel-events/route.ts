@@ -1,6 +1,4 @@
-import { canSeeChannel, canWatchChannel } from '@/lib/viewing-access'
-import { getPublicChannels } from '@/lib/channel-reads'
-import type { ChannelLiveUpdate } from '@/lib/types'
+import { getPublicChannelDirectory, getPublicChannelEvent } from '@/lib/channel-reads'
 import { getActiveSession } from '@/lib/auth/session'
 import {
   getChannelStatusMonitor,
@@ -62,13 +60,9 @@ export async function GET(request: Request): Promise<Response> {
       const send = (event: ChannelMonitorEvent) => {
         if (closed) return
         try {
-          const sanitize = (update: ChannelLiveUpdate): ChannelLiveUpdate => canWatchChannel(session.user.id, update.slug)
-            ? { ...update, viewingAllowed: true }
-            : { ...update, viewingAllowed: false, poster: null, status: { ...update.status, tracks: [], viewerCount: null } }
-          if (event.type === 'channel-status') {
-            if (canSeeChannel(session.user.id, event.data.slug)) controller.enqueue(encodeEvent(event.type, sanitize(event.data), event.id))
-          } else {
-            controller.enqueue(encodeEvent(event.type, { ...event.data, channels: event.data.channels.filter((entry) => canSeeChannel(session.user.id, entry.slug)).map(sanitize) }, event.id))
+          const visible = getPublicChannelEvent(session.user.id, event)
+          if (visible) {
+            controller.enqueue(encodeEvent(visible.type, visible.data, visible.id))
           }
         } catch {
           dispose(false)
@@ -95,8 +89,8 @@ export async function GET(request: Request): Promise<Response> {
             try {
               const current = await getActiveSession(request.headers)
               if (!current) { dispose(true); return }
-              const channels = await getPublicChannels(current.user.id)
-              if (!closed) controller.enqueue(encodeEvent('directory', { channels: channels.map((entry) => ({ ...entry, discordNotificationsEnabled: false, poster: entry.poster ?? null })), updatedAt: new Date().toISOString() }))
+              const directory = await getPublicChannelDirectory(current.user.id)
+              if (!closed) controller.enqueue(encodeEvent('directory', directory))
             } catch { dispose(true) }
             finally { refreshing = false }
           }, heartbeatIntervalMs)

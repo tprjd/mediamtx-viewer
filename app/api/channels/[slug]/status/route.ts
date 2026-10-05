@@ -1,9 +1,7 @@
 import { getActiveSession } from '@/lib/auth/session'
-import { canSeeChannel, canWatchChannel } from '@/lib/viewing-access'
 import { NextResponse } from 'next/server'
 
-import { getChannel } from '@/lib/channels'
-import { getChannelStatus } from '@/lib/mediamtx'
+import { getPublicChannelStatus } from '@/lib/channel-reads'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,19 +16,17 @@ export async function GET(
   const { slug } = await context.params
   const session = await getActiveSession()
   if (!session) return NextResponse.json({ error: 'Sign in required' }, { status: 401 })
-  const channel = canSeeChannel(session.user.id, slug) ? getChannel(slug) : undefined
+  const status = await getPublicChannelStatus(session.user.id, slug)
 
-  if (!channel) {
+  if (!status) {
     return NextResponse.json(
       { error: 'Channel not found' },
       { status: 404 },
     )
   }
 
-  const status = await getChannelStatus(channel.mediaPath)
-
   return NextResponse.json(
-    { status: canWatchChannel(session.user.id, slug) ? status : { ...status, tracks: [], viewerCount: null } },
+    { status },
     {
       headers: {
         'Cache-Control': 'private, no-store, max-age=0',

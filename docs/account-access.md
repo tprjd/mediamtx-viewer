@@ -78,6 +78,24 @@ The app must not send a restricted thumbnail URL and rely on visual blur to conc
 
 The rule that hides new unverified accounts' channels applies before this restricted-channel display rule.
 
+### Channel read module
+
+`lib/channel-reads.ts` owns account-specific Channel reads and field filtering for
+the directory, public live updates, periodic directory refreshes, and status
+replies. It uses the Viewing access rules in `lib/viewing-access.ts`. Route
+adapters handle sessions, response encoding, and connection lifetime.
+
+The shared status monitor keeps account-neutral data. The read module checks
+current access for each public delivery without changing the shared event.
+Internal subscribers, including the Discord notifier, keep the original data.
+Direct thumbnail, media, and Chat requests still check Viewing access separately.
+
+These paths retain their existing response fields and Channel selection rules.
+Periodic directory events contain full Channel data; monitor events contain
+partial updates. An owner's disabled Channel can appear in the directory, while
+its status request returns 404 and the shared monitor omits it. The module
+preserves this difference; it does not define a new access policy.
+
 ## Notification center and sound
 
 This version delivers notifications inside the app. It does not add browser or desktop notifications outside the app.

@@ -1,11 +1,27 @@
 import 'server-only'
 
 import { canSeeChannel, canWatchChannel } from '@/lib/viewing-access'
-import { getChannels } from '@/lib/channels'
+import { getChannel, getChannels } from '@/lib/channels'
 import { channelPosterUrl } from '@/lib/channel-thumbnails'
-import { getChannelStatuses } from '@/lib/mediamtx'
+import { getChannelStatus, getChannelStatuses } from '@/lib/mediamtx'
 import { toPublicChannel } from '@/lib/public-channel'
-import type { ChannelLiveUpdate, PublicChannel } from '@/lib/types'
+import type { ChannelMonitorEvent } from '@/lib/channel-status-monitor'
+import type { ChannelLiveUpdate, ChannelStatus, ChannelStatusSnapshot, PublicChannel } from '@/lib/types'
+
+function visibleStatus(status: ChannelStatus, viewingAllowed: boolean): ChannelStatus {
+  return viewingAllowed ? status : { ...status, tracks: [], viewerCount: null }
+}
+
+function visibleLiveUpdate(viewerId: string, update: ChannelLiveUpdate): ChannelLiveUpdate | null {
+  if (!canSeeChannel(viewerId, update.slug)) return null
+  const viewingAllowed = canWatchChannel(viewerId, update.slug)
+  return {
+    ...update,
+    viewingAllowed,
+    poster: viewingAllowed ? update.poster : null,
+    status: visibleStatus(update.status, viewingAllowed),
+  }
+}
 
 async function readChannels(viewerId?: string) {
   const channels = getChannels(viewerId)
@@ -20,17 +36,61 @@ async function readChannels(viewerId?: string) {
 }
 
 export async function getPublicChannels(viewerId: string): Promise<PublicChannel[]> {
-  return (await readChannels(viewerId)).filter(({ channel }) => canSeeChannel(viewerId, channel.slug)).map(({ channel, status, poster }) => {
-    const allowed = canWatchChannel(viewerId, channel.slug)
-    const result = toPublicChannel(channel, status, poster)
-    return allowed ? { ...result, viewingAllowed: true } : {
-      ...result, viewingAllowed: false, description: undefined, poster: undefined,
-      playback: { hls: '', webrtc: '' },
-      status: { ...status, tracks: [], viewerCount: null },
-    }
-  })
+  return (await readChannels(viewerId))
+    .filter(({ channel }) => canSeeChannel(viewerId, channel.slug))
+    .map(({ channel, status, poster }) => {
+      const viewingAllowed = canWatchChannel(viewerId, channel.slug)
+      const result = toPublicChannel(channel, visibleStatus(status, viewingAllowed), poster)
+      return viewingAllowed ? { ...result, viewingAllowed } : {
+        ...result,
+        viewingAllowed,
+        description: undefined,
+        poster: undefined,
+        playback: { hls: '', webrtc: '' },
+      }
+    })
 }
 
+export async function getPublicChannelStatus(viewerId: string, slug: string): Promise<ChannelStatus | null> {
+  // Preserve the status route's lookup: a disabled Channel is absent, even for its owner.
+  const channel = canSeeChannel(viewerId, slug) ? getChannel(slug) : undefined
+  if (!channel) return null
+  const status = await getChannelStatus(channel.mediaPath)
+  return visibleStatus(status, canWatchChannel(viewerId, slug))
+}
+
+/** Filter each delivery with current access; never modify the shared monitor event. */
+export function getPublicChannelEvent(viewerId: string, event: ChannelMonitorEvent): ChannelMonitorEvent | null {
+  if (event.type === 'channel-status') {
+    const data = visibleLiveUpdate(viewerId, event.data)
+    return data ? { ...event, data } : null
+  }
+  return {
+    ...event,
+    data: {
+      ...event.data,
+      channels: event.data.channels.flatMap((update) => {
+        const visible = visibleLiveUpdate(viewerId, update)
+        return visible ? [visible] : []
+      }),
+    },
+  }
+}
+
+/** Periodic directory events carry full Channel data, unlike monitor updates. */
+export async function getPublicChannelDirectory(viewerId: string): Promise<ChannelStatusSnapshot> {
+  const channels = await getPublicChannels(viewerId)
+  return {
+    channels: channels.map((channel) => ({
+      ...channel,
+      discordNotificationsEnabled: false,
+      poster: channel.poster ?? null,
+    })),
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+/** Account-neutral data for the shared monitor and internal subscribers. */
 export async function loadChannelLiveUpdates(): Promise<ChannelLiveUpdate[]> {
   return (await readChannels()).map(({ channel, status, poster }) => ({
     slug: channel.slug,
