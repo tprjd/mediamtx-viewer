@@ -97,7 +97,35 @@ The final implementation passed these local checks with Node 24.15.0:
 
 The Linux CI compatibility defects were fixed with an explicit Docker host
 mapping and a container-provided FFmpeg runtime. The verification group passed
-locally. A hosted Ubuntu run is not claimed.
+locally. Hosted verification subsequently passed for the v2.1.2 pilot deployment
+recorded below.
+
+## Pilot deployment, 2026-10-07
+
+Release v2.1.2 passed all 19 hosted verification groups, ARM64 image checks,
+and publication checks in GitHub Actions run 37663191110. Browser verification
+passed with 86 tests and 12 intentional skips. The full browser suite also passed
+locally with Linux x64 Chromium. Two browser-test fixes were required: use real
+MediaMTX reader types in the viewer fixture, and wait for the initial Chat access
+refresh before entering a message. Existing screenshot baselines were retained.
+
+The managed deployment completed with result `active`, phase `complete`, all
+seven services running, and its operation lock released. It activated v2.1.2
+on the existing Oracle installation.
+At 18:38 UTC, direct checks confirmed the public login and header version,
+healthy application and Chat status, an empty Chat delivery queue, and both
+media-worker supervisors. The private HLS worker endpoint accepted its credential
+and rejected an unauthenticated request. No fallback job was active during this
+check.
+
+Retention kept the current and previous releases and two verified deployment
+backup sets on each machine. Two older image-removal entries remain pending;
+the deployment did not force their removal.
+
+The pilot is limited to Channel `live`, owned by `power`. Wider availability
+remains disabled. No production Publisher was started for this deployment check.
+The physical Windows OBS, iPhone 13, camera-to-screen latency, upload-interruption,
+and OCI load acceptance checks above remain pending.
 
 ## Standards review
 
