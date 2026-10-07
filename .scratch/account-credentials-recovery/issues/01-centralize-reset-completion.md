@@ -1,6 +1,6 @@
 # 01: Centralize Account credentials recovery completion
 
-Status: claimed
+Status: resolved
 Blocked by: none
 
 ## Scope
@@ -18,7 +18,7 @@ This is one ticket because the ownership change and its acceptance tests form on
 - [x] The existing SMTP integration test remains effective.
 - [x] The account access guide identifies the recovery module and its responsibility.
 - [x] Relevant account tests, lint, type checks, and the production build pass.
-- [ ] Standards and Spec reviews have no unresolved actionable findings.
+- [x] Standards and Spec reviews have no unresolved actionable findings.
 
 ## Comments
 
@@ -26,3 +26,4 @@ This is one ticket because the ownership change and its acceptance tests form on
 - 2026-10-07: Claimed in `codex/account-recovery-implementation` for implementation and verification.
 - 2026-10-07: Added `lib/auth/account-credentials-recovery.ts` and 46 action-level SQLite cases. All 46 cases passed against the previous implementation before the refactor and passed after it. The tests cover source selection, validation, credential matching, stored account state, and rollback with a real SQLite trigger.
 - 2026-10-07: Node 24.15.0 verification passed after `npm ci`: `npm run test:fast -- lib/auth app/account/account-details.test.tsx lib/account-restrictions.integration.test.ts lib/viewing-access.integration.test.ts --reporter=verbose` passed 127 tests in nine files, including SMTP delivery. `npm run verify -- static` passed lint, type checks, and the streaming contract check. `npm run verify -- build` passed the production webpack build. Standards and Spec reviews remain pending.
+- 2026-10-07: Implementation commit `c9addaf` integrated into `codex/account-credentials-recovery`. Independent Standards and Spec reviews against `c4faa8c` found no actionable issues. Resolved in [PR #3](https://github.com/tprjd/mediamtx-viewer/pull/3).

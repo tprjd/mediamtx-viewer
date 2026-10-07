@@ -1,6 +1,6 @@
 # Deepen Account credentials recovery
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
@@ -132,4 +132,6 @@ The maintained [account access guide](../../docs/account-access.md) defines reco
 The [domain glossary](../../CONTEXT.md) defines Account credentials and the related access terms.
 Use the [verification guide](../../docs/verification.md) for implementation checks.
 
-Creating this spec does not start implementation. This is planning work, so it does not require a commit or push.
+## Comments
+
+- 2026-10-07: Implemented by an Astra subagent at xhigh effort in `c9addaf`. The [implementation ticket](issues/01-centralize-reset-completion.md) records verification and review results. Delivered in [PR #3](https://github.com/tprjd/mediamtx-viewer/pull/3).
