@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here.
 
+## [2.0.1] - 2026-10-07
+
+### Changed
+
+- Centralize account-specific Channel reads and visibility filtering.
+- Consolidate Notification inbox polling, read actions, request decisions, and sound eligibility.
+- Keep Chat transcript display rows and reading-position corrections in one module.
+- Centralize Playback mode eligibility for both control layouts.
+- Consolidate Account suspension and Channel disabling completion while preserving independent Chat and media disconnection results.
+- Centralize Account credentials recovery, including both reset-token sources, password replacement, session revocation, and token cleanup.
+
+### Added
+
+- Add regression coverage for access filtering, notification response ordering, Chat transcript resets, playback selection, account restrictions, and password reset transactions.
+
 ## [2.0.0] - 2026-10-04
 
 ### Added
