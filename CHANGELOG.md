@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [2.1.3] - 2026-10-07
+
+### Fixed
+
+- Preserve audio/video timing in the WHIP-to-HLS converter with a shared timestamp timeline.
+- Avoid false reconnect indicators for buffered network stalls and playback waits shorter than 250 ms.
+- Verify decoded audio/video alignment after worker restart and when returning to RTMP with AAC.
+
 ## [2.1.2] - 2026-10-07
 
 ### Fixed
