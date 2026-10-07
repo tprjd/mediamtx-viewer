@@ -39,69 +39,49 @@ function tagPlaybackUrl(url: string, viewerId: string | undefined): string {
 
 interface PlaybackModeControlsProps {
   summaryTarget: (target: HTMLDivElement | null) => void
-  balancedUnavailable: boolean
-  lowLatencyDisabled: boolean
+  selectableModes: ReturnType<typeof usePlaybackMode>['selectableModes']
   mode: PlaybackMode
   modeExitReason?: string
   selectMode: ReturnType<typeof usePlaybackMode>['selectMode']
-  ultraLowSupported: boolean
-  webrtcAvailable: boolean
 }
 
 export function PlaybackModeControls({
   summaryTarget,
-  balancedUnavailable,
-  lowLatencyDisabled,
+  selectableModes,
   mode,
   modeExitReason,
   selectMode,
-  ultraLowSupported,
-  webrtcAvailable,
 }: PlaybackModeControlsProps) {
-  const modes: {
-    value: PlaybackMode
+  const modes: Record<PlaybackMode, {
     label: string
     accessibleLabel?: string
     description: string
-    available: boolean
     icon: typeof Gauge
-  }[] = [
-    {
-      value: 'ultra-low',
+  }> = {
+    'ultra-low': {
       label: 'Low',
       accessibleLabel: `${ultraLowContract.label}, recommended`,
       description: `Targets about ${ultraLowContract.targetLatencySeconds}s behind live and adapts to the stream. Recommended for low delay. Try Balanced or Smooth if playback stalls.`,
-      available: ultraLowSupported,
       icon: Gauge,
     },
-    {
-      value: 'balanced',
+    'balanced': {
       label: 'Balanced',
       description: `Targets about ${hlsPlaybackContract('balanced').targetLatencySeconds}s behind live. Balances delay with room to recover from brief connection drops.`,
-      available: !balancedUnavailable,
       icon: Scale,
     },
-    {
-      value: 'smooth',
+    'smooth': {
       label: 'Smooth',
       description: `Targets about ${hlsPlaybackContract('smooth').targetLatencySeconds}s behind live. Adds more buffer for unstable connections.`,
-      available: true,
       icon: ShieldCheck,
     },
-    {
-      value: 'webrtc',
+    'webrtc': {
       label: 'Low latency',
       description: 'Uses WebRTC for minimal delay, with no fixed delay target and less room to recover from connection drops.',
-      available: webrtcAvailable && !lowLatencyDisabled,
       icon: Gauge,
     },
-  ]
-  const availableModes = modes.filter((option) => option.available)
-  const currentMode = modes.find((option) => option.value === mode)
-  function handleModeChange(value: string) {
-    const selected = availableModes.find((option) => option.value === value)
-    if (selected) selectMode(selected.value)
   }
+  const availableModes = selectableModes.map(value => ({ value, ...modes[value] }))
+  const currentMode = modes[mode]
 
   return (
     <div className={styles.playbackModeSwitch}>
@@ -111,7 +91,7 @@ export function PlaybackModeControls({
         className={styles.playbackModeActions}
         orientation="horizontal"
         value={mode}
-        onValueChange={handleModeChange}
+        onValueChange={selectMode}
       >
         {availableModes.map(({ value, label, accessibleLabel, description, icon: Icon }) => (
           <Tooltip
@@ -155,7 +135,7 @@ export function PlaybackModeControls({
             <DropdownMenu.Label className={styles.playbackModeMenuLabel}>
               Playback mode
             </DropdownMenu.Label>
-            <DropdownMenu.RadioGroup value={mode} onValueChange={handleModeChange}>
+            <DropdownMenu.RadioGroup value={mode} onValueChange={selectMode}>
               {availableModes.map(({ value, label, accessibleLabel, description, icon: Icon }) => (
                 <DropdownMenu.RadioItem
                   key={value}
@@ -203,17 +183,14 @@ export function LivePlayer({
     tracks: channel.status.tracks,
   })
   const {
-    balancedUnavailable,
-    lowLatencyDisabled,
+    selectableModes,
     mode,
     modeExitReason,
-    webrtcAvailable,
     onBalancedUnavailable: handleBalancedUnavailable,
     onUltraLowFailure: handleUltraLowFailure,
     onUltraLowUnavailable: handleUltraLowUnavailable,
     onWebRtcFallback: handleFallback,
     selectMode,
-    ultraLowSupported,
   } = playback
   const taggedChannel = useMemo<PublicChannel>(
     () => ({
@@ -231,13 +208,10 @@ export function LivePlayer({
   const playbackModeControls = channel.status.live ? (
     <PlaybackModeControls
       summaryTarget={setSummaryTarget}
-      balancedUnavailable={balancedUnavailable}
-      lowLatencyDisabled={lowLatencyDisabled}
+      selectableModes={selectableModes}
       mode={mode}
       modeExitReason={modeExitReason}
       selectMode={selectMode}
-      ultraLowSupported={ultraLowSupported}
-      webrtcAvailable={webrtcAvailable}
     />
   ) : null
   const hasExternalControlsTarget = playbackControlsTarget !== undefined

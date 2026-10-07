@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { isWebRtcAvailable, webrtcUnavailableReason } from '@/lib/playback-availability'
 import {
@@ -40,8 +40,6 @@ export function usePlaybackMode({
   } | null>(null)
   const [balancedUnavailable, setBalancedUnavailable] = useState(false)
   const [ultraLowSupported, setUltraLowSupported] = useState(false)
-  const [ultraLowUnavailableReason, setUltraLowUnavailableReason] =
-    useState<string>()
   const [modeExitReason, setModeExitReason] = useState<string>()
   const [now, setNow] = useState(() => Date.now())
 
@@ -49,11 +47,6 @@ export function usePlaybackMode({
     const timer = window.setTimeout(() => {
       const ultraLowAvailable = supportsUltraLow()
       setUltraLowSupported(ultraLowAvailable)
-      setUltraLowUnavailableReason(
-        ultraLowAvailable
-          ? undefined
-          : `${ultraLowContract.label} requires hls.js and Media Source Extensions.`,
-      )
       const saved = window.sessionStorage.getItem(MODE_STORAGE_KEY)
       if (saved === 'hls') {
         window.sessionStorage.setItem(MODE_STORAGE_KEY, 'balanced')
@@ -112,7 +105,8 @@ export function usePlaybackMode({
     return () => window.clearInterval(timer)
   }, [now, retryAfter])
 
-  const selectMode = useCallback((next: PlaybackMode) => {
+  // Contract fallbacks can target a mode that is not offered as a user choice.
+  const commitMode = useCallback((next: PlaybackMode) => {
     setModeExitReason(undefined)
     setMode(next)
     window.sessionStorage.setItem(MODE_STORAGE_KEY, next)
@@ -122,47 +116,54 @@ export function usePlaybackMode({
     const cooldown = Date.now() + webRtcFallback.retryCooldownMs
     setFallback({ retryAfter: cooldown, startedAt: streamStartedAt })
     setNow(Date.now())
-    selectMode(webRtcFallback.mode)
-  }, [selectMode, streamStartedAt])
+    commitMode(webRtcFallback.mode)
+  }, [commitMode, streamStartedAt])
 
   const onBalancedUnavailable = useCallback(() => {
     setBalancedUnavailable(true)
-    selectMode('smooth')
-  }, [selectMode])
+    commitMode('smooth')
+  }, [commitMode])
 
   const onUltraLowUnavailable = useCallback((reason?: string) => {
     const unavailableReason = reason ??
       `${ultraLowContract.label} requires hls.js and is unavailable in this browser.`
     setUltraLowSupported(false)
-    setUltraLowUnavailableReason(unavailableReason)
     if (mode !== 'ultra-low') return
-    selectMode(ultraLowFallback('unavailable'))
+    commitMode(ultraLowFallback('unavailable'))
     setModeExitReason(unavailableReason)
-  }, [mode, selectMode])
+  }, [mode, commitMode])
 
   const onUltraLowFailure = useCallback((reason: string) => {
     const fallbackMode = ultraLowFallback('unstable')
-    selectMode(fallbackMode)
+    commitMode(fallbackMode)
     setModeExitReason(
       `${reason} Switched to ${hlsPlaybackContract(fallbackMode).label}.`,
     )
-  }, [selectMode])
+  }, [commitMode])
 
-  const retrySeconds = Math.max(0, Math.ceil((retryAfter - now) / 1_000))
+  const webRtcSelectable = webrtcAvailable && live && retryAfter <= now
+  const selectableModes = useMemo<readonly PlaybackMode[]>(() => {
+    const choices: PlaybackMode[] = []
+    if (ultraLowSupported) choices.push('ultra-low')
+    if (!balancedUnavailable) choices.push('balanced')
+    choices.push('smooth')
+    if (webRtcSelectable) choices.push('webrtc')
+    return choices
+  }, [balancedUnavailable, ultraLowSupported, webRtcSelectable])
+
+  const selectMode = useCallback((value: string) => {
+    const selected = selectableModes.find(choice => choice === value)
+    if (selected) commitMode(selected)
+  }, [commitMode, selectableModes])
+
   return {
-    balancedUnavailable,
-    lowLatencyDisabled: !live || retrySeconds > 0,
-    webrtcAvailable,
-    webrtcUnavailableReason: webrtcUnavailableReasonText,
     mode,
     modeExitReason,
     onBalancedUnavailable,
     onUltraLowFailure,
     onUltraLowUnavailable,
     onWebRtcFallback,
-    retrySeconds,
+    selectableModes,
     selectMode,
-    ultraLowSupported,
-    ultraLowUnavailableReason,
   }
 }

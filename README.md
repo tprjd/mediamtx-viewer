@@ -95,7 +95,12 @@ progress checks, Viewing access checks, and pending recovery work.
 to React, browser connectivity, page visibility, and intentional pauses.
 HLS and WebRTC adapters still own their media connections and transport actions.
 [`components/use-playback-mode.ts`](components/use-playback-mode.ts) owns
-selection and fallback between playback modes.
+selection, eligibility, and fallback between playback modes. Its `selectableModes`
+list supplies both control layouts, and `selectMode` rejects unavailable user
+choices without changing the saved preference. Controls own labels and icons.
+Preference restoration and automatic fallback keep their separate rules. The
+WebRTC retry cooldown ends after 60 seconds or when the Channel starts a new
+broadcast. Expiry makes WebRTC selectable but does not select it automatically.
 
 A Viewing access check has a five-second deadline. A timeout or service failure
 permits recovery instead of declaring the session expired. Confirmed access
