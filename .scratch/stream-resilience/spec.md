@@ -248,15 +248,15 @@ outage, but sustained insufficient bandwidth produced poor playback without OBS
 WHIP bitrate reduction. It used a bare Mac reader; its RTMP comparison omitted
 AAC audio. These findings support further work, not 1080p60 release acceptance.
 
-The specification replaces the earlier plan in place. The existing issue order
-and dependencies remain:
+The specification replaces the earlier plan in place. The approved ticket
+metadata defines this dependency graph:
 
 | Issue | Deliverable | Depends on |
 | --- | --- | --- |
 | [03](issues/03-validate-1080p60-whip.md) | Measured Windows 1080p60 configuration and application recovery findings | Existing prototype |
-| [04](issues/04-hls-audio-fallback.md) | Authorized AAC HLS fallback and correct Channel accounting | 03 |
+| [04](issues/04-hls-audio-fallback.md) | Authorized AAC HLS fallback and correct Channel accounting | Existing WHIP prototype |
 | [05](issues/05-managed-whip-profile.md) | Generated WHIP profile and credential maintenance | 03 |
-| [06](issues/06-playback-selection-and-recovery.md) | Initial selection, recovery, and fallback behavior | 03, 04 |
+| [06](issues/06-playback-selection-and-recovery.md) | Recovery after short upload interruptions | 03 |
 | [07](issues/07-pilot-validation-and-rollout.md) | Complete pilot evidence and expansion review | 04, 05, 06 |
 
 The first experiment can expose recovery defects for issue 06. It does not need

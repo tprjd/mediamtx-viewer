@@ -1,0 +1,114 @@
+# WHIP implementation validation
+
+The code is implemented on `codex/whip-streaming`. The pilot is not accepted for
+rollout. Windows OBS, the physical iPhone 13, and the deployed OCI stack still
+need the complete acceptance run in ticket 07. No production configuration was
+changed and no release was cut.
+
+## Local evidence
+
+[Application evidence](application-evidence.json) records the production-build
+check on 2026-10-07. Native macOS FFmpeg sent one H.264/Opus stream through
+MediaMTX 1.20.1 to the authenticated application Channel page in Chromium.
+The video was configured for 1080p60 with no B-frames, two-second keyframes, and
+a 10 Mbps maximum bitrate. These are test settings, not measurements from the
+user's earlier Windows test. The generated Managed OBS profile still uses a
+provisional 10 Mbps default.
+
+A timestamp encoded inside each generated picture measured its age in the
+application video. The healthy sample median was 31 ms and its maximum was
+43 ms. This excludes camera capture and physical display scanout. It is not a
+physical camera-to-screen result.
+
+Three upload packet drops lasted 2.127, 2.312, and 2.125 seconds. The first
+observed picture less than one second old arrived 785, 512, and 258 ms after
+restoration. The viewer connection bypassed the publisher's network gateway.
+The application stayed on WebRTC, its frame counter did not reset, and received
+audio energy increased. Exact encoder keyframe phase was not recorded.
+
+The initial fallback run exposed a defect: switching from unmuted WebRTC to HLS
+reset the player to muted. That run is retained as failed audio evidence.
+HLS video stayed in Smooth mode for 64 seconds, kept one Viewer identity, and
+allowed manual WebRTC return after the cooldown. The repeat on commit `0f5d0e5` used the actual production worker image.
+HLS stayed unmuted and playing for 64 seconds. Audio RMS was about 0.063 after
+the analyser started, and the manual WebRTC return passed. The source continued
+publishing throughout the forced viewer failure. A separate repeat with default
+Chromium autoplay rules also retained sound without a second unmute click.
+Killing the production converter process started a new process and restored the
+derivative in 2.143 seconds; the canonical Publisher stayed ready with the same
+source identifier.
+
+A local switch from WHIP to RTMP removed the derivative and converter activity.
+The application played canonical H.264/AAC through Balanced HLS at 1920×1080.
+After the initial unmute action, measured audio RMS was 0.063 and the Channel
+counted one viewer. This validates the application route, not publishing from
+both retained Windows OBS profiles.
+
+MediaMTX logged LL-HLS part-duration changes after upload packet drops. The log
+warns about iOS clients. Keep native iPhone HLS playback after interruptions in
+the acceptance run; Chromium playback does not close that requirement.
+
+Local raw results, scripts, and screenshots are in `.data/whip-integration/`.
+They use an isolated test database and generated media. Runtime environment files and generated test credentials remain local and are
+not committed.
+
+## Required completion run
+
+1. Deploy a verified release through the existing managed deployment process.
+   Set one pilot Channel slug and a separate HLS worker secret. Add the private
+   derivative path rule from the maintained MediaMTX example.
+2. Run the generated setup on the actual Windows host. Record OBS and Windows
+   versions, selected H.264 encoder, bitrate, profile settings, and the retained
+   RTMP configuration. Confirm both profiles publish after key rotation and
+   repair, without changing the shared scene collection.
+3. Use the physical iPhone 13 on current iOS. Record exact iOS version and network
+   conditions. Measure camera-to-screen delay with synchronized source and
+   display observations. Preserve median, high percentile, and worst values.
+4. Repeat two-second upload losses at different measured keyframe positions.
+   Both playback and sub-second delay must return within five seconds after
+   upload capacity returns. A switch to HLS is not a recovery pass.
+5. Force viewer WebRTC failure with the source still live. Confirm Smooth HLS
+   with sound, audio/video synchronization, retained volume, stable Viewer
+   identity, and manual return after the 60-second cooldown. Include native HLS
+   after an upload interruption and access revocation through the deployed proxy.
+6. Exercise worker and MediaMTX restarts, Channel disablement, key rotation,
+   source replacement, sustained insufficient upload, and blocked UDP with the
+   configured TCP ICE route. Preserve failures and limitations.
+7. Measure CPU, memory, egress, and audio synchronization on the actual OCI VM
+   with existing services and both viewer transports. Verify its actual free
+   allocation and current limits. Confirm video is copied throughout the server.
+8. Return to the retained RTMP profile, confirm audible HLS, and disable the pilot
+   worker configuration. Keep wider availability disabled until a separate
+   expansion decision.
+
+## Automated checks
+
+The final implementation passed these local checks with Node 24.15.0:
+
+- 725 fast tests, including executable PowerShell profile maintenance checks.
+- Real-media Docker integration using a pinned multi-architecture FFmpeg runtime.
+  This includes copied video, AAC output, worker restart, and key rotation while
+  the old Publisher deliberately stays connected.
+- Four Chromium player tests covering controls, fullscreen, theater mode, and
+  pause while the HLS live edge advances.
+- ESLint, TypeScript, streaming-contract validation, and the production build.
+- Production Compose and proxy configuration validation.
+- Build and live operation of the production thumbnailer/media-worker image.
+
+The Linux CI compatibility defects were fixed with an explicit Docker host
+mapping and a container-provided FFmpeg runtime. The verification group passed
+locally. A hosted Ubuntu run is not claimed.
+
+## Standards review
+
+Both findings are resolved. The required media test now provides its runtime and
+Linux host mapping. The worker and playback projection share normalized pilot
+configuration and source eligibility. The follow-up review found no new issue.
+
+## Spec review
+
+The profile repair defect is resolved: retained WHIP credentials update even when
+repair cannot use the H.264 encoder. Additional checks fixed audio control loss
+across transport replacement and stopped old-source conversion after key rotation.
+The follow-up review found no new code violation. Physical device and OCI
+acceptance remain open.

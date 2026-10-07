@@ -7,7 +7,7 @@ within five seconds, without reconnect loops or unexpected playback.
 
 **Blocked by:** 03: Verify 1080p60 through the real viewer (resolved).
 
-**Status:** claimed
+**Status:** needs-info
 
 Type: task
 Spec: [Managed OBS WHIP streaming](../spec.md)
@@ -88,3 +88,13 @@ supporting evidence. Windows OBS and physical iPhone glass-to-glass measurements
 are still required. The user's earlier passing test did not provide encoder,
 bitrate, or outage measurements. Sustained insufficient-upload behavior also
 remains part of that run. The integration agent owns this measurement pass.
+
+
+2026-10-07 integration update: Code and review fixes are committed on
+`codex/whip-streaming`. See [validation](../validation.md) and the
+[application evidence](../application-evidence.json) for executed checks and
+limitations. The actual application passed local 1080p60 packet-drop recovery,
+HLS fallback with retained sound settings, manual WebRTC return, stable viewer
+counting, and RTMP rollback. Tests use generated media on this Mac, not the final
+Windows profile or physical iPhone. The ticket remains `needs-info` for its
+unverified acceptance items; no pilot rollout or production deployment is claimed.

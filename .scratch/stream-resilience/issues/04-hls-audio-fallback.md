@@ -7,7 +7,7 @@ and live notifications.
 
 **Blocked by:** None (can start immediately with the existing WHIP prototype).
 
-**Status:** in-progress
+**Status:** needs-info
 
 Type: task
 Spec: [Managed OBS WHIP streaming](../spec.md)
@@ -82,3 +82,13 @@ Application browser fallback, audible synchronization, physical iPhone behavior,
 and OCI resource measurements are not established by the media probe. They
 remain explicit acceptance work with the integration branch and ticket 07.
 No production deployment was performed.
+
+
+2026-10-07 integration update: Code and review fixes are committed on
+`codex/whip-streaming`. See [validation](../validation.md) and the
+[application evidence](../application-evidence.json) for executed checks and
+limitations. The actual application passed local 1080p60 packet-drop recovery,
+HLS fallback with retained sound settings, manual WebRTC return, stable viewer
+counting, and RTMP rollback. Tests use generated media on this Mac, not the final
+Windows profile or physical iPhone. The ticket remains `needs-info` for its
+unverified acceptance items; no pilot rollout or production deployment is claimed.

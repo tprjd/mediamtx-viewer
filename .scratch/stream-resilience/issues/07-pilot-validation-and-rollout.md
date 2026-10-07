@@ -8,7 +8,7 @@ pilot Channel until evidence supports a separate expansion decision.
 **Blocked by:** 04: Fall back to HLS with sound; 05: Create and use the separate
 OBS profile; 06: Recover from short upload interruptions.
 
-**Status:** ready-for-agent
+**Status:** needs-info
 
 Type: task
 Spec: [Managed OBS WHIP streaming](../spec.md)
@@ -39,11 +39,11 @@ Spec: [Managed OBS WHIP streaming](../spec.md)
   allowances and confirm that all server video remains copied.
 - [ ] Demonstrate rollback to the retained RTMP profile and existing HLS playback.
   Disable pilot worker activity without altering unrelated Channels or credentials.
-- [ ] Run lint, type checking, applicable unit and integration tests, streaming
+- [x] Run lint, type checking, applicable unit and integration tests, streaming
   contract validation, build, and relevant browser tests. Record their results.
-- [ ] Update the maintained Windows setup and Oracle deployment guides with the
+- [x] Update the maintained Windows setup and Oracle deployment guides with the
   implemented behavior. Save pilot evidence and a clear pass or fail conclusion.
-- [ ] Keep wider availability disabled until a separate expansion decision.
+- [x] Keep wider availability disabled until a separate expansion decision.
   Missing physical-device or actual-VM evidence remains outstanding.
 
 ## Independent verification
@@ -61,3 +61,13 @@ rollback to RTMP and HLS before declaring the pilot ready for wider use.
 2026-10-07: Approved as the final integration and rollout-validation slice.
 Blocked only by tickets 04, 05, and 06; ticket 03 is already covered transitively.
 This ticket does not authorize wider rollout by itself.
+
+
+2026-10-07 integration update: Code and review fixes are committed on
+`codex/whip-streaming`. See [validation](../validation.md) and the
+[application evidence](../application-evidence.json) for executed checks and
+limitations. The actual application passed local 1080p60 packet-drop recovery,
+HLS fallback with retained sound settings, manual WebRTC return, stable viewer
+counting, and RTMP rollback. Tests use generated media on this Mac, not the final
+Windows profile or physical iPhone. The ticket remains `needs-info` for its
+unverified acceptance items; no pilot rollout or production deployment is claimed.

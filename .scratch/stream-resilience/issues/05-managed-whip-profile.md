@@ -67,3 +67,13 @@ The initial H.264 bitrate remains a configurable 10 Mbps candidate, not a measur
 default. This ticket remains open pending native Windows publishing with the
 generated profile, physical iPhone validation, and both profile types publishing
 after rotation. No deployment or physical-device result is claimed.
+
+
+2026-10-07 integration update: Code and review fixes are committed on
+`codex/whip-streaming`. See [validation](../validation.md) and the
+[application evidence](../application-evidence.json) for executed checks and
+limitations. The actual application passed local 1080p60 packet-drop recovery,
+HLS fallback with retained sound settings, manual WebRTC return, stable viewer
+counting, and RTMP rollback. Tests use generated media on this Mac, not the final
+Windows profile or physical iPhone. The ticket remains `needs-info` for its
+unverified acceptance items; no pilot rollout or production deployment is claimed.

@@ -1,0 +1,119 @@
+{
+  "date": "2026-10-07",
+  "sourceCommit": "b29d9eb1dfb63e9e6853ac0efd80be3f116992c3",
+  "environment": {
+    "publisher": "FFmpeg 8.1, macOS ARM64",
+    "encoder": "libx264 ultrafast baseline, no B-frames",
+    "configuredVideo": "1920x1080, 60 fps, 10 Mbps maximum, two-second keyframes",
+    "audio": "Opus stereo 48 kHz, generated 440 Hz tone",
+    "mediaServer": "MediaMTX 1.20.1 in local Docker",
+    "viewer": "Actual authenticated Channel page in Chromium, Next.js production build",
+    "uploadFault": "Publisher-only Docker NAT gateway, FORWARD packet drop; viewer connection bypasses gateway"
+  },
+  "measurement": "Host timestamp in generated picture decoded from displayed application video; excludes camera capture and physical display scanout. Samples approximately every 250 ms.",
+  "healthy": {
+    "sampleCount": 20,
+    "medianFrameAgeMs": 31.0,
+    "p95FrameAgeMs": 42,
+    "worstFrameAgeMs": 43
+  },
+  "outages": [
+    {
+      "dropStartedAtEpochMs": 1791391955338,
+      "dropEndedAtEpochMs": 1791391957465,
+      "dropDurationMs": 2127,
+      "firstObservedSubsecondFrameAfterRestoreMs": 785
+    },
+    {
+      "dropStartedAtEpochMs": 1791391965753,
+      "dropEndedAtEpochMs": 1791391968065,
+      "dropDurationMs": 2312,
+      "firstObservedSubsecondFrameAfterRestoreMs": 512
+    },
+    {
+      "dropStartedAtEpochMs": 1791391976374,
+      "dropEndedAtEpochMs": 1791391978499,
+      "dropDurationMs": 2125,
+      "firstObservedSubsecondFrameAfterRestoreMs": 258
+    }
+  ],
+  "noPlayerFrameCounterResets": true,
+  "onlyObservedPlaybackMode": "WebRTC \u00b7 Low latency",
+  "audioEnergyIncreased": true,
+  "rawEvidence": ".data/whip-integration/runtime/outage-result.json",
+  "limits": [
+    "This is not Windows OBS or a generated Managed OBS profile.",
+    "This is not iPhone Safari or an OCI deployment.",
+    "No physical glass-to-glass latency or audio/video synchronization measurement.",
+    "Sustained upload shortage and blocked UDP remain untested in this integrated build.",
+    "MediaMTX logged LL-HLS part-duration changes after packet drops; physical iOS fallback validation remains required."
+  ],
+  "fallbackBeforeFix": {
+    "videoPassed": true,
+    "smoothHlsStayedSelectedForMs": 64137,
+    "manualWebRtcReturnPassed": true,
+    "viewerCountBefore": 1,
+    "viewerCountAfter": 1,
+    "audioPassed": false,
+    "failure": "New player reset to muted after automatic transport fallback.",
+    "rawEvidence": ".data/whip-integration/runtime/fallback-before-fix.json"
+  },
+  "fallbackAfterFix": {
+    "sourceCommit": "0f5d0e5e48dbb9931689bd2a772ebeb472b81be4",
+    "worker": "Built deploy/oracle/thumbnailer.Dockerfile, real media-workers.mjs supervisor, FFmpeg 8.1.2",
+    "video": "1920x1080 HLS Smooth",
+    "viewerFailure": "Closed viewer peer connection and blocked subsequent WHEP requests; source continued publishing.",
+    "fallbackStartedAfterFailureMs": 11331,
+    "smoothHlsStayedSelectedForMs": 64152,
+    "unmutedForEverySample": true,
+    "unpausedForEverySample": true,
+    "audioRmsMedianAfterAnalyserWarmup": 0.06248250459825743,
+    "samplesWithNonzeroAudio": 64,
+    "totalSamples": 65,
+    "manualWebRtcReturnPassed": true,
+    "viewerCountBefore": 1,
+    "viewerCountAfter": 1,
+    "pageErrors": [],
+    "rawEvidence": ".data/whip-integration/runtime/fallback-result.json"
+  },
+  "rollback": {
+    "errors": [],
+    "at": 1791392255145,
+    "mode": "HLS \u00b7 Balanced",
+    "muted": false,
+    "paused": false,
+    "width": 1920,
+    "height": 1080,
+    "audioRms": 0.0626656432049949,
+    "status": {
+      "status": {
+        "publisherProtocol": "other",
+        "state": "live",
+        "live": true,
+        "startedAt": "2026-10-07T16:57:21.883001385Z",
+        "tracks": [
+          "H264",
+          "MPEG-4 Audio"
+        ],
+        "viewerCount": 1,
+        "checkedAt": "2026-10-07T16:57:35.156Z"
+      }
+    }
+  },
+  "defaultAutoplayRepeat": {
+    "browser": "Chromium with default autoplay rules, no override flags",
+    "initialAction": "Viewer clicked Unmute on WebRTC before the forced failure",
+    "fallbackRetainedUnmuted": true,
+    "fallbackPlayedAudio": true,
+    "secondUnmuteRequired": false,
+    "rawEvidence": ".data/whip-integration/runtime/default-autoplay-fallback-result.json"
+  },
+  "converterCrash": {
+    "recoveryMs": 2143,
+    "oldPid": "38",
+    "newPid": "165",
+    "sourceStayedSame": true,
+    "sourceReady": true,
+    "derivativeReady": true
+  }
+}
