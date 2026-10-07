@@ -1293,6 +1293,9 @@ try {
     Write-RtmpService $credentialTargetDirectories $authorization.serverUrl
     if ($authorization.PSObject.Properties['whip']) {
         if ($authorization.whip.enabled -and -not $whipSupported) {
+            # Rotation must still refresh a retained profile on a damaged OBS install.
+            $authorization.whip.enabled = $false
+            Update-ManagedWhipProfile $obsRoot $authorization.whip $capabilities
             throw 'OBS WHIP output is missing. RTMP credentials were refreshed. Repair the OBS installation, then run setup again.'
         }
         Update-ManagedWhipProfile $obsRoot $authorization.whip $capabilities

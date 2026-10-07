@@ -15,7 +15,7 @@ Spec: [Managed OBS WHIP streaming](../spec.md)
 - [ ] Capture the user's working OBS configuration from the completed baseline
   before selecting profile defaults. Record encoder, bitrate, OBS version, and
   keyframe settings; do not infer them from the older 720p prototype.
-- [ ] Extend the existing OBS setup session to provide WHIP connection details.
+- [x] Extend the existing OBS setup session to provide WHIP connection details.
   Create one distinct Managed OBS profile for H.264, Opus, one video layer,
   1080p60 minimum, zero B-frames, and the contract's two-second keyframe interval.
 - [ ] Detect unsupported OBS versions and encoders before producing an unusable
@@ -29,10 +29,10 @@ Spec: [Managed OBS WHIP streaming](../spec.md)
 - [ ] When setup rotates the stream key, update all existing managed RTMP and
   WHIP credentials, including profiles not selected in that setup run. Verify
   publishing with both profile types after rotation.
-- [ ] Start eligible WHIP Channels in WebRTC when no explicit Playback mode
+- [x] Start eligible WHIP Channels in WebRTC when no explicit Playback mode
   preference exists. Respect saved preferences and preserve existing RTMP default
   behavior. Test a Channel becoming live and switching publishing profile.
-- [ ] Keep automatic fallback state distinct from deliberate viewer choices where
+- [x] Keep automatic fallback state distinct from deliberate viewer choices where
   needed. A transient fallback must not be misrepresented as an explicit choice.
 - [ ] Verify the complete setup-to-playback workflow and use existing setup
   authorization and Playback mode tests for edge cases. Generated profile text

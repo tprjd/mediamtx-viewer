@@ -233,7 +233,7 @@ describe('Windows OBS setup authorization', () => {
 
     expect(metadata).toMatchObject({
       version: '1.5.0',
-      contractVersion: '1.0.0',
+      contractVersion: '1.1.0',
     })
     expect(metadata.sha256).toBe(launcherSha256)
     expect(metadata.size).toBe(Buffer.byteLength(launcher, 'ascii'))
@@ -249,7 +249,7 @@ describe('Windows OBS setup authorization', () => {
     const timingPayload = source.match(/\$StreamingContractPayload = '([^']+)'/)?.[1]
     expect(timingPayload).toBeDefined()
     expect(JSON.parse(Buffer.from(timingPayload!, 'base64').toString('utf8'))).toEqual({
-      contractVersion: '1.0.0',
+      contractVersion: '1.1.0',
       keyframeIntervalSeconds: 2,
     })
     expect(source).not.toContain("capture_mode = 'window'")
