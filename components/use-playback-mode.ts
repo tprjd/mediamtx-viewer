@@ -11,6 +11,7 @@ import {
 } from '@/lib/streaming-contract'
 
 const MODE_STORAGE_KEY = 'mediamtx-viewer:playback-mode'
+const FALLBACK_STORAGE_KEY = 'mediamtx-viewer:webrtc-fallback'
 const ultraLowContract = hlsPlaybackContract('ultra-low')
 const webRtcFallback = webRtcTransportFallback()
 
@@ -47,7 +48,24 @@ export function usePlaybackMode({
     const timer = window.setTimeout(() => {
       const ultraLowAvailable = supportsUltraLow()
       setUltraLowSupported(ultraLowAvailable)
+      const savedFallback = window.sessionStorage.getItem(FALLBACK_STORAGE_KEY)
+      if (savedFallback) {
+        try {
+          const value = JSON.parse(savedFallback)
+          if (Number.isFinite(value.retryAfter) &&
+              (value.startedAt === null || typeof value.startedAt === 'string')) {
+            setFallback(value)
+            if (value.active !== false) {
+              setMode(webRtcFallback.mode)
+              return
+            }
+          }
+        } catch { /* Ignore invalid storage from an older browser session. */ }
+      }
       const saved = window.sessionStorage.getItem(MODE_STORAGE_KEY)
+      if (!saved) {
+        setMode(preferredPlayback === 'webrtc' && webrtcAvailable ? 'webrtc' : 'balanced')
+      }
       if (saved === 'hls') {
         window.sessionStorage.setItem(MODE_STORAGE_KEY, 'balanced')
         setMode('balanced')
@@ -70,14 +88,13 @@ export function usePlaybackMode({
         if (webrtcAvailable) {
           setMode('webrtc')
         } else {
-          window.sessionStorage.setItem(MODE_STORAGE_KEY, 'balanced')
           setMode('balanced')
           setModeExitReason(webrtcUnavailableReasonText)
         }
       }
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [supportsUltraLow, webrtcAvailable, webrtcUnavailableReasonText])
+  }, [preferredPlayback, supportsUltraLow, webrtcAvailable, webrtcUnavailableReasonText])
 
   useEffect(() => {
     if (mode !== 'webrtc' || webrtcAvailable) return
@@ -86,15 +103,6 @@ export function usePlaybackMode({
       setModeExitReason(webrtcUnavailableReasonText)
     })
   }, [mode, webrtcAvailable, webrtcUnavailableReasonText])
-
-  // Initial preferredPlayback fallback: remember the graceful degradation so a
-  // later pageload does not blindly retry WebRTC.
-  useEffect(() => {
-    if (preferredPlayback !== 'webrtc' || webrtcAvailable) return
-    if (window.sessionStorage.getItem(MODE_STORAGE_KEY) !== null) return
-    window.sessionStorage.setItem(MODE_STORAGE_KEY, 'balanced')
-    queueMicrotask(() => setModeExitReason(webrtcUnavailableReasonText))
-  }, [preferredPlayback, webrtcAvailable, webrtcUnavailableReasonText])
 
   const retryAfter =
     fallback?.startedAt === streamStartedAt ? fallback.retryAfter : 0
@@ -114,10 +122,13 @@ export function usePlaybackMode({
 
   const onWebRtcFallback = useCallback(() => {
     const cooldown = Date.now() + webRtcFallback.retryCooldownMs
-    setFallback({ retryAfter: cooldown, startedAt: streamStartedAt })
+    const next = { retryAfter: cooldown, startedAt: streamStartedAt }
+    setFallback(next)
+    window.sessionStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify(next))
     setNow(Date.now())
-    commitMode(webRtcFallback.mode)
-  }, [commitMode, streamStartedAt])
+    setMode(webRtcFallback.mode)
+    setModeExitReason(undefined)
+  }, [streamStartedAt])
 
   const onBalancedUnavailable = useCallback(() => {
     setBalancedUnavailable(true)
@@ -153,8 +164,13 @@ export function usePlaybackMode({
 
   const selectMode = useCallback((value: string) => {
     const selected = selectableModes.find(choice => choice === value)
-    if (selected) commitMode(selected)
-  }, [commitMode, selectableModes])
+    if (selected) {
+      if (fallback) {
+        window.sessionStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify({ ...fallback, active: false }))
+      }
+      commitMode(selected)
+    }
+  }, [commitMode, fallback, selectableModes])
 
   return {
     mode,

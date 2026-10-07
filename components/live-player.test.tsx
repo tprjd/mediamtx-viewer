@@ -195,7 +195,7 @@ describe('LivePlayer playback mode', () => {
 
     expect(screen.getByText('Smooth player')).toBeInTheDocument()
     expect(window.sessionStorage.getItem('mediamtx-viewer:playback-mode')).toBe(
-      'smooth',
+      'webrtc',
     )
     expect(
       screen.queryByRole('radio', { name: 'Low latency' }),

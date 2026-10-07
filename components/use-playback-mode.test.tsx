@@ -96,7 +96,7 @@ it('rejects WebRTC during the cooldown and offers it after expiry without switch
   expect(result.current.selectableModes).not.toContain('webrtc')
   act(() => result.current.selectMode('webrtc'))
   expect(result.current.mode).toBe('smooth')
-  expect(sessionStorage.getItem(storageKey)).toBe('smooth')
+  expect(sessionStorage.getItem(storageKey)).toBe('webrtc')
   await advance(1)
   expect(result.current.selectableModes).toContain('webrtc')
   expect(result.current.mode).toBe('smooth')
@@ -136,7 +136,7 @@ it('keeps codec and cooldown requirements independent as tracks change', async (
   expect(result.current.mode).toBe('smooth')
 })
 
-it('leaves active WebRTC when the track set becomes incompatible and normalizes the preference', async () => {
+it('leaves incompatible WebRTC without overwriting the explicit preference', async () => {
   const { result, rerender } = renderHook(usePlaybackMode, { initialProps: options })
   await advance()
   act(() => result.current.selectMode('webrtc'))
@@ -145,5 +145,59 @@ it('leaves active WebRTC when the track set becomes incompatible and normalizes 
   expect(result.current.mode).toBe('balanced')
   expect(result.current.selectableModes).not.toContain('webrtc')
   expect(result.current.modeExitReason).toContain('audio codec')
-  expect(sessionStorage.getItem(storageKey)).toBe('balanced')
+  expect(sessionStorage.getItem(storageKey)).toBe('webrtc')
+})
+
+it('selects WebRTC when a pilot Channel starts late and returns to HLS for RTMP', async () => {
+  const initialProps: Parameters<typeof usePlaybackMode>[0] = { ...options, live: false, tracks: [] }
+  const { result, rerender } = renderHook(usePlaybackMode, { initialProps })
+  await advance()
+  expect(result.current.mode).toBe('balanced')
+  rerender({ ...options, preferredPlayback: 'webrtc' })
+  await advance()
+  expect(result.current.mode).toBe('webrtc')
+  expect(sessionStorage.getItem(storageKey)).toBeNull()
+  rerender({ ...options, tracks: ['H264', 'MPEG-4 Audio'] })
+  await advance()
+  expect(result.current.mode).toBe('balanced')
+})
+
+it('keeps an explicit HLS choice when the pilot starts', async () => {
+  sessionStorage.setItem(storageKey, 'smooth')
+  const { result, rerender } = renderHook(usePlaybackMode, { initialProps: options })
+  await advance()
+  rerender({ ...options, preferredPlayback: 'webrtc' })
+  await advance()
+  expect(result.current.mode).toBe('smooth')
+})
+
+it('keeps automatic WebRTC fallback separate from the explicit preference across refreshes', async () => {
+  const first = renderHook(usePlaybackMode, { initialProps: { ...options, preferredPlayback: 'webrtc' as const } })
+  await advance()
+  act(() => first.result.current.selectMode('webrtc'))
+  act(() => first.result.current.onWebRtcFallback())
+  expect(first.result.current.mode).toBe('smooth')
+  expect(sessionStorage.getItem(storageKey)).toBe('webrtc')
+  first.unmount()
+  const second = renderHook(usePlaybackMode, { initialProps: { ...options, preferredPlayback: 'webrtc' as const } })
+  await advance()
+  expect(second.result.current.mode).toBe('smooth')
+  expect(second.result.current.selectableModes).not.toContain('webrtc')
+  await advance(60_000)
+  expect(second.result.current.mode).toBe('smooth')
+  act(() => second.result.current.selectMode('webrtc'))
+  expect(second.result.current.mode).toBe('webrtc')
+})
+
+it('does not bypass the WebRTC cooldown by choosing an HLS mode', async () => {
+  const first = renderHook(usePlaybackMode, { initialProps: options })
+  await advance()
+  act(() => first.result.current.onWebRtcFallback())
+  act(() => first.result.current.selectMode('balanced'))
+  expect(first.result.current.selectableModes).not.toContain('webrtc')
+  first.unmount()
+  const second = renderHook(usePlaybackMode, { initialProps: options })
+  await advance()
+  expect(second.result.current.mode).toBe('balanced')
+  expect(second.result.current.selectableModes).not.toContain('webrtc')
 })

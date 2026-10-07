@@ -18,7 +18,7 @@ import {
   type GeneratedStreamKey,
 } from '@/lib/channels'
 
-export const OBS_SETUP_SCRIPT_VERSION = '1.4.0'
+export const OBS_SETUP_SCRIPT_VERSION = '1.5.0'
 export const OBS_SETUP_EXPIRES_MS = 10 * 60 * 1000
 export const OBS_SETUP_POLL_INTERVAL_SECONDS = 3
 const START_LIMIT_WINDOW_MS = 10 * 60 * 1000
@@ -54,6 +54,7 @@ export interface ObsSetupApprovalView {
 export interface RedeemedObsSetup {
   streamKey: GeneratedStreamKey
   channelId: string
+  channelSlug: string
 }
 
 export class ObsSetupError extends Error {
@@ -350,6 +351,6 @@ export function redeemObsSetupSession(
     recordAudit(row.ownerUserId, row.ownerUserId, 'obs_setup_redeemed', {
       channelId: row.channelId,
     })
-    return { streamKey, channelId: row.channelId }
+    return { streamKey, channelId: row.channelId, channelSlug: channel.slug }
   })()
 }

@@ -91,3 +91,44 @@ without copying `service.json`, so publishing credentials are not duplicated.
 Version 1 is intentionally unsigned; signing a future executable or installer
 can improve Windows trust prompts without changing the device-authorization
 design.
+
+## Create the low-latency pilot profile
+
+Set `WHIP_PILOT_CHANNEL` to the pilot Channel slug on the server. Leave it empty
+to disable new WHIP profile creation and automatic WebRTC defaults. Run setup
+version 1.5.0, approve the OBS setup session, then select **FrankerzSpam 1080p60
+Low latency** in the OBS **Profile** menu before streaming. Retained RTMP profiles
+and the shared scene collection remain available. The normal desktop shortcut
+continues to use the existing RTMP profile.
+
+The new profile uses one H.264 hardware encode, Opus audio, 1080p60 output,
+zero B-frames, and two-second keyframes. Its 10 Mbps video bitrate is a provisional
+starting point. The earlier successful Windows test did not record its encoder
+or bitrate, so it does not validate this default. To choose a different initial
+bitrate, run `Setup-FrankerzSpam-OBS.cmd -WhipBitrateKbps 8000`. An existing
+profile keeps its settings until you request repair or reset. These modes also
+restore the WHIP profile defaults. A retained profile with incompatible output
+settings requires `-RepairManagedConfig`; setup does not silently replace it.
+
+Setup requires supported OBS 31 or 32, its WHIP output module, and a supported
+H.264 hardware encoder from the OBS inventory. It copies the base canvas size
+from a retained Managed OBS profile and uses the existing scenes. On a normal
+rerun, setup preserves the WHIP profile and refreshes its publishing credential.
+Key rotation updates every retained managed RTMP profile and the WHIP profile,
+even if the pilot was disabled or the RTMP matrix was narrowed. Backups exclude
+`service.json` and therefore do not duplicate the publishing credentials.
+
+Eligible live WHIP Channels start in WebRTC unless a viewer saved a Playback
+mode. Automatic HLS fallback is stored separately from that preference. HLS stays
+selected until the viewer chooses another mode, and WebRTC remains unavailable
+for the 60-second retry cooldown. WebRTC receives H.264 and Opus unchanged; the
+server audio converter supplies AAC only for HLS fallback with sound.
+
+Before pilot completion, test the generated profile in native Windows OBS and
+on an iPhone 13 with current iOS. Confirm actual outgoing H.264/Opus, 1080p60,
+sound, healthy delay below one second, recovery, and publishing with both profile
+types after key rotation. PowerShell configuration tests do not prove that result.
+
+To run the profile maintenance checks locally, install PowerShell or set `PWSH`
+to its executable, then run `npm test -- lib/obs-profile.integration.test.ts`.
+The test is skipped if no PowerShell runtime is available.

@@ -7,7 +7,7 @@ Existing scenes and RTMP profiles continue to work.
 
 **Blocked by:** 03: Verify 1080p60 through the real viewer (resolved).
 
-**Status:** ready-for-agent
+**Status:** needs-info
 
 Type: task
 Spec: [Managed OBS WHIP streaming](../spec.md)
@@ -52,3 +52,18 @@ switching during an active stream is outside scope.
 2026-10-07: Approved with ticket 03 as its only blocker, now resolved by
 the user's test report. Initial automatic WebRTC selection belongs to this
 complete setup-to-playback slice. HLS fallback belongs to ticket 04.
+
+
+2026-10-07 implementation: Added the pilot Managed OBS WHIP profile, protected
+setup response, credential refresh for retained RTMP and WHIP profiles, and
+automatic WebRTC defaults with separate fallback state. Setup and Playback mode
+integration tests cover authorization, rotation, late live start, preferences,
+cooldown, and profile changes. Executable PowerShell checks cover profile output,
+canvas preservation, reruns, repair, credential updates, backups, and rejected
+unsupported settings.
+
+The user does not know the encoder or bitrate from their earlier Windows test.
+The initial H.264 bitrate remains a configurable 10 Mbps candidate, not a measured
+default. This ticket remains open pending native Windows publishing with the
+generated profile, physical iPhone validation, and both profile types publishing
+after rotation. No deployment or physical-device result is claimed.
