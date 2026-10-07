@@ -11,11 +11,12 @@ import {
   STREAMING_CONTRACT_VERSION,
   ultraLowFallback,
   webRtcTransportFallback,
+  webRtcAcceptanceContract,
 } from '@/lib/streaming-contract'
 
 describe('streaming contract', () => {
   it('projects every approved playback policy', () => {
-    expect(STREAMING_CONTRACT_VERSION).toBe('1.0.0')
+    expect(STREAMING_CONTRACT_VERSION).toBe('1.1.0')
     expect(hlsPlaybackContract('ultra-low')).toEqual({
       targetLatencySeconds: 1.8,
       correctiveLatencyCeilingSeconds: 3,
@@ -38,7 +39,7 @@ describe('streaming contract', () => {
 
   it('projects OBS, MediaMTX, and fallback policy', () => {
     expect(obsTimingProjection()).toEqual({
-      contractVersion: '1.0.0',
+      contractVersion: '1.1.0',
       keyframeIntervalSeconds: 2,
     })
     expect(mediaMtxTimingProjection()).toEqual({
@@ -59,6 +60,14 @@ describe('streaming contract', () => {
     })
   })
 
+  it('requires sub-second WebRTC delay and recovery within five seconds after a two-second outage', () => {
+    expect(webRtcAcceptanceContract()).toEqual({
+      latencyCeilingMs: 1_000,
+      uploadInterruptionMs: 2_000,
+      recoveryDeadlineMs: 5_000,
+    })
+  })
+
   it('rejects incomplete documents and unsupported schemas', () => {
     expect(() =>
       compileStreamingContract({ schemaVersion: 1, contractVersion: '1.0.0' }),
@@ -69,6 +78,7 @@ describe('streaming contract', () => {
         schemaVersion: 2,
         contractVersion: '1.0.0',
         hls: {},
+        webrtc: {},
         managedObs: {},
         fallbacks: {},
         releaseValidation: {},

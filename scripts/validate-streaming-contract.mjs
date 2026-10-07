@@ -21,9 +21,11 @@ function topLevelSettings(yaml) {
 
 export function validateMediaMtxContract(contract, yaml) {
   const packaging = contract?.hls?.packaging
+  const webRtcTargets = ['latencyCeilingMs', 'uploadInterruptionMs', 'recoveryDeadlineMs']
   if (
     contract?.schemaVersion !== 1 ||
     typeof contract?.contractVersion !== 'string' ||
+    webRtcTargets.some((key) => !Number.isInteger(contract?.webrtc?.[key]) || contract.webrtc[key] <= 0) ||
     packaging?.variant !== 'lowLatency' ||
     packaging?.alwaysRemux !== true ||
     !Number.isInteger(packaging?.segmentDurationMs) ||

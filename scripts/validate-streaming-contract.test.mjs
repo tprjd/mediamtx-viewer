@@ -16,6 +16,12 @@ hlsPartDuration: 200ms`,
     ).toEqual([])
   })
 
+  it.each(['latencyCeilingMs', 'uploadInterruptionMs', 'recoveryDeadlineMs'])('rejects an invalid WebRTC target: %s', (target) => {
+    const invalid = structuredClone(contract)
+    invalid.webrtc[target] = 0
+    expect(() => validateMediaMtxContract(invalid, '')).toThrow('canonical streaming contract is invalid')
+  })
+
   it('reports every missing or mismatched setting', () => {
     expect(
       validateMediaMtxContract(
