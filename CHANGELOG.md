@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [2.1.2] - 2026-10-07
+
+### Fixed
+
+- Wait for the initial Chat connection and sending-access refresh before typing in the message-persistence browser test.
+
 ## [2.1.1] - 2026-10-07
 
 ### Fixed
