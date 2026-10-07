@@ -1,0 +1,209 @@
+{
+  "date": "2026-10-07",
+  "branch": "codex/prototype-stream-resilience",
+  "sourceBaseCommit": "bc066e519ba997f95496b0af602dce4ca683aa84",
+  "nodeVersion": "v22.11.0",
+  "mediaImage": "bluenviron/mediamtx:1.20.1",
+  "publisherVersion": "ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers",
+  "publisherImageId": "sha256:91a2662f5a3f27d4df1ce9e66a5ef10ac8c3c0bac1d51d8c69f3f68b2c260dfb",
+  "measurement": "Host-generated timestamp to browser-decoded picture; excludes camera capture and physical display scanout.",
+  "limitations": [
+    "Fixed-bitrate FFmpeg, not OBS adaptation.",
+    "Chromium, not an iPhone test.",
+    "Bypasses application authentication, PlaybackRun, and HLS fallback."
+  ],
+  "runs": [
+    {
+      "mode": "rtmp",
+      "producerSkippedFrames": 56,
+      "publisherAliveAtEnd": true,
+      "stages": [
+        {
+          "name": "baseline",
+          "summary": {
+            "activeFrameAgeMedianMs": 55,
+            "activeFrameAgeP95Ms": 104,
+            "validActiveSamples": 31,
+            "longestFreezeMs": 0,
+            "framesPresented": 153,
+            "endConnection": "connected"
+          },
+          "qdisc": "qdisc netem 8006: root refcnt 13 limit 1000 rate 1Gbit seed 42\n Sent 1698997 bytes 1450 pkt (dropped 0, overlimits 0 requeues 0) \n backlog 0b 0p requeues 0"
+        },
+        {
+          "name": "upload-700kbit",
+          "summary": {
+            "activeFrameAgeMedianMs": 2400,
+            "activeFrameAgeP95Ms": 4338,
+            "validActiveSamples": 31,
+            "longestFreezeMs": 0,
+            "framesPresented": 66,
+            "endConnection": "connected"
+          },
+          "qdisc": "qdisc netem 8006: root refcnt 13 limit 60 rate 700Kbit seed 42\n Sent 2422424 bytes 1933 pkt (dropped 0, overlimits 0 requeues 0) \n backlog 253761b 21p requeues 0"
+        },
+        {
+          "name": "recover-bandwidth",
+          "summary": {
+            "activeFrameAgeMedianMs": 4175,
+            "activeFrameAgeP95Ms": 6051,
+            "validActiveSamples": 24,
+            "longestFreezeMs": 1766,
+            "framesPresented": 76,
+            "endConnection": "connected"
+          },
+          "qdisc": "qdisc netem 8006: root refcnt 13 limit 1000 rate 1Gbit seed 42\n Sent 4485390 bytes 3762 pkt (dropped 0, overlimits 0 requeues 0) \n backlog 292b 1p requeues 0"
+        },
+        {
+          "name": "loss-and-jitter",
+          "summary": {
+            "activeFrameAgeMedianMs": 1656,
+            "activeFrameAgeP95Ms": 4971,
+            "validActiveSamples": 30,
+            "longestFreezeMs": 255,
+            "framesPresented": 106,
+            "endConnection": "connected"
+          },
+          "qdisc": "qdisc netem 8006: root refcnt 13 limit 200 delay 60ms  20ms loss 3% rate 1Gbit seed 42\n Sent 6218714 bytes 4962 pkt (dropped 7, overlimits 0 requeues 0) \n backlog 11828b 2p requeues 0"
+        },
+        {
+          "name": "recover-loss",
+          "summary": {
+            "activeFrameAgeMedianMs": 3271,
+            "activeFrameAgeP95Ms": 4445,
+            "validActiveSamples": 30,
+            "longestFreezeMs": 253,
+            "framesPresented": 98,
+            "endConnection": "connected"
+          },
+          "qdisc": "qdisc netem 8006: root refcnt 13 limit 1000 rate 1Gbit seed 42\n Sent 7948585 bytes 6369 pkt (dropped 8, overlimits 0 requeues 0) \n backlog 0b 0p requeues 0"
+        },
+        {
+          "name": "outage",
+          "summary": {
+            "activeFrameAgeMedianMs": 1842,
+            "activeFrameAgeP95Ms": 1992,
+            "validActiveSamples": 7,
+            "longestFreezeMs": 0,
+            "framesPresented": 24,
+            "endConnection": "connected"
+          },
+          "qdisc": "qdisc netem 8006: root refcnt 13 limit 1000 loss 100% rate 1Gbit seed 42\n Sent 7960532 bytes 6378 pkt (dropped 17, overlimits 0 requeues 0) \n backlog 0b 0p requeues 0"
+        },
+        {
+          "name": "recover-outage",
+          "summary": {
+            "activeFrameAgeMedianMs": 3927,
+            "activeFrameAgeP95Ms": 4543,
+            "validActiveSamples": 23,
+            "longestFreezeMs": 1282,
+            "framesPresented": 86,
+            "endConnection": "connected"
+          },
+          "qdisc": "qdisc netem 8006: root refcnt 13 limit 1000 rate 1Gbit seed 42\n Sent 10113313 bytes 8035 pkt (dropped 17, overlimits 0 requeues 0) \n backlog 0b 0p requeues 0"
+        }
+      ],
+      "receiverErrors": []
+    },
+    {
+      "mode": "whip",
+      "producerSkippedFrames": 15,
+      "publisherAliveAtEnd": true,
+      "stages": [
+        {
+          "name": "baseline",
+          "summary": {
+            "activeFrameAgeMedianMs": 56,
+            "activeFrameAgeP95Ms": 71,
+            "validActiveSamples": 31,
+            "longestFreezeMs": 0,
+            "framesPresented": 154,
+            "endConnection": "connected"
+          },
+          "qdisc": "qdisc netem 8006: root refcnt 13 limit 1000 rate 1Gbit seed 42\n Sent 12507082 bytes 11005 pkt (dropped 17, overlimits 0 requeues 0) \n backlog 0b 0p requeues 0"
+        },
+        {
+          "name": "upload-700kbit",
+          "summary": {
+            "activeFrameAgeMedianMs": 539,
+            "activeFrameAgeP95Ms": 692,
+            "validActiveSamples": 5,
+            "longestFreezeMs": 6601,
+            "framesPresented": 11,
+            "endConnection": "connected"
+          },
+          "qdisc": "qdisc netem 8006: root refcnt 13 limit 60 rate 700Kbit seed 42\n Sent 13230530 bytes 11943 pkt (dropped 22255, overlimits 0 requeues 0) \n backlog 47160b 57p requeues 0"
+        },
+        {
+          "name": "recover-bandwidth",
+          "summary": {
+            "activeFrameAgeMedianMs": null,
+            "activeFrameAgeP95Ms": null,
+            "validActiveSamples": 0,
+            "longestFreezeMs": 7866,
+            "framesPresented": 0,
+            "endConnection": "disconnected"
+          },
+          "qdisc": "qdisc netem 8006: root refcnt 13 limit 1000 rate 1Gbit seed 42\n Sent 20505705 bytes 20045 pkt (dropped 23472, overlimits 0 requeues 0) \n backlog 0b 0p requeues 0"
+        },
+        {
+          "name": "loss-and-jitter",
+          "summary": {
+            "activeFrameAgeMedianMs": null,
+            "activeFrameAgeP95Ms": null,
+            "validActiveSamples": 0,
+            "longestFreezeMs": 7373,
+            "framesPresented": 1,
+            "endConnection": "closed"
+          },
+          "qdisc": "qdisc netem 8006: root refcnt 13 limit 200 delay 60ms  20ms loss 3% rate 1Gbit seed 42\n Sent 22877722 bytes 22983 pkt (dropped 23565, overlimits 0 requeues 0) \n backlog 30638b 39p requeues 0"
+        },
+        {
+          "name": "recover-loss",
+          "summary": {
+            "activeFrameAgeMedianMs": null,
+            "activeFrameAgeP95Ms": null,
+            "validActiveSamples": 0,
+            "longestFreezeMs": 7871,
+            "framesPresented": 0,
+            "endConnection": "closed"
+          },
+          "qdisc": "qdisc netem 8006: root refcnt 13 limit 1000 rate 1Gbit seed 42\n Sent 24812747 bytes 25381 pkt (dropped 23565, overlimits 0 requeues 0) \n backlog 0b 0p requeues 0"
+        },
+        {
+          "name": "outage",
+          "summary": {
+            "activeFrameAgeMedianMs": null,
+            "activeFrameAgeP95Ms": null,
+            "validActiveSamples": 0,
+            "longestFreezeMs": 1770,
+            "framesPresented": 0,
+            "endConnection": "closed"
+          },
+          "qdisc": "qdisc netem 8006: root refcnt 13 limit 1000 loss 100% rate 1Gbit seed 42\n Sent 24823319 bytes 25395 pkt (dropped 24108, overlimits 0 requeues 0) \n backlog 0b 0p requeues 0"
+        },
+        {
+          "name": "recover-outage",
+          "summary": {
+            "activeFrameAgeMedianMs": null,
+            "activeFrameAgeP95Ms": null,
+            "validActiveSamples": 0,
+            "longestFreezeMs": 7864,
+            "framesPresented": 0,
+            "endConnection": "closed"
+          },
+          "qdisc": "qdisc netem 8006: root refcnt 13 limit 1000 rate 1Gbit seed 42\n Sent 32085334 bytes 33399 pkt (dropped 24123, overlimits 0 requeues 0) \n backlog 0b 0p requeues 0"
+        }
+      ],
+      "receiverErrors": [
+        {
+          "at": 1791386424801,
+          "error": "peer connection closed"
+        }
+      ]
+    }
+  ],
+  "serverError": [
+    "2026/10/07 15:20:09 INF [WebRTC] [session 9e169ef1] closed: WebRTC doesn't support H264 streams with B-frames"
+  ]
+}
