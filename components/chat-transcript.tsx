@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   Virtuoso,
   type Components,
@@ -12,12 +12,62 @@ import type { ChatSubmission } from '@/components/use-chat-sending'
 import { ChatMessage } from '@/components/chat-message'
 import { useChatTextSize } from '@/components/chat-settings'
 import styles from '@/components/channel-viewer.module.css'
-import { buildChatTranscriptEntries, type ChatHistoryEntry } from '@/lib/chat-client-state'
 import type { PublicChatMessage, ChatModeratorRole } from '@/lib/chat-types'
 
 const localDayFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'full',
 })
+
+function localDayKey(timestamp: string): string {
+  const date = new Date(timestamp)
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
+interface ChatMessageEntry {
+  kind: 'message'
+  message: PublicChatMessage
+}
+
+interface ChatDaySeparatorEntry {
+  dayKey: string
+  kind: 'day-separator'
+  serverTimestamp: string
+}
+
+interface HistoryBoundaryEntry {
+  kind: 'history-boundary'
+}
+
+type ChatHistoryEntry =
+  | ChatDaySeparatorEntry
+  | ChatMessageEntry
+  | HistoryBoundaryEntry
+
+function buildChatTranscriptEntries(
+  messages: PublicChatMessage[],
+  historyExhausted: boolean,
+): ChatHistoryEntry[] {
+  const entries: ChatHistoryEntry[] = []
+  if (historyExhausted && messages.length > 0) {
+    entries.push({ kind: 'history-boundary' })
+  }
+  let previousDay: string | null = null
+  for (const message of messages) {
+    const dayKey = localDayKey(message.serverTimestamp)
+    if (dayKey !== previousDay) {
+      entries.push({
+        dayKey,
+        kind: 'day-separator',
+        serverTimestamp: message.serverTimestamp,
+      })
+    }
+    entries.push({ kind: 'message', message })
+    previousDay = dayKey
+  }
+  return entries
+}
+
+const INITIAL_FIRST_ITEM_INDEX = 1_000_000_000
 
 type ChatTranscriptEntry =
   | ChatHistoryEntry
@@ -59,7 +109,6 @@ interface ChatTranscriptProps {
   moderatorRole?: ChatModeratorRole
   onRemoved?: (message: PublicChatMessage) => void
   atBottom: boolean
-  firstItemIndex: number
   historyExhausted: boolean
   loadingOlderHistory: boolean
   messages: PublicChatMessage[]
@@ -77,7 +126,6 @@ export function ChatTranscript({
   moderatorRole,
   onRemoved,
   atBottom,
-  firstItemIndex,
   historyExhausted,
   loadingOlderHistory,
   messages,
@@ -97,14 +145,38 @@ export function ChatTranscript({
   const virtuosoRef = useRef<VirtuosoHandle | null>(null)
   const scrollerRef = useRef<HTMLElement | null>(null)
   const historyAnchorRef = useRef<{ id: string; top: number } | null>(null)
+  const historyEntries = useMemo(
+    () => buildChatTranscriptEntries(messages, historyExhausted),
+    [historyExhausted, messages],
+  )
+  const firstMessageOffset = historyEntries.findIndex(entry => entry.kind === 'message')
+  const firstMessageId = messages[0]?.id
+  const [position, setPosition] = useState({
+    firstMessageId,
+    firstMessageOffset,
+    firstItemIndex: INITIAL_FIRST_ITEM_INDEX,
+  })
+  if (position.firstMessageId !== firstMessageId || position.firstMessageOffset !== firstMessageOffset) {
+    // Keep the previous first message at its virtual index. Count only rows
+    // before that message, so a simultaneous live append cannot move the index.
+    const previousMessageOffset = historyEntries.findIndex(
+      entry => entry.kind === 'message' && entry.message.id === position.firstMessageId,
+    )
+    const prepended = previousMessageOffset < 0 ? 0 :
+      Math.max(0, previousMessageOffset - position.firstMessageOffset)
+    // Adjust before Virtuoso renders. An effect would expose new rows with the
+    // old index for one commit and lose the reading position.
+    setPosition({ firstMessageId, firstMessageOffset, firstItemIndex: position.firstItemIndex - prepended })
+  }
+  const { firstItemIndex } = position
   const entries = useMemo<ChatTranscriptEntry[]>(
     () => [
-      ...buildChatTranscriptEntries(messages, historyExhausted),
+      ...historyEntries,
       ...submissions
         .filter((submission) => !submission.message)
         .map((submission) => ({ kind: 'submission' as const, submission })),
     ],
-    [historyExhausted, messages, submissions],
+    [historyEntries, submissions],
   )
   useEffect(() => {
     const scroller = scrollerRef.current

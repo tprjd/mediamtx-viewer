@@ -37,6 +37,21 @@ All Chat rooms use the same message, rate, retention, and moderation rules.
 The deployment flag applies to every live Channel. Follow the
 [rollout procedure](chat-rollout.md) to enable or disable Chat.
 
+## Transcript ownership
+
+`components/chat-transcript.tsx` owns display rows, local-date separators, the
+history-end marker, virtual-list indexes, and reading-position correction.
+It keeps the previous first message at its virtual index when older rows arrive.
+Live appends and local submissions do not contribute to that prepend offset.
+
+`components/use-chat-room.ts` owns history requests, cursors, message reconciliation,
+clearing boundaries, restore detection, and accessibility announcements. It sends
+an explicit transcript reset through `transcriptKey` after a clear or a successful
+latest-history response. The reset also discards old reading anchors and pending
+scroll corrections, even when the response contains the same message IDs.
+Failed reloads keep the loaded messages. Browser tests verify reading position
+with the real virtual-list measurements.
+
 ## Author privacy
 
 Each message stores its author's internal account ID and the profile name at

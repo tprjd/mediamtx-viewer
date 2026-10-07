@@ -7,7 +7,6 @@ import { useChatRealtime } from '@/components/use-chat-realtime'
 import { useChatRestriction } from '@/components/use-chat-restriction'
 import {
   chatRequestBlocksSending,
-  chatTranscriptEntryCount,
   chatMessageRevision,
   latestChatSequence,
   firstChatSequenceGap,
@@ -31,8 +30,6 @@ interface ChatAnnouncement {
   text: string
 }
 
-const INITIAL_FIRST_ITEM_INDEX = 1_000_000_000
-
 export function useChatRoom(channelSlug: string, isChatVisible: boolean) {
   const endpoint = `/api/channels/${encodeURIComponent(channelSlug)}/chat/messages`
   const timeout = useChatRestriction(channelSlug, isChatVisible)
@@ -51,7 +48,6 @@ export function useChatRoom(channelSlug: string, isChatVisible: boolean) {
   const [loading, setLoading] = useState(true)
   const [accessDenied, setAccessDenied] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [firstItemIndex, setFirstItemIndex] = useState(INITIAL_FIRST_ITEM_INDEX)
   const [atBottom, setAtBottom] = useState(true)
   const atBottomRef = useRef(true)
   const hasOlderHistoryRef = useRef(false)
@@ -102,7 +98,6 @@ export function useChatRoom(channelSlug: string, isChatVisible: boolean) {
     setLoading(messagesRef.current.length === 0)
     setAccessDenied(false)
     setError(null)
-    setFirstItemIndex(INITIAL_FIRST_ITEM_INDEX)
     setAnnouncement(null)
   }, [
     updateAtBottomState,
@@ -155,7 +150,6 @@ export function useChatRoom(channelSlug: string, isChatVisible: boolean) {
     historyCursorRef.current = null
     updateHistoryAvailability(false)
     setHistoryExhausted(true)
-    setFirstItemIndex(INITIAL_FIRST_ITEM_INDEX)
     setTranscriptVisit(visit => visit + 1)
   }, [confirmMessages, updateHistoryAvailability])
 
@@ -197,19 +191,13 @@ export function useChatRoom(channelSlug: string, isChatVisible: boolean) {
   )
 
   const mergeOlderPage = useCallback(
-    (older: PublicChatMessage[], historyEnds: boolean) => {
+    (older: PublicChatMessage[]) => {
       older = older.filter(message => message.sequence > clearedThroughRef.current)
       if (older.some((message) => message.removed)) setAnnouncement(null)
       const previous = messagesRef.current
       const merged = mergeChatHistoryPages(previous, older)
-      const previousEntryCount = chatTranscriptEntryCount(previous, false)
-      const nextEntryCount = chatTranscriptEntryCount(merged, historyEnds)
-      const addedEntryCount = nextEntryCount - previousEntryCount
       messagesRef.current = merged
       setMessages(merged)
-      if (addedEntryCount > 0) {
-        setFirstItemIndex((current) => current - addedEntryCount)
-      }
       return merged
     },
     [],
@@ -337,7 +325,7 @@ export function useChatRoom(channelSlug: string, isChatVisible: boolean) {
       }
       if ((result.clearedThrough ?? 0) < clearedThroughRef.current) return
       applyHistoryClear(result.clearedThrough ?? 0)
-      mergeOlderPage(result.messages ?? [], result.hasMore !== true)
+      mergeOlderPage(result.messages ?? [])
       applyHistoryPageMetadata(result)
     } catch (historyError: unknown) {
       if (requestGeneration !== requestGenerationRef.current) return
@@ -524,7 +512,6 @@ export function useChatRoom(channelSlug: string, isChatVisible: boolean) {
       moderatorRole,
       onRemoved: receiveMessage,
       atBottom,
-      firstItemIndex,
       historyExhausted,
       loadingOlderHistory,
       messages: messages.map((message) =>

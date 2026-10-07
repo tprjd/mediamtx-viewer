@@ -102,6 +102,10 @@ _Avoid_: Username, account ID, discriminator
 A plain-text contribution that a Chat participant sends to one Chat room. It keeps the participant's display name as it was when sent.
 _Avoid_: Comment, post
 
+**Chat transcript**:
+The ordered display of Chat messages and local submission status for one Chat room.
+_Avoid_: Chat history, message feed
+
 **Chat moderator**:
 A Chat participant who can moderate a Chat room. Administrators moderate every room. A Channel owner moderates their own room but cannot restrict an administrator. No Chat moderator can apply a Chat restriction to the current Channel owner in that owner's room. Message removal remains a separate permission.
 _Avoid_: Chat admin, mod
