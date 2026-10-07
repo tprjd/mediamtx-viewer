@@ -124,6 +124,24 @@ Accounts with only Google or Discord sign-in use their provider's recovery proce
 Email recovery must not silently create a local password for a provider-only account.
 Existing reset behavior includes single-use links, a 15-minute expiry, and session revocation after a successful reset.
 
+`lib/auth/account-credentials-recovery.ts` owns password reset completion through
+`completePasswordReset`. It hashes the new password before it opens the SQLite
+transaction. The transaction consumes the token, updates the existing local
+credential, revokes all account sessions, and removes both sources of reset links.
+The reset form action validates input and selects response messages.
+
+Completion checks email reset tokens first. They must be unexpired, match the
+current account email, and belong to an active account. Administrator reset tokens
+must be unused and unexpired. Administrator recovery retains its separate
+eligibility rules. Token issuance, email delivery, and email verification keep
+their existing owners. Reset completion leaves verification tokens unchanged.
+
+A storage exception rolls back the complete reset and propagates to the caller.
+If a valid token has no matching local credential, completion reports failure
+and preserves the existing consumption behavior. Email recovery removes that
+account's email reset tokens. Administrator recovery marks the selected token
+as used. Neither path creates Account credentials.
+
 Verification and recovery emails use configurable SMTP delivery.
 A mail service and sender address have not been selected.
 SMTP credentials and the sender address must be configured before deployment of the new registration flow.

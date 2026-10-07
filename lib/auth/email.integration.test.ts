@@ -47,14 +47,14 @@ function token(message: string) {
   return new URL(url![0]).searchParams.get('token')!
 }
 it('delivers verification by SMTP and permits recovery only after verification', async () => {
-  const { sendAccountEmail, requestPasswordRecovery, consumeEmailToken } = await import('./email')
+  const { sendAccountEmail, requestPasswordRecovery, consumeEmailVerificationToken } = await import('./email')
   await requestPasswordRecovery('mail@example.test')
   expect(messages).toHaveLength(0)
   await sendAccountEmail('user', 'verify')
   expect(messages).toHaveLength(1)
   const verification = token(messages[0])
-  expect(consumeEmailToken(verification, 'verify')).toBe('user')
-  expect(consumeEmailToken(verification, 'verify')).toBeNull()
+  expect(consumeEmailVerificationToken(verification)).toBe('user')
+  expect(consumeEmailVerificationToken(verification)).toBeNull()
   await requestPasswordRecovery('mail@example.test')
   expect(messages).toHaveLength(2)
   const reset = token(messages[1])
@@ -67,7 +67,7 @@ it('delivers verification by SMTP and permits recovery only after verification',
   expect(await verifyPassword({ hash: row.password, password: 'a different secure password' })).toBe(true)
 })
 it('does not send recovery for provider-only or unknown accounts, and rejects expired links', async () => {
-  const { requestPasswordRecovery, sendAccountEmail, consumeEmailToken } = await import('./email')
+  const { requestPasswordRecovery, sendAccountEmail, consumeEmailVerificationToken } = await import('./email')
   database.prepare("DELETE FROM account WHERE userId = 'user'").run()
   await requestPasswordRecovery('mail@example.test'); await requestPasswordRecovery('unknown@example.test')
   expect(messages).toHaveLength(2)
@@ -76,5 +76,5 @@ it('does not send recovery for provider-only or unknown accounts, and rejects ex
   await sendAccountEmail('user', 'verify')
   const expired = token(messages[2])
   database.prepare('UPDATE account_email_token SET expires_at = 0').run()
-  expect(consumeEmailToken(expired, 'verify')).toBeNull()
+  expect(consumeEmailVerificationToken(expired)).toBeNull()
 })

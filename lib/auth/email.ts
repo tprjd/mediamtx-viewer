@@ -62,14 +62,14 @@ export async function requestPasswordRecovery(email: string): Promise<void> {
   if (user) await sendAccountEmail(user.id, 'reset')
 }
 
-export function consumeEmailToken(token: string, purpose: 'verify' | 'reset'): string | null {
+export function consumeEmailVerificationToken(token: string): string | null {
   const database = getDatabase()
   return database.transaction(() => {
     const row = database.prepare(`SELECT t.user_id AS userId FROM account_email_token t JOIN user u ON u.id = t.user_id
-      WHERE t.token_hash = ? AND t.purpose = ? AND t.expires_at > ? AND t.email = u.email AND u.activationStatus = 'active'`).get(digest(token), purpose, Date.now()) as { userId: string } | undefined
+      WHERE t.token_hash = ? AND t.purpose = 'verify' AND t.expires_at > ? AND t.email = u.email AND u.activationStatus = 'active'`).get(digest(token), Date.now()) as { userId: string } | undefined
     if (!row) return null
-    database.prepare('DELETE FROM account_email_token WHERE user_id = ? AND purpose = ?').run(row.userId, purpose)
-    if (purpose === 'verify') database.prepare('UPDATE user SET emailVerified = 1, updatedAt = ? WHERE id = ?').run(Date.now(), row.userId)
+    database.prepare("DELETE FROM account_email_token WHERE user_id = ? AND purpose = 'verify'").run(row.userId)
+    database.prepare('UPDATE user SET emailVerified = 1, updatedAt = ? WHERE id = ?').run(Date.now(), row.userId)
     return row.userId
   })()
 }

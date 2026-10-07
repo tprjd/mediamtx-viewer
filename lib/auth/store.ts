@@ -309,26 +309,6 @@ export function createPasswordResetToken(
   return token
 }
 
-export function consumePasswordResetToken(token: string): string | null {
-  const database = getDatabase()
-  return database.transaction(() => {
-    const row = database
-      .prepare(
-        `SELECT id, user_id AS userId
-         FROM auth_reset_token
-         WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?`,
-      )
-      .get(hashResetToken(token), Date.now()) as
-      | { id: string; userId: string }
-      | undefined
-    if (!row) return null
-    database
-      .prepare('UPDATE auth_reset_token SET used_at = ? WHERE id = ?')
-      .run(Date.now(), row.id)
-    return row.userId
-  })()
-}
-
 export function listAuditEntries(limit = 30): AuditEntry[] {
   const rows = getDatabase()
     .prepare(
