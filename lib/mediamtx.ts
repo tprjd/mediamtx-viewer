@@ -8,6 +8,7 @@ const mediaMtxPathSchema = z
   .object({
     name: z.string().optional(),
     ready: z.boolean().optional(),
+    source: z.object({ type: z.string(), id: z.string() }).nullish(),
     available: z.boolean().optional(),
     online: z.boolean().optional(),
     readyTime: z.string().nullish(),
@@ -184,7 +185,7 @@ export function normalizeMediaMtxPath(
           path.readers
             .filter(
               (reader) =>
-                reader.type !== 'hidden' &&
+                ['hlsSession', 'webRTCSession'].includes(reader.type) &&
                 !thumbnailReaderIds?.has(reader.id),
             )
             .map((reader) =>
@@ -195,6 +196,8 @@ export function normalizeMediaMtxPath(
         ).size
 
   return {
+    ...(path.source ? { publisherProtocol: path.source.type === 'webRTCSession' ? 'whip' as const : 'other' as const } : {}),
+    ...(derivativePath(path) ? { hlsMediaPath: derivativePath(path) } : {}),
     state: live ? 'live' : 'offline',
     live,
     startedAt:
@@ -235,7 +238,14 @@ export async function getChannelStatus(
       throw new Error(`MediaMTX returned HTTP ${response.status}`)
     }
 
-    const path = mediaMtxPathSchema.parse(await response.json())
+    let path = mediaMtxPathSchema.parse(await response.json())
+    const derivative = derivativePath(path)
+    if (derivative) {
+      try {
+        const fallback = await fetcher(`${apiOrigin}/v3/paths/get/${derivative}`, { cache: 'no-store', signal: AbortSignal.timeout(2500) })
+        if (fallback.ok) path = combineReaders(path, mediaMtxPathSchema.parse(await fallback.json()))
+      } catch { /* Fallback failure must not make the original Publisher offline. */ }
+    }
     const hlsMetadata = hasHlsReaders(path)
       ? await getHlsReaderMetadata(fetcher)
       : emptyHlsReaderMetadata()
@@ -310,7 +320,7 @@ export async function getChannelStatuses(
         .map((item) => [
           item.name,
           normalizeMediaMtxPath(
-            item,
+            combineReaders(item, paths.find(candidate => candidate.name === derivativePath(item))),
             hlsMetadata?.thumbnailReaderIds ?? null,
             readerViewerIds,
           ),
@@ -437,4 +447,17 @@ async function disconnectWebRtcSessions(
     }),
   )
   return ids.length
+}
+
+/** The private RTSP workers are never viewers. Generation-specific paths prevent
+ * a replacement Publisher from exposing the previous source's buffered media. */
+function derivativePath(path: z.infer<typeof mediaMtxPathSchema>): string | undefined {
+  if (!path.ready || !path.name || path.name.startsWith('_hls/') || path.source?.type !== 'webRTCSession' || !/^[a-zA-Z0-9_-]+$/.test(path.source.id)) return undefined
+  if (!path.tracks?.includes('H264') || !path.tracks?.includes('Opus')) return undefined
+  return `_hls/${path.name}/${path.source.id}`
+}
+
+function combineReaders(source: z.infer<typeof mediaMtxPathSchema>, derivative?: z.infer<typeof mediaMtxPathSchema>) {
+  if (!source.ready || !derivative?.ready) return source
+  return { ...source, readers: [...(source.readers ?? []), ...(derivative.readers ?? [])] }
 }

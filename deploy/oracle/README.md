@@ -260,3 +260,45 @@ JSON status fallback until the normal Caddyfile is restored.
 
 Managed installations must use the recorded recovery procedure. Do not edit
 captured Caddy files or deploy from the old checkout.
+
+## WHIP pilot HLS audio fallback
+
+The pilot uses `WHIP_PILOT_CHANNEL` for one Channel slug. The viewer and the
+existing thumbnailer service require the same separate `HLS_WORKER_SECRET`,
+at least 32 random characters. Keep it in the existing private environment file.
+Do not use a Channel stream key as this credential. Empty pilot configuration
+disables the converter. The Managed OBS setup documentation describes publishing.
+
+The thumbnailer image runs two supervised workers. The HLS worker requests current
+jobs from the viewer each second. It copies H.264 video and converts Opus to AAC
+once per active eligible Channel. WebRTC continues to receive the original media.
+The private RTSP listener must be available to this service. MediaMTX must include
+the `_hls/` publisher rule from the example configuration; existing private
+configuration files are not overwritten by this change. Do not expose RTSP or the
+Control API publicly.
+
+Each derivative belongs to a specific WebRTC Publisher identifier. Replacement,
+source end, disabled Streaming access, and key rotation stop the old converter.
+The supervisor fails closed when it cannot refresh its jobs. Authorization uses
+a five-second source lease and current Channel access and key data. This avoids
+calling the MediaMTX API inside its authorization callback, where publication can
+hold the path lock. Failed encoders retry with delays up to 30 seconds. Their
+failure does not stop the canonical Publisher.
+
+Read `/tmp/hls-worker-health.json` inside the thumbnailer container for the
+current supervisor state and check time. The states are `disabled`, `idle`,
+`converting`, `retrying`, and `control-unavailable`. `converting` confirms a live
+FFmpeg process; inspect MediaMTX derivative tracks to confirm media output.
+Credentials and FFmpeg URLs are absent from worker logs.
+
+For rollback, select the retained RTMP Managed OBS profile. The new canonical
+source uses its original HLS path; no Opus converter job remains. Clear the pilot
+slug in both services to disable the option completely. Verify old derivative
+paths stop before considering rollback complete.
+
+The local Docker media integration test uses FFmpeg and MediaMTX to verify real
+WHIP input, copied H.264 plus AAC HLS output, worker restart, and source cleanup.
+The regular development stack does not start these audio workers; it currently
+disables RTSP. Use the integration fixture or a private deployment for fallback
+validation. Physical iPhone audio synchronization and OCI usage remain pilot
+acceptance checks.

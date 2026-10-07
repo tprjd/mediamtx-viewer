@@ -7,7 +7,7 @@ and live notifications.
 
 **Blocked by:** None (can start immediately with the existing WHIP prototype).
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 Type: task
 Spec: [Managed OBS WHIP streaming](../spec.md)
@@ -57,3 +57,28 @@ fallback copies video and converts audio once per active Channel, not per viewer
 2026-10-07: Approved as an independent vertical slice with no blockers.
 The earlier dependency on ticket 03 is removed because the existing WHIP
 prototype supplies suitable media. Audio conversion serves HLS fallback only.
+
+## Implementation evidence
+
+2026-10-07: Code implemented on `codex/whip-hls-fallback`. The current primary
+source controls the generation-specific HLS URL. The existing thumbnailer image
+also supervises one audio converter for the pilot Channel. The private worker
+credential is separate from the Channel stream key and becomes invalid when that
+key rotates. Access uses the original Channel on both HTTP proxy paths.
+
+Verification performed with Node 24.15.0, native FFmpeg 8.1, and MediaMTX 1.20.1:
+
+- Full fast suite: 708 tests passed.
+- Lint, TypeScript, and streaming-contract validation passed.
+- Real-media integration: WHIP H.264/Opus input produced H.264/AAC HLS;
+  supervisor restart restored the derivative; canonical media stayed live;
+  source end stopped derivative publishing. The test completed in 10.6 seconds.
+- Authorization integration rejects invalid worker credentials, canonical worker
+  publishing, derivative WHEP, stale source credentials, rotated keys, and
+  suspended account access. Reader tests count one Viewer identity across paths
+  and exclude private RTSP readers.
+
+Application browser fallback, audible synchronization, physical iPhone behavior,
+and OCI resource measurements are not established by the media probe. They
+remain explicit acceptance work with the integration branch and ticket 07.
+No production deployment was performed.

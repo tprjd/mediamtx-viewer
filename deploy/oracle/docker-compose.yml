@@ -120,6 +120,11 @@ services:
     environment:
       MEDIAMTX_API_URL: http://mediamtx:9997
       MEDIAMTX_HLS_URL: http://mediamtx:8888
+      VIEWER_URL: http://viewer:3000
+      MEDIAMTX_RTSP_URL: rtsp://mediamtx:8554
+      WHIP_PILOT_CHANNEL: ${WHIP_PILOT_CHANNEL:-}
+      HLS_WORKER_SECRET: ${HLS_WORKER_SECRET:-}
+      HLS_WORKER_HEALTH_FILE: /tmp/hls-worker-health.json
       THUMBNAIL_DIR: /thumbnails
       THUMBNAIL_INITIAL_DELAY_SECONDS: 5
       THUMBNAIL_INTERVAL_SECONDS: 180
@@ -177,6 +182,8 @@ services:
     environment:
       MEDIAMTX_HLS_URL: http://mediamtx:8888
       MEDIAMTX_WEBRTC_URL: http://mediamtx:8889
+      WHIP_PILOT_CHANNEL: ${WHIP_PILOT_CHANNEL:-}
+      HLS_WORKER_SECRET: ${HLS_WORKER_SECRET:-}
       AUTH_DB_PATH: /data/auth.sqlite
       AUTH_BACKUP_DIR: /data/backups
       CHAT_DB_PATH: /data/chat.sqlite

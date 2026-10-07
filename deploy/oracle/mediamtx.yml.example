@@ -63,3 +63,6 @@ paths:
   "~^channels/[a-z0-9]+(?:-[a-z0-9]+)*$":
     source: publisher
     overridePublisher: true
+  "~^_hls/(?:live|channels/[a-z0-9]+(?:-[a-z0-9]+)*)/[A-Za-z0-9_-]+$":
+    source: publisher
+    overridePublisher: false

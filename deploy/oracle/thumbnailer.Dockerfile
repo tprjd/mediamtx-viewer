@@ -10,9 +10,9 @@ LABEL org.opencontainers.image.source=$SOURCE_REPOSITORY
 RUN apk add --no-cache ffmpeg
 
 WORKDIR /app
-COPY scripts/thumbnail-worker.mjs ./thumbnail-worker.mjs
+COPY scripts/thumbnail-worker.mjs scripts/hls-worker.mjs scripts/media-workers.mjs ./
 
 ENV NODE_ENV=production
 ENV THUMBNAIL_DIR=/thumbnails
 
-CMD ["node", "thumbnail-worker.mjs"]
+CMD ["node", "media-workers.mjs"]

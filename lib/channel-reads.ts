@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { isWhipPilotChannel } from '@/lib/whip-pilot'
 import { canSeeChannel, canWatchChannel } from '@/lib/viewing-access'
 import { getChannel, getChannels } from '@/lib/channels'
 import { channelPosterUrl } from '@/lib/channel-thumbnails'
@@ -18,6 +19,7 @@ function visibleLiveUpdate(viewerId: string, update: ChannelLiveUpdate): Channel
   return {
     ...update,
     viewingAllowed,
+    ...(!viewingAllowed && update.playback ? { playback: { hls: '', webrtc: '' } } : {}),
     poster: viewingAllowed ? update.poster : null,
     status: visibleStatus(update.status, viewingAllowed),
   }
@@ -93,6 +95,7 @@ export async function getPublicChannelDirectory(viewerId: string): Promise<Chann
 /** Account-neutral data for the shared monitor and internal subscribers. */
 export async function loadChannelLiveUpdates(): Promise<ChannelLiveUpdate[]> {
   return (await readChannels()).map(({ channel, status, poster }) => ({
+    ...(isWhipPilotChannel(channel.slug) ? toPublicChannel(channel, status, poster) : {}),
     slug: channel.slug,
     ownerName: channel.ownerName,
     title: channel.title,

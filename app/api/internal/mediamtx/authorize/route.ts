@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 
 import { authEnvironment } from '@/lib/auth/env'
+import { authorizeHlsWorker } from '@/lib/hls-worker'
 import { authorizePublish } from '@/lib/channels'
 
 const requestSchema = z
@@ -10,6 +11,8 @@ const requestSchema = z
     action: z.enum(['publish', 'read', 'playback', 'api', 'metrics', 'pprof']),
     path: z.string().max(160).default(''),
     token: z.string().max(256).default(''),
+    user: z.string().max(256).default(''),
+    password: z.string().max(256).default(''),
     protocol: z.string().max(32).default(''),
   })
   .passthrough()
@@ -31,6 +34,14 @@ export async function POST(request: Request): Promise<Response> {
     payload = requestSchema.parse(await request.json())
   } catch {
     return Response.json({ error: 'Invalid request' }, { status: 400 })
+  }
+
+  if (payload.path.startsWith('_hls/') && payload.action === 'read') {
+    return new Response(null, { status: payload.protocol === 'hls' ? 204 : 403 })
+  }
+  if (payload.user === 'hls-worker' || payload.path.startsWith('_hls/')) {
+    const allowed = payload.protocol === 'rtsp' && await authorizeHlsWorker(payload.action, payload.path, payload.password)
+    return new Response(null, { status: allowed ? 204 : 401 })
   }
 
   if (payload.action === 'publish') {

@@ -1,3 +1,4 @@
+import { isWhipPilotChannel } from '@/lib/whip-pilot'
 import type { Channel } from '@/lib/channel-schema'
 import type { ChannelStatus, PublicChannel } from '@/lib/types'
 
@@ -29,7 +30,7 @@ export function toPublicChannel(
     preferredPlayback: channel.preferredPlayback,
     hasCompatibilityFallback: Boolean(channel.fallbackMediaPath),
     playback: {
-      hls: hlsUrl(channel.mediaPath),
+      hls: hlsUrl(isWhipPilotChannel(channel.slug) && status.hlsMediaPath ? status.hlsMediaPath : channel.mediaPath),
       webrtc: `/media/whep/${mediaPath}/whep`,
       fallbackHls: channel.fallbackMediaPath
         ? hlsUrl(channel.fallbackMediaPath)

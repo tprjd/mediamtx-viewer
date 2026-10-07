@@ -171,3 +171,8 @@ describe('ChannelStatusMonitor', () => {
     unsubscribe()
   })
 })
+
+it('detects a Publisher generation change even when all display metadata stays the same', () => {
+  const first = { slug: 'pilot', ownerName: 'Owner', title: 'Title', discordNotificationsEnabled: false, poster: null, status: { state: 'live' as const, live: true, startedAt: '2026-10-07T12:00:00Z', tracks: ['H264', 'Opus'], viewerCount: 0, checkedAt: '2026-10-07T12:00:01Z', hlsMediaPath: '_hls/channels/pilot/source-1' } }
+  expect(sameChannelLiveState(first, { ...first, status: { ...first.status, hlsMediaPath: '_hls/channels/pilot/source-2' } })).toBe(false)
+})

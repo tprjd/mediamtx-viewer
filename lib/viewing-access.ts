@@ -1,4 +1,5 @@
 import 'server-only'
+import { isWhipPilotChannel } from '@/lib/whip-pilot'
 import { getDatabase } from '@/lib/auth/database'
 
 export interface AccountAccess {
@@ -45,8 +46,13 @@ export function canRequestMedia(userId: string, uri: string): boolean {
   const prefix = ['/media/hls/', '/media/whep/', '/publish/whep/'].find((value) => path.startsWith(value))
   if (!prefix) return true
   if (path.includes('\\') || path.split('/').some((part) => part === '.' || part === '..')) return false
-  const media = path.slice(prefix.length)
+  let media = path.slice(prefix.length)
+  const derivative = media.startsWith('_hls/')
+  if (derivative) {
+    if (prefix !== '/media/hls/') return false
+    media = media.slice('_hls/'.length)
+  }
   const channels = getDatabase().prepare('SELECT slug, media_path AS mediaPath FROM channel').all() as { slug: string; mediaPath: string }[]
   const channel = channels.find((entry) => media.startsWith(`${entry.mediaPath}/`))
-  return Boolean(channel && canWatchChannel(userId, channel.slug))
+  return Boolean(channel && (!derivative || isWhipPilotChannel(channel.slug)) && canWatchChannel(userId, channel.slug))
 }

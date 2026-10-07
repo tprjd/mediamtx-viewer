@@ -307,3 +307,29 @@ describe('disconnectChannelPublisher', () => {
     expect(includes('/v3/rtmpsconns/kick/rtmps-publisher-a')).toBe(true)
   })
 })
+
+it('combines canonical and derivative readers without counting the audio worker', async () => {
+  const viewer = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+  const canonical = { name: 'channels/pilot', ready: true, readyTime: '2026-10-07T12:00:00Z', source: { type: 'webRTCSession', id: 'source-1' }, tracks: ['H264', 'Opus'], readers: [{ id: 'worker', type: 'rtspSession' }, { id: 'rtc', type: 'webRTCSession' }] }
+  const derivative = { name: '_hls/channels/pilot/source-1', ready: true, tracks: ['H264', 'MPEG-4 Audio'], readers: [{ id: 'hls', type: 'hlsSession' }] }
+  const fetcher = vi.fn<typeof fetch>(async (url) => {
+    const address = String(url)
+    if (address.includes('/paths/list')) return Response.json({ items: [canonical, derivative] })
+    if (address.includes('/paths/get/_hls/')) return Response.json(derivative)
+    if (address.includes('/paths/get/')) return Response.json(canonical)
+    if (address.includes('/webrtcsessions/')) return Response.json({ items: [{ id: 'rtc', query: `frankerzspam_viewer=${viewer}` }] })
+    if (address.includes('/hlssessions/')) return Response.json({ items: [{ id: 'hls', query: `frankerzspam_viewer=${viewer}` }] })
+    return Response.json({ items: [{ id: 'worker', user: 'hls-worker' }] })
+  })
+  for (const status of [await getChannelStatus('channels/pilot', fetcher), (await getChannelStatuses(['channels/pilot'], fetcher)).get('channels/pilot')]) {
+    expect(status).toMatchObject({ viewerCount: 1, tracks: ['H264', 'Opus'], startedAt: '2026-10-07T12:00:00Z', hlsMediaPath: '_hls/channels/pilot/source-1', publisherProtocol: 'whip' })
+  }
+})
+
+it('keeps original WebRTC media live when derivative status fails', async () => {
+  const fetcher = vi.fn<typeof fetch>(async url => {
+    if (String(url).includes('/paths/get/_hls/')) throw new Error('Derivative timeout')
+    return Response.json({ name: 'channels/pilot', ready: true, tracks: ['H264', 'Opus'], source: { type: 'webRTCSession', id: 'source-1' }, readers: [] })
+  })
+  expect(await getChannelStatus('channels/pilot', fetcher)).toMatchObject({ live: true, tracks: ['H264', 'Opus'] })
+})

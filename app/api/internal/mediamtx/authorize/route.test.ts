@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { expect, it, vi } from 'vitest'
+vi.mock('server-only', () => ({}))
 vi.mock('@/lib/auth/env', () => ({ authEnvironment: { mediaMtxAuthSecret: 'test-secret' } }))
 vi.mock('@/lib/channels', () => ({ authorizePublish: (path: string, token: string) => path === 'live' && token === 'valid-publish-key' }))
 import { POST } from './route'

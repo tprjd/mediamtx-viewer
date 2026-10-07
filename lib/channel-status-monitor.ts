@@ -62,6 +62,9 @@ export function sameChannelLiveState(
     first.ownerName === second.ownerName &&
     first.discordNotificationsEnabled === second.discordNotificationsEnabled &&
     first.poster === second.poster &&
+    first.status.publisherProtocol === second.status.publisherProtocol &&
+    first.status.hlsMediaPath === second.status.hlsMediaPath &&
+    first.preferredPlayback === second.preferredPlayback &&
     first.status.state === second.status.state &&
     first.status.live === second.status.live &&
     first.status.startedAt === second.status.startedAt &&

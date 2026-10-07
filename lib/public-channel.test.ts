@@ -41,3 +41,12 @@ describe('toPublicChannel', () => {
     expect(JSON.stringify(result)).not.toContain('9997')
   })
 })
+
+it('starts pilot HLS directly on AAC media while WebRTC retains the canonical source', () => {
+  process.env.WHIP_PILOT_CHANNEL = 'friend'
+  const result = toPublicChannel(channel, { ...status, publisherProtocol: 'whip', hlsMediaPath: '_hls/relay/friend/source-1' })
+  expect(result.playback.hls).toBe('/media/hls/_hls/relay/friend/source-1/index.m3u8?cookieCheck=1')
+  expect(result.playback.webrtc).toBe('/media/whep/relay/friend/whep')
+  expect(toPublicChannel(channel, status).playback.hls).toBe('/media/hls/relay/friend/index.m3u8?cookieCheck=1')
+  delete process.env.WHIP_PILOT_CHANNEL
+})
