@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [2.1.1] - 2026-10-07
+
+### Fixed
+
+- Use a valid MediaMTX reader type in browser fixtures so viewer-count screenshots match real browser sessions.
+- Assert the viewer count in the Channel directory and watch-page browser test.
+
 ## [2.1.0] - 2026-10-07
 
 ### Added

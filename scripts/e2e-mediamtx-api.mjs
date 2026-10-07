@@ -7,7 +7,7 @@ const livePath = {
   tracks: ['H264', 'MPEG-4 Audio'],
   readers: Array.from({ length: 8 }, (_, index) => ({
     id: `browser-viewer-${index + 1}`,
-    type: 'browserFixture',
+    type: 'webRTCSession',
   })),
 }
 
