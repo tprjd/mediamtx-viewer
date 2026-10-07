@@ -2,6 +2,46 @@ import { expect, test } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import Database from 'better-sqlite3'
 
+test('administrator restrictions persist when media disconnection is unavailable', async ({ page }) => {
+  const database = new Database('.data/e2e-auth.sqlite', { fileMustExist: true })
+  database.pragma('foreign_keys = ON')
+  const id = randomUUID()
+  const username = `e2e_new_${id.replaceAll('-', '').slice(0, 16)}`
+  const name = `Suspension check ${id}`
+  try {
+    database.prepare(`INSERT INTO user
+      (id, name, email, emailVerified, createdAt, updatedAt, username, role, activationStatus, banned)
+      VALUES (?, ?, ?, 1, ?, ?, ?, 'user', 'active', 0)`)
+      .run(id, name, `${username}@example.test`, Date.now(), Date.now(), username)
+    await page.goto('/login?returnTo=/admin/users')
+    await page.getByLabel('Username').fill('power')
+    await page.getByLabel('Password').fill('e2e-administrator-password')
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    const account = page.getByRole('article').filter({ has: page.getByRole('heading', { name, exact: true }) })
+
+    // The MediaMTX fixture returns 404 for session listing, so completion is unconfirmed.
+    await account.getByRole('button', { name: 'Disable channel', exact: true }).click()
+    await expect(page.getByText('Channel disabled and key revoked. MediaMTX could not confirm active session disconnection.', { exact: true })).toBeVisible()
+    expect(database.prepare('SELECT enabled FROM channel WHERE owner_user_id = ?').get(id)).toEqual({ enabled: 0 })
+
+    await account.getByRole('button', { name: 'Enable channel', exact: true }).click()
+    await expect(page.getByText('Channel enabled. The streamer must generate a new key.', { exact: true })).toBeVisible()
+    expect(database.prepare('SELECT enabled FROM channel WHERE owner_user_id = ?').get(id)).toEqual({ enabled: 1 })
+
+    await account.getByRole('button', { name: 'Suspend account', exact: true }).click()
+    await expect(page.getByText('Account disabled and credentials revoked. MediaMTX could not confirm active stream disconnection.', { exact: true })).toBeVisible()
+    await expect(account.getByRole('button', { name: 'Restore account', exact: true })).toBeVisible()
+    expect(database.prepare('SELECT activationStatus, banned FROM user WHERE id = ?').get(id))
+      .toEqual({ activationStatus: 'disabled', banned: 1 })
+    expect(database.prepare('SELECT enabled FROM channel WHERE owner_user_id = ?').get(id)).toEqual({ enabled: 0 })
+  } finally {
+    database.prepare('DELETE FROM auth_audit_log WHERE target_id = ?').run(id)
+    database.prepare('DELETE FROM access_revocation WHERE user_id = ?').run(id)
+    database.prepare('DELETE FROM user WHERE id = ?').run(id)
+    database.close()
+  }
+})
+
 test('notification inbox polls stored updates and persists Mark read', async ({ page }) => {
   const database = new Database('.data/e2e-auth.sqlite', { fileMustExist: true })
   const title = `Inbox check ${randomUUID()}`

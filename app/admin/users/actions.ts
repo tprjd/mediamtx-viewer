@@ -9,22 +9,20 @@ import {
   activateUser,
   clearAuditEntries,
   createPasswordResetToken,
-  disableUser,
   revokeSession,
   revokeUserSessions,
 } from '@/lib/auth/store'
-import { grantStreaming, setChannelEnabled } from '@/lib/channels'
-import { disconnectChatParticipant } from '@/lib/chat-realtime'
-import { disconnectChannelSessions } from '@/lib/mediamtx'
+import { grantStreaming } from '@/lib/channels'
+import { setAccountChannelEnabled, suspendAccount } from '@/lib/account-restrictions'
 
 function destination(kind: 'notice' | 'error', message: string): string {
   return `/admin/users?${kind}=${encodeURIComponent(message)}`
 }
 
-async function runAdminAction(action: (actorId: string) => void | Promise<void>) {
+async function runAdminAction<Result>(action: (actorId: string) => Result | Promise<Result>): Promise<Result> {
   const session = await requireAdminSession()
   try {
-    await action(session.user.id)
+    return await action(session.user.id)
   } catch (error) {
     redirect(
       destination(
@@ -41,31 +39,15 @@ export async function activateAction(userId: string) {
 }
 
 export async function disableAction(userId: string) {
-  let disconnectWarning = false
-  let chatDisconnectWarning = false
-  await runAdminAction(async (actorId) => {
-    const mediaPath = disableUser(actorId, userId)
-    try {
-      await disconnectChatParticipant(userId)
-    } catch {
-      chatDisconnectWarning = true
-    }
-    if (mediaPath) {
-      try {
-        await disconnectChannelSessions(mediaPath)
-      } catch {
-        disconnectWarning = true
-      }
-    }
-  })
+  const result = await runAdminAction((actorId) => suspendAccount(actorId, userId))
   redirect(
     destination(
       'notice',
-      disconnectWarning
+      result.media === 'unconfirmed'
         ? 'Account disabled and credentials revoked. MediaMTX could not confirm active stream disconnection.'
-        : chatDisconnectWarning
+        : result.chat === 'unconfirmed'
           ? 'Account disabled and sessions revoked. Centrifugo could not confirm Chat disconnection.'
-        : 'Account disabled and sessions revoked.',
+          : 'Account disabled and sessions revoked.',
     ),
   )
 }
@@ -79,23 +61,13 @@ export async function grantStreamingAction(userId: string, formData: FormData) {
 
 export async function channelEnabledAction(userId: string, formData: FormData) {
   const enabled = formData.get('enabled') === 'true'
-  let disconnectWarning = false
-  await runAdminAction(async (actorId) => {
-    const mediaPath = setChannelEnabled(actorId, userId, enabled)
-    if (!enabled) {
-      try {
-        await disconnectChannelSessions(mediaPath)
-      } catch {
-        disconnectWarning = true
-      }
-    }
-  })
+  const result = await runAdminAction((actorId) => setAccountChannelEnabled(actorId, userId, enabled))
   redirect(
     destination(
       'notice',
       enabled
         ? 'Channel enabled. The streamer must generate a new key.'
-        : disconnectWarning
+        : result.media === 'unconfirmed'
           ? 'Channel disabled and key revoked. MediaMTX could not confirm active session disconnection.'
           : 'Channel disabled, key revoked, and sessions disconnected.',
     ),

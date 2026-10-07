@@ -197,6 +197,20 @@ completed video disconnections or block later video revocations.
 Publishers stay connected. HLS and WHEP HTTP requests check current approval on each
 request, including direct requests to the viewer server.
 
+`lib/account-restrictions.ts` owns completion of Account suspension and Channel
+disabling. The administrator actions check authorization and select notices and
+redirects. The module commits the existing database transaction before it attempts
+disconnections. It reports Chat and media completion separately. A failed
+disconnection leaves the stored restriction active, and a Chat failure does not
+prevent the media attempt.
+
+Account suspension also leaves its durable revocation pending for the dispatcher
+to disconnect Chat and all WebRTC readers. The immediate attempt disconnects
+WebRTC readers and Publishers on the owned Channel. Channel disabling only makes
+that immediate media attempt; it does not queue retries or disconnect Chat.
+Neither operation explicitly disconnects an active RTMP Publisher. Enabling a
+Channel does not disconnect sessions or create a replacement stream key.
+
 The notification center checks for new notifications every five seconds. Browser
 sound requires a prior user interaction. A browser lock and a shared notification
 watermark prevent duplicate sounds across tabs. Muting sound leaves delivery enabled.
