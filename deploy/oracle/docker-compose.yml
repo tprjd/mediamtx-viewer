@@ -121,7 +121,7 @@ services:
       MEDIAMTX_API_URL: http://mediamtx:9997
       MEDIAMTX_HLS_URL: http://mediamtx:8888
       VIEWER_URL: http://viewer:3000
-      MEDIAMTX_RTSP_URL: rtsp://mediamtx:8554
+      MEDIAMTX_RTMP_URL: rtmp://mediamtx:1935
       WHIP_PILOT_CHANNEL: ${WHIP_PILOT_CHANNEL:-}
       HLS_WORKER_SECRET: ${HLS_WORKER_SECRET:-}
       HLS_WORKER_HEALTH_FILE: /tmp/hls-worker-health.json

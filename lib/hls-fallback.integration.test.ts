@@ -47,12 +47,18 @@ it('issues scoped worker jobs and rejects stale source generations and rotated k
   const authorize = (action: string, path: string, password: string, protocol = 'rtsp') => POST(new Request(`http://localhost/api/internal/mediamtx/authorize?secret=${authEnvironment.mediaMtxAuthSecret}`, { method: 'POST', body: JSON.stringify({ action, path, password, protocol, user: 'hls-worker' }) }))
   expect((await authorize('read', channel.mediaPath, jobs[0].credential)).status).toBe(204)
   expect((await authorize('publish', jobs[0].outputPath, jobs[0].credential)).status).toBe(204)
+  expect((await authorize('read', channel.mediaPath, jobs[0].credential, 'rtmp')).status).toBe(204)
+  expect((await authorize('publish', jobs[0].outputPath, jobs[0].credential, 'rtmp')).status).toBe(204)
+  expect((await authorize('publish', channel.mediaPath, jobs[0].credential, 'rtmp')).status).toBe(401)
+  expect((await authorize('publish', jobs[0].outputPath, 'wrong', 'rtmp')).status).toBe(401)
+  expect((await authorize('read', jobs[0].outputPath, jobs[0].credential, 'rtmp')).status).toBe(403)
   expect((await authorize('publish', channel.mediaPath, jobs[0].credential)).status).toBe(401)
   expect((await authorize('publish', jobs[0].outputPath, 'wrong')).status).toBe(401)
   expect((await authorize('read', jobs[0].outputPath, '', 'webrtc')).status).toBe(403)
   sourceId = 'source-2'
   await GET(request)
   expect((await authorize('publish', jobs[0].outputPath, jobs[0].credential)).status).toBe(401)
+  expect((await authorize('publish', jobs[0].outputPath, jobs[0].credential, 'rtmp')).status).toBe(401)
   sourceId = 'source-1'
   await GET(request)
   await new Promise(resolve => setTimeout(resolve, 5))

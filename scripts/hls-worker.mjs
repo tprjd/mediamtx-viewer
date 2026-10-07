@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url'
 export async function runHlsWorker() {
   const endpoint = `${process.env.VIEWER_URL ?? 'http://viewer:3000'}/api/internal/hls-worker`
   const secret = process.env.HLS_WORKER_SECRET ?? ''
-  const rtspOrigin = process.env.MEDIAMTX_RTSP_URL ?? 'rtsp://mediamtx:8554'
+  const rtmpOrigin = process.env.MEDIAMTX_RTMP_URL ?? 'rtmp://mediamtx:1935'
   let stopping = false
   let current = null
   let lastIdentity = null
@@ -53,17 +53,19 @@ export async function runHlsWorker() {
       }
       if (job && !current && Date.now() >= retryAt && !stopping) {
         const url = path => {
-          const value = new URL(rtspOrigin)
-          value.username = 'hls-worker'
-          value.password = job.credential
+          const value = new URL(rtmpOrigin)
+          value.searchParams.set('user', 'hls-worker')
+          value.searchParams.set('pass', job.credential)
           value.pathname = path
           return value.href
         }
         const child = spawn(process.env.FFMPEG_PATH ?? 'ffmpeg', [
           '-hide_banner', '-loglevel', 'error', '-nostdin',
-          '-rtsp_transport', 'tcp', '-timeout', '5000000', '-i', url(job.sourcePath),
+          // RTMP carries a common audio/video timeline. RTSP assigns separate
+          // RTP clock origins and can turn encoder startup buffering into A/V skew.
+          '-rw_timeout', '5000000', '-rtmp_enhanced_codecs', 'Opus', '-i', url(job.sourcePath),
           '-map', '0:v:0', '-map', '0:a:0', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k',
-          '-ar', '48000', '-ac', '2', '-f', 'rtsp', '-rtsp_transport', 'tcp', url(job.outputPath),
+          '-ar', '48000', '-ac', '2', '-f', 'flv', url(job.outputPath),
         ], { stdio: 'ignore' })
         const entry = { identity, child, startedAt: Date.now() }
         current = entry

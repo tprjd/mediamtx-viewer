@@ -140,3 +140,41 @@ repair cannot use the H.264 encoder. Additional checks fixed audio control loss
 across transport replacement and stopped old-source conversion after key rotation.
 The follow-up review found no new code violation. Physical device and OCI
 acceptance remain open.
+
+## HLS audio timing and reconnect indicator fix, 2026-10-07
+
+The live Windows WHIP stream had about 877 ms of additional audio delay in the
+AAC HLS derivative. The measurement matched identical encoded video frames and
+correlated decoded audio from the canonical and derivative HLS tracks. A new
+1080p60 flash-and-tone integration test reproduced a 523 ms offset with the old
+worker. The previous codec-only probe did not detect this failure.
+
+The worker now reads Opus through enhanced RTMP and publishes copied H.264 plus
+AAC through RTMP inside the container network. Both tracks retain a common
+presentation timeline. OBS still publishes through WHIP. Worker authorization
+remains limited to the active source generation and its private derivative.
+Unauthenticated RTMP reading and non-HLS derivative reading remain denied.
+The media test uses the same Alpine FFmpeg package as production; the previous
+static fixture used librtmp and did not support enhanced RTMP Opus negotiation.
+
+The real-media test now checks flash/tone alignment within 100 ms before and
+after a worker restart, key revocation, and a return to RTMP with AAC. The RTMP
+case verifies decoded audio/video alignment through canonical HLS and confirms
+that no WHIP conversion job remains.
+
+The HLS player no longer treats a network `stalled` event as a playback failure.
+Buffered video can continue during that event. A `waiting` event must persist
+for 250 ms before the reconnect indicator or Ultra low instability counter
+changes. Resume, pause, and disposal cancel the pending indication. Existing
+transport recovery and the progress watchdog remain active.
+
+Validation: the timing and player regressions failed before their fixes and
+passed afterward. The final focused run passed all 49 tests, including real
+WHIP-to-HLS sync after worker restart and RTMP/AAC rollback. The fast suite
+passed 726 tests, with one PowerShell test skipped because PowerShell is not
+installed. Lint, type checking, and the production build passed.
+
+These fixes are not deployed yet. Live Windows playback and physical iPhone
+validation remain required after deployment. The measured incoming WHIP packet
+loss and MediaMTX HLS duration warnings are not claimed to be resolved by these
+changes. Brief-indicator suppression does not hide sustained playback stalls.

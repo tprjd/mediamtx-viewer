@@ -290,6 +290,7 @@ export function HlsPlayer({
     let active = true
     const hls = hlsInstance ?? undefined
     let codecErrorTimer: ReturnType<typeof setTimeout> | undefined
+    let waitingTimer: ReturnType<typeof setTimeout> | undefined
     let mediaRecoveryAttempted = false
     let softRecoveryAttempted = false
     let everPlayed = false
@@ -668,6 +669,7 @@ export function HlsPlayer({
       if (!everPlayed) run.report('loading')
     }
     const handlePlaying = () => {
+      clearTimeout(waitingTimer)
       if (!run.report('playing')) {
         video.pause()
         return
@@ -676,13 +678,16 @@ export function HlsPlayer({
       everPlayed = true
     }
     const handleWaiting = () => {
-      if (!run.acceptsEvents()) return
-      if (!video.paused) {
-        if (everPlayed && reportUltraLowInstability('playback stalls')) return
+      if (!run.acceptsEvents() || video.paused || !everPlayed) return
+      clearTimeout(waitingTimer)
+      waitingTimer = setTimeout(() => {
+        if (!run.canRecover() || video.paused || video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return
+        if (reportUltraLowInstability('playback stalls')) return
         run.report('reconnecting')
-      }
+      }, 250)
     }
     const handlePause = () => {
+      clearTimeout(waitingTimer)
       progress.reset()
     }
     const handleSeeking = () => {
@@ -736,7 +741,8 @@ export function HlsPlayer({
     video.addEventListener('loadstart', handleLoadStart)
     video.addEventListener('playing', handlePlaying)
     video.addEventListener('waiting', handleWaiting)
-    video.addEventListener('stalled', handleWaiting)
+    // A network "stalled" event can occur while buffered frames still play.
+    // Actual playback stalls are handled by waiting and the progress monitor.
     video.addEventListener('pause', handlePause)
     video.addEventListener('error', handleVideoError)
     video.addEventListener('play', handlePlay)
@@ -824,7 +830,6 @@ export function HlsPlayer({
       video.removeEventListener('loadstart', handleLoadStart)
       video.removeEventListener('playing', handlePlaying)
       video.removeEventListener('waiting', handleWaiting)
-      video.removeEventListener('stalled', handleWaiting)
       video.removeEventListener('pause', handlePause)
       video.removeEventListener('error', handleVideoError)
       video.removeEventListener('play', handlePlay)
@@ -833,6 +838,7 @@ export function HlsPlayer({
       hls?.off(Hls.Events.LEVEL_UPDATED, handleLevelUpdated)
       hls?.off(Hls.Events.ERROR, handleHlsError)
       clearTimeout(codecErrorTimer)
+      clearTimeout(waitingTimer)
       clearInterval(progressTimer)
       if (sloTimer !== undefined) clearInterval(sloTimer)
       progress.reset()

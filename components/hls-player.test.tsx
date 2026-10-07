@@ -928,6 +928,33 @@ describe('HlsPlayer recovery', () => {
     expect(video.currentTime).toBe(10)
   })
 
+  it('does not flash reconnecting for a network stall while buffered video can play', async () => {
+    mocks.videoAlreadyPlaying = true
+    render(<HlsPlayer channel={channel} latencyProfile="balanced" />)
+    await act(async () => Promise.resolve())
+    const video = screen.getByLabelText('Late-night games live video')
+    fireEvent(video, new Event('stalled'))
+    await act(async () => vi.advanceTimersByTimeAsync(300))
+    expect(screen.queryByText('Reconnecting')).not.toBeInTheDocument()
+  })
+
+  it('does not flash reconnecting for a brief wait that resumes on its own', async () => {
+    mocks.videoAlreadyPlaying = true
+    render(<HlsPlayer channel={channel} latencyProfile="balanced" />)
+    await act(async () => Promise.resolve())
+    const video = screen.getByLabelText('Late-night games live video')
+    Object.defineProperty(video, 'readyState', { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA })
+    fireEvent(video, new Event('waiting'))
+    expect(screen.queryByText('Reconnecting')).not.toBeInTheDocument()
+    await act(async () => vi.advanceTimersByTimeAsync(100))
+    fireEvent(video, new Event('playing'))
+    await act(async () => vi.advanceTimersByTimeAsync(300))
+    expect(screen.queryByText('Reconnecting')).not.toBeInTheDocument()
+    fireEvent(video, new Event('waiting'))
+    await act(async () => vi.advanceTimersByTimeAsync(250))
+    expect(screen.getByText('Reconnecting')).toBeInTheDocument()
+  })
+
   it('reports repeated ultra-low stalls within 30 seconds', async () => {
     const onUltraLowFailure = vi.fn()
     render(
@@ -946,10 +973,12 @@ describe('HlsPlayer recovery', () => {
 
     fireEvent(video, new Event('waiting'))
     fireEvent(video, new Event('stalled'))
+    await act(async () => vi.advanceTimersByTimeAsync(250))
     expect(onUltraLowFailure).not.toHaveBeenCalled()
 
     await act(async () => vi.advanceTimersByTimeAsync(1_001))
     fireEvent(video, new Event('waiting'))
+    await act(async () => vi.advanceTimersByTimeAsync(250))
 
     expect(onUltraLowFailure).toHaveBeenCalledOnce()
     expect(onUltraLowFailure).toHaveBeenCalledWith(

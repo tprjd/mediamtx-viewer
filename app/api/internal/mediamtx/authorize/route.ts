@@ -40,7 +40,7 @@ export async function POST(request: Request): Promise<Response> {
     return new Response(null, { status: payload.protocol === 'hls' ? 204 : 403 })
   }
   if (payload.user === 'hls-worker' || payload.path.startsWith('_hls/')) {
-    const allowed = payload.protocol === 'rtsp' && await authorizeHlsWorker(payload.action, payload.path, payload.password)
+    const allowed = ['rtsp', 'rtmp'].includes(payload.protocol) && await authorizeHlsWorker(payload.action, payload.path, payload.password)
     return new Response(null, { status: allowed ? 204 : 401 })
   }
 
