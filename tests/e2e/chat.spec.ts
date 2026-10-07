@@ -441,7 +441,13 @@ test('lets an active participant send and reload one Chat message', async ({
 
   const chat = page.getByRole('complementary', { name: 'Chat' })
   const content = `durable Chat message ${randomUUID()}`
-  await chat.getByRole('textbox', { name: 'Chat message' }).fill(content)
+  // The control subscription refreshes sending access and briefly disables the
+  // composer. Finish that initial connection before entering the message.
+  await expect(chat.getByRole('log')).toHaveAttribute('data-realtime-state', 'connected')
+  const composer = chat.getByRole('textbox', { name: 'Chat message' })
+  await expect(composer).toBeEnabled()
+  await composer.fill(content)
+  await expect(composer).toHaveValue(content)
   await chat.getByRole('button', { name: 'Send' }).click()
 
   const acceptedMessage = chat
