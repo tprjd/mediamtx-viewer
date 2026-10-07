@@ -9,6 +9,15 @@ interface HlsModeDocument {
   adaptiveMaxSegmentMs?: number
 }
 
+/** Acceptance targets, not player timers. Latency must stay strictly below
+ * the ceiling. Recovery restores playback and that latency within the deadline
+ * after sufficient upload capacity returns, for a visible, unpaused viewer. */
+export interface WebRtcAcceptanceContract {
+  latencyCeilingMs: number
+  uploadInterruptionMs: number
+  recoveryDeadlineMs: number
+}
+
 export interface StreamingContractDocument {
   schemaVersion: 1
   contractVersion: string
@@ -21,6 +30,7 @@ export interface StreamingContractDocument {
     }
     modes: Record<HlsLatencyProfile, HlsModeDocument>
   }
+  webrtc: WebRtcAcceptanceContract
   managedObs: {
     keyframeIntervalMs: number
   }
@@ -155,7 +165,7 @@ export function compileStreamingContract(value: unknown): StreamingContractDocum
   const document = recordAt(value, 'streamingContract')
   exactKeys(
     document,
-    ['schemaVersion', 'contractVersion', 'hls', 'managedObs', 'fallbacks', 'releaseValidation'],
+    ['schemaVersion', 'contractVersion', 'hls', 'webrtc', 'managedObs', 'fallbacks', 'releaseValidation'],
     'streamingContract',
   )
   if (document.schemaVersion !== 1) {
@@ -201,6 +211,18 @@ export function compileStreamingContract(value: unknown): StreamingContractDocum
       'contract_invariant_violation',
       'HLS part duration must divide the segment duration evenly.',
     )
+  }
+
+  const webrtc = recordAt(document.webrtc, 'streamingContract.webrtc')
+  exactKeys(
+    webrtc,
+    ['latencyCeilingMs', 'uploadInterruptionMs', 'recoveryDeadlineMs'],
+    'streamingContract.webrtc',
+  )
+  const webRtcTargets = {
+    latencyCeilingMs: positiveInteger(webrtc.latencyCeilingMs, 'streamingContract.webrtc.latencyCeilingMs'),
+    uploadInterruptionMs: positiveInteger(webrtc.uploadInterruptionMs, 'streamingContract.webrtc.uploadInterruptionMs'),
+    recoveryDeadlineMs: positiveInteger(webrtc.recoveryDeadlineMs, 'streamingContract.webrtc.recoveryDeadlineMs'),
   }
 
   const modes = recordAt(hls.modes, 'streamingContract.hls.modes')
@@ -266,6 +288,7 @@ export function compileStreamingContract(value: unknown): StreamingContractDocum
         smooth: hlsMode(modes.smooth, 'streamingContract.hls.modes.smooth', false),
       },
     },
+    webrtc: webRtcTargets,
     managedObs: {
       keyframeIntervalMs,
     },

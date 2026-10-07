@@ -1,6 +1,8 @@
 export type StreamState = 'live' | 'offline' | 'unavailable'
 
 export interface ChannelStatus {
+  publisherProtocol?: 'whip' | 'other'
+  hlsMediaPath?: string
   state: StreamState
   live: boolean
   startedAt: string | null
@@ -10,6 +12,9 @@ export interface ChannelStatus {
 }
 
 export interface ChannelLiveUpdate {
+  playback?: PublicChannel['playback']
+  preferredPlayback?: PublicChannel['preferredPlayback']
+  hasCompatibilityFallback?: boolean
   viewingAllowed?: boolean
   slug: string
   ownerName: string

@@ -179,6 +179,26 @@ describe('WebRtcPlayer watchdog', () => {
     expect(fallback).not.toHaveBeenCalled()
   })
 
+  it.each([0, 500, 1_500])('keeps the current reader through a two-second upload outage at offset %d ms', async (offsetMs) => {
+    let frames = 60
+    const fallback = vi.fn()
+    await renderPlayer(fallback)
+    const original = FakeReader.instances[0]
+    const video = await connect(original, peerWithFrames(() => frames))
+    await act(async () => vi.advanceTimersByTimeAsync(1_000 + offsetMs))
+    await act(async () => vi.advanceTimersByTimeAsync(2_000))
+    // The current connection resumes media without emitting a new playing event.
+    for (let second = 0; second < 5; second += 1) {
+      frames += 60
+      await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    }
+    expect(video.srcObject).not.toBeNull()
+    expect(screen.getByText('WebRTC · Low latency')).toBeInTheDocument()
+    expect(FakeReader.instances).toEqual([original])
+    expect(original.close).not.toHaveBeenCalled()
+    expect(fallback).not.toHaveBeenCalled()
+  })
+
   it('rebuilds once after five stagnant samples and falls back on the next stall', async () => {
     const fallback = vi.fn()
     const peer = peerWithFrames(() => 10)
@@ -470,6 +490,35 @@ describe('WebRtcPlayer watchdog', () => {
 
     expect(video.srcObject).toBe(stream)
     expect(successfulPlays).toBe(1)
+  })
+
+  it('ignores a missing-audio check from a replaced reader', async () => {
+    const fallback = vi.fn()
+    await renderPlayer(fallback)
+    const original = FakeReader.instances[0]
+    const video = await connect(original, peerWithFrames(() => 1))
+    const silentStream = {
+      getAudioTracks: () => [],
+      getVideoTracks: () => [{ kind: 'video' }],
+    } as unknown as MediaStream
+    await act(async () => {
+      original.options.onTrack?.({
+        streams: [silentStream], track: { kind: 'video' },
+      } as unknown as RTCTrackEvent)
+    })
+    fireEvent.playing(video)
+    await act(async () => {
+      original.options.onError?.('connection interrupted')
+      await Promise.resolve()
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(FakeReader.instances).toHaveLength(2)
+    // Replacement negotiation is still pending when the old audio check expires.
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(fallback).not.toHaveBeenCalled()
+    await connect(FakeReader.instances[1], peerWithFrames(() => 2))
+    expect(video.srcObject).not.toBe(silentStream)
+    expect(fallback).not.toHaveBeenCalled()
   })
 
   it('does not resume a replacement stream after an explicit user pause', async () => {

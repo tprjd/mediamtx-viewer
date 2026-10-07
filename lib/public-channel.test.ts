@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Channel } from '@/lib/channel-schema'
 import { toPublicChannel } from '@/lib/public-channel'
@@ -49,4 +49,16 @@ it('starts pilot HLS directly on AAC media while WebRTC retains the canonical so
   expect(result.playback.webrtc).toBe('/media/whep/relay/friend/whep')
   expect(toPublicChannel(channel, status).playback.hls).toBe('/media/hls/relay/friend/index.m3u8?cookieCheck=1')
   delete process.env.WHIP_PILOT_CHANNEL
+})
+
+afterEach(() => vi.unstubAllEnvs())
+it('defaults only a live compatible pilot WHIP Publisher to WebRTC', () => {
+  vi.stubEnv('WHIP_PILOT_CHANNEL', 'friend')
+  const whip = { ...status, publisherProtocol: 'whip' as const, tracks: ['H264', 'Opus'] }
+  expect(toPublicChannel(channel, whip).preferredPlayback).toBe('webrtc')
+  expect(toPublicChannel(channel, { ...whip, live: false }).preferredPlayback).toBe('hls')
+  expect(toPublicChannel(channel, { ...whip, publisherProtocol: 'other' }).preferredPlayback).toBe('hls')
+  expect(toPublicChannel(channel, { ...whip, tracks: ['H264', 'MPEG-4 Audio'] }).preferredPlayback).toBe('hls')
+  vi.stubEnv('WHIP_PILOT_CHANNEL', '')
+  expect(toPublicChannel(channel, whip).preferredPlayback).toBe('hls')
 })

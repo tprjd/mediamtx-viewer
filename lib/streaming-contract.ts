@@ -3,6 +3,7 @@ import {
   compileStreamingContract,
   type HlsLatencyProfile,
   type PlaybackMode,
+  type WebRtcAcceptanceContract,
 } from '@/lib/streaming-contract-core'
 
 export type { HlsLatencyProfile, PlaybackMode }
@@ -154,4 +155,9 @@ export function mediaMtxTimingProjection(): MediaMtxTimingProjection {
     hlsSegmentDuration: mediaMtxDuration(contract.hls.packaging.segmentDurationMs),
     hlsPartDuration: mediaMtxDuration(contract.hls.packaging.partDurationMs),
   }
+}
+
+/** Physical-device acceptance targets; a watchdog cannot measure glass-to-glass delay. */
+export function webRtcAcceptanceContract(): WebRtcAcceptanceContract {
+  return { ...contract.webrtc }
 }

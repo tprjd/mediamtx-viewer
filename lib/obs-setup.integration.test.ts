@@ -63,7 +63,7 @@ describe('Windows OBS setup authorization', () => {
       getObsSetupApproval,
       redeemObsSetupSession,
     } = await import('@/lib/obs-setup')
-    const created = createObsSetupSession('lifecycle-address', '1.4.0')
+    const created = createObsSetupSession('lifecycle-address', '1.5.0')
 
     expect(getObsSetupApproval(created.userCode)).toMatchObject({ status: 'pending' })
     expect(() => redeemObsSetupSession(created.deviceSecret)).toThrowError(
@@ -91,7 +91,7 @@ describe('Windows OBS setup authorization', () => {
       OBS_SETUP_EXPIRES_MS,
       redeemObsSetupSession,
     } = await import('@/lib/obs-setup')
-    const expired = createObsSetupSession('expired-address', '1.4.0', 10_000)
+    const expired = createObsSetupSession('expired-address', '1.5.0', 10_000)
     expect(
       getObsSetupApproval(expired.userCode, 10_000 + OBS_SETUP_EXPIRES_MS),
     ).toMatchObject({ status: 'expired' })
@@ -102,7 +102,7 @@ describe('Windows OBS setup authorization', () => {
       ),
     ).toThrowError(expect.objectContaining({ code: 'expired' }))
 
-    const denied = createObsSetupSession('denied-address', '1.4.0')
+    const denied = createObsSetupSession('denied-address', '1.5.0')
     denyObsSetupSession(denied.userCode, 'friend-id')
     expect(() => redeemObsSetupSession(denied.deviceSecret)).toThrowError(
       expect.objectContaining({ code: 'denied' }),
@@ -118,15 +118,15 @@ describe('Windows OBS setup authorization', () => {
       expect.objectContaining({ code: 'unsupported_version' }),
     )
 
-    const inactive = createObsSetupSession('inactive-address', '1.4.0')
+    const inactive = createObsSetupSession('inactive-address', '1.5.0')
     expect(() => approveObsSetupSession(inactive.userCode, 'disabled-id')).toThrowError(
       expect.objectContaining({ code: 'unavailable' }),
     )
 
     for (let count = 0; count < 5; count += 1) {
-      createObsSetupSession('limited-address', '1.4.0')
+      createObsSetupSession('limited-address', '1.5.0')
     }
-    expect(() => createObsSetupSession('limited-address', '1.4.0')).toThrowError(
+    expect(() => createObsSetupSession('limited-address', '1.5.0')).toThrowError(
       expect.objectContaining({ code: 'rate_limited' }),
     )
   })
@@ -140,7 +140,7 @@ describe('Windows OBS setup authorization', () => {
           'content-type': 'application/json',
           'x-forwarded-for': '203.0.113.44',
         },
-        body: JSON.stringify({ scriptVersion: '1.4.0' }),
+        body: JSON.stringify({ scriptVersion: '1.5.0' }),
       }),
     )
     expect(startResponse.status).toBe(200)
@@ -188,6 +188,33 @@ describe('Windows OBS setup authorization', () => {
     expect(authorized.streamKey).toMatch(/^mtx_sk_/)
   })
 
+  it('delivers WHIP credentials only after approval and marks only the pilot eligible', async () => {
+    const { createObsSetupSession, approveObsSetupSession } = await import('@/lib/obs-setup')
+    const { POST: poll } = await import('@/app/api/obs-setup/device/poll/route')
+    const { authorizePublish } = await import('@/lib/channels')
+    let previousKey = ''
+    for (const pilot of ['friend-stream', 'another-channel', '']) {
+      process.env.WHIP_PILOT_CHANNEL = pilot
+      const created = createObsSetupSession(`whip-${pilot}`, '1.5.0')
+      approveObsSetupSession(created.userCode, 'friend-id')
+      const response = await poll(new Request('http://localhost:3000/api/obs-setup/device/poll', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ deviceSecret: created.deviceSecret }),
+      }))
+      const result = await response.json()
+      expect(response.headers.get('cache-control')).toContain('no-store')
+      expect(result.whip).toEqual({
+        enabled: pilot === 'friend-stream',
+        serverUrl: 'http://localhost:3000/publish/whip/channels/friend-stream/whip',
+        bearerToken: result.streamKey,
+      })
+      expect(authorizePublish('channels/friend-stream', result.whip.bearerToken)).toBe(true)
+      if (previousKey) expect(authorizePublish('channels/friend-stream', previousKey)).toBe(false)
+      previousKey = result.whip.bearerToken
+    }
+    delete process.env.WHIP_PILOT_CHANNEL
+  })
+
   it('publishes a stable generic script with no credential material', async () => {
     const {
       OBS_SETUP_PAYLOAD_MARKER,
@@ -205,8 +232,8 @@ describe('Windows OBS setup authorization', () => {
     const launcherSha256 = createHash('sha256').update(launcher, 'ascii').digest('hex')
 
     expect(metadata).toMatchObject({
-      version: '1.4.0',
-      contractVersion: '1.0.0',
+      version: '1.5.0',
+      contractVersion: '1.1.0',
     })
     expect(metadata.sha256).toBe(launcherSha256)
     expect(metadata.size).toBe(Buffer.byteLength(launcher, 'ascii'))
@@ -216,13 +243,13 @@ describe('Windows OBS setup authorization', () => {
     expect(launcher).not.toContain('Set-ExecutionPolicy')
     expect(launcher).toContain(`if($actual -ne '${payloadSha256}')`)
     expect(Buffer.from(encodedPayload, 'base64')).toEqual(Buffer.from(source))
-    expect(source).toContain("$ScriptVersion = '1.4.0'")
+    expect(source).toContain("$ScriptVersion = '1.5.0'")
     expect(source).toContain("$StreamingContractVersion = [string]$StreamingContract.contractVersion")
     expect(source).not.toContain('__FRANKERZSPAM_OBS_TIMING_BASE64__')
     const timingPayload = source.match(/\$StreamingContractPayload = '([^']+)'/)?.[1]
     expect(timingPayload).toBeDefined()
     expect(JSON.parse(Buffer.from(timingPayload!, 'base64').toString('utf8'))).toEqual({
-      contractVersion: '1.0.0',
+      contractVersion: '1.1.0',
       keyframeIntervalSeconds: 2,
     })
     expect(source).not.toContain("capture_mode = 'window'")
@@ -252,7 +279,7 @@ describe('Windows OBS setup authorization', () => {
     expect(source).toContain('$settings.bf = 2')
     expect(source).toContain("scale_filter = 'area'")
     expect(source).not.toContain("scale_filter = 'lanczos'")
-    expect(source).toContain('AudioEncoder=ffmpeg_aac')
+    expect(source).toContain("[string]$AudioEncoder = 'ffmpeg_aac'")
     expect(source).toContain("type = 'rtmp_custom'")
     expect(source).toContain("service = 'Enhanced RTMP'")
     expect(source).toContain("\$server = \$ServerUrl.Substring(0, \$slashIndex)")
@@ -260,8 +287,8 @@ describe('Windows OBS setup authorization', () => {
     expect(source).toContain(
       "'^rtmp://[^/]+:1935/[^?]+\\?token=mtx_sk_[A-Za-z0-9_-]{24,}$'",
     )
-    expect(source).not.toContain('whip_custom')
-    expect(source).not.toContain('bearer_token')
+    expect(source).toContain('whip_custom')
+    expect(source).toContain('bearer_token')
     for (const encoderId of [
       'obs_nvenc_av1_tex',
       'obs_nvenc_hevc_tex',
@@ -291,8 +318,8 @@ describe('Windows OBS setup authorization', () => {
     }
     expect(source).toContain('$SceneCanvasWidth = 2560')
     expect(source).toContain('$SceneCanvasHeight = 1440')
-    expect(source).toContain('BaseCX=$SceneCanvasWidth')
-    expect(source).toContain('BaseCY=$SceneCanvasHeight')
+    expect(source).toContain('BaseCX=$BaseWidth')
+    expect(source).toContain('BaseCY=$BaseHeight')
     expect(source).toContain('OutputCX=$($Profile.Width)')
     expect(source).toContain('OutputCY=$($Profile.Height)')
     expect(source).toContain("$settings.preset = 'quality'")
@@ -308,7 +335,7 @@ describe('Windows OBS setup authorization', () => {
       new Request('http://localhost:3000/api/obs-setup/device/start', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scriptVersion: '1.4.0', padding: 'x'.repeat(1024) }),
+        body: JSON.stringify({ scriptVersion: '1.5.0', padding: 'x'.repeat(1024) }),
       }),
     )
 

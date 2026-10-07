@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { isWhipPilotChannel } from '@/lib/whip-pilot'
+
 import { authEnvironment, getRuntimeConfigurationErrors } from '@/lib/auth/env'
 import { readUtf8BodyWithLimit } from '@/lib/http-body'
 import {
@@ -87,6 +89,15 @@ export async function POST(request: Request): Promise<Response> {
         status: 'authorized',
         serverUrl: `rtmp://${new URL(authEnvironment.baseUrl).hostname}:${authEnvironment.mediaMtxRtmpPort}/${result.streamKey.mediaPath}?token=${result.streamKey.token}`,
         streamKey: result.streamKey.token,
+        whip: {
+          enabled: isWhipPilotChannel(result.channelSlug),
+          serverUrl: new URL(
+            `/publish/whip/${result.streamKey.mediaPath.split('/').map(encodeURIComponent).join('/')}/whip`,
+            authEnvironment.baseUrl,
+          ).toString(),
+          // Also refresh an existing profile when the pilot is disabled.
+          bearerToken: result.streamKey.token,
+        },
         warning: warning ?? null,
       },
       { headers: responseHeaders },

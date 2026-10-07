@@ -1,4 +1,6 @@
 import { isWhipPilotChannel } from '@/lib/whip-pilot'
+import { isWebRtcAvailable } from '@/lib/playback-availability'
+
 import type { Channel } from '@/lib/channel-schema'
 import type { ChannelStatus, PublicChannel } from '@/lib/types'
 
@@ -27,7 +29,9 @@ export function toPublicChannel(
     description: channel.description,
     poster,
     accentColor: channel.accentColor,
-    preferredPlayback: channel.preferredPlayback,
+    preferredPlayback: isWhipPilotChannel(channel.slug) && status.live &&
+      status.publisherProtocol === 'whip' && isWebRtcAvailable(status.tracks)
+      ? 'webrtc' : channel.preferredPlayback,
     hasCompatibilityFallback: Boolean(channel.fallbackMediaPath),
     playback: {
       hls: hlsUrl(isWhipPilotChannel(channel.slug) && status.hlsMediaPath ? status.hlsMediaPath : channel.mediaPath),

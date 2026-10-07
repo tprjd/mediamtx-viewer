@@ -524,7 +524,11 @@ export function WebRtcPlayer({
           clearTimeout(audioTimer)
           if (sourceHasAudioRef.current) {
             audioTimer = setTimeout(() => {
-              if (run.acceptsEvents() && stream.getAudioTracks().length === 0) {
+              if (
+                run.acceptsEvents() &&
+                generation === readerGeneration &&
+                stream.getAudioTracks().length === 0
+              ) {
                 run.recover(() => fallbackRef.current())
               }
             }, 2_000)

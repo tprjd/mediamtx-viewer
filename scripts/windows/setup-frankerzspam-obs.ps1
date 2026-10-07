@@ -9,6 +9,8 @@ param(
     [switch]$ResetManagedConfig,
     [ValidateRange(8000, 20000)]
     [int]$BitrateKbps = 12000,
+    [ValidateRange(2000, 20000)]
+    [int]$WhipBitrateKbps = 10000,
     [string]$Codecs = 'AV1,HEVC,H264',
     [string]$Resolutions = '1440p,1080p',
     [string]$SiteOrigin = 'https://frankerzspam.duckdns.org'
@@ -19,7 +21,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$ScriptVersion = '1.4.0'
+$ScriptVersion = '1.5.0'
 $StreamingContractPayload = '__FRANKERZSPAM_OBS_TIMING_BASE64__'
 try {
     $StreamingContractJson = [Text.Encoding]::UTF8.GetString(
@@ -525,7 +527,7 @@ function Backup-ManagedConfiguration {
         [string]$CollectionPath
     )
     $existingProfiles = @($ProfileDirectories | Where-Object { Test-Path -LiteralPath $_ })
-    $collectionExists = Test-Path -LiteralPath $CollectionPath
+    $collectionExists = $CollectionPath -and (Test-Path -LiteralPath $CollectionPath)
     if ($existingProfiles.Count -eq 0 -and -not $collectionExists) { return }
 
     $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -622,7 +624,10 @@ function Get-EncoderSettings {
 function Write-ManagedProfile {
     param(
         [string]$ProfileDirectory,
-        $Profile
+        $Profile,
+        [string]$AudioEncoder = 'ffmpeg_aac',
+        [int]$BaseWidth = $SceneCanvasWidth,
+        [int]$BaseHeight = $SceneCanvasHeight
     )
     [IO.Directory]::CreateDirectory($ProfileDirectory) | Out-Null
     $videosPath = [Environment]::GetFolderPath('MyVideos')
@@ -649,7 +654,7 @@ ApplyServiceSettings=true
 UseRescale=false
 TrackIndex=1
 Encoder=$($Profile.Encoder.EncoderId)
-AudioEncoder=ffmpeg_aac
+AudioEncoder=$AudioEncoder
 Track1Bitrate=160
 RecType=Standard
 RecFilePath=$videosPath
@@ -658,8 +663,8 @@ RecUseRescale=false
 RecTracks=1
 
 [Video]
-BaseCX=$SceneCanvasWidth
-BaseCY=$SceneCanvasHeight
+BaseCX=$BaseWidth
+BaseCY=$BaseHeight
 OutputCX=$($Profile.Width)
 OutputCY=$($Profile.Height)
 FPSType=0
@@ -681,6 +686,77 @@ ChannelSetup=Stereo
     $encoderJson = Get-EncoderSettings $Profile |
         ConvertTo-Json -Depth 10
     Write-AtomicText (Join-Path $ProfileDirectory 'streamEncoder.json') $encoderJson
+}
+
+function Update-ManagedWhipProfile {
+    param([string]$ObsRoot, $Whip, $Capabilities)
+    $directory = Join-Path $ObsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP'
+    $exists = Test-Path -LiteralPath $directory
+    if (-not $Whip.enabled -and -not $exists) { return }
+    $endpoint = $null
+    if (-not [Uri]::TryCreate([string]$Whip.serverUrl, [UriKind]::Absolute, [ref]$endpoint) -or
+        ($endpoint.Scheme -ne 'https' -and -not ($endpoint.Scheme -eq 'http' -and $endpoint.IsLoopback)) -or
+        $endpoint.AbsolutePath -notmatch '^/publish/whip/.+/whip$' -or
+        $endpoint.Query -or $endpoint.Fragment -or $endpoint.UserInfo -or
+        $Whip.bearerToken -notmatch '^mtx_sk_[A-Za-z0-9_-]{24,}$') {
+        throw 'The site returned invalid WHIP publishing settings. Download setup again.'
+    }
+    if ($Whip.enabled -and (-not $exists -or $RepairManagedConfig -or $ResetManagedConfig)) {
+        if (-not $Capabilities.H264) {
+            throw 'The low-latency profile needs a supported H.264 hardware encoder. Update the GPU driver and rerun setup. RTMP credentials were refreshed.'
+        }
+        if ($exists) { Backup-ManagedConfiguration @($directory) '' }
+        $profile = [pscustomobject]@{
+            Name = 'FrankerzSpam 1080p60 Low latency'
+            Codec = 'H264'
+            Width = 1920
+            Height = 1080
+            BitrateKbps = $WhipBitrateKbps
+            Encoder = $Capabilities.H264
+        }
+        # Keep the canvas used by the retained profiles and shared scenes.
+        $baseWidth = $SceneCanvasWidth
+        $baseHeight = $SceneCanvasHeight
+        foreach ($definition in ($ManagedProfiles | Sort-Object LaunchPriority)) {
+            $existingIni = Join-Path $ObsRoot "basic/profiles/$($definition.DirectoryName)/basic.ini"
+            if (-not (Test-Path -LiteralPath $existingIni)) { continue }
+            $content = [IO.File]::ReadAllText($existingIni)
+            if ($content -match '(?m)^BaseCX=(\d+)\s*$') { $baseWidth = [int]$Matches[1] }
+            if ($content -match '(?m)^BaseCY=(\d+)\s*$') { $baseHeight = [int]$Matches[1] }
+            break
+        }
+        Write-ManagedProfile $directory $profile 'ffmpeg_opus' $baseWidth $baseHeight
+        Write-Info "Created low-latency profile: 1080p60 H.264 + Opus, $WhipBitrateKbps Kbps. Validate picture quality and upload capacity before use."
+    }
+    $service = [ordered]@{
+        type = 'whip_custom'
+        settings = [ordered]@{ server = $Whip.serverUrl; bearer_token = $Whip.bearerToken }
+        hotkeys = [ordered]@{}
+    } | ConvertTo-Json -Depth 10
+    Write-AtomicText (Join-Path $directory 'service.json') $service
+    Write-Info 'Low-latency profile credentials refreshed without printing the credential.'
+    if ($Whip.enabled) {
+        try {
+            $basic = [IO.File]::ReadAllText((Join-Path $directory 'basic.ini'))
+            $encoder = Get-Content (Join-Path $directory 'streamEncoder.json') -Raw | ConvertFrom-Json
+            $valid = $basic -match '(?m)^AudioEncoder=ffmpeg_opus\s*$' -and
+                $basic -match '(?m)^Mode=Advanced\s*$' -and
+                $basic -match '(?m)^FPSType=0\s*$' -and
+                $basic -match '(?m)^FPSCommon=60\s*$' -and
+                $basic -match '(?m)^EnableMultitrackVideo=false\s*$' -and
+                $basic -match '(?m)^UseRescale=false\s*$' -and
+                $basic -match '(?m)^OutputCX=(\d+)\s*$'
+            $width = if ($valid) { [int]$Matches[1] } else { 0 }
+            $height = if ($basic -match '(?m)^OutputCY=(\d+)\s*$') { [int]$Matches[1] } else { 0 }
+            $valid = $valid -and $width -ge 1920 -and $height -ge 1080 -and
+                $encoder.bf -eq 0 -and $encoder.keyint_sec -eq $ManagedKeyframeIntervalSeconds -and
+                $Capabilities.H264 -and
+                $basic -match ('(?m)^Encoder=' + [regex]::Escape($Capabilities.H264.EncoderId) + '\s*$')
+            if (-not $valid) { throw 'Incompatible retained settings.' }
+        } catch {
+            throw 'The low-latency profile has unsupported settings or an unavailable H.264 encoder. Credentials were refreshed. Run setup with -RepairManagedConfig to restore the managed defaults.'
+        }
+    }
 }
 
 function New-ObsInputSource {
@@ -1081,6 +1157,7 @@ try {
             }
         }
         Write-Info "Would manage the shared scene collection $CollectionName."
+        Write-Info "The pilot Channel also receives a separate 1080p60 H.264/Opus WHIP profile at $WhipBitrateKbps Kbps after authorization and H.264 verification."
         Write-Info 'Would open the site for short-lived channel authorization, then write the credential to every managed profile.'
         Write-Info 'Dry run complete. Nothing was installed, probed, authorized, or written.'
         exit 0
@@ -1095,6 +1172,8 @@ try {
     Write-Step 'Verifying hardware encoder support'
     $capabilities = Get-HardwareEncoderCapabilities $obsExecutable $logsDirectory $requestedCodecs
     Show-EncoderCapabilities $capabilities $requestedCodecs $true
+    $whipPlugin = Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $obsExecutable))) 'obs-plugins/64bit/obs-webrtc.dll'
+    $whipSupported = Test-Path -LiteralPath $whipPlugin
     $selection = Resolve-ManagedSelection $requestedCodecs $requestedResolutions `
         $capabilities $true $codecsExplicit
     if ($selection.Skipped.Count -gt 0 -and
@@ -1212,6 +1291,15 @@ try {
         if (Test-Path -LiteralPath $directory) { $credentialTargetDirectories += $directory }
     }
     Write-RtmpService $credentialTargetDirectories $authorization.serverUrl
+    if ($authorization.PSObject.Properties['whip']) {
+        if ($authorization.whip.enabled -and -not $whipSupported) {
+            # Rotation must still refresh a retained profile on a damaged OBS install.
+            $authorization.whip.enabled = $false
+            Update-ManagedWhipProfile $obsRoot $authorization.whip $capabilities
+            throw 'OBS WHIP output is missing. RTMP credentials were refreshed. Repair the OBS installation, then run setup again.'
+        }
+        Update-ManagedWhipProfile $obsRoot $authorization.whip $capabilities
+    }
     Write-Info "RTMP publishing settings saved to $($credentialTargetDirectories.Count) managed profile(s) without printing the credential."
     $warningProperty = $authorization.PSObject.Properties['warning']
     if ($warningProperty -and $warningProperty.Value) {
