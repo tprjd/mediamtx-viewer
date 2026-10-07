@@ -174,7 +174,22 @@ WHIP-to-HLS sync after worker restart and RTMP/AAC rollback. The fast suite
 passed 726 tests, with one PowerShell test skipped because PowerShell is not
 installed. Lint, type checking, and the production build passed.
 
-These fixes are not deployed yet. Live Windows playback and physical iPhone
-validation remain required after deployment. The measured incoming WHIP packet
-loss and MediaMTX HLS duration warnings are not claimed to be resolved by these
-changes. Brief-indicator suppression does not hide sustained playback stalls.
+Release v2.1.3 passed all 19 hosted verification groups and ARM64 image checks
+in [release run 37675795105](https://github.com/tprjd/mediamtx-viewer/actions/runs/37675795105).
+The first restart-check job stopped during an Ubuntu package download before
+the test started. Its retry passed; completed checks were retained.
+
+The managed production update in
+[deployment run 37680766308](https://github.com/tprjd/mediamtx-deployment/actions/runs/37680766308)
+activated v2.1.3 with result `active` and phase `complete`. At 20:30 UTC, the
+public login returned 200, the header and internal health response showed
+v2.1.3, and application and Chat health passed. Both media-worker supervisors
+were running. The deployed HLS worker had the enhanced RTMP input code and
+configuration. The private worker endpoint accepted its credential and rejected
+an unauthenticated request.
+
+OBS was offline during the production check, with no active fallback job.
+Live Windows playback and physical iPhone validation remain required. The
+measured incoming WHIP packet loss and MediaMTX HLS duration warnings are not
+claimed to be resolved by these changes. Brief-indicator suppression does not
+hide sustained playback stalls.
