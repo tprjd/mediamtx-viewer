@@ -14,7 +14,7 @@ import {
 import { Tooltip } from '@/components/ui/tooltip'
 import { usePlaybackMode } from '@/components/use-playback-mode'
 import { WebRtcPlayer } from '@/components/webrtc-player'
-import type { PlayerTheaterProps } from '@/components/vidstack-player'
+import { PlaybackAudioScope, type PlayerTheaterProps } from '@/components/vidstack-player'
 import { hlsPlaybackContract, type PlaybackMode } from '@/lib/streaming-contract'
 import type { PublicChannel } from '@/lib/types'
 
@@ -229,6 +229,7 @@ export function LivePlayer({
             : null
           : playbackModeControls)}
 
+      <PlaybackAudioScope key={`${channel.slug}:${viewerId ?? ''}`}>
       {mode === 'webrtc' ? (
         <WebRtcPlayer
           channel={taggedChannel}
@@ -260,6 +261,7 @@ export function LivePlayer({
           theaterMode={theaterMode}
         />
       )}
+      </PlaybackAudioScope>
     </div>
   )
 }

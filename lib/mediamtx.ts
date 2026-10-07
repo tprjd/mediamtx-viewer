@@ -2,6 +2,7 @@ import 'server-only'
 
 import { z } from 'zod'
 
+import { hlsDerivativePath } from '@/lib/whip-pilot'
 import type { ChannelStatus } from '@/lib/types'
 
 const mediaMtxPathSchema = z
@@ -197,7 +198,7 @@ export function normalizeMediaMtxPath(
 
   return {
     ...(path.source ? { publisherProtocol: path.source.type === 'webRTCSession' ? 'whip' as const : 'other' as const } : {}),
-    ...(derivativePath(path) ? { hlsMediaPath: derivativePath(path) } : {}),
+    ...(hlsDerivativePath(path) ? { hlsMediaPath: hlsDerivativePath(path) } : {}),
     state: live ? 'live' : 'offline',
     live,
     startedAt:
@@ -239,7 +240,7 @@ export async function getChannelStatus(
     }
 
     let path = mediaMtxPathSchema.parse(await response.json())
-    const derivative = derivativePath(path)
+    const derivative = hlsDerivativePath(path)
     if (derivative) {
       try {
         const fallback = await fetcher(`${apiOrigin}/v3/paths/get/${derivative}`, { cache: 'no-store', signal: AbortSignal.timeout(2500) })
@@ -320,7 +321,7 @@ export async function getChannelStatuses(
         .map((item) => [
           item.name,
           normalizeMediaMtxPath(
-            combineReaders(item, paths.find(candidate => candidate.name === derivativePath(item))),
+            combineReaders(item, paths.find(candidate => candidate.name === hlsDerivativePath(item))),
             hlsMetadata?.thumbnailReaderIds ?? null,
             readerViewerIds,
           ),
@@ -447,14 +448,6 @@ async function disconnectWebRtcSessions(
     }),
   )
   return ids.length
-}
-
-/** The private RTSP workers are never viewers. Generation-specific paths prevent
- * a replacement Publisher from exposing the previous source's buffered media. */
-function derivativePath(path: z.infer<typeof mediaMtxPathSchema>): string | undefined {
-  if (!path.ready || !path.name || path.name.startsWith('_hls/') || path.source?.type !== 'webRTCSession' || !/^[a-zA-Z0-9_-]+$/.test(path.source.id)) return undefined
-  if (!path.tracks?.includes('H264') || !path.tracks?.includes('Opus')) return undefined
-  return `_hls/${path.name}/${path.source.id}`
 }
 
 function combineReaders(source: z.infer<typeof mediaMtxPathSchema>, derivative?: z.infer<typeof mediaMtxPathSchema>) {

@@ -36,7 +36,27 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react'
-import { type ReactNode, useCallback, useEffect, useRef } from 'react'
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react'
+
+interface PlaybackAudio { muted: boolean; volume: number }
+const PlaybackAudioContext = createContext<{
+  audio: PlaybackAudio
+  updateAudio: (value: PlaybackAudio) => void
+} | null>(null)
+
+function useAudioPreferences() {
+  const [audio, setAudio] = useState<PlaybackAudio>({ muted: true, volume: 1 })
+  const updateAudio = useCallback((value: PlaybackAudio) => {
+    setAudio(previous => previous.muted === value.muted && previous.volume === value.volume ? previous : value)
+  }, [])
+  return { audio, updateAudio }
+}
+
+/** One watch visit retains sound settings when HLS replaces WebRTC or vice versa. */
+export function PlaybackAudioScope({ children }: { children: ReactNode }) {
+  const preferences = useAudioPreferences()
+  return <PlaybackAudioContext.Provider value={preferences}>{children}</PlaybackAudioContext.Provider>
+}
 
 export type VidstackProviderKind = 'hls' | 'native' | null
 
@@ -214,6 +234,8 @@ export function VidstackPlayer({
   theaterChatRestoreRef,
   theaterMode = false,
 }: VidstackPlayerProps) {
+  const localPreferences = useAudioPreferences()
+  const { audio, updateAudio } = useContext(PlaybackAudioContext) ?? localPreferences
   const disposeHlsInstanceRef = useRef<(() => void) | undefined>(undefined)
 
   const handleProviderChange = useCallback(
@@ -263,7 +285,9 @@ export function VidstackPlayer({
       keyTarget="document"
       liveEdgeTolerance={liveEdgeTolerance}
       load="eager"
-      muted
+      muted={audio.muted}
+      volume={audio.volume}
+      onVolumeChange={updateAudio}
       onMediaPauseRequest={() => onUserPauseChange?.(true)}
       onMediaPlayRequest={() => onUserPauseChange?.(false)}
       onProviderChange={handleProviderChange}

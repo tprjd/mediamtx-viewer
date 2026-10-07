@@ -701,6 +701,17 @@ function Update-ManagedWhipProfile {
         $Whip.bearerToken -notmatch '^mtx_sk_[A-Za-z0-9_-]{24,}$') {
         throw 'The site returned invalid WHIP publishing settings. Download setup again.'
     }
+    $service = [ordered]@{
+        type = 'whip_custom'
+        settings = [ordered]@{ server = $Whip.serverUrl; bearer_token = $Whip.bearerToken }
+        hotkeys = [ordered]@{}
+    } | ConvertTo-Json -Depth 10
+    # Authorization may already have rotated the Channel key. Preserve existing
+    # profile access even when an encoder failure prevents repair or reset.
+    if ($exists) {
+        Write-AtomicText (Join-Path $directory 'service.json') $service
+        Write-Info 'Low-latency profile credentials refreshed without printing the credential.'
+    }
     if ($Whip.enabled -and (-not $exists -or $RepairManagedConfig -or $ResetManagedConfig)) {
         if (-not $Capabilities.H264) {
             throw 'The low-latency profile needs a supported H.264 hardware encoder. Update the GPU driver and rerun setup. RTMP credentials were refreshed.'
@@ -728,13 +739,10 @@ function Update-ManagedWhipProfile {
         Write-ManagedProfile $directory $profile 'ffmpeg_opus' $baseWidth $baseHeight
         Write-Info "Created low-latency profile: 1080p60 H.264 + Opus, $WhipBitrateKbps Kbps. Validate picture quality and upload capacity before use."
     }
-    $service = [ordered]@{
-        type = 'whip_custom'
-        settings = [ordered]@{ server = $Whip.serverUrl; bearer_token = $Whip.bearerToken }
-        hotkeys = [ordered]@{}
-    } | ConvertTo-Json -Depth 10
-    Write-AtomicText (Join-Path $directory 'service.json') $service
-    Write-Info 'Low-latency profile credentials refreshed without printing the credential.'
+    if (-not $exists) {
+        Write-AtomicText (Join-Path $directory 'service.json') $service
+        Write-Info 'Low-latency profile credentials refreshed without printing the credential.'
+    }
     if ($Whip.enabled) {
         try {
             $basic = [IO.File]::ReadAllText((Join-Path $directory 'basic.ini'))

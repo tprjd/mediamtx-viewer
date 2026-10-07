@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { VidstackPlayer } from '@/components/vidstack-player'
@@ -269,5 +269,20 @@ describe('VidstackPlayer', () => {
     )
     screen.getByRole('button', { name: 'Exit theater mode' }).click()
     expect(onTheaterModeChange).toHaveBeenLastCalledWith(false)
+  })
+})
+
+describe('watch audio preferences across transport replacement', () => {
+  afterEach(cleanup)
+  it.each([false, true])('keeps user mute=%s and volume when the player remounts', async (muted) => {
+    const { PlaybackAudioScope } = await import('./vidstack-player')
+    const { rerender } = render(<PlaybackAudioScope><VidstackPlayer key="webrtc" ariaLabel="Channel video" /></PlaybackAudioScope>)
+    const first = mocks.lastMediaPlayerProps as { muted: boolean; onVolumeChange: (detail: { muted: boolean; volume: number }) => void }
+    expect(first.muted).toBe(true)
+    act(() => first.onVolumeChange({ muted, volume: 0.35 }))
+    rerender(<PlaybackAudioScope><VidstackPlayer key="hls" ariaLabel="Channel video" /></PlaybackAudioScope>)
+    expect(mocks.lastMediaPlayerProps).toMatchObject({ muted, volume: 0.35 })
+    rerender(<PlaybackAudioScope key="new-watch"><VidstackPlayer ariaLabel="Other Channel video" /></PlaybackAudioScope>)
+    expect(mocks.lastMediaPlayerProps).toMatchObject({ muted: true, volume: 1 })
   })
 })

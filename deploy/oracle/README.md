@@ -279,6 +279,8 @@ Control API publicly.
 
 Each derivative belongs to a specific WebRTC Publisher identifier. Replacement,
 source end, disabled Streaming access, and key rotation stop the old converter.
+A source that started before the current key was issued cannot receive a new job,
+even when the old Publisher connection remains open after a failed disconnect.
 The supervisor fails closed when it cannot refresh its jobs. Authorization uses
 a five-second source lease and current Channel access and key data. This avoids
 calling the MediaMTX API inside its authorization callback, where publication can
@@ -296,7 +298,10 @@ source uses its original HLS path; no Opus converter job remains. Clear the pilo
 slug in both services to disable the option completely. Verify old derivative
 paths stop before considering rollback complete.
 
-The local Docker media integration test uses FFmpeg and MediaMTX to verify real
+The Docker media integration test supplies pinned FFmpeg 8.1.2 and Node images
+for amd64 and arm64. It needs Docker only, and runs in the hosted verification
+group `docker-hls-media`. Explicit host-gateway mappings support native Linux
+callbacks. It uses MediaMTX to verify real
 WHIP input, copied H.264 plus AAC HLS output, worker restart, and source cleanup.
 The regular development stack does not start these audio workers; it currently
 disables RTSP. Use the integration fixture or a private deployment for fallback

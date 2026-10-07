@@ -32,10 +32,11 @@ it('issues scoped worker jobs and rejects stale source generations and rotated k
   database.exec("UPDATE user SET activationStatus='active' WHERE id='owner'")
   const channel = getOwnedChannel('owner')!
   createOrRotateStreamKey('owner')
-  vi.stubEnv('WHIP_PILOT_CHANNEL', channel.slug)
+  vi.stubEnv('WHIP_PILOT_CHANNEL', `  ${channel.slug}  `)
   vi.stubEnv('HLS_WORKER_SECRET', 'separate-worker-secret-at-least-32-characters')
   let sourceId = 'source-1'
-  vi.stubGlobal('fetch', async () => Response.json({ items: [{ name: channel.mediaPath, ready: true, readyTime: new Date().toISOString(), source: { type: 'webRTCSession', id: sourceId }, tracks: ['H264', 'Opus'] }] }))
+  const sourceReadyTime = new Date().toISOString()
+  vi.stubGlobal('fetch', async () => Response.json({ items: [{ name: channel.mediaPath, ready: true, readyTime: sourceReadyTime, source: { type: 'webRTCSession', id: sourceId }, tracks: ['H264', 'Opus'] }] }))
   const request = new Request('http://localhost/api/internal/hls-worker', { headers: { 'x-hls-worker-secret': process.env.HLS_WORKER_SECRET! } })
   expect((await GET(new Request(request.url))).status).toBe(404)
   const response = await GET(request)
@@ -54,7 +55,9 @@ it('issues scoped worker jobs and rejects stale source generations and rotated k
   expect((await authorize('publish', jobs[0].outputPath, jobs[0].credential)).status).toBe(401)
   sourceId = 'source-1'
   await GET(request)
+  await new Promise(resolve => setTimeout(resolve, 5))
   createOrRotateStreamKey('owner')
+  expect((await (await GET(request)).json()).jobs).toEqual([])
   expect((await authorize('publish', jobs[0].outputPath, jobs[0].credential)).status).toBe(401)
   database.exec("UPDATE channel SET enabled=0 WHERE owner_user_id='owner'")
   expect((await (await GET(request)).json()).jobs).toEqual([])

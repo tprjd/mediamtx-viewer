@@ -76,7 +76,21 @@ try {
     if ($_.Exception.Message -notmatch 'needs a supported H.264 hardware encoder') { throw }
 }
 if (Test-Path "$PSScriptRoot/no-encoder") { throw 'Unsupported profile was written' }
-Write-Output 'PROFILE_CHECK_PASSED' 
+# Failed repair/reset must still refresh every retained credential after rotation.
+foreach ($repairKind in @('repair', 'reset')) {
+    $RepairManagedConfig = $repairKind -eq 'repair'
+    $ResetManagedConfig = $repairKind -eq 'reset'
+    $authorization.bearerToken = 'mtx_sk_' + ('r' * 31) + $repairKind
+    try {
+        Update-ManagedWhipProfile $obsRoot $authorization @{ H264 = $null }
+        throw 'Unavailable encoder repair was accepted'
+    } catch {
+        if ($_.Exception.Message -notmatch 'needs a supported H.264 hardware encoder') { throw }
+    }
+    $service = Get-Content (Join-Path $directory 'service.json') -Raw | ConvertFrom-Json
+    if ($service.settings.bearer_token -ne $authorization.bearerToken) { throw 'Failed repair retained a revoked WHIP credential' }
+}
+Write-Output 'PROFILE_CHECK_PASSED'
 `)
     const result = spawnSync(pwsh, ['-NoProfile', '-File', join(directory, 'check.ps1')], { encoding: 'utf8' })
     expect(result.stderr).toBe('')
