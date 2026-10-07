@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here.
 
+## [2.1.0] - 2026-10-07
+
+### Added
+
+- Add a separate pilot Managed OBS profile for 1080p60 H.264/Opus publishing over WHIP.
+- Provide HLS fallback with AAC sound by copying video and converting audio once per active pilot Channel.
+- Record WebRTC latency and short-upload-interruption targets in Streaming contract 1.1.0.
+
+### Fixed
+
+- Ignore stale audio checks during WebRTC reader replacement.
+- Preserve viewer mute and volume settings when playback changes transport.
+- Refresh retained OBS profile credentials when repair cannot use the selected encoder.
+- Stop old-source fallback conversion after stream-key rotation and exclude internal workers from viewer counts.
+
+### Changed
+
+- Enable the WHIP setup option only for the initial pilot Channel.
+- Keep physical Windows, iPhone 13, and OCI performance acceptance pending; the 10 Mbps profile default is provisional.
+
 ## [2.0.1] - 2026-10-07
 
 ### Changed

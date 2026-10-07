@@ -137,7 +137,8 @@ For manual setup, configure OBS for Enhanced RTMP with:
 - Server: copy the Channel's `rtmp://` URL from `/account/channel`.
 - Stream key: generate and copy the one-time stream key from that page.
 
-Publishing uses TCP port 1935. Do not use the old WHIP publishing URL.
+RTMP publishing uses TCP port 1935. The pilot low-latency option uses the separate
+WHIP profile created by setup and its authorized HTTPS endpoint.
 See [Windows OBS setup](../../scripts/windows/README.md) for profile and repair options.
 
 ### Stream quality and resilience
