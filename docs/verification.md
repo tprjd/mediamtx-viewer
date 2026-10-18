@@ -24,7 +24,7 @@ Use x64 Linux to reproduce hosted browser behavior. macOS screenshots and Linux 
 
 The required groups and commands are defined in `scripts/verification-checks.mjs`. Docker test membership is defined in `scripts/test-groups.json`. When a new test starts Docker, add it to that list so fast verification stays independent of Docker.
 
-Each Docker test file has a `docker-<name>` verification group. For example, run `npm run verify -- docker-stage-release` to check staging. The full command requires every partition. Hosted workflows run at most six groups at once on separate machines. Local `verify` runs groups in sequence.
+Each Docker test file has a `docker-<name>` verification group. For example, run `npm run verify -- docker-stage-release` to check staging. The full command requires every partition. Release verification runs at most 12 groups at once on separate machines. Branch verification runs at most six. The longest deployment suites are split by behavior so one file does not hold up the release. Local `verify` runs groups in sequence.
 
 Staging scenarios reuse the common fixture image when its input files and Docker endpoint match. Scenario state stays separate. Local fixture base images have the repository name `mediamtx-test-base`; remove those images when no tests are running if you need to reclaim disk space.
 

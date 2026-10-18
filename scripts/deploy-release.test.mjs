@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { expect, it } from 'vitest'
-import { stagingFixture, inspect, docker } from './fixtures/staging-setup.mjs'
+import { stagingFixture, inspect } from './fixtures/staging-setup.mjs'
 
 it('rejects an unmanaged installation before changing live state', async () => {
   await stagingFixture(async ({ command, viewer }) => {
@@ -26,56 +26,6 @@ it.each([false, true])('activates a selected release with Chat=%s and preserves 
     expect(after.writes).toBeGreaterThanOrEqual(before.writes)
   }, { managed: true, chat })
 }, 240000)
-
-it.each(['wrong-version', 'unhealthy-service', 'degraded-chat', 'activation-failure', 'static-proxy', 'pending-migrations'])('returns failure after exact rollback for %s', async failure => {
-  await stagingFixture(async ({ command, url, fault, viewer, project }) => {
-    const original = inspect(viewer)
-    const before = await (await fetch(url)).json()
-    fault(failure)
-    const result = await command('managed')
-    expect(result.status).not.toBe(0)
-    expect(JSON.parse(result.stderr), result.stderr + result.diagnostic).toMatchObject({ result: 'failed-rolled-back', failedPhase: failure === 'pending-migrations' ? 'migration-chat' : 'activation' })
-    expect(inspect(viewer).Image).toBe(original.Image)
-    expect(inspect(viewer).Config.Env.sort()).toEqual(original.Config.Env.sort())
-    expect(inspect(viewer).Mounts.sort((a, b) => a.Destination.localeCompare(b.Destination))).toEqual(original.Mounts.sort((a, b) => a.Destination.localeCompare(b.Destination)))
-    expect(docker('exec', `${project}-discord-notifier-1`, 'cat', '/app/discord-notifier.mjs')).toBe('// previous mounted notifier script')
-    const response = await fetch(url)
-    expect(response.headers.get('x-fixture-release')).toBe('previous')
-    const after = await response.json()
-    expect(after.expired).toBe(before.expired)
-    expect(after.writes).toBeGreaterThanOrEqual(before.writes)
-    expect(await (await fetch(`${url}/_fixture-health`)).json()).toMatchObject({ version: 'fixture', chat: { status: 'healthy' } })
-    expect(result.stdout + result.stderr).not.toContain('fixture-private')
-  }, { managed: true, chat: true })
-}, 240000)
-
-it.each(['rollback-failure', 'migration-history', 'volume-ownership'])('keeps maintenance and data after %s', async failure => {
-  await stagingFixture(async ({ command, url, fault }) => {
-    fault(failure)
-    const result = await command('managed')
-    expect(result.status).not.toBe(0)
-    expect(JSON.parse(result.stderr), result.stderr + result.diagnostic).toMatchObject({ result: 'maintenance-required' })
-    expect((await fetch(url, { method: 'POST' })).status).toBe(503)
-    expect((await command('managed')).status).not.toBe(0)
-  }, { managed: true, chat: true })
-}, 240000)
-
-it.each(['transfer-failure', 'backup-key'])('rejects %s without activating the selected release', async failure => {
-  await stagingFixture(async ({ command, viewer, url, fault }) => {
-    const before = inspect(viewer)
-    fault(failure)
-    const result = await command('managed')
-    expect(result.status).not.toBe(0)
-    expect(JSON.parse(result.stderr), result.stderr + result.diagnostic).toMatchObject({ result: 'rejected', failedPhase: failure === 'transfer-failure' ? 'maintenance-backup' : failure === 'backup-key' ? 'staging' : 'migration-preflight' })
-    const recovery = await command('recover', {}, ['--release', 'previous', '--restore', 'none'])
-    expect(recovery.status).not.toBe(0)
-    expect(inspect(viewer).Id).toBe(before.Id)
-    expect(inspect(viewer).State.StartedAt).toBe(before.State.StartedAt)
-    expect(inspect(viewer).State.Paused).toBe(false)
-    expect((await fetch(url)).status).toBe(200)
-  }, { managed: true })
-}, 240000)
-
 
 it('verifies a fresh MediaMTX health result after publishing its ports', async () => {
   await stagingFixture(async ({ command, project }) => {
