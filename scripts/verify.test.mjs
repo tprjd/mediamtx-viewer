@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { combineGroups, runGroup } from './verify.mjs'
-import { verificationGroups, requiredChecks } from './verification-checks.mjs'
+import { verificationGroups, requiredChecks, releaseGroups } from './verification-checks.mjs'
 import testGroups from './test-groups.json' with { type: 'json' }
 
 const reports = () => Object.entries(verificationGroups).map(([group, definition]) => ({
@@ -63,4 +63,12 @@ it('saves prerequisite failures and rejects changes during verification', async 
     const changed = await runGroup('unit', output, { checkTools: async () => {}, commands: [], fingerprint: () => String(calls++) })
     expect(changed).toMatchObject({ passed: false, error: 'Source changed during verification' })
   } finally { rmSync(directory, { recursive: true, force: true }) }
+})
+
+it('starts long release groups first without omitting or repeating checks', () => {
+  expect([...releaseGroups].sort()).toEqual(Object.keys(verificationGroups).sort())
+  for (const group of ['docker-deployment-candidate-recovery', 'docker-adoption-docker',
+    'docker-deployment-retention-docker', 'docker-deployment-rollback', 'docker-deployment-recovery']) {
+    expect(releaseGroups.indexOf(group)).toBeLessThan(12)
+  }
 })

@@ -29,3 +29,9 @@ export const verificationGroups = {
       tools: file.startsWith('lib/') ? ['docker'] : ['docker', 'age', 'age-keygen', 'sops'] },
   ])),
 }
+
+// Start long groups first so short setup jobs do not leave a long final queue.
+const longReleaseGroups = ['docker-deployment-candidate-recovery', 'docker-adoption-docker',
+  'docker-deployment-retention-docker', 'docker-deployment-rollback', 'docker-deployment-recovery']
+export const releaseGroups = [...longReleaseGroups,
+  ...Object.keys(verificationGroups).filter(group => !longReleaseGroups.includes(group))]

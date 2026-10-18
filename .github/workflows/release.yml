@@ -46,8 +46,8 @@ jobs:
         run: |
           node --input-type=module <<'JS'
           import { appendFileSync } from 'node:fs'
-          import { verificationGroups } from './scripts/verification-checks.mjs'
-          appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify({ group: Object.keys(verificationGroups) })}\n`)
+          import { releaseGroups } from './scripts/verification-checks.mjs'
+          appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify({ group: releaseGroups })}\n`)
           JS
 
   verify:
