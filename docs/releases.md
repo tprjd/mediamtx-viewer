@@ -99,8 +99,8 @@ If the required reports have expired or are older than 24 hours, rerun all jobs.
 Reports remain available for seven days. The source-verification job summary
 shows setup, check, and total job time for each group.
 
-Docker acceptance has one job per test file, with at most six verification jobs
-running at once. Staging scenarios reuse immutable fixture layers. Hosted setup
+Docker acceptance has one job per test file, with at most 12 release verification
+jobs running at once. Branch verification remains limited to six jobs. Staging scenarios reuse immutable fixture layers. Hosted setup
 downloads SOPS 3.13.3 and checks its pinned SHA-256 before installation.
 
 The ARM64 image job caches BuildKit layers separately for each image and

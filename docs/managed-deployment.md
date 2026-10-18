@@ -166,7 +166,9 @@ remain available for inspection and another explicit recovery choice.
 Run the command tests with a local Docker engine, SOPS, and age:
 
 ```sh
-npx vitest run scripts/deploy-release.test.mjs scripts/deployment-restart.test.mjs
+npx vitest run scripts/deploy-release.test.mjs \
+  scripts/deployment-rollback.test.mjs scripts/deployment-rejection.test.mjs \
+  scripts/deployment-restart.test.mjs
 ```
 
 The fixtures use real container lifecycle operations, SQLite databases, encrypted
