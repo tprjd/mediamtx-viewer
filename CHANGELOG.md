@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [2.1.4] - 2026-10-18
+
+### Fixed
+
+- Authenticate Discord notifier thumbnail requests after the Viewing access changes.
+- Keep the mouse cursor visible on offline channels.
+- Avoid duplicate HLS media recovery when Vidstack already handles the error.
+
 ## [2.1.3] - 2026-10-07
 
 ### Fixed
