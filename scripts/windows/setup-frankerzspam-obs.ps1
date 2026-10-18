@@ -693,14 +693,6 @@ function Update-ManagedWhipProfile {
     $directory = Join-Path $ObsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP'
     $exists = Test-Path -LiteralPath $directory
     if (-not $Whip.enabled -and -not $exists) { return }
-    $endpoint = $null
-    if (-not [Uri]::TryCreate([string]$Whip.serverUrl, [UriKind]::Absolute, [ref]$endpoint) -or
-        ($endpoint.Scheme -ne 'https' -and -not ($endpoint.Scheme -eq 'http' -and $endpoint.IsLoopback)) -or
-        $endpoint.AbsolutePath -notmatch '^/publish/whip/.+/whip$' -or
-        $endpoint.Query -or $endpoint.Fragment -or $endpoint.UserInfo -or
-        $Whip.bearerToken -notmatch '^mtx_sk_[A-Za-z0-9_-]{24,}$') {
-        throw 'The site returned invalid WHIP publishing settings. Download setup again.'
-    }
     $service = [ordered]@{
         type = 'whip_custom'
         settings = [ordered]@{ server = $Whip.serverUrl; bearer_token = $Whip.bearerToken }
@@ -1068,6 +1060,7 @@ function Complete-ManagedObsProfiles {
     )
     $result = [pscustomobject]@{ Success = $false; Profiles = @(); Error = $null }
     try {
+        $validationErrors = @()
         $rtmpProfiles = @(
             foreach ($definition in $ManagedProfiles) {
                 $directory = Join-Path $ObsRoot "basic/profiles/$($definition.DirectoryName)"
@@ -1083,55 +1076,101 @@ function Complete-ManagedObsProfiles {
             $whipResult = [pscustomobject]@{ Name = 'FrankerzSpam_1080p60_WHIP'; CredentialStatus = 'not attempted' }
             $result.Profiles += $whipResult
         }
-        $ServerUrl = [string]$Authorization.serverUrl
-        # The usual local port is 1935. The local development stack may select a
-        # higher free port when that port is occupied. The old fixed-port pattern
-        # was '^rtmp://[^/]+:1935/[^?]+\?token=mtx_sk_[A-Za-z0-9_-]{24,}$'.
-        if ($ServerUrl -notmatch '^rtmp://[^/]+:[0-9]{1,5}/[^?]+\?token=mtx_sk_[A-Za-z0-9_-]{24,}$') {
-            throw 'The site returned an unexpected RTMP server URL.'
-        }
-        $schemeEnd = $ServerUrl.IndexOf('://')
-        $slashIndex = $ServerUrl.IndexOf('/', $schemeEnd + 3)
-        if ($slashIndex -lt 1) {
-            throw 'The site returned an RTMP URL without a channel path.'
-        }
-        $server = $ServerUrl.Substring(0, $slashIndex)
-        $playPath = $ServerUrl.Substring($slashIndex + 1)
-        if ($rtmpProfiles.Count -eq 0) {
-            throw 'No managed OBS profiles were available to receive the publishing settings.'
-        }
-        $service = [ordered]@{
-            type = 'rtmp_custom'
-            settings = [ordered]@{
-                service = 'Enhanced RTMP'
-                server = $server
-                key = $playPath
+        $rtmpValid = $false
+        try {
+            $ServerUrl = [string]$Authorization.serverUrl
+            # The local development stack may select a higher free port.
+            # The old pattern was '^rtmp://[^/]+:1935/[^?]+\?token=mtx_sk_[A-Za-z0-9_-]{24,}$'.
+            if ($ServerUrl -notmatch '^rtmp://[^/]+:[0-9]{1,5}/[^?]+\?token=mtx_sk_[A-Za-z0-9_-]{24,}$') {
+                throw 'Invalid RTMP server URL.'
             }
-            hotkeys = [ordered]@{}
-        } | ConvertTo-Json -Depth 10
-        foreach ($profile in $rtmpProfiles) {
-            $profile.CredentialStatus = 'update not confirmed'
-            try {
-                Write-AtomicText (Join-Path $ObsRoot "basic/profiles/$($profile.Name)/service.json") $service
-                $profile.CredentialStatus = 'updated'
-            } catch {
-                throw "Rerun setup to rotate the credential again. Original error: $($_.Exception.Message)"
+            $rtmpEndpoint = $null
+            if (-not [Uri]::TryCreate($ServerUrl, [UriKind]::Absolute, [ref]$rtmpEndpoint)) {
+                throw 'Invalid RTMP server URL.'
             }
+            $schemeEnd = $ServerUrl.IndexOf('://')
+            $slashIndex = $ServerUrl.IndexOf('/', $schemeEnd + 3)
+            $server = $ServerUrl.Substring(0, $slashIndex)
+            $playPath = $ServerUrl.Substring($slashIndex + 1)
+            $rtmpChannel = [Uri]::UnescapeDataString($rtmpEndpoint.AbsolutePath.Substring(1))
+            $rtmpToken = $ServerUrl.Substring($ServerUrl.LastIndexOf('?') + '?token='.Length)
+            $rtmpValid = $true
+        } catch {
+            $validationErrors += 'RTMP settings rejected. The site returned an unexpected RTMP server URL. Download setup again.'
+            foreach ($profile in $rtmpProfiles) { $profile.CredentialStatus = 'settings rejected' }
         }
+        $whipValid = $false
         if ($Authorization.PSObject.Properties['whip']) {
-            $whip = $Authorization.whip.PSObject.Copy()
-            if ($whip.enabled -and -not $whipResult) {
-                $whipResult = [pscustomobject]@{ Name = 'FrankerzSpam_1080p60_WHIP'; CredentialStatus = 'not attempted' }
-                $result.Profiles += $whipResult
+            try {
+                $whip = $Authorization.whip.PSObject.Copy()
+                if ($whip.enabled -and -not $whipResult) {
+                    $whipResult = [pscustomobject]@{ Name = 'FrankerzSpam_1080p60_WHIP'; CredentialStatus = 'not attempted' }
+                    $result.Profiles += $whipResult
+                }
+                $endpoint = $null
+                if (-not [Uri]::TryCreate([string]$whip.serverUrl, [UriKind]::Absolute, [ref]$endpoint) -or
+                    ($endpoint.Scheme -ne 'https' -and -not ($endpoint.Scheme -eq 'http' -and $endpoint.IsLoopback)) -or
+                    $endpoint.AbsolutePath -notmatch '^/publish/whip/.+/whip$' -or
+                    $endpoint.Query -or $endpoint.Fragment -or $endpoint.UserInfo -or
+                    $whip.bearerToken -notmatch '^mtx_sk_[A-Za-z0-9_-]{24,}$') {
+                    throw 'Invalid WHIP publishing settings.'
+                }
+                $whipValid = $true
+            } catch {
+                $validationErrors += 'WHIP settings rejected. The site returned invalid WHIP publishing settings. Download setup again.'
+                if ($whipResult) { $whipResult.CredentialStatus = 'settings rejected' }
             }
+        }
+        if ($rtmpValid -and $whipValid) {
+            $whipChannel = [Uri]::UnescapeDataString(($endpoint.AbsolutePath -replace '^/publish/whip/|/whip$', ''))
+            if ($rtmpChannel -cne $whipChannel) {
+                throw 'Channel conflict in the publishing settings. No profiles were changed. Download setup again.'
+            }
+            if ($rtmpEndpoint.Host -ine $endpoint.Host) {
+                throw 'Server hostname conflict in the publishing settings. No profiles were changed. Download setup again.'
+            }
+        }
+        $responseKey = $Authorization.PSObject.Properties['streamKey']
+        $responseToken = if ($responseKey -and $responseKey.Value -is [string] -and
+            $responseKey.Value -match '^mtx_sk_[A-Za-z0-9_-]{24,}$') { $responseKey.Value } else { $null }
+        if (($rtmpValid -and $whipValid -and $rtmpToken -cne $whip.bearerToken) -or
+            ($responseToken -and (($rtmpValid -and $rtmpToken -cne $responseToken) -or
+                ($whipValid -and $whip.bearerToken -cne $responseToken)))) {
+            throw 'Stream key conflict in the publishing settings. No profiles were changed. Download setup again.'
+        }
+        if ($rtmpValid) {
+            if ($rtmpProfiles.Count -eq 0) {
+                throw 'No managed OBS profiles were available to receive the publishing settings.'
+            }
+            $service = [ordered]@{
+                type = 'rtmp_custom'
+                settings = [ordered]@{
+                    service = 'Enhanced RTMP'
+                    server = $server
+                    key = $playPath
+                }
+                hotkeys = [ordered]@{}
+            } | ConvertTo-Json -Depth 10
+            foreach ($profile in $rtmpProfiles) {
+                $profile.CredentialStatus = 'update not confirmed'
+                try {
+                    Write-AtomicText (Join-Path $ObsRoot "basic/profiles/$($profile.Name)/service.json") $service
+                    $profile.CredentialStatus = 'updated'
+                } catch {
+                    throw "Rerun setup to rotate the credential again. Original error: $($_.Exception.Message)"
+                }
+            }
+        }
+        if ($whipValid) {
             $missingWhipOutput = $whip.enabled -and -not $WhipSupported
-            # Refresh retained credentials before reporting a damaged OBS install.
-            if ($missingWhipOutput) { $whip.enabled = $false }
+            # Validation and capability failures block creation and repair, but not retained credential refresh.
+            if ($missingWhipOutput -or $validationErrors.Count) { $whip.enabled = $false }
             Update-ManagedWhipProfile $ObsRoot $whip $Capabilities $whipResult $SelectedProfiles
-            if ($missingWhipOutput) {
+            if ($missingWhipOutput -and -not $validationErrors.Count) {
                 throw 'OBS WHIP output is missing. RTMP credentials were refreshed. Repair the OBS installation, then run setup again.'
             }
         }
+        if ($validationErrors.Count) { throw ($validationErrors -join ' ') }
         $result.Success = $true
     } catch {
         $result.Error = $_.Exception.Message -replace 'mtx_sk_[A-Za-z0-9_-]+', '[redacted]'

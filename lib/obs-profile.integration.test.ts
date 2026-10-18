@@ -33,6 +33,7 @@ Write-Output 'PROFILE_CHECK_PASSED'
     expect(result.status, result.stdout).toBe(0)
     expect(result.stdout).toContain('PROFILE_CHECK_PASSED')
     expect(result.stdout + result.stderr).not.toMatch(/mtx_sk_[A-Za-z0-9_-]+/)
+    expect(result.stdout).not.toMatch(/invalid-private-credential|(?:rtmp|https?):\/\//)
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -190,6 +191,204 @@ $service = Get-Content (Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1440p60_
 if ($service.settings.key -ne 'channels/pilot?token=mtx_sk_test00000000000000000000001') { throw 'Successful write was lost' }
 if (Test-Path (Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_H264/service.json')) { throw 'Later RTMP write was attempted' }
 if (Get-ChildItem (Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP')) { throw 'WHIP completion ran after RTMP failure' }
+$result | ConvertTo-Json -Depth 10 | Write-Output
+`)
+})
+
+it.skipIf(!available).each([
+  ['invalid token', "$authorization.serverUrl = 'rtmp://example.com:1935/channels/pilot?token=invalid-private-credential'"],
+  ['invalid scheme', "$authorization.serverUrl = 'https://example.com:1935/channels/pilot?token=mtx_sk_test00000000000000000000001'"],
+  ['invalid port', "$authorization.serverUrl = 'rtmp://example.com:99999/channels/pilot?token=mtx_sk_test00000000000000000000001'"],
+  ['missing URL', "$authorization.PSObject.Properties.Remove('serverUrl')"],
+])('refreshes retained WHIP credentials when RTMP settings are rejected: %s', (_label, invalidate) => {
+  checkProfiles(`
+$rtmp = Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_H264'
+[IO.Directory]::CreateDirectory($rtmp) | Out-Null
+$directory = Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP'
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if (-not $result.Success) { throw $result.Error }
+$rtmpBefore = [IO.File]::ReadAllText((Join-Path $rtmp 'service.json'))
+[IO.File]::WriteAllText((Join-Path $directory 'basic.ini'), 'retained user settings')
+$encoderBefore = [IO.File]::ReadAllText((Join-Path $directory 'streamEncoder.json'))
+${invalidate}
+foreach ($mode in @('normal', 'repair', 'reset', 'disabled')) {
+    $RepairManagedConfig = $mode -eq 'repair'
+    $ResetManagedConfig = $mode -eq 'reset'
+    $authorization.whip.enabled = $mode -ne 'disabled'
+    $authorization.whip.bearerToken = 'mtx_sk_' + ('r' * 31) + $mode
+    $result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+    if ($result.Success -or $result.Error -notmatch 'RTMP.*rejected') { throw 'Invalid RTMP settings were not rejected' }
+    if ($result.Profiles[0].CredentialStatus -ne 'settings rejected' -or $result.Profiles[1].CredentialStatus -ne 'updated') { throw 'Incorrect independent update result' }
+    $service = Get-Content (Join-Path $directory 'service.json') -Raw | ConvertFrom-Json
+    if ($service.settings.bearer_token -cne $authorization.whip.bearerToken) { throw 'Valid WHIP credential was not refreshed' }
+    if ([IO.File]::ReadAllText((Join-Path $rtmp 'service.json')) -cne $rtmpBefore) { throw 'Rejected RTMP settings were written' }
+    if ([IO.File]::ReadAllText((Join-Path $directory 'basic.ini')) -cne 'retained user settings' -or [IO.File]::ReadAllText((Join-Path $directory 'streamEncoder.json')) -cne $encoderBefore) { throw 'Validation failure did not block repair' }
+    if (Test-Path "$env:LOCALAPPDATA/FrankerzSpam/OBS Backups") { throw 'Validation failure created a backup' }
+    $result | ConvertTo-Json -Depth 10 | Write-Output
+}
+Remove-Item -LiteralPath $directory -Recurse -Force
+$authorization.whip.enabled = $true
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if ($result.Success -or (Test-Path $directory)) { throw 'Validation failure created a WHIP profile' }
+$result | ConvertTo-Json -Depth 10 | Write-Output
+`)
+})
+
+it.skipIf(!available).each([
+  ['query', "$authorization.whip.serverUrl = 'https://example.com/publish/whip/channels/pilot/whip?token=invalid-private-credential'"],
+  ['fragment', "$authorization.whip.serverUrl += '#invalid-private-credential'"],
+  ['user info', "$authorization.whip.serverUrl = 'https://user:invalid-private-credential@example.com/publish/whip/channels/pilot/whip'"],
+  ['remote HTTP', "$authorization.whip.serverUrl = 'http://example.com/publish/whip/channels/pilot/whip'"],
+  ['wrong path', "$authorization.whip.serverUrl = 'https://example.com/channels/pilot'"],
+  ['invalid token', "$authorization.whip.bearerToken = 'invalid-private-credential'"],
+  ['missing token', "$authorization.whip.PSObject.Properties.Remove('bearerToken')"],
+  ['null settings', '$authorization.whip = $null'],
+])('refreshes retained RTMP credentials when WHIP settings are rejected: %s', (_label, invalidate) => {
+  checkProfiles(`
+$rtmp = Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_H264'
+[IO.Directory]::CreateDirectory($rtmp) | Out-Null
+$directory = Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP'
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if (-not $result.Success) { throw $result.Error }
+$before = @{}
+foreach ($file in Get-ChildItem $directory -File) { $before[$file.Name] = [IO.File]::ReadAllText($file.FullName) }
+$authorization.serverUrl = 'rtmp://example.com:1935/channels/pilot?token=mtx_sk_test00000000000000000000002'
+${invalidate}
+$RepairManagedConfig = $true
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if ($result.Success -or $result.Error -notmatch 'WHIP.*rejected') { throw 'Invalid WHIP settings were not rejected' }
+if ($result.Profiles[0].CredentialStatus -ne 'updated' -or $result.Profiles[1].CredentialStatus -ne 'settings rejected') { throw 'Incorrect independent update result' }
+$service = Get-Content (Join-Path $rtmp 'service.json') -Raw | ConvertFrom-Json
+if ($service.settings.key -cne 'channels/pilot?token=mtx_sk_test00000000000000000000002') { throw 'Valid RTMP credential was not refreshed' }
+foreach ($name in $before.Keys) {
+    if ([IO.File]::ReadAllText((Join-Path $directory $name)) -cne $before[$name]) { throw 'Rejected WHIP settings changed a file' }
+}
+if (Test-Path "$env:LOCALAPPDATA/FrankerzSpam/OBS Backups") { throw 'Rejected WHIP settings created a backup' }
+$result | ConvertTo-Json -Depth 10 | Write-Output
+Remove-Item -LiteralPath $directory -Recurse -Force
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if ($result.Success -or (Test-Path $directory)) { throw 'Rejected WHIP settings created a profile' }
+$result | ConvertTo-Json -Depth 10 | Write-Output
+`)
+})
+
+it.skipIf(!available)('reports both rejected formats without writing any profile files', () => {
+  checkProfiles(`
+$before = @{}
+foreach ($name in @('FrankerzSpam_1080p60_H264', 'FrankerzSpam_1080p60_WHIP')) {
+    $directory = Join-Path $obsRoot "basic/profiles/$name"
+    [IO.Directory]::CreateDirectory($directory) | Out-Null
+    foreach ($file in @('service.json', 'basic.ini', 'streamEncoder.json')) {
+        $path = Join-Path $directory $file
+        [IO.File]::WriteAllText($path, 'retained user settings')
+        [IO.File]::SetLastWriteTimeUtc($path, [datetime]'2001-01-01')
+        $before[$path] = [IO.File]::ReadAllText($path)
+    }
+}
+$authorization.serverUrl = 'invalid-private-credential'
+$authorization.whip.bearerToken = 'invalid-private-credential'
+$ResetManagedConfig = $true
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if ($result.Success -or $result.Error -notmatch 'RTMP.*rejected' -or $result.Error -notmatch 'WHIP.*rejected') { throw 'Both validation errors were not reported' }
+if (@($result.Profiles | Where-Object { $_.CredentialStatus -ne 'settings rejected' }).Count) { throw 'Rejected credentials were attempted' }
+foreach ($path in $before.Keys) {
+    if ([IO.File]::ReadAllText($path) -cne $before[$path] -or [IO.File]::GetLastWriteTimeUtc($path) -ne [datetime]'2001-01-01') { throw 'Rejected settings changed a file' }
+}
+if (@(Get-ChildItem $obsRoot -Recurse -File).Count -ne $before.Count -or (Test-Path "$env:LOCALAPPDATA/FrankerzSpam/OBS Backups")) { throw 'Rejected settings created files' }
+$result | ConvertTo-Json -Depth 10 | Write-Output
+`)
+})
+
+it.skipIf(!available).each([
+  ['RTMP://EXAMPLE.COM:21935/channels/pilot', 'https://example.com:8443/publish/whip/channels/%70ilot/whip'],
+  ['rtmp://localhost:21935/channels/pilot', 'http://localhost:3000/publish/whip/channels/pilot/whip'],
+])('accepts consistent publishing identities with different URL forms: %s', (rtmpUrl, whipUrl) => {
+  checkProfiles(`
+$rtmp = Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_H264'
+[IO.Directory]::CreateDirectory($rtmp) | Out-Null
+$authorization.serverUrl = '${rtmpUrl}?token=mtx_sk_test00000000000000000000001'
+$authorization.whip.serverUrl = '${whipUrl}'
+$authorization | Add-Member streamKey 'mtx_sk_test00000000000000000000001'
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if (-not $result.Success -or $result.Error) { throw 'Consistent publishing identities were rejected' }
+if ($result.Profiles.Count -ne 2 -or @($result.Profiles | Where-Object { $_.CredentialStatus -ne 'updated' }).Count) { throw 'Consistent settings were not reported updated' }
+$service = Get-Content (Join-Path $rtmp 'service.json') -Raw | ConvertFrom-Json
+if ($service.settings.key -cne 'channels/pilot?token=mtx_sk_test00000000000000000000001') { throw 'RTMP settings were not written' }
+$service = Get-Content (Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP/service.json') -Raw | ConvertFrom-Json
+if ($service.settings.server -cne '${whipUrl}' -or $service.settings.bearer_token -cne $authorization.whip.bearerToken) { throw 'WHIP settings were not written' }
+$result | ConvertTo-Json -Depth 10 | Write-Output
+`)
+})
+
+it.skipIf(!available).each(['Channel', 'hostname', 'Stream key'])('rejects a %s conflict before any profile writes', (conflict) => {
+  checkProfiles(`
+$rtmp = Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_H264'
+[IO.Directory]::CreateDirectory($rtmp) | Out-Null
+$directory = Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP'
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if (-not $result.Success) { throw $result.Error }
+$before = @{}
+foreach ($file in Get-ChildItem $obsRoot -Recurse -File) {
+    [IO.File]::SetLastWriteTimeUtc($file.FullName, [datetime]'2001-01-01')
+    $before[$file.FullName] = [IO.File]::ReadAllText($file.FullName)
+}
+$authorization.whip.bearerToken = 'mtx_sk_' + ('r' * 24)
+$authorization.serverUrl = "rtmp://example.com:1935/channels/pilot?token=$($authorization.whip.bearerToken)"
+switch ('${conflict}') {
+    'Channel' { $authorization.whip.serverUrl = 'https://example.com/publish/whip/channels/another/whip' }
+    'hostname' { $authorization.whip.serverUrl = 'https://other.example.com/publish/whip/channels/pilot/whip' }
+    'Stream key' { $authorization.whip.bearerToken = 'mtx_sk_' + ('R' * 24) }
+}
+foreach ($mode in @('normal', 'repair', 'reset')) {
+    $RepairManagedConfig = $mode -eq 'repair'
+    $ResetManagedConfig = $mode -eq 'reset'
+    $result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+    if ($result.Success -or $result.Error -notmatch '${conflict}.*conflict') { throw 'Conflicting response was not rejected' }
+    if (@($result.Profiles | Where-Object { $_.CredentialStatus -ne 'not attempted' }).Count) { throw 'Conflict attempted a credential write' }
+    foreach ($path in $before.Keys) {
+        if ([IO.File]::ReadAllText($path) -cne $before[$path] -or [IO.File]::GetLastWriteTimeUtc($path) -ne [datetime]'2001-01-01') { throw 'Conflict changed a profile file' }
+    }
+    if (@(Get-ChildItem $obsRoot -Recurse -File).Count -ne $before.Count -or (Test-Path "$env:LOCALAPPDATA/FrankerzSpam/OBS Backups")) { throw 'Conflict created files' }
+    $result | ConvertTo-Json -Depth 10 | Write-Output
+}
+Remove-Item -LiteralPath $directory -Recurse -Force
+foreach ($enabled in @($true, $false)) {
+    $authorization.whip.enabled = $enabled
+    $result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+    if ($result.Success -or $result.Error -notmatch '${conflict}.*conflict' -or (Test-Path $directory)) { throw 'Conflict was accepted without a retained WHIP profile' }
+    $path = Join-Path $rtmp 'service.json'
+    if ([IO.File]::ReadAllText($path) -cne $before[$path] -or [IO.File]::GetLastWriteTimeUtc($path) -ne [datetime]'2001-01-01') { throw 'Conflict changed RTMP credentials' }
+    $result | ConvertTo-Json -Depth 10 | Write-Output
+}
+`)
+})
+
+it.skipIf(!available).each(['both', 'RTMP', 'WHIP'])('rejects a conflicting response Stream key with valid %s settings', (valid) => {
+  checkProfiles(`
+$rtmp = Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_H264'
+[IO.Directory]::CreateDirectory($rtmp) | Out-Null
+$directory = Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP'
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if (-not $result.Success) { throw $result.Error }
+$before = @{}
+foreach ($file in Get-ChildItem $obsRoot -Recurse -File) {
+    [IO.File]::SetLastWriteTimeUtc($file.FullName, [datetime]'2001-01-01')
+    $before[$file.FullName] = [IO.File]::ReadAllText($file.FullName)
+}
+$authorization | Add-Member streamKey 'mtx_sk_conflicting000000000000000000'
+if ('${valid}' -eq 'RTMP') { $authorization.whip.bearerToken = 'invalid-private-credential' }
+if ('${valid}' -eq 'WHIP') { $authorization.serverUrl = 'invalid-private-credential' }
+$RepairManagedConfig = $true
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if ($result.Success -or $result.Error -notmatch 'Stream key.*conflict') { throw 'Conflicting response Stream key was not rejected' }
+foreach ($path in $before.Keys) {
+    if ([IO.File]::ReadAllText($path) -cne $before[$path] -or [IO.File]::GetLastWriteTimeUtc($path) -ne [datetime]'2001-01-01') { throw 'Conflicting response Stream key changed a file' }
+}
+if (@(Get-ChildItem $obsRoot -Recurse -File).Count -ne $before.Count -or (Test-Path "$env:LOCALAPPDATA/FrankerzSpam/OBS Backups")) { throw 'Conflicting response Stream key created files' }
+$result | ConvertTo-Json -Depth 10 | Write-Output
+Remove-Item -LiteralPath $directory -Recurse -Force
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if ($result.Success -or $result.Error -notmatch 'Stream key.*conflict' -or (Test-Path $directory)) { throw 'Conflicting response Stream key allowed profile creation' }
 $result | ConvertTo-Json -Depth 10 | Write-Output
 `)
 })

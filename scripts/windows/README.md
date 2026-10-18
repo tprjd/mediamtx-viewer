@@ -124,6 +124,19 @@ displays its overall and per-profile results, then proceeds only on success.
 Production and executable PowerShell tests use this same operation. It reports
 credential status without returning a Stream key.
 
+Completion validates RTMP and WHIP settings separately. If one format is invalid,
+its profiles report `settings rejected`. Retained profiles for the valid format
+still receive their new credentials and report `updated`. Setup then fails without
+creating or repairing the WHIP profile or launching OBS. Successful credential
+updates remain in place. The result identifies the rejected format without
+displaying credentials or publishing URLs.
+
+Before any completion writes, valid RTMP and WHIP settings must agree on the
+Channel, server hostname, and Stream key. A conflict stops completion without
+changing profiles. If the response also has a valid separate `streamKey` field,
+it must match each valid publishing format. Different schemes, ports, and path wrappers do
+not cause a conflict when they identify the same Channel, hostname, and key.
+
 The operation still stops at the first credential write error. It refreshes
 retained WHIP credentials before reporting missing WHIP output or an unavailable
 encoder, provided the preceding writes succeed. A failed completion prevents
