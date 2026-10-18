@@ -1250,9 +1250,6 @@ test('keeps submission text styles through failure, retry, and acceptance at bot
   await signInAsAdministrator(page)
   const chat = page.getByRole('complementary', { name: 'Chat' })
   const input = chat.getByRole('textbox', { name: 'Chat message' })
-  // The control subscription refreshes access and temporarily disables input.
-  await expect(chat.getByRole('log')).toHaveAttribute('data-realtime-state', 'connected')
-  await expect(input).toBeEnabled()
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 900 })
     if (width === 390) {
@@ -1260,6 +1257,9 @@ test('keeps submission text styles through failure, retry, and acceptance at bot
       await expect(toggle).toHaveAttribute('aria-expanded', 'false')
       await toggle.click()
     }
+    // Reopening Chat at mobile width refreshes access and temporarily disables input.
+    await expect(chat.getByRole('log')).toHaveAttribute('data-realtime-state', 'connected')
+    await expect(input).toBeEnabled()
     const content = `Style probe ${width}  preserves spaces and wraps this longer message across several lines in the Chat room.`
     let release: () => void = () => undefined
     let gate = new Promise<void>((resolve) => { release = resolve })
