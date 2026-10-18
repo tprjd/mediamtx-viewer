@@ -137,11 +137,25 @@ changing profiles. If the response also has a valid separate `streamKey` field,
 it must match each valid publishing format. Different schemes, ports, and path wrappers do
 not cause a conflict when they identify the same Channel, hostname, and key.
 
-The operation still stops at the first credential write error. It refreshes
-retained WHIP credentials before reporting missing WHIP output or an unavailable
-encoder, provided the preceding writes succeed. A failed completion prevents
-OBS launch. The selected RTMP matrix has a separate variable from the full managed
-profile list, so a narrowed selection does not hide retained credential targets.
+Completion attempts every retained profile's valid credential refresh, even when
+an earlier write fails. This includes profiles outside the selected RTMP matrix
+and WHIP profiles retained after pilot disablement. All retained refresh attempts
+finish before WHIP creation or repair. Any refresh error blocks that later work
+and OBS launch. Missing WHIP output or an unavailable encoder also permits retained
+credential refresh before setup reports the capability error.
+
+After a write error, completion reads `service.json` and compares its contents
+with the intended settings. It reports `updated, cleanup failed` if replacement
+succeeded and readback matches. It reports `update not confirmed` if readback fails
+or differs. If readback matches after a failure before replacement, it reports
+`credential confirmed, write failed`. Every error still makes completion fail,
+including a cleanup error after a confirmed update. The result keeps the original
+operation error and identifies its profile without displaying credentials or URLs.
+
+Successful independent updates remain in place. Close OBS, resolve the reported
+file-access or cleanup problem, then rerun setup to rotate the Stream key again.
+Check profiles marked `update not confirmed` before publishing; a write error alone
+does not show which credential remains in the file.
 
 Eligible live WHIP Channels start in WebRTC unless a viewer saved a Playback
 mode. Automatic HLS fallback is stored separately from that preference. HLS stays

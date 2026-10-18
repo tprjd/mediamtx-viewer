@@ -8,14 +8,15 @@ import { expect, it } from 'vitest'
 const pwsh = process.env.PWSH ?? 'pwsh'
 const available = spawnSync(pwsh, ['-NoProfile', '-Command', 'exit 0']).status === 0
 
-function checkProfiles(check: string) {
+function checkProfiles(check: string, filesystemFaults = false) {
   const directory = mkdtempSync(join(tmpdir(), 'obs-profile-'))
   try {
     const source = readFileSync('scripts/windows/setup-frankerzspam-obs.ps1', 'utf8')
     const payload = source.slice(0, source.indexOf('\ntry {\n    Assert-SupportedHost'))
       .replace('__FRANKERZSPAM_OBS_TIMING_BASE64__', Buffer.from(JSON.stringify({ contractVersion: '1.0.0', keyframeIntervalSeconds: 2 })).toString('base64'))
-    writeFileSync(join(directory, 'setup.ps1'), payload)
+    writeFileSync(join(directory, 'setup.ps1'), filesystemFaults ? payload.replaceAll('[IO.File]', '[ControlledFile]') : payload)
     writeFileSync(join(directory, 'check.ps1'), `
+${filesystemFaults ? controlledFiles : ''}
 . "$PSScriptRoot/setup.ps1"
 $env:LOCALAPPDATA = "$PSScriptRoot/local"
 $obsRoot = "$PSScriptRoot/obs"
@@ -25,6 +26,8 @@ $authorization = [pscustomobject]@{
     serverUrl = 'rtmp://example.com:1935/channels/pilot?token=mtx_sk_test00000000000000000000001'
     whip = [pscustomobject]@{ enabled = $true; serverUrl = 'https://example.com/publish/whip/channels/pilot/whip'; bearerToken = 'mtx_sk_test00000000000000000000001' }
 }
+
+
 ${check}
 Write-Output 'PROFILE_CHECK_PASSED'
 `)
@@ -38,6 +41,56 @@ Write-Output 'PROFILE_CHECK_PASSED'
     rmSync(directory, { recursive: true, force: true })
   }
 }
+
+// Fail only the filesystem boundary; completion and atomic replacement still run.
+const controlledFiles = `
+Add-Type -TypeDefinition @'
+using System;
+using System.IO;
+using System.Text;
+public static class ControlledFile {
+    public static string Target;
+    public static string Failure;
+    public static int Readbacks;
+    public static bool Failed;
+    public static void WriteAllText(string path, string text, Encoding encoding) { File.WriteAllText(path, text, encoding); }
+    public static void WriteAllText(string path, string text) { File.WriteAllText(path, text); }
+    public static void AppendAllText(string path, string text) { File.AppendAllText(path, text); }
+    public static void Move(string source, string destination) {
+        if (destination == Target && Failure == "restore-fails") throw new IOException("Controlled restore failure");
+        File.Move(source, destination);
+    }
+    public static void Replace(string source, string destination, string backup, bool ignore) {
+        if (destination == Target && (Failure.StartsWith("before") || Failure.StartsWith("restore"))) {
+            Failed = true;
+            if (Failure.StartsWith("restore")) File.Move(destination, backup);
+            throw new IOException("Controlled replacement failure");
+        }
+        File.Replace(source, destination, backup, ignore);
+    }
+    public static void Delete(string path) {
+        if (Target != null && path.StartsWith(Target + ".") && path.EndsWith(".replace-backup")) {
+            Failed = true;
+            if (Failure == "finally") {
+                File.Delete(path);
+                File.WriteAllText(path.Replace(".replace-backup", ".tmp"), "temporary file");
+                return;
+            }
+            if (Failure == "different") File.WriteAllText(Target, "different settings");
+            throw new IOException("Controlled cleanup failure: rtmp://example.com:1935/channels/pilot?token=mtx_sk_test00000000000000000000002");
+        }
+        File.Delete(path);
+    }
+    public static string ReadAllText(string path) {
+        if (path == Target && Failed) {
+            Readbacks++;
+            if (Failure == "readback") throw new IOException("Controlled readback failure");
+        }
+        return File.ReadAllText(path);
+    }
+}
+'@
+`
 
 it.skipIf(!available)('completes all retained profiles and returns results without credentials', () => {
   checkProfiles(`
@@ -175,22 +228,55 @@ if ($result.Profiles[0].CredentialStatus -ne 'updated' -or $result.Profiles[1].C
 `)
 })
 
-it.skipIf(!available)('reports partial RTMP progress and stops before later profiles after a file error', () => {
+it.skipIf(!available).each(['normal', 'repair', 'reset', 'disabled'])('continues retained credential refreshes after a file error and blocks WHIP completion in %s mode', (mode) => {
   checkProfiles(`
+$selectedProfiles = (Resolve-ManagedSelection @('H264') @('1080p') $capabilities $true $true).Profiles
 foreach ($name in @('FrankerzSpam_1440p60_AV1', 'FrankerzSpam_1440p60_HEVC', 'FrankerzSpam_1080p60_H264', 'FrankerzSpam_1080p60_WHIP')) {
     [IO.Directory]::CreateDirectory((Join-Path $obsRoot "basic/profiles/$name")) | Out-Null
 }
 $blockedService = Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1440p60_HEVC/service.json'
 [IO.Directory]::CreateDirectory($blockedService) | Out-Null
-$RepairManagedConfig = $true
+$RepairManagedConfig = '${mode}' -eq 'repair'
+$ResetManagedConfig = '${mode}' -eq 'reset'
+$authorization.whip.enabled = '${mode}' -ne 'disabled'
 $result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
 if ($result.Success -or $result.Error -notmatch 'Rerun setup' -or $result.Profiles.Count -ne 4) { throw 'File failure was not reported' }
 $statuses = @($result.Profiles | ForEach-Object { $_.CredentialStatus }) -join ','
-if ($statuses -ne 'updated,update not confirmed,not attempted,not attempted') { throw 'Incorrect partial progress' }
+if ($statuses -ne 'updated,update not confirmed,updated,updated') { throw 'Independent refreshes were not completed' }
+if ($result.Error -notmatch 'FrankerzSpam_1440p60_HEVC') { throw 'Failed profile was not identified' }
 $service = Get-Content (Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1440p60_AV1/service.json') -Raw | ConvertFrom-Json
 if ($service.settings.key -ne 'channels/pilot?token=mtx_sk_test00000000000000000000001') { throw 'Successful write was lost' }
-if (Test-Path (Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_H264/service.json')) { throw 'Later RTMP write was attempted' }
-if (Get-ChildItem (Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP')) { throw 'WHIP completion ran after RTMP failure' }
+$service = Get-Content (Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_H264/service.json') -Raw | ConvertFrom-Json
+if ($service.settings.key -cne 'channels/pilot?token=mtx_sk_test00000000000000000000001') { throw 'Later RTMP credential was not refreshed' }
+$whipDirectory = Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP'
+$service = Get-Content (Join-Path $whipDirectory 'service.json') -Raw | ConvertFrom-Json
+if ($service.settings.bearer_token -cne $authorization.whip.bearerToken) { throw 'Retained WHIP credential was not refreshed' }
+if (@(Get-ChildItem $whipDirectory).Count -ne 1 -or (Test-Path "$env:LOCALAPPDATA/FrankerzSpam/OBS Backups")) { throw 'WHIP repair ran after RTMP failure' }
+$result | ConvertTo-Json -Depth 10 | Write-Output
+Remove-Item -LiteralPath $whipDirectory -Recurse -Force
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if ($result.Success -or (Test-Path $whipDirectory)) { throw 'WHIP creation ran after RTMP failure' }
+$result | ConvertTo-Json -Depth 10 | Write-Output
+`)
+})
+
+it.skipIf(!available)('refreshes retained WHIP credentials when no RTMP profiles remain', () => {
+  checkProfiles(`
+$rtmp = Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_H264'
+[IO.Directory]::CreateDirectory($rtmp) | Out-Null
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if (-not $result.Success) { throw $result.Error }
+Remove-Item -LiteralPath $rtmp -Recurse -Force
+$directory = Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP'
+[IO.File]::WriteAllText((Join-Path $directory 'basic.ini'), 'retained user settings')
+$authorization.whip.bearerToken = 'mtx_sk_test00000000000000000000002'
+$authorization.serverUrl = "rtmp://example.com:1935/channels/pilot?token=$($authorization.whip.bearerToken)"
+$RepairManagedConfig = $true
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if ($result.Success -or $result.Error -notmatch 'No managed OBS profiles' -or $result.Profiles[0].CredentialStatus -ne 'updated') { throw 'Missing RTMP profiles blocked retained WHIP refresh' }
+$service = Get-Content (Join-Path $directory 'service.json') -Raw | ConvertFrom-Json
+if ($service.settings.bearer_token -cne $authorization.whip.bearerToken) { throw 'Retained WHIP kept the revoked key' }
+if ([IO.File]::ReadAllText((Join-Path $directory 'basic.ini')) -cne 'retained user settings') { throw 'Missing RTMP profiles allowed WHIP repair' }
 $result | ConvertTo-Json -Depth 10 | Write-Output
 `)
 })
@@ -391,4 +477,80 @@ $result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $tru
 if ($result.Success -or $result.Error -notmatch 'Stream key.*conflict' -or (Test-Path $directory)) { throw 'Conflicting response Stream key allowed profile creation' }
 $result | ConvertTo-Json -Depth 10 | Write-Output
 `)
+})
+
+it.skipIf(!available).each([
+  ['cleanup', 'AV1', 'updated, cleanup failed'],
+  ['different', 'AV1', 'update not confirmed'],
+  ['readback', 'AV1', 'update not confirmed'],
+  ['before', 'AV1', 'update not confirmed'],
+  ['before-matching', 'AV1', 'credential confirmed, write failed'],
+  ['before-finally', 'AV1', 'update not confirmed'],
+  ['finally', 'AV1', 'updated, cleanup failed'],
+  ['restore', 'AV1', 'update not confirmed'],
+  ['restore-fails', 'AV1', 'update not confirmed'],
+  ['cleanup', 'WHIP', 'updated, cleanup failed'],
+  ['before', 'WHIP', 'update not confirmed'],
+  ['readback', 'WHIP', 'update not confirmed'],
+])('reports %s failure for %s from readback and preserves independent updates', (failure, target, status) => {
+  checkProfiles(`
+foreach ($name in @('FrankerzSpam_1440p60_AV1', 'FrankerzSpam_1080p60_H264')) {
+    [IO.Directory]::CreateDirectory((Join-Path $obsRoot "basic/profiles/$name")) | Out-Null
+}
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if (-not $result.Success) { throw $result.Error }
+$whipDirectory = Join-Path $obsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP'
+[IO.File]::WriteAllText((Join-Path $whipDirectory 'basic.ini'), 'retained user settings')
+$encoderBefore = [IO.File]::ReadAllText((Join-Path $whipDirectory 'streamEncoder.json'))
+if ('${failure}' -ne 'before-matching') { $authorization.whip.bearerToken = 'mtx_sk_test00000000000000000000002' }
+$authorization.serverUrl = "rtmp://example.com:1935/channels/pilot?token=$($authorization.whip.bearerToken)"
+$targetName = if ('${target}' -eq 'WHIP') { 'FrankerzSpam_1080p60_WHIP' } else { 'FrankerzSpam_1440p60_AV1' }
+[ControlledFile]::Target = Join-Path $obsRoot "basic/profiles/$targetName/service.json"
+[ControlledFile]::Failure = '${failure}'
+if ('${failure}' -match 'finally$') {
+    function Remove-Item {
+        [CmdletBinding()]
+        param([string]$LiteralPath, [switch]$Force)
+        if ($LiteralPath -like (([ControlledFile]::Target) + '.*.tmp')) {
+            throw 'Controlled final cleanup failure'
+        }
+        Microsoft.PowerShell.Management\\Remove-Item @PSBoundParameters
+    }
+}
+$RepairManagedConfig = $true
+$result = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities $true $selectedProfiles
+if (-not [ControlledFile]::Failed) { throw 'Controlled filesystem failure did not run' }
+$originalError = if ('${failure}' -match '^(before|restore)') { 'Controlled replacement failure' } elseif ('${failure}' -eq 'finally') { 'Controlled final cleanup failure' } else { 'Controlled cleanup failure' }
+if ($result.Success -or $result.Error -notmatch $originalError -or $result.Error -notmatch $targetName -or $result.Error -match 'Controlled readback failure|Controlled restore failure') { throw 'Original operation error was lost' }
+if ('${failure}' -eq 'before-finally' -and $result.Error -match 'Controlled final cleanup failure') { throw 'Cleanup replaced the write error' }
+if ([ControlledFile]::Readbacks -ne 1) { throw 'Failed credential write was not read back' }
+foreach ($profile in $result.Profiles) {
+    $expectedStatus = if ($profile.Name -eq $targetName) { '${status}' } else { 'updated' }
+    if ($profile.CredentialStatus -ne $expectedStatus) { throw 'Incorrect credential failure outcome' }
+}
+foreach ($name in @('FrankerzSpam_1440p60_AV1', 'FrankerzSpam_1080p60_H264')) {
+    if ($name -eq $targetName) { continue }
+    $service = [System.IO.File]::ReadAllText((Join-Path $obsRoot "basic/profiles/$name/service.json")) | ConvertFrom-Json
+    if ($service.settings.key -cne "channels/pilot?token=$($authorization.whip.bearerToken)") { throw 'Independent RTMP update was lost' }
+}
+if ('${target}' -ne 'WHIP') {
+    $service = [System.IO.File]::ReadAllText((Join-Path $whipDirectory 'service.json')) | ConvertFrom-Json
+    if ($service.settings.bearer_token -cne $authorization.whip.bearerToken) { throw 'Independent WHIP update was lost' }
+}
+if ('${failure}' -eq 'restore-fails') {
+    if (Test-Path -LiteralPath ([ControlledFile]::Target)) { throw 'Failed restoration unexpectedly created a destination' }
+    $backup = @(Get-ChildItem (([ControlledFile]::Target) + '.*.replace-backup'))
+    if ($backup.Count -ne 1 -or [System.IO.File]::ReadAllText($backup[0].FullName) -notmatch 'test00000000000000000000001') { throw 'Recovery backup was lost' }
+} elseif ('${failure}' -eq 'different') {
+    if ([System.IO.File]::ReadAllText([ControlledFile]::Target) -cne 'different settings') { throw 'Mismatched readback was not exercised' }
+} else {
+    $service = [System.IO.File]::ReadAllText([ControlledFile]::Target) | ConvertFrom-Json
+    $expectedToken = if ('${failure}' -match '^(before|restore)') { 'mtx_sk_test00000000000000000000001' } else { $authorization.whip.bearerToken }
+    $actual = if ('${target}' -eq 'WHIP') { $service.settings.bearer_token } else { $service.settings.key }
+    $expected = if ('${target}' -eq 'WHIP') { $expectedToken } else { "channels/pilot?token=$expectedToken" }
+    if ($actual -cne $expected) { throw 'Unexpected credential file after the operation error' }
+}
+if ([IO.File]::ReadAllText((Join-Path $whipDirectory 'basic.ini')) -cne 'retained user settings' -or [IO.File]::ReadAllText((Join-Path $whipDirectory 'streamEncoder.json')) -cne $encoderBefore -or (Test-Path "$env:LOCALAPPDATA/FrankerzSpam/OBS Backups")) { throw 'Cleanup failure allowed WHIP repair' }
+$result | ConvertTo-Json -Depth 10 | Write-Output
+`, true)
 })

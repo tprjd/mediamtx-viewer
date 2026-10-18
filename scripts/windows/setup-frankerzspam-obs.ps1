@@ -490,6 +490,8 @@ function Write-AtomicText {
     $operationId = [Guid]::NewGuid().ToString('N')
     $temporaryPath = "$Path.$operationId.tmp"
     $replacementBackupPath = "$Path.$operationId.replace-backup"
+    $replacementComplete = $false
+    $writeError = $null
     try {
         [IO.File]::WriteAllText($temporaryPath, $Content, (Get-Utf8NoBomEncoding))
         if (Test-Path -LiteralPath $Path) {
@@ -499,25 +501,39 @@ function Write-AtomicText {
                 $replacementBackupPath,
                 $true
             )
+            $replacementComplete = $true
             [IO.File]::Delete($replacementBackupPath)
         } else {
             [IO.File]::Move($temporaryPath, $Path)
+            $replacementComplete = $true
         }
     } catch {
         $writeError = $_
-        if ((Test-Path -LiteralPath $replacementBackupPath) -and
-            -not (Test-Path -LiteralPath $Path)) {
-            [IO.File]::Move($replacementBackupPath, $Path)
+        try {
+            if ((Test-Path -LiteralPath $replacementBackupPath) -and
+                -not (Test-Path -LiteralPath $Path)) {
+                [IO.File]::Move($replacementBackupPath, $Path)
+            }
+        } catch {
+            # Keep the original error if restoring the destination also fails.
+            $writeError.Exception.Data['ObsRestoreError'] = $_.Exception.Message
         }
-        throw $writeError
     } finally {
-        if (Test-Path -LiteralPath $temporaryPath) {
-            Remove-Item -LiteralPath $temporaryPath -Force
+        try {
+            if (Test-Path -LiteralPath $temporaryPath) {
+                Remove-Item -LiteralPath $temporaryPath -Force
+            }
+            if ((Test-Path -LiteralPath $replacementBackupPath) -and
+                (Test-Path -LiteralPath $Path)) {
+                Remove-Item -LiteralPath $replacementBackupPath -Force
+            }
+        } catch {
+            if (-not $writeError) { $writeError = $_ }
         }
-        if ((Test-Path -LiteralPath $replacementBackupPath) -and
-            (Test-Path -LiteralPath $Path)) {
-            Remove-Item -LiteralPath $replacementBackupPath -Force
-        }
+    }
+    if ($writeError) {
+        $writeError.Exception.Data['ObsReplacementComplete'] = $replacementComplete
+        throw $writeError
     }
 }
 
@@ -688,24 +704,32 @@ ChannelSetup=Stereo
     Write-AtomicText (Join-Path $ProfileDirectory 'streamEncoder.json') $encoderJson
 }
 
+function Update-ManagedProfileCredential {
+    param([string]$Path, [string]$Content, $ProfileResult)
+    $ProfileResult.CredentialStatus = 'update not confirmed'
+    try {
+        Write-AtomicText $Path $Content
+        $ProfileResult.CredentialStatus = 'updated'
+    } catch {
+        $writeError = $_
+        try {
+            if ([IO.File]::ReadAllText($Path) -ceq $Content) {
+                $ProfileResult.CredentialStatus = if ($writeError.Exception.Data['ObsReplacementComplete']) {
+                    'updated, cleanup failed'
+                } else { 'credential confirmed, write failed' }
+            }
+        } catch {
+            # A failed readback cannot replace the original write error.
+        }
+        return "$($ProfileResult.Name): Rerun setup to rotate the credential again. Original error: $($writeError.Exception.Message)"
+    }
+}
+
 function Update-ManagedWhipProfile {
-    param([string]$ObsRoot, $Whip, $Capabilities, $ProfileResult, $SelectedProfiles)
+    param([string]$ObsRoot, $Whip, $Capabilities, $ProfileResult, $SelectedProfiles, [string]$Service)
     $directory = Join-Path $ObsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP'
     $exists = Test-Path -LiteralPath $directory
     if (-not $Whip.enabled -and -not $exists) { return }
-    $service = [ordered]@{
-        type = 'whip_custom'
-        settings = [ordered]@{ server = $Whip.serverUrl; bearer_token = $Whip.bearerToken }
-        hotkeys = [ordered]@{}
-    } | ConvertTo-Json -Depth 10
-    # Authorization may already have rotated the Channel key. Preserve existing
-    # profile access even when an encoder failure prevents repair or reset.
-    if ($exists) {
-        $ProfileResult.CredentialStatus = 'update not confirmed'
-        Write-AtomicText (Join-Path $directory 'service.json') $service
-        $ProfileResult.CredentialStatus = 'updated'
-        Write-Info 'Low-latency profile credentials refreshed without printing the credential.'
-    }
     if ($Whip.enabled -and (-not $exists -or $RepairManagedConfig -or $ResetManagedConfig)) {
         if (-not $Capabilities.H264) {
             throw 'The low-latency profile needs a supported H.264 hardware encoder. Update the GPU driver and rerun setup. RTMP credentials were refreshed.'
@@ -734,10 +758,8 @@ function Update-ManagedWhipProfile {
         Write-Info "Created low-latency profile: 1080p60 H.264 + Opus, $WhipBitrateKbps Kbps. Validate picture quality and upload capacity before use."
     }
     if (-not $exists) {
-        $ProfileResult.CredentialStatus = 'update not confirmed'
-        Write-AtomicText (Join-Path $directory 'service.json') $service
-        $ProfileResult.CredentialStatus = 'updated'
-        Write-Info 'Low-latency profile credentials refreshed without printing the credential.'
+        $credentialError = Update-ManagedProfileCredential (Join-Path $directory 'service.json') $Service $ProfileResult
+        if ($credentialError) { throw $credentialError }
     }
     if ($Whip.enabled) {
         try {
@@ -1138,9 +1160,10 @@ function Complete-ManagedObsProfiles {
                 ($whipValid -and $whip.bearerToken -cne $responseToken)))) {
             throw 'Stream key conflict in the publishing settings. No profiles were changed. Download setup again.'
         }
+        $refreshErrors = @()
         if ($rtmpValid) {
             if ($rtmpProfiles.Count -eq 0) {
-                throw 'No managed OBS profiles were available to receive the publishing settings.'
+                $refreshErrors += 'No managed OBS profiles were available to receive the RTMP publishing settings.'
             }
             $service = [ordered]@{
                 type = 'rtmp_custom'
@@ -1152,28 +1175,33 @@ function Complete-ManagedObsProfiles {
                 hotkeys = [ordered]@{}
             } | ConvertTo-Json -Depth 10
             foreach ($profile in $rtmpProfiles) {
-                $profile.CredentialStatus = 'update not confirmed'
-                try {
-                    Write-AtomicText (Join-Path $ObsRoot "basic/profiles/$($profile.Name)/service.json") $service
-                    $profile.CredentialStatus = 'updated'
-                } catch {
-                    throw "Rerun setup to rotate the credential again. Original error: $($_.Exception.Message)"
-                }
+                $credentialError = Update-ManagedProfileCredential (Join-Path $ObsRoot "basic/profiles/$($profile.Name)/service.json") $service $profile
+                if ($credentialError) { $refreshErrors += $credentialError }
             }
         }
         if ($whipValid) {
-            $missingWhipOutput = $whip.enabled -and -not $WhipSupported
-            # Validation and capability failures block creation and repair, but not retained credential refresh.
-            if ($missingWhipOutput -or $validationErrors.Count) { $whip.enabled = $false }
-            Update-ManagedWhipProfile $ObsRoot $whip $Capabilities $whipResult $SelectedProfiles
-            if ($missingWhipOutput -and -not $validationErrors.Count) {
-                throw 'OBS WHIP output is missing. RTMP credentials were refreshed. Repair the OBS installation, then run setup again.'
+            $whipService = [ordered]@{
+                type = 'whip_custom'
+                settings = [ordered]@{ server = $whip.serverUrl; bearer_token = $whip.bearerToken }
+                hotkeys = [ordered]@{}
+            } | ConvertTo-Json -Depth 10
+            $whipDirectory = Join-Path $ObsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP'
+            if (Test-Path -LiteralPath $whipDirectory) {
+                $credentialError = Update-ManagedProfileCredential (Join-Path $whipDirectory 'service.json') $whipService $whipResult
+                if ($credentialError) { $refreshErrors += $credentialError }
             }
         }
-        if ($validationErrors.Count) { throw ($validationErrors -join ' ') }
+        if ($validationErrors.Count -or $refreshErrors.Count) { throw (($validationErrors + $refreshErrors) -join ' ') }
+        if ($whipValid) {
+            if ($whip.enabled -and -not $WhipSupported) {
+                throw 'OBS WHIP output is missing. RTMP credentials were refreshed. Repair the OBS installation, then run setup again.'
+            }
+            Update-ManagedWhipProfile $ObsRoot $whip $Capabilities $whipResult $SelectedProfiles $whipService
+        }
         $result.Success = $true
     } catch {
-        $result.Error = $_.Exception.Message -replace 'mtx_sk_[A-Za-z0-9_-]+', '[redacted]'
+        $result.Error = $_.Exception.Message -replace 'mtx_sk_[A-Za-z0-9_-]+', '[redacted]' `
+            -replace '(?i)\b(?:rtmps?|https?)://[^\s''"<>]+', '[redacted URL]'
     }
     return $result
 }
