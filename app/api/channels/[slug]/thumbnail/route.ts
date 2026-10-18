@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'node:crypto'
+import { authEnvironment } from '@/lib/auth/env'
 import { getActiveSession } from '@/lib/auth/session'
 import { canWatchChannel } from '@/lib/viewing-access'
 import { readFile, stat } from 'node:fs/promises'
@@ -16,9 +18,17 @@ export async function GET(
   context: ThumbnailRouteContext,
 ): Promise<Response> {
   const { slug } = await context.params
-  const session = await getActiveSession(request.headers)
-  if (!session) return new Response(null, { status: 401 })
-  if (!canWatchChannel(session.user.id, slug)) return new Response(null, { status: 403, headers: { 'Cache-Control': 'no-store' } })
+  const suppliedSecret = Buffer.from(request.headers.get('x-internal-auth') ?? '')
+  const expectedSecret = Buffer.from(authEnvironment.internalSecret ?? '')
+  const internalRequest = expectedSecret.length > 0 &&
+    suppliedSecret.length === expectedSecret.length &&
+    timingSafeEqual(suppliedSecret, expectedSecret)
+  // The Discord notifier uploads thumbnails using its service credential.
+  if (!internalRequest) {
+    const session = await getActiveSession(request.headers)
+    if (!session) return new Response(null, { status: 401 })
+    if (!canWatchChannel(session.user.id, slug)) return new Response(null, { status: 403, headers: { 'Cache-Control': 'no-store' } })
+  }
   const channel = getChannel(slug)
   if (!channel) return new Response(null, { status: 404 })
 

@@ -78,6 +78,7 @@ async function sendNotification(update) {
   try {
     const thumbnailResponse = await fetch(
       `${viewerUrl}/api/channels/${encodeURIComponent(update.slug)}/thumbnail`,
+      { headers: { 'x-internal-auth': internalSecret } },
     )
     if (thumbnailResponse.ok) {
       const bytes = await thumbnailResponse.arrayBuffer()

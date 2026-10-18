@@ -10,6 +10,9 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { createServer } from 'node:http'
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { join } from 'node:path'
 
 const testDirectory = mkdtempSync(join(tmpdir(), 'mediamtx-channels-test-'))
@@ -22,7 +25,7 @@ process.env.INTERNAL_AUTH_SECRET = 'vitest-internal-secret-at-least-32-character
 process.env.MEDIAMTX_AUTH_SECRET = 'vitest-mediamtx-secret-at-least-32-characters'
 
 vi.mock('server-only', () => ({}))
-vi.mock('@/lib/auth/session', () => ({ getActiveSession: async () => ({ user: { id: 'admin-id' } }) }))
+vi.mock('@/lib/auth/session', () => ({ getActiveSession: vi.fn(async () => ({ user: { id: 'admin-id' } })) }))
 
 describe('account-owned channels', () => {
   beforeAll(async () => {
@@ -119,6 +122,82 @@ describe('account-owned channels', () => {
       context,
     )
     expect(revalidated.status).toBe(304)
+  })
+
+  it('attaches the protected thumbnail to a Discord notification without a viewer session', async () => {
+    const { getActiveSession } = await import('@/lib/auth/session')
+    const sessionImplementation = vi.mocked(getActiveSession).getMockImplementation()!
+    vi.mocked(getActiveSession).mockResolvedValue(null)
+    const { GET } = await import('@/app/api/channels/[slug]/thumbnail/route')
+    const context = { params: Promise.resolve({ slug: 'friend-channel' }) }
+    const thumbnailUrl = '/api/channels/friend-channel/thumbnail'
+    for (const secret of ['', 'wrong', 'x'.repeat(process.env.INTERNAL_AUTH_SECRET!.length)]) {
+      const denied = await GET(new Request(`http://localhost${thumbnailUrl}`, {
+        headers: { 'x-internal-auth': secret },
+      }), context)
+      expect(denied.status).toBe(401)
+    }
+    const statuses: number[] = []
+    let receive!: (form: FormData) => void
+    const received = new Promise<FormData>((resolve) => { receive = resolve })
+    const server = createServer(async (request, response) => {
+      if (request.url === '/api/internal/channel-events') {
+        response.writeHead(200, { 'content-type': 'text/event-stream' })
+        response.write('event: snapshot\ndata: {"channels":[]}\n\n')
+        response.write(`event: channel-status\ndata: ${JSON.stringify({
+          slug: 'friend-channel', title: 'Friend channel', ownerName: 'Friend',
+          discordNotificationsEnabled: true,
+          status: { live: true, startedAt: new Date().toISOString() },
+        })}\n\n`)
+      } else if (request.url === thumbnailUrl) {
+        const result = await GET(new Request(`http://localhost${thumbnailUrl}`, {
+          headers: request.headers['x-internal-auth']
+            ? { 'x-internal-auth': String(request.headers['x-internal-auth']) } : {},
+        }), context)
+        statuses.push(result.status)
+        response.writeHead(result.status, Object.fromEntries(result.headers))
+        response.end(Buffer.from(await result.arrayBuffer()))
+      } else if (request.url === '/webhook') {
+        const chunks = []
+        for await (const chunk of request) chunks.push(chunk)
+        const form = await new Response(Buffer.concat(chunks), {
+          headers: { 'content-type': request.headers['content-type']! },
+        }).formData()
+        response.writeHead(204).end()
+        receive(form)
+      } else {
+        response.setHeader('content-type', 'application/json')
+        response.end(JSON.stringify({ chat: { faults: [] } }))
+      }
+    })
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Missing server address')
+    const base = `http://127.0.0.1:${address.port}`
+    const child = spawn(process.execPath, ['scripts/discord-notifier.mjs'], {
+      env: { ...process.env, VIEWER_URL: base, DISCORD_WEBHOOK_URL: `${base}/webhook`,
+        PUBLIC_HOSTNAME: 'viewer.example', STABLE_MS: '1',
+        STATE_FILE: join(testDirectory, 'notifier-state.json') },
+      stdio: 'ignore',
+    })
+    try {
+      const form = await received
+      expect(statuses).toEqual([200])
+      const attachment = form.get('files[0]')
+      expect(attachment).toBeInstanceOf(File)
+      if (!(attachment instanceof File)) throw new Error('Missing thumbnail attachment')
+      expect(attachment.name).toBe('thumbnail.jpg')
+      expect(attachment.type).toBe('image/jpeg')
+      expect(Buffer.from(await attachment.arrayBuffer())).toEqual(Buffer.from([0xff, 0xd8, 0xff, 0xd9]))
+    } finally {
+      child.kill()
+      await once(child, 'exit')
+      server.closeAllConnections()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+      vi.mocked(getActiveSession).mockReset()
+      vi.mocked(getActiveSession).mockImplementation(sessionImplementation)
+    }
   })
 
   it('authorizes a generated key only for its exact path and revokes on rotation', async () => {
