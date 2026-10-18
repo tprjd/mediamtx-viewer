@@ -118,6 +118,18 @@ Key rotation updates every retained managed RTMP profile and the WHIP profile,
 even if the pilot was disabled or the RTMP matrix was narrowed. Backups exclude
 `service.json` and therefore do not duplicate the publishing credentials.
 
+After authorization, `Complete-ManagedObsProfiles` discovers retained profiles,
+refreshes their credentials, and completes the WHIP profile. The setup caller
+displays its overall and per-profile results, then proceeds only on success.
+Production and executable PowerShell tests use this same operation. It reports
+credential status without returning a Stream key.
+
+The operation still stops at the first credential write error. It refreshes
+retained WHIP credentials before reporting missing WHIP output or an unavailable
+encoder, provided the preceding writes succeed. A failed completion prevents
+OBS launch. The selected RTMP matrix has a separate variable from the full managed
+profile list, so a narrowed selection does not hide retained credential targets.
+
 Eligible live WHIP Channels start in WebRTC unless a viewer saved a Playback
 mode. Automatic HLS fallback is stored separately from that preference. HLS stays
 selected until the viewer chooses another mode, and WebRTC remains unavailable

@@ -689,7 +689,7 @@ ChannelSetup=Stereo
 }
 
 function Update-ManagedWhipProfile {
-    param([string]$ObsRoot, $Whip, $Capabilities)
+    param([string]$ObsRoot, $Whip, $Capabilities, $ProfileResult, $SelectedProfiles)
     $directory = Join-Path $ObsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP'
     $exists = Test-Path -LiteralPath $directory
     if (-not $Whip.enabled -and -not $exists) { return }
@@ -709,7 +709,9 @@ function Update-ManagedWhipProfile {
     # Authorization may already have rotated the Channel key. Preserve existing
     # profile access even when an encoder failure prevents repair or reset.
     if ($exists) {
+        $ProfileResult.CredentialStatus = 'update not confirmed'
         Write-AtomicText (Join-Path $directory 'service.json') $service
+        $ProfileResult.CredentialStatus = 'updated'
         Write-Info 'Low-latency profile credentials refreshed without printing the credential.'
     }
     if ($Whip.enabled -and (-not $exists -or $RepairManagedConfig -or $ResetManagedConfig)) {
@@ -728,7 +730,7 @@ function Update-ManagedWhipProfile {
         # Keep the canvas used by the retained profiles and shared scenes.
         $baseWidth = $SceneCanvasWidth
         $baseHeight = $SceneCanvasHeight
-        foreach ($definition in ($ManagedProfiles | Sort-Object LaunchPriority)) {
+        foreach ($definition in ($SelectedProfiles | Sort-Object LaunchPriority)) {
             $existingIni = Join-Path $ObsRoot "basic/profiles/$($definition.DirectoryName)/basic.ini"
             if (-not (Test-Path -LiteralPath $existingIni)) { continue }
             $content = [IO.File]::ReadAllText($existingIni)
@@ -740,7 +742,9 @@ function Update-ManagedWhipProfile {
         Write-Info "Created low-latency profile: 1080p60 H.264 + Opus, $WhipBitrateKbps Kbps. Validate picture quality and upload capacity before use."
     }
     if (-not $exists) {
+        $ProfileResult.CredentialStatus = 'update not confirmed'
         Write-AtomicText (Join-Path $directory 'service.json') $service
+        $ProfileResult.CredentialStatus = 'updated'
         Write-Info 'Low-latency profile credentials refreshed without printing the credential.'
     }
     if ($Whip.enabled) {
@@ -1054,53 +1058,85 @@ function Start-DeviceAuthorization {
     throw 'The ten-minute OBS authorization window expired. Run the script again.'
 }
 
-function Write-RtmpService {
+function Complete-ManagedObsProfiles {
     param(
-        [string[]]$ProfileDirectories,
-        [string]$ServerUrl
+        $Authorization,
+        [string]$ObsRoot,
+        $Capabilities,
+        [bool]$WhipSupported,
+        $SelectedProfiles
     )
-    # The usual local port is 1935. The local development stack may select a
-    # higher free port when that port is occupied. The old fixed-port pattern
-    # was '^rtmp://[^/]+:1935/[^?]+\?token=mtx_sk_[A-Za-z0-9_-]{24,}$'.
-    if ($ServerUrl -notmatch '^rtmp://[^/]+:[0-9]{1,5}/[^?]+\?token=mtx_sk_[A-Za-z0-9_-]{24,}$') {
-        throw 'The site returned an unexpected RTMP server URL.'
-    }
-    $schemeEnd = $ServerUrl.IndexOf('://')
-    $slashIndex = $ServerUrl.IndexOf('/', $schemeEnd + 3)
-    if ($slashIndex -lt 1) {
-        throw 'The site returned an RTMP URL without a channel path.'
-    }
-    $server = $ServerUrl.Substring(0, $slashIndex)
-    $playPath = $ServerUrl.Substring($slashIndex + 1)
-    $targets = @($ProfileDirectories | Where-Object { Test-Path -LiteralPath $_ })
-    if ($targets.Count -eq 0) {
-        throw 'No managed OBS profiles were available to receive the publishing settings.'
-    }
-    $service = [ordered]@{
-        type = 'rtmp_custom'
-        settings = [ordered]@{
-            service = 'Enhanced RTMP'
-            server = $server
-            key = $playPath
+    $result = [pscustomobject]@{ Success = $false; Profiles = @(); Error = $null }
+    try {
+        $rtmpProfiles = @(
+            foreach ($definition in $ManagedProfiles) {
+                $directory = Join-Path $ObsRoot "basic/profiles/$($definition.DirectoryName)"
+                if (Test-Path -LiteralPath $directory) {
+                    [pscustomobject]@{ Name = $definition.DirectoryName; CredentialStatus = 'not attempted' }
+                }
+            }
+        )
+        $result.Profiles = $rtmpProfiles
+        $whipResult = $null
+        if ($Authorization.PSObject.Properties['whip'] -and
+            (Test-Path -LiteralPath (Join-Path $ObsRoot 'basic/profiles/FrankerzSpam_1080p60_WHIP'))) {
+            $whipResult = [pscustomobject]@{ Name = 'FrankerzSpam_1080p60_WHIP'; CredentialStatus = 'not attempted' }
+            $result.Profiles += $whipResult
         }
-        hotkeys = [ordered]@{}
-    } | ConvertTo-Json -Depth 10
-    $updatedDirectories = @()
-    foreach ($profileDirectory in $targets) {
-        try {
-            Write-AtomicText (Join-Path $profileDirectory 'service.json') $service
-            $updatedDirectories += $profileDirectory
-        } catch {
-            $writeError = $_
-            $updatedNames = @($updatedDirectories | ForEach-Object { Split-Path -Leaf $_ }) -join ', '
-            $pendingNames = @($targets |
-                Where-Object { $_ -notin $updatedDirectories } |
-                ForEach-Object { Split-Path -Leaf $_ }) -join ', '
-            $summary = if ($updatedNames) { "Updated: $updatedNames. " } else { '' }
-            $summary += "Not updated: $pendingNames. Rerun setup to rotate the credential again."
-            throw "$summary Original error: $($writeError.Exception.Message)"
+        $ServerUrl = [string]$Authorization.serverUrl
+        # The usual local port is 1935. The local development stack may select a
+        # higher free port when that port is occupied. The old fixed-port pattern
+        # was '^rtmp://[^/]+:1935/[^?]+\?token=mtx_sk_[A-Za-z0-9_-]{24,}$'.
+        if ($ServerUrl -notmatch '^rtmp://[^/]+:[0-9]{1,5}/[^?]+\?token=mtx_sk_[A-Za-z0-9_-]{24,}$') {
+            throw 'The site returned an unexpected RTMP server URL.'
         }
+        $schemeEnd = $ServerUrl.IndexOf('://')
+        $slashIndex = $ServerUrl.IndexOf('/', $schemeEnd + 3)
+        if ($slashIndex -lt 1) {
+            throw 'The site returned an RTMP URL without a channel path.'
+        }
+        $server = $ServerUrl.Substring(0, $slashIndex)
+        $playPath = $ServerUrl.Substring($slashIndex + 1)
+        if ($rtmpProfiles.Count -eq 0) {
+            throw 'No managed OBS profiles were available to receive the publishing settings.'
+        }
+        $service = [ordered]@{
+            type = 'rtmp_custom'
+            settings = [ordered]@{
+                service = 'Enhanced RTMP'
+                server = $server
+                key = $playPath
+            }
+            hotkeys = [ordered]@{}
+        } | ConvertTo-Json -Depth 10
+        foreach ($profile in $rtmpProfiles) {
+            $profile.CredentialStatus = 'update not confirmed'
+            try {
+                Write-AtomicText (Join-Path $ObsRoot "basic/profiles/$($profile.Name)/service.json") $service
+                $profile.CredentialStatus = 'updated'
+            } catch {
+                throw "Rerun setup to rotate the credential again. Original error: $($_.Exception.Message)"
+            }
+        }
+        if ($Authorization.PSObject.Properties['whip']) {
+            $whip = $Authorization.whip.PSObject.Copy()
+            if ($whip.enabled -and -not $whipResult) {
+                $whipResult = [pscustomobject]@{ Name = 'FrankerzSpam_1080p60_WHIP'; CredentialStatus = 'not attempted' }
+                $result.Profiles += $whipResult
+            }
+            $missingWhipOutput = $whip.enabled -and -not $WhipSupported
+            # Refresh retained credentials before reporting a damaged OBS install.
+            if ($missingWhipOutput) { $whip.enabled = $false }
+            Update-ManagedWhipProfile $ObsRoot $whip $Capabilities $whipResult $SelectedProfiles
+            if ($missingWhipOutput) {
+                throw 'OBS WHIP output is missing. RTMP credentials were refreshed. Repair the OBS installation, then run setup again.'
+            }
+        }
+        $result.Success = $true
+    } catch {
+        $result.Error = $_.Exception.Message -replace 'mtx_sk_[A-Za-z0-9_-]+', '[redacted]'
     }
+    return $result
 }
 
 function New-DesktopShortcut {
@@ -1188,16 +1224,11 @@ try {
         -not (Read-Confirmation 'Continue without the skipped codecs?' $true)) {
         throw 'Setup cancelled before writing OBS configuration.'
     }
-    $managedProfiles = $selection.Profiles
-    $profileDirectories = @($managedProfiles | ForEach-Object {
+    $selectedProfiles = $selection.Profiles
+    $profileDirectories = @($selectedProfiles | ForEach-Object {
         Join-Path $obsRoot "basic\profiles\$($_.DirectoryName)"
     })
 
-    $existingProfileDirectories = @()
-    foreach ($definition in $ManagedProfiles) {
-        $directory = Join-Path $obsRoot "basic\profiles\$($definition.DirectoryName)"
-        if (Test-Path -LiteralPath $directory) { $existingProfileDirectories += $directory }
-    }
     $collectionExists = Test-Path -LiteralPath $collectionPath
     $needsCaptureTargetMigration = $collectionExists -and
         (Test-LegacyExecutableOnlyCaptureTargets $collectionPath)
@@ -1238,17 +1269,17 @@ try {
     # partial matrix never overwrites profiles the user already has.
     $forceProfileRewrite = $RepairManagedConfig -or $ResetManagedConfig
     $profileActions = @{}
-    foreach ($profile in $managedProfiles) {
+    foreach ($profile in $selectedProfiles) {
         $directory = Join-Path $obsRoot "basic\profiles\$($profile.DirectoryName)"
         $profileActions[$profile.DirectoryName] =
             (-not (Test-Path -LiteralPath $directory)) -or $forceProfileRewrite
     }
-    $profilesToCreate = @($managedProfiles |
+    $profilesToCreate = @($selectedProfiles |
         Where-Object { $profileActions[$_.DirectoryName] })
 
     if ($needsProfileWrite -or $needsCollectionWrite) {
         Write-Step 'Resolved managed profile matrix'
-        foreach ($profile in $managedProfiles) {
+        foreach ($profile in $selectedProfiles) {
             $action = if ($profileActions[$profile.DirectoryName]) {
                 'create'
             } else {
@@ -1273,7 +1304,7 @@ try {
             Write-ManagedProfile $directory $profile
             Write-Info "Created profile $($profile.Name)"
         }
-        $preservedCount = $managedProfiles.Count - $profilesToCreate.Count
+        $preservedCount = $selectedProfiles.Count - $profilesToCreate.Count
         if ($preservedCount -gt 0) {
             Write-Info "Preserved $preservedCount existing managed profile(s)."
         }
@@ -1293,30 +1324,20 @@ try {
         throw 'Local OBS configuration was created, but channel authorization was cancelled.'
     }
     $authorization = Start-DeviceAuthorization
-    $credentialTargetDirectories = @()
-    foreach ($definition in $ManagedProfiles) {
-        $directory = Join-Path $obsRoot "basic\profiles\$($definition.DirectoryName)"
-        if (Test-Path -LiteralPath $directory) { $credentialTargetDirectories += $directory }
+    $completion = Complete-ManagedObsProfiles $authorization $obsRoot $capabilities `
+        $whipSupported $selectedProfiles
+    foreach ($profile in $completion.Profiles) {
+        Write-Info "$($profile.Name): publishing credential $($profile.CredentialStatus)."
     }
-    Write-RtmpService $credentialTargetDirectories $authorization.serverUrl
-    if ($authorization.PSObject.Properties['whip']) {
-        if ($authorization.whip.enabled -and -not $whipSupported) {
-            # Rotation must still refresh a retained profile on a damaged OBS install.
-            $authorization.whip.enabled = $false
-            Update-ManagedWhipProfile $obsRoot $authorization.whip $capabilities
-            throw 'OBS WHIP output is missing. RTMP credentials were refreshed. Repair the OBS installation, then run setup again.'
-        }
-        Update-ManagedWhipProfile $obsRoot $authorization.whip $capabilities
-    }
-    Write-Info "RTMP publishing settings saved to $($credentialTargetDirectories.Count) managed profile(s) without printing the credential."
+    if (-not $completion.Success) { throw $completion.Error }
     $warningProperty = $authorization.PSObject.Properties['warning']
     if ($warningProperty -and $warningProperty.Value) {
         Write-Warning $warningProperty.Value
     }
 
-    $preferredProfile = $managedProfiles |
+    $preferredProfile = $selectedProfiles |
         Sort-Object LaunchPriority, @{ Expression = {
-            [array]::IndexOf($ManagedProfiles, $_)
+            [array]::IndexOf($selectedProfiles, $_)
         } } |
         Select-Object -First 1
 
