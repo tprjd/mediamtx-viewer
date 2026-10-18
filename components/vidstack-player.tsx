@@ -58,7 +58,9 @@ export function PlaybackAudioScope({ children }: { children: ReactNode }) {
   return <PlaybackAudioContext.Provider value={preferences}>{children}</PlaybackAudioContext.Provider>
 }
 
-export type VidstackProviderKind = 'hls' | 'native' | null
+export type VidstackProviderAttachment =
+  | { kind: 'hls'; video: HTMLVideoElement; hls: Hls }
+  | { kind: 'native'; video: HTMLVideoElement }
 
 export interface PlayerTheaterProps {
   chatOpen?: boolean
@@ -73,8 +75,7 @@ interface VidstackPlayerProps extends PlayerTheaterProps {
   children?: ReactNode
   hlsConfig?: Partial<HlsConfig>
   liveEdgeTolerance?: number
-  onHlsInstanceChange?: (instance: Hls | null) => void
-  onProviderKindChange?: (kind: VidstackProviderKind) => void
+  onProviderAttachmentChange?: (attachment: VidstackProviderAttachment | null) => void
   onUserPauseChange?: (paused: boolean) => void
   onVideoElementChange?: (video: HTMLVideoElement | null) => void
   poster?: string | null
@@ -220,8 +221,7 @@ export function VidstackPlayer({
   children,
   hlsConfig,
   liveEdgeTolerance = 2,
-  onHlsInstanceChange,
-  onProviderKindChange,
+  onProviderAttachmentChange,
   onUserPauseChange,
   onVideoElementChange,
   poster,
@@ -236,44 +236,53 @@ export function VidstackPlayer({
 }: VidstackPlayerProps) {
   const localPreferences = useAudioPreferences()
   const { audio, updateAudio } = useContext(PlaybackAudioContext) ?? localPreferences
-  const disposeHlsInstanceRef = useRef<(() => void) | undefined>(undefined)
+  const disposeProviderRef = useRef<(() => void) | undefined>(undefined)
 
   const handleProviderChange = useCallback(
     (provider: MediaProviderAdapter | null) => {
-      disposeHlsInstanceRef.current?.()
-      disposeHlsInstanceRef.current = undefined
-      onHlsInstanceChange?.(null)
+      disposeProviderRef.current?.()
+      disposeProviderRef.current = undefined
+      onProviderAttachmentChange?.(null)
+      if (!provider) {
+        onVideoElementChange?.(null)
+        return
+      }
 
-      if (provider && isHLSProvider(provider)) {
+      let active = true
+      let unsubscribe: (() => void) | undefined
+      disposeProviderRef.current = () => {
+        active = false
+        unsubscribe?.()
+        onProviderAttachmentChange?.(null)
+        onVideoElementChange?.(null)
+      }
+
+      if (isHLSProvider(provider)) {
         provider.library = Hls
         provider.config = hlsConfig ?? {}
-        onProviderKindChange?.('hls')
         onVideoElementChange?.(provider.video)
-        disposeHlsInstanceRef.current = provider.onInstance((instance) => {
-          onHlsInstanceChange?.(instance as Hls)
+        unsubscribe = provider.onInstance((instance) => {
+          if (active) onProviderAttachmentChange?.({ kind: 'hls', video: provider.video, hls: instance as Hls })
         })
         return
       }
 
-      if (provider && isVideoProvider(provider)) {
-        onProviderKindChange?.('native')
+      if (isVideoProvider(provider)) {
+        onProviderAttachmentChange?.({ kind: 'native', video: provider.video })
         onVideoElementChange?.(provider.video)
         return
       }
 
-      onProviderKindChange?.(null)
       onVideoElementChange?.(null)
     },
-    [hlsConfig, onHlsInstanceChange, onProviderKindChange, onVideoElementChange],
+    [hlsConfig, onProviderAttachmentChange, onVideoElementChange],
   )
 
   useEffect(
     () => () => {
-      disposeHlsInstanceRef.current?.()
-      onHlsInstanceChange?.(null)
-      onProviderKindChange?.(null)
-      onVideoElementChange?.(null)
-    }, [onHlsInstanceChange, onProviderKindChange, onVideoElementChange],
+      disposeProviderRef.current?.()
+      disposeProviderRef.current = undefined
+    }, [],
   )
 
   return (

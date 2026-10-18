@@ -11,7 +11,7 @@ import {
   RotateCcw,
   ShieldCheck,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { PlaybackRunOverlay } from '@/components/playback-run-overlay'
 import { Button } from '@/components/ui/button'
@@ -22,7 +22,7 @@ import {
 import {
   VidstackPlayer,
   type PlayerTheaterProps,
-  type VidstackProviderKind,
+  type VidstackProviderAttachment,
 } from '@/components/vidstack-player'
 import { usePlaybackRun } from '@/components/use-playback-run'
 import {
@@ -197,8 +197,8 @@ export function HlsPlayer({
   const profile: HlsLatencyProfileConfig = HLS_LATENCY_PROFILES[latencyProfile]
   const [reloadKey, setReloadKey] = useState(0)
   const [usingFallback, setUsingFallback] = useState(false)
-  const [hlsInstance, setHlsInstance] = useState<Hls | null>(null)
-  const [providerKind, setProviderKind] = useState<VidstackProviderKind>(null)
+  const [attachment, setAttachment] = useState<VidstackProviderAttachment | null>(null)
+  const disposeAttachmentRef = useRef<(() => void) | undefined>(undefined)
   const status = channel.status
   const {
     allowsAutomaticPlay,
@@ -208,9 +208,15 @@ export function HlsPlayer({
     report: setPlaybackPhase,
     startRun,
     state: visibleState,
-    videoElement,
     videoRef,
   } = usePlaybackRun(status.live)
+  const onProviderAttachmentChange = useCallback((next: VidstackProviderAttachment | null) => {
+    // Retire old work before React commits the replacement attachment.
+    disposeAttachmentRef.current?.()
+    disposeAttachmentRef.current = undefined
+    onVideoElementChange(next?.video ?? null)
+    setAttachment(next)
+  }, [onVideoElementChange])
   const [hlsDiagnostics, setHlsDiagnostics] = useState<HlsPlaybackDiagnostics>({
     maxLatencySeconds: profile.liveMaxLatencyDuration,
     playbackRate: 1,
@@ -250,6 +256,7 @@ export function HlsPlayer({
   const handleUserPauseChange = (paused: boolean) => {
     onUserPauseChange(paused)
     // hls.js can seek to the live edge on playlist refresh even while paused.
+    const hlsInstance = attachment?.kind === 'hls' ? attachment.hls : undefined
     if (paused) hlsInstance?.stopLoad()
     else if (allowsAutomaticPlay()) hlsInstance?.startLoad()
   }
@@ -278,23 +285,17 @@ export function HlsPlayer({
   }, [latencyProfile, onUltraLowUnavailable, setPlaybackPhase, status.live])
 
   useEffect(() => {
-    const video = videoElement
-    if (
-      !video ||
-      !providerKind ||
-      (providerKind === 'hls' && !hlsInstance)
-    ) {
-      return
-    }
+    if (!attachment) return
+    const { video } = attachment
 
     let active = true
-    const hls = hlsInstance ?? undefined
+    const hls = attachment.kind === 'hls' ? attachment.hls : undefined
     let codecErrorTimer: ReturnType<typeof setTimeout> | undefined
     let waitingTimer: ReturnType<typeof setTimeout> | undefined
     let mediaRecoveryAttempted = false
     let softRecoveryAttempted = false
     let everPlayed = false
-    const nativeHls = providerKind === 'native'
+    const nativeHls = attachment.kind === 'native'
     let excessiveNativeLatencySamples = 0
     let missingNativeLiveEdgeSamples = 0
     let reportedBalancedUnavailable = false
@@ -467,6 +468,7 @@ export function HlsPlayer({
     }
 
     const pollProgress = () => {
+      if (!active) return
       publishDiagnostics()
 
       if (
@@ -591,6 +593,7 @@ export function HlsPlayer({
     }
 
     const pollUltraLowSlo = () => {
+      if (!active) return
       if (
         latencyProfile !== 'ultra-low' ||
         reportedUltraLowPackagingUnsupported ||
@@ -669,6 +672,7 @@ export function HlsPlayer({
       if (!everPlayed) run.report('loading')
     }
     const handlePlaying = () => {
+      if (!active) return
       clearTimeout(waitingTimer)
       if (!run.report('playing')) {
         video.pause()
@@ -687,10 +691,12 @@ export function HlsPlayer({
       }, 250)
     }
     const handlePause = () => {
+      if (!active) return
       clearTimeout(waitingTimer)
       progress.reset()
     }
     const handleSeeking = () => {
+      if (!active) return
       const latencyCeiling = readTiming().maxLatencySeconds
       if (
         hls &&
@@ -724,6 +730,7 @@ export function HlsPlayer({
       }
     }
     const handlePlay = () => {
+      if (!active) return
       if (!run.acceptsEvents()) {
         video.pause()
         return
@@ -768,7 +775,7 @@ export function HlsPlayer({
     }
 
     const handleLevelUpdated = (_event: string, data: LevelUpdatedData) => {
-      if (latencyProfile !== 'ultra-low') return
+      if (!active || latencyProfile !== 'ultra-low') return
       const { partTarget } = data.details
 
       // The LL-HLS part cadence is non-negotiable: without small parts the
@@ -826,9 +833,10 @@ export function HlsPlayer({
       beginPlayback()
     }
 
-    return () => {
-      run.dispose()
+    const disposeAttachment = () => {
+      if (!active) return
       active = false
+      run.dispose()
       video.removeEventListener('loadstart', handleLoadStart)
       video.removeEventListener('playing', handlePlaying)
       video.removeEventListener('waiting', handleWaiting)
@@ -845,20 +853,20 @@ export function HlsPlayer({
       if (sloTimer !== undefined) clearInterval(sloTimer)
       progress.reset()
     }
+    disposeAttachmentRef.current = disposeAttachment
+    return disposeAttachment
   }, [
-    hlsInstance,
+    attachment,
     latencyProfile,
     onBalancedUnavailable,
     onUltraLowFailure,
     onUltraLowUnavailable,
     profile,
     profileExitReason,
-    providerKind,
     reloadKey,
     progress,
     startRun,
     status.live,
-    videoElement,
   ])
 
   const retry = () => setReloadKey((key) => key + 1)
@@ -874,13 +882,11 @@ export function HlsPlayer({
           hlsConfig={hlsConfig}
           key={`${latencyProfile}-${usingFallback}-${reloadKey}`}
           liveEdgeTolerance={profile.liveSyncDuration}
-          onHlsInstanceChange={setHlsInstance}
-          onProviderKindChange={setProviderKind}
+          onProviderAttachmentChange={onProviderAttachmentChange}
           chatOpen={chatOpen}
           onOpenChat={onOpenChat}
           onTheaterModeChange={onTheaterModeChange}
           onUserPauseChange={handleUserPauseChange}
-          onVideoElementChange={onVideoElementChange}
           poster={channel.poster}
           seekableLive
           src={playerSource}

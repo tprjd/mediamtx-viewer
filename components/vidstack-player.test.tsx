@@ -117,9 +117,73 @@ describe('VidstackPlayer', () => {
 
   afterEach(cleanup)
 
+  it('waits for the hls.js instance before reporting a complete attachment', () => {
+    mocks.provider.onInstance.mockReturnValue(vi.fn())
+    const onProviderAttachmentChange = vi.fn()
+    render(
+      <VidstackPlayer
+        ariaLabel="Live channel video"
+        onProviderAttachmentChange={onProviderAttachmentChange}
+      />,
+    )
+
+    expect(onProviderAttachmentChange).toHaveBeenLastCalledWith(null)
+    act(() => mocks.provider.onInstance.mock.calls[0][0](mocks.hlsInstance))
+    expect(onProviderAttachmentChange).toHaveBeenLastCalledWith({
+      kind: 'hls', video: mocks.provider.video, hls: mocks.hlsInstance,
+    })
+  })
+
+  it.each(['hls', 'native'] as const)('ignores retired instance callbacks after replacement with %s and unmount', (kind) => {
+    const disposeFirst = vi.fn()
+    const disposeNext = vi.fn()
+    mocks.provider.onInstance.mockReturnValue(disposeFirst)
+    const onProviderAttachmentChange = vi.fn()
+    const onVideoElementChange = vi.fn()
+    const view = render(
+      <VidstackPlayer
+        ariaLabel="Live channel video"
+        onProviderAttachmentChange={onProviderAttachmentChange}
+        onVideoElementChange={onVideoElementChange}
+      />,
+    )
+    const notifyFirst = mocks.provider.onInstance.mock.calls[0][0]
+    const next = {
+      ...mocks.provider, kind, video: document.createElement('video'),
+      onInstance: vi.fn().mockReturnValue(disposeNext),
+    }
+    const { onProviderChange } = mocks.lastMediaPlayerProps as {
+      onProviderChange: (provider: typeof next | null) => void
+    }
+    act(() => onProviderChange(next))
+    expect(disposeFirst).toHaveBeenCalledOnce()
+
+    act(() => notifyFirst(mocks.hlsInstance))
+    expect(onProviderAttachmentChange).toHaveBeenLastCalledWith(
+      kind === 'hls' ? null : { kind: 'native', video: next.video },
+    )
+    if (kind === 'hls') {
+      act(() => next.onInstance.mock.calls[0][0](mocks.hlsInstance))
+      expect(onProviderAttachmentChange).toHaveBeenLastCalledWith({
+        kind: 'hls', video: next.video, hls: mocks.hlsInstance,
+      })
+    }
+    expect(onVideoElementChange).toHaveBeenLastCalledWith(next.video)
+
+    view.unmount()
+    expect(onProviderAttachmentChange).toHaveBeenLastCalledWith(null)
+    expect(onVideoElementChange).toHaveBeenLastCalledWith(null)
+    if (kind === 'hls') expect(disposeNext).toHaveBeenCalledOnce()
+    onProviderAttachmentChange.mockClear()
+    act(() => {
+      notifyFirst(mocks.hlsInstance)
+      next.onInstance.mock.calls[0]?.[0](mocks.hlsInstance)
+    })
+    expect(onProviderAttachmentChange).not.toHaveBeenCalled()
+  })
+
   it('configures Vidstack to use the bundled hls.js instance', () => {
-    const onHlsInstanceChange = vi.fn()
-    const onProviderKindChange = vi.fn()
+    const onProviderAttachmentChange = vi.fn()
     const onVideoElementChange = vi.fn()
     const config = { liveSyncDuration: 1.2, liveMaxLatencyDuration: 2 }
 
@@ -127,8 +191,7 @@ describe('VidstackPlayer', () => {
       <VidstackPlayer
         ariaLabel="Live channel video"
         hlsConfig={config}
-        onHlsInstanceChange={onHlsInstanceChange}
-        onProviderKindChange={onProviderKindChange}
+        onProviderAttachmentChange={onProviderAttachmentChange}
         onVideoElementChange={onVideoElementChange}
         seekableLive
       />,
@@ -136,8 +199,9 @@ describe('VidstackPlayer', () => {
 
     expect(mocks.provider.library).toBe(mocks.LocalHls)
     expect(mocks.provider.config).toEqual(config)
-    expect(onHlsInstanceChange).toHaveBeenCalledWith(mocks.hlsInstance)
-    expect(onProviderKindChange).toHaveBeenCalledWith('hls')
+    expect(onProviderAttachmentChange).toHaveBeenLastCalledWith({
+      kind: 'hls', video: mocks.provider.video, hls: mocks.hlsInstance,
+    })
     expect(onVideoElementChange).toHaveBeenCalledWith(mocks.provider.video)
     expect(screen.getByRole('button', { name: 'Play video' })).toBeInTheDocument()
     expect(
@@ -147,22 +211,21 @@ describe('VidstackPlayer', () => {
 
   it('reports the native video provider without creating hls.js', () => {
     mocks.provider.kind = 'native'
-    const onHlsInstanceChange = vi.fn()
-    const onProviderKindChange = vi.fn()
+    const onProviderAttachmentChange = vi.fn()
     const onVideoElementChange = vi.fn()
 
     render(
       <VidstackPlayer
         ariaLabel="Live channel video"
-        onHlsInstanceChange={onHlsInstanceChange}
-        onProviderKindChange={onProviderKindChange}
+        onProviderAttachmentChange={onProviderAttachmentChange}
         onVideoElementChange={onVideoElementChange}
       />,
     )
 
     expect(mocks.provider.onInstance).not.toHaveBeenCalled()
-    expect(onHlsInstanceChange).toHaveBeenCalledWith(null)
-    expect(onProviderKindChange).toHaveBeenCalledWith('native')
+    expect(onProviderAttachmentChange).toHaveBeenLastCalledWith({
+      kind: 'native', video: mocks.provider.video,
+    })
     expect(onVideoElementChange).toHaveBeenCalledWith(mocks.provider.video)
     expect(screen.getByText('Live')).toBeInTheDocument()
   })

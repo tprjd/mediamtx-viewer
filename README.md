@@ -94,6 +94,14 @@ progress checks, Viewing access checks, and pending recovery work.
 [`components/use-playback-run.ts`](components/use-playback-run.ts) connects it
 to React, browser connectivity, page visibility, and intentional pauses.
 HLS and WebRTC adapters still own their media connections and transport actions.
+`VidstackPlayer` reports one complete HLS provider attachment: the provider kind,
+video element, and hls.js instance when applicable. It waits for that instance
+before reporting an hls.js attachment. Native HLS needs only its video element.
+`HlsPlayer` retires the old attachment's listeners, timers, and pending recovery
+work as soon as the provider changes. Late events cannot change the replacement's
+state. Vidstack remains responsible for creating and destroying hls.js instances
+and for its built-in media recovery. WebRTC retains its video-element callback.
+
 [`components/use-playback-mode.ts`](components/use-playback-mode.ts) owns
 selection, eligibility, and fallback between playback modes. Its `selectableModes`
 list supplies both control layouts, and `selectMode` rejects unavailable user

@@ -16,6 +16,7 @@ interface FakeHlsInstance {
   liveSyncPosition: number | null
   latency: number
   emit(event: string, data?: unknown): void
+  queueEvent(event: string, data?: unknown): () => void
 }
 
 const mocks = vi.hoisted(() => {
@@ -60,6 +61,11 @@ const mocks = vi.hoisted(() => {
       }
       this.listeners.get(event)?.(event, data)
     }
+
+    queueEvent(event: string, data?: unknown) {
+      const listener = this.listeners.get(event)
+      return () => listener?.(event, data)
+    }
   }
 
   return {
@@ -68,6 +74,7 @@ const mocks = vi.hoisted(() => {
     getSession: vi.fn(),
     playbackStats: vi.fn(),
     userPauseChange: undefined as ((paused: boolean) => void) | undefined,
+    detachProvider: undefined as (() => void) | undefined,
     videoAlreadyPlaying: false,
   }
 })
@@ -92,24 +99,25 @@ vi.mock('@/components/vidstack-player', async () => {
       ariaLabel,
       children,
       hlsConfig,
-      onHlsInstanceChange,
-      onProviderKindChange,
+      onProviderAttachmentChange,
       onUserPauseChange,
-      onVideoElementChange,
       poster,
     }: {
       ariaLabel: string
       children?: React.ReactNode
       hlsConfig?: Record<string, unknown>
-      onHlsInstanceChange?: (instance: FakeHlsInstance | null) => void
-      onProviderKindChange?: (kind: 'hls' | 'native' | null) => void
+      onProviderAttachmentChange?: (attachment:
+        | { kind: 'hls'; video: HTMLVideoElement; hls: FakeHlsInstance }
+        | { kind: 'native'; video: HTMLVideoElement }
+        | null
+      ) => void
       onUserPauseChange?: (paused: boolean) => void
-      onVideoElementChange?: (video: HTMLVideoElement | null) => void
       poster?: string
     }) => {
       const videoRef = React.useRef<HTMLVideoElement>(null)
 
       mocks.userPauseChange = onUserPauseChange
+      mocks.detachProvider = () => onProviderAttachmentChange?.(null)
 
       React.useEffect(() => {
         const video = videoRef.current
@@ -125,29 +133,22 @@ vi.mock('@/components/vidstack-player', async () => {
             value: HTMLMediaElement.HAVE_ENOUGH_DATA,
           })
         }
-        onVideoElementChange?.(video)
         if (mocks.FakeHls.isSupported()) {
           const instance = new mocks.FakeHls(hlsConfig ?? {})
-          onProviderKindChange?.('hls')
-          onHlsInstanceChange?.(instance)
+          onProviderAttachmentChange?.({ kind: 'hls', video, hls: instance })
           return () => {
             instance.destroy()
-            onHlsInstanceChange?.(null)
-            onProviderKindChange?.(null)
-            onVideoElementChange?.(null)
+            onProviderAttachmentChange?.(null)
           }
         }
 
-        onProviderKindChange?.('native')
+        onProviderAttachmentChange?.({ kind: 'native', video })
         return () => {
-          onProviderKindChange?.(null)
-          onVideoElementChange?.(null)
+          onProviderAttachmentChange?.(null)
         }
       }, [
         hlsConfig,
-        onHlsInstanceChange,
-        onProviderKindChange,
-        onVideoElementChange,
+        onProviderAttachmentChange,
       ])
 
       return (
@@ -198,6 +199,7 @@ describe('HlsPlayer recovery', () => {
     mocks.instances.length = 0
     mocks.playbackStats.mockClear()
     mocks.userPauseChange = undefined
+    mocks.detachProvider = undefined
     mocks.videoAlreadyPlaying = false
     mocks.FakeHls.isSupported = () => true
     vi.stubGlobal('MediaError', { MEDIA_ERR_SRC_NOT_SUPPORTED: 4 })
@@ -267,6 +269,46 @@ describe('HlsPlayer recovery', () => {
 
     expect(mocks.instances).toHaveLength(1)
     expect(screen.queryByText('Reconnecting')).not.toBeInTheDocument()
+  })
+
+  it.each(['replacement', 'unmount'])('retires queued HLS events and pending retries on %s', async (action) => {
+    const onUltraLowUnavailable = vi.fn()
+    const view = render(
+      <HlsPlayer channel={channel} latencyProfile="ultra-low" onUltraLowUnavailable={onUltraLowUnavailable} />,
+    )
+    await act(async () => Promise.resolve())
+    const retired = mocks.instances[0]
+    const latePlaylist = retired.queueEvent('levelUpdated', { details: { partTarget: 1 } })
+    act(() => retired.emit('error', {
+      fatal: true, type: 'networkError', details: 'fragLoadError',
+    }))
+
+    if (action === 'replacement') {
+      view.rerender(<HlsPlayer channel={channel} latencyProfile="smooth" onUltraLowUnavailable={onUltraLowUnavailable} />)
+    } else {
+      view.unmount()
+    }
+    await act(async () => {
+      latePlaylist()
+      retired.emit('manifestParsed')
+      await vi.advanceTimersByTimeAsync(15_000)
+    })
+    expect(onUltraLowUnavailable).not.toHaveBeenCalled()
+    expect(mocks.instances).toHaveLength(action === 'replacement' ? 2 : 1)
+  })
+
+  it('retires the attachment before React processes the provider change', async () => {
+    const onUltraLowUnavailable = vi.fn()
+    render(<HlsPlayer channel={channel} latencyProfile="ultra-low" onUltraLowUnavailable={onUltraLowUnavailable} />)
+    await act(async () => Promise.resolve())
+    const latePlaylist = mocks.instances[0].queueEvent('levelUpdated', { details: { partTarget: 1 } })
+
+    act(() => {
+      mocks.detachProvider?.()
+      latePlaylist()
+    })
+
+    expect(onUltraLowUnavailable).not.toHaveBeenCalled()
   })
 
   it('does not reconnect when a successful session check completes after playback resumes', async () => {
