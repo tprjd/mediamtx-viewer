@@ -7,10 +7,8 @@ import { createPortal } from 'react-dom'
 import { useMemo, useState } from 'react'
 import styles from './live-player.module.css'
 
-import {
-  HlsPlayer,
-  isHlsJsSupported,
-} from '@/components/hls-player'
+import { HlsPlayer } from '@/components/hls-player'
+import { isHlsJsSupported } from '@/components/use-hls-playback'
 import { Tooltip } from '@/components/ui/tooltip'
 import { usePlaybackMode } from '@/components/use-playback-mode'
 import { WebRtcPlayer } from '@/components/webrtc-player'

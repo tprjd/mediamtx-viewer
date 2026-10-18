@@ -97,10 +97,15 @@ HLS and WebRTC adapters still own their media connections and transport actions.
 `VidstackPlayer` reports one complete HLS provider attachment: the provider kind,
 video element, and hls.js instance when applicable. It waits for that instance
 before reporting an hls.js attachment. Native HLS needs only its video element.
-`HlsPlayer` retires the old attachment's listeners, timers, and pending recovery
-work as soon as the provider changes. Late events cannot change the replacement's
-state. Vidstack remains responsible for creating and destroying hls.js instances
-and for its built-in media recovery. WebRTC retains its video-element callback.
+[`components/use-hls-playback.ts`](components/use-hls-playback.ts) owns application
+HLS configuration, subscriptions, timers, transport actions, native observations,
+diagnostics, retries, and compatibility-stream selection. It retires the old
+attachment's listeners, timers, and pending recovery work as soon as the provider
+changes. Late events cannot change the replacement's state. `HlsPlayer` renders
+the hook's state and diagnostics and passes its provider wiring and user actions
+to the shared player and controls. Vidstack remains responsible for creating,
+loading, and destroying hls.js instances and for its built-in media recovery.
+WebRTC retains its video-element callback.
 
 [`components/use-playback-mode.ts`](components/use-playback-mode.ts) owns
 selection, eligibility, and fallback between playback modes. Its `selectableModes`

@@ -1,0 +1,861 @@
+'use client'
+
+import Hls, { ErrorDetails, ErrorTypes, type ErrorData, type LevelUpdatedData } from 'hls.js'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import type { HlsPlaybackDiagnostics } from '@/components/playback-stats'
+import type { VidstackProviderAttachment } from '@/components/vidstack-player'
+import { usePlaybackRun } from '@/components/use-playback-run'
+import {
+  adaptiveLatencyProfile,
+  hlsPackagingContract,
+  hlsPlaybackContract,
+  type HlsLatencyProfile,
+} from '@/lib/streaming-contract'
+import type { PublicChannel } from '@/lib/types'
+
+export interface HlsPlaybackOptions {
+  channel: PublicChannel
+  latencyProfile: HlsLatencyProfile
+  onBalancedUnavailable?: () => void
+  onUltraLowFailure?: (reason: string) => void
+  onUltraLowUnavailable?: (reason?: string) => void
+  profileExitReason?: string
+}
+
+interface HlsLatencyProfileConfig {
+  backBufferLength: number
+  forwardBufferLimit?: number
+  label: string
+  maxBufferLengthSeconds?: number
+  liveMaxLatencyDuration: number
+  liveSyncDuration: number
+  liveSyncOnStallIncrease: number
+  maxBufferLength?: number
+  maxLiveSyncPlaybackRate: number
+  maxMaxBufferLength?: number
+}
+
+const ultraLowContract = hlsPlaybackContract('ultra-low')
+const balancedContract = hlsPlaybackContract('balanced')
+const smoothContract = hlsPlaybackContract('smooth')
+const packagingContract = hlsPackagingContract()
+
+const HLS_LATENCY_PROFILES = {
+  'ultra-low': {
+    backBufferLength: 0,
+    forwardBufferLimit: ultraLowContract.forwardBufferCeilingSeconds,
+    label: ultraLowContract.label,
+    liveMaxLatencyDuration: ultraLowContract.correctiveLatencyCeilingSeconds,
+    liveSyncDuration: ultraLowContract.targetLatencySeconds,
+    liveSyncOnStallIncrease: 0,
+    maxBufferLength: ultraLowContract.maxBufferLengthSeconds,
+    maxLiveSyncPlaybackRate: 1.05,
+    maxMaxBufferLength: ultraLowContract.maxBufferLengthSeconds,
+  },
+  balanced: {
+    backBufferLength: 30,
+    label: balancedContract.label,
+    liveMaxLatencyDuration: balancedContract.correctiveLatencyCeilingSeconds,
+    liveSyncDuration: balancedContract.targetLatencySeconds,
+    liveSyncOnStallIncrease: 0.5,
+    maxLiveSyncPlaybackRate: 1.03,
+  },
+  smooth: {
+    backBufferLength: 30,
+    label: smoothContract.label,
+    liveMaxLatencyDuration: smoothContract.correctiveLatencyCeilingSeconds,
+    liveSyncDuration: smoothContract.targetLatencySeconds,
+    liveSyncOnStallIncrease: 1,
+    maxLiveSyncPlaybackRate: 1.02,
+  },
+} as const satisfies Record<HlsLatencyProfile, HlsLatencyProfileConfig>
+
+const ULTRA_LOW_SAMPLE_INTERVAL_MS = 250
+const ULTRA_LOW_CORRECTION_COOLDOWN_MS = 1_000
+const ULTRA_LOW_FAILURE_WINDOW_MS = 30_000
+
+interface HlsSloState {
+  correctiveSeekCount: number
+  forwardBufferBreaching: boolean
+  forwardBufferBreachCount: number
+  lastBreachAt?: string
+  lastBreachMetric?: 'forwardBuffer' | 'liveLatency'
+  lastBreachValueSeconds?: number
+  latencyBreaching: boolean
+  latencyBreachCount: number
+  latencyCorrectionAt?: number
+  latencyRecoveryScheduled: boolean
+  maxObservedForwardBufferSeconds?: number
+  maxObservedLatencySeconds?: number
+}
+
+function createHlsSloState(): HlsSloState {
+  return {
+    correctiveSeekCount: 0,
+    forwardBufferBreaching: false,
+    forwardBufferBreachCount: 0,
+    latencyBreaching: false,
+    latencyBreachCount: 0,
+    latencyRecoveryScheduled: false,
+  }
+}
+
+export function isHlsJsSupported(): boolean {
+  return Hls.isSupported()
+}
+
+function isCodecError(details: ErrorDetails): boolean {
+  return details.toLowerCase().includes('codec')
+}
+
+function readForwardBuffer(video: HTMLVideoElement): number | undefined {
+  try {
+    for (let index = 0; index < video.buffered.length; index += 1) {
+      const start = video.buffered.start(index)
+      const end = video.buffered.end(index)
+      if (video.currentTime >= start - 0.05 && video.currentTime <= end) {
+        return Math.max(0, end - video.currentTime)
+      }
+    }
+  } catch {
+    // TimeRanges can change between reading its length and range boundaries.
+  }
+  return undefined
+}
+
+function readNativeLiveEdge(video: HTMLVideoElement): number | undefined {
+  try {
+    if (video.seekable.length === 0) return undefined
+    return video.seekable.end(video.seekable.length - 1)
+  } catch {
+    return undefined
+  }
+}
+
+function readNativeSeekTarget(
+  video: HTMLVideoElement,
+  liveEdge: number,
+  targetLatency: number,
+): number | undefined {
+  try {
+    if (video.seekable.length === 0) return undefined
+    return Math.max(
+      video.seekable.start(video.seekable.length - 1),
+      liveEdge - targetLatency,
+    )
+  } catch {
+    return undefined
+  }
+}
+
+export function useHlsPlayback({
+  channel,
+  latencyProfile,
+  onBalancedUnavailable,
+  onUltraLowFailure,
+  onUltraLowUnavailable,
+  profileExitReason,
+}: HlsPlaybackOptions) {
+  const recoveryRef = useRef({ attempts: 0 })
+  const lastCorrectionRef = useRef<string>(undefined)
+  const sloRef = useRef<HlsSloState>(createHlsSloState())
+  const ultraLowInstabilityRef = useRef<number[]>([])
+  const ultraLowLastInstabilityRef = useRef<number>(undefined)
+  const profile: HlsLatencyProfileConfig = HLS_LATENCY_PROFILES[latencyProfile]
+  const [reloadKey, setReloadKey] = useState(0)
+  const [usingFallback, setUsingFallback] = useState(false)
+  const [attachment, setAttachment] = useState<VidstackProviderAttachment | null>(null)
+  const disposeAttachmentRef = useRef<(() => void) | undefined>(undefined)
+  const status = channel.status
+  const {
+    allowsAutomaticPlay,
+    onUserPauseChange,
+    onVideoElementChange,
+    progress,
+    report: setPlaybackPhase,
+    startRun,
+    state: visibleState,
+    videoRef,
+  } = usePlaybackRun(status.live)
+  const onProviderAttachmentChange = useCallback((next: VidstackProviderAttachment | null) => {
+    // Retire old work before React commits the replacement attachment.
+    disposeAttachmentRef.current?.()
+    disposeAttachmentRef.current = undefined
+    onVideoElementChange(next?.video ?? null)
+    setAttachment(next)
+  }, [onVideoElementChange])
+  const [hlsDiagnostics, setHlsDiagnostics] = useState<HlsPlaybackDiagnostics>({
+    maxLatencySeconds: profile.liveMaxLatencyDuration,
+    playbackRate: 1,
+    profileExitReason,
+    targetLatencySeconds: profile.liveSyncDuration,
+  })
+  const sourceUrl =
+    usingFallback && channel.playback.fallbackHls
+      ? channel.playback.fallbackHls
+      : channel.playback.hls
+  const hlsConfig = useMemo(
+    () => ({
+      lowLatencyMode: true,
+      liveSyncMode: 'edge' as const,
+      backBufferLength: profile.backBufferLength,
+      liveSyncDuration: profile.liveSyncDuration,
+      liveMaxLatencyDuration: profile.liveMaxLatencyDuration,
+      ...(profile.maxBufferLength === undefined
+        ? {}
+        : { maxBufferLength: profile.maxBufferLength }),
+      ...(profile.maxMaxBufferLength === undefined
+        ? {}
+        : { maxMaxBufferLength: profile.maxMaxBufferLength }),
+      maxLiveSyncPlaybackRate: profile.maxLiveSyncPlaybackRate,
+      liveSyncOnStallIncrease: profile.liveSyncOnStallIncrease,
+    }),
+    [profile],
+  )
+  const playerSource = useMemo(
+    () =>
+      status.live
+        ? { src: sourceUrl, type: 'application/vnd.apple.mpegurl' as const }
+        : undefined,
+    [sourceUrl, status.live],
+  )
+
+  const handleUserPauseChange = (paused: boolean) => {
+    onUserPauseChange(paused)
+    // hls.js can seek to the live edge on playlist refresh even while paused.
+    const hlsInstance = attachment?.kind === 'hls' ? attachment.hls : undefined
+    if (paused) hlsInstance?.stopLoad()
+    else if (allowsAutomaticPlay()) hlsInstance?.startLoad()
+  }
+
+  useEffect(() => {
+    if (latencyProfile !== 'ultra-low') return
+    sloRef.current = createHlsSloState()
+    ultraLowInstabilityRef.current = []
+    ultraLowLastInstabilityRef.current = undefined
+  }, [latencyProfile])
+
+  useEffect(() => {
+    if (!status.live || Hls.isSupported()) return
+    const nativeHlsSupported = Boolean(
+      document.createElement('video').canPlayType('application/vnd.apple.mpegurl'),
+    )
+    const unsupportedTimer = setTimeout(() => {
+      if (latencyProfile === 'ultra-low') {
+        setPlaybackPhase('unsupported')
+        onUltraLowUnavailable?.()
+      } else if (!nativeHlsSupported) {
+        setPlaybackPhase('unsupported')
+      }
+    }, 0)
+    return () => clearTimeout(unsupportedTimer)
+  }, [latencyProfile, onUltraLowUnavailable, setPlaybackPhase, status.live])
+
+  useEffect(() => {
+    if (!attachment) return
+    const { video } = attachment
+
+    let active = true
+    const hls = attachment.kind === 'hls' ? attachment.hls : undefined
+    let codecErrorTimer: ReturnType<typeof setTimeout> | undefined
+    let waitingTimer: ReturnType<typeof setTimeout> | undefined
+    let mediaRecoveryAttempted = false
+    let softRecoveryAttempted = false
+    let everPlayed = false
+    const nativeHls = attachment.kind === 'native'
+    let excessiveNativeLatencySamples = 0
+    let missingNativeLiveEdgeSamples = 0
+    let reportedBalancedUnavailable = false
+    let reportedUltraLowPackagingUnsupported = false
+    let lastMeasuredLatency: number | undefined
+    const slo = sloRef.current
+
+    // The active HLS instance owns playlist observations and resets them when
+    // its source changes. Do not retain a second copy across modes or retries.
+    const readTiming = () => {
+      const details = latencyProfile === 'ultra-low' ? hls?.latestLevelDetails : null
+      const measuredSegmentSeconds = details &&
+        details.partTarget > 0 &&
+        details.partTarget <= packagingContract.partDurationSeconds + 0.05
+        ? details.averagetargetduration ?? details.targetduration
+        : undefined
+      const adaptive = measuredSegmentSeconds === undefined
+        ? undefined
+        : adaptiveLatencyProfile(measuredSegmentSeconds)
+
+      return {
+        adaptiveTargetSeconds: adaptive?.targetLatencySeconds,
+        adaptiveCeilingSeconds: adaptive?.correctiveLatencyCeilingSeconds,
+        measuredSegmentSeconds,
+        targetLatencySeconds: adaptive?.targetLatencySeconds ?? profile.liveSyncDuration,
+        maxLatencySeconds:
+          adaptive?.correctiveLatencyCeilingSeconds ?? profile.liveMaxLatencyDuration,
+        // Learning a longer segment can relax the ceiling, but never remove
+        // the contract's margin above the fixed hls.js loading limit.
+        configuredMaxForwardBufferSeconds: profile.forwardBufferLimit === undefined
+          ? undefined
+          : Math.max(profile.forwardBufferLimit, adaptive?.maxBufferLengthSeconds ?? 0),
+        forwardBufferLoadLimitSeconds: profile.maxMaxBufferLength,
+      }
+    }
+
+    progress.reset()
+    slo.forwardBufferBreaching = false
+    slo.latencyBreaching = false
+    slo.latencyCorrectionAt = undefined
+    slo.latencyRecoveryScheduled = false
+
+    setHlsDiagnostics({
+      ...readTiming(),
+      correctiveSeekCount: slo.correctiveSeekCount,
+      forwardBufferBreachCount: slo.forwardBufferBreachCount,
+      lastBreachAt: slo.lastBreachAt,
+      lastBreachMetric: slo.lastBreachMetric,
+      lastBreachValueSeconds: slo.lastBreachValueSeconds,
+      latencyBreachCount: slo.latencyBreachCount,
+      maxObservedForwardBufferSeconds: slo.maxObservedForwardBufferSeconds,
+      maxObservedLatencySeconds: slo.maxObservedLatencySeconds,
+      lastCorrection: lastCorrectionRef.current,
+      playbackRate: video.playbackRate,
+      profileExitReason,
+    })
+
+    if (!status.live) {
+      video.pause()
+      return
+    }
+
+    const run = startRun({
+      stop: () => {
+        clearTimeout(codecErrorTimer)
+        hls?.stopLoad()
+        video.pause()
+      },
+      resume: () => scheduleRecreate(true),
+    })
+    const canRecover = () => run.canRecover()
+
+    const markCorrection = (reason: string, correctiveSeek = false) => {
+      lastCorrectionRef.current = reason
+      if (correctiveSeek && latencyProfile === 'ultra-low') {
+        slo.correctiveSeekCount += 1
+      }
+    }
+
+    const publishDiagnostics = () => {
+      if (!active) return
+      const details = hls?.latestLevelDetails
+      const nativeLiveEdge = nativeHls ? readNativeLiveEdge(video) : undefined
+      const measuredLatency = hls
+        ? hls.latency > 0
+          ? hls.latency
+          : undefined
+        : nativeLiveEdge === undefined
+          ? undefined
+          : Math.max(0, nativeLiveEdge - video.currentTime)
+      const playingDate = hls?.playingDate
+      const playingDateLatency = playingDate
+        ? Math.max(0, (Date.now() - playingDate.getTime()) / 1_000)
+        : undefined
+
+      lastMeasuredLatency = measuredLatency
+      setHlsDiagnostics({
+        ...readTiming(),
+        bufferAheadSeconds: readForwardBuffer(video),
+        correctiveSeekCount: slo.correctiveSeekCount,
+        engine: nativeHls ? 'native HLS' : hls ? 'hls.js' : undefined,
+        forwardBufferBreachCount: slo.forwardBufferBreachCount,
+        lastCorrection: lastCorrectionRef.current,
+        lastBreachAt: slo.lastBreachAt,
+        lastBreachMetric: slo.lastBreachMetric,
+        lastBreachValueSeconds: slo.lastBreachValueSeconds,
+        latencyBreachCount: slo.latencyBreachCount,
+        liveLatencySeconds: measuredLatency,
+        maxObservedForwardBufferSeconds: slo.maxObservedForwardBufferSeconds,
+        maxObservedLatencySeconds: slo.maxObservedLatencySeconds,
+        partHoldBackSeconds: details?.partHoldBack || undefined,
+        partTargetSeconds: details?.partTarget || undefined,
+        playbackRate: video.playbackRate,
+        playingDateLatencySeconds: playingDateLatency,
+        profileExitReason,
+        targetDurationSeconds: details?.targetduration || undefined,
+      })
+    }
+
+    const reportUltraLowInstability = (reason: string): boolean => {
+      if (latencyProfile !== 'ultra-low') return false
+      const now = Date.now()
+      if (
+        ultraLowLastInstabilityRef.current !== undefined &&
+        now - ultraLowLastInstabilityRef.current < ULTRA_LOW_CORRECTION_COOLDOWN_MS
+      ) {
+        return false
+      }
+
+      ultraLowLastInstabilityRef.current = now
+      const recent = ultraLowInstabilityRef.current.filter(
+        (timestamp) => now - timestamp <= ULTRA_LOW_FAILURE_WINDOW_MS,
+      )
+      recent.push(now)
+      ultraLowInstabilityRef.current = recent
+      if (recent.length < 2 || !onUltraLowFailure) return false
+
+      ultraLowInstabilityRef.current = []
+      onUltraLowFailure(
+        `${profile.label} could not be maintained after repeated ${reason}.`,
+      )
+      return true
+    }
+
+    const scheduleRecreate = (
+      immediate = false,
+      instabilityReason = 'playback recoveries',
+    ) => {
+      if (!run.acceptsEvents()) return
+      if (canRecover() && reportUltraLowInstability(instabilityReason)) return
+
+      const attempt = recoveryRef.current.attempts
+      const delay = immediate ? 0 : Math.min(1_000 * 2 ** attempt, 15_000)
+      run.recover(() => {
+        recoveryRef.current.attempts = Math.min(attempt + 1, 8)
+        setReloadKey((key) => key + 1)
+      }, delay)
+    }
+
+    const readProgress = () => {
+      try {
+        const quality = video.getVideoPlaybackQuality?.()
+        if (quality && quality.totalVideoFrames > 0) {
+          return quality.totalVideoFrames
+        }
+      } catch {
+        // Fall back to the media clock on browsers with partial support.
+      }
+      return video.currentTime * 1_000
+    }
+
+    const pollProgress = () => {
+      if (!active) return
+      publishDiagnostics()
+
+      if (
+        nativeHls &&
+        canRecover() &&
+        !video.paused &&
+        !video.ended &&
+        !video.seeking &&
+        video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA
+      ) {
+        const liveEdge = readNativeLiveEdge(video)
+        const latency = liveEdge === undefined
+          ? undefined
+          : Math.max(0, liveEdge - video.currentTime)
+        const bufferAhead = readForwardBuffer(video)
+        const catchUpDistance = latency === undefined
+          ? Number.POSITIVE_INFINITY
+          : Math.max(1, latency - profile.liveSyncDuration)
+
+        if (latencyProfile === 'balanced' && liveEdge === undefined) {
+          missingNativeLiveEdgeSamples += 1
+          if (
+            missingNativeLiveEdgeSamples >= 5 &&
+            !reportedBalancedUnavailable
+          ) {
+            reportedBalancedUnavailable = true
+            onBalancedUnavailable?.()
+          }
+        } else {
+          missingNativeLiveEdgeSamples = 0
+        }
+
+        if (
+          latency !== undefined &&
+          latency > profile.liveMaxLatencyDuration &&
+          bufferAhead !== undefined &&
+          bufferAhead >= catchUpDistance
+        ) {
+          excessiveNativeLatencySamples += 1
+        } else {
+          excessiveNativeLatencySamples = 0
+        }
+
+        if (excessiveNativeLatencySamples > 2 && liveEdge !== undefined) {
+          const seekTarget = readNativeSeekTarget(
+            video,
+            liveEdge,
+            profile.liveSyncDuration,
+          )
+          if (seekTarget !== undefined) {
+            video.currentTime = seekTarget
+            markCorrection(
+              `Native latency exceeded ${profile.liveMaxLatencyDuration}s`,
+              true,
+            )
+          }
+          excessiveNativeLatencySamples = 0
+          publishDiagnostics()
+        }
+      } else {
+        excessiveNativeLatencySamples = 0
+        missingNativeLiveEdgeSamples = 0
+      }
+
+      if (!canRecover() || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        progress.reset()
+        return
+      }
+
+      const progressValue = readProgress()
+      const observation = progress.observe(progressValue)
+      if (observation.stable) {
+        recoveryRef.current.attempts = 0
+        mediaRecoveryAttempted = false
+        softRecoveryAttempted = false
+      }
+      if (!observation.stalled) return
+      run.report('reconnecting')
+
+      if (hls && !softRecoveryAttempted) {
+        softRecoveryAttempted = true
+        const liveEdge = hls.liveSyncPosition
+        if (liveEdge !== null && liveEdge !== undefined) {
+          video.currentTime = liveEdge
+          markCorrection('Frozen playback recovery', true)
+          publishDiagnostics()
+        }
+        hls.startLoad()
+        return
+      }
+
+      scheduleRecreate(false, 'playback stalls')
+    }
+
+    const clearUltraLowBreachWindow = () => {
+      slo.forwardBufferBreaching = false
+      slo.latencyBreaching = false
+      slo.latencyCorrectionAt = undefined
+      slo.latencyRecoveryScheduled = false
+    }
+
+    const recordBreach = (
+      metric: 'forwardBuffer' | 'liveLatency',
+      value: number,
+    ) => {
+      const isLatency = metric === 'liveLatency'
+      const alreadyBreaching = isLatency
+        ? slo.latencyBreaching
+        : slo.forwardBufferBreaching
+      if (alreadyBreaching) return
+
+      if (isLatency) {
+        slo.latencyBreaching = true
+        slo.latencyBreachCount += 1
+      } else {
+        slo.forwardBufferBreaching = true
+        slo.forwardBufferBreachCount += 1
+      }
+      slo.lastBreachAt = new Date().toISOString()
+      slo.lastBreachMetric = metric
+      slo.lastBreachValueSeconds = value
+    }
+
+    const pollUltraLowSlo = () => {
+      if (!active) return
+      if (
+        latencyProfile !== 'ultra-low' ||
+        reportedUltraLowPackagingUnsupported ||
+        !hls ||
+        !everPlayed ||
+        !canRecover() ||
+        video.paused ||
+        video.ended ||
+        video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
+      ) {
+        clearUltraLowBreachWindow()
+        return
+      }
+      if (video.seeking) return
+
+      const latency = hls.latency > 0 ? hls.latency : undefined
+      const forwardBuffer = readForwardBuffer(video)
+      if (latency !== undefined) {
+        slo.maxObservedLatencySeconds = Math.max(
+          slo.maxObservedLatencySeconds ?? 0,
+          latency,
+        )
+      }
+      if (forwardBuffer !== undefined) {
+        slo.maxObservedForwardBufferSeconds = Math.max(
+          slo.maxObservedForwardBufferSeconds ?? 0,
+          forwardBuffer,
+        )
+      }
+
+      const timing = readTiming()
+      const forwardBufferLimit = timing.configuredMaxForwardBufferSeconds
+      if (
+        forwardBuffer !== undefined &&
+        forwardBufferLimit !== undefined &&
+        forwardBuffer > forwardBufferLimit
+      ) {
+        recordBreach('forwardBuffer', forwardBuffer)
+      } else {
+        slo.forwardBufferBreaching = false
+      }
+
+      const latencyCeiling = timing.maxLatencySeconds
+      if (latency === undefined || latency <= latencyCeiling) {
+        slo.latencyBreaching = false
+        slo.latencyCorrectionAt = undefined
+        slo.latencyRecoveryScheduled = false
+        return
+      }
+
+      recordBreach('liveLatency', latency)
+      const now = Date.now()
+      if (slo.latencyCorrectionAt === undefined) {
+        slo.latencyCorrectionAt = now
+        const syncPosition = hls.liveSyncPosition
+        if (syncPosition !== null && syncPosition > video.currentTime) {
+          video.currentTime = syncPosition
+          markCorrection(
+            `${profile.label} latency exceeded ${latencyCeiling}s`,
+            true,
+          )
+        }
+        return
+      }
+
+      if (
+        now - slo.latencyCorrectionAt >= ULTRA_LOW_CORRECTION_COOLDOWN_MS &&
+        !slo.latencyRecoveryScheduled
+      ) {
+        slo.latencyRecoveryScheduled = true
+        scheduleRecreate(true, 'latency recoveries')
+      }
+    }
+
+    const handleLoadStart = () => {
+      if (!everPlayed) run.report('loading')
+    }
+    const handlePlaying = () => {
+      if (!active) return
+      clearTimeout(waitingTimer)
+      if (!run.report('playing')) {
+        video.pause()
+        return
+      }
+      clearTimeout(codecErrorTimer)
+      everPlayed = true
+    }
+    const handleWaiting = () => {
+      if (!run.acceptsEvents() || video.paused || !everPlayed) return
+      clearTimeout(waitingTimer)
+      waitingTimer = setTimeout(() => {
+        if (!run.canRecover() || video.paused || video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return
+        if (reportUltraLowInstability('playback stalls')) return
+        run.report('reconnecting')
+      }, 250)
+    }
+    const handlePause = () => {
+      if (!active) return
+      clearTimeout(waitingTimer)
+      progress.reset()
+    }
+    const handleSeeking = () => {
+      if (!active) return
+      const latencyCeiling = readTiming().maxLatencySeconds
+      if (
+        hls &&
+        lastMeasuredLatency !== undefined &&
+        lastMeasuredLatency > latencyCeiling
+      ) {
+        markCorrection(
+          `hls.js latency exceeded ${latencyCeiling}s`,
+        )
+        publishDiagnostics()
+      }
+    }
+    const handleVideoError = () => {
+      if (!run.acceptsEvents()) return
+      const errorCode = video.error?.code
+      run.checkAccess(() => {
+        if (errorCode !== MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+          scheduleRecreate(false, 'media recoveries')
+        }
+      })
+      if (errorCode === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+        clearTimeout(codecErrorTimer)
+        codecErrorTimer = setTimeout(() => {
+          if (
+            run.acceptsEvents() &&
+            (video.paused || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA)
+          ) {
+            run.report('unsupported')
+          }
+        }, 2_500)
+      }
+    }
+    const handlePlay = () => {
+      if (!active) return
+      if (!run.acceptsEvents()) {
+        video.pause()
+        return
+      }
+      if (hls && hls.latency > readTiming().maxLatencySeconds) {
+        const syncPosition = hls.liveSyncPosition
+        if (syncPosition !== null) {
+          video.currentTime = syncPosition
+          markCorrection('Resume beyond hls.js latency limit', true)
+          publishDiagnostics()
+        }
+      }
+    }
+
+    video.addEventListener('loadstart', handleLoadStart)
+    video.addEventListener('playing', handlePlaying)
+    video.addEventListener('waiting', handleWaiting)
+    // A network "stalled" event can occur while buffered frames still play.
+    // Actual playback stalls are handled by waiting and the progress monitor.
+    video.addEventListener('pause', handlePause)
+    video.addEventListener('error', handleVideoError)
+    video.addEventListener('play', handlePlay)
+    video.addEventListener('seeking', handleSeeking)
+
+    if (
+      !video.paused &&
+      video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+    ) {
+      handlePlaying()
+    }
+
+    const progressTimer = setInterval(pollProgress, 1_000)
+    const sloTimer = latencyProfile === 'ultra-low'
+      ? setInterval(pollUltraLowSlo, ULTRA_LOW_SAMPLE_INTERVAL_MS)
+      : undefined
+
+    const beginPlayback = () => {
+      if (!run.allowsAutomaticPlay()) return
+      void video.play().catch(() => {
+        // The Play control remains available when autoplay is blocked.
+      })
+    }
+
+    const handleLevelUpdated = (_event: string, data: LevelUpdatedData) => {
+      if (!active || latencyProfile !== 'ultra-low') return
+      const { partTarget } = data.details
+
+      // The LL-HLS part cadence is non-negotiable: without small parts the
+      // stream cannot be low latency at all.
+      if (partTarget <= 0 || partTarget > packagingContract.partDurationSeconds + 0.05) {
+        reportedUltraLowPackagingUnsupported = true
+        onUltraLowUnavailable?.(
+          `${profile.label} requires LL-HLS parts no longer than ${(packagingContract.partDurationSeconds + 0.05) * 1_000}ms.`,
+        )
+      }
+    }
+    const handleHlsError = (_event: string, data: ErrorData) => {
+      if (!data.fatal || !run.acceptsEvents()) return
+
+      if (data.response?.code === 401 || data.response?.code === 403) {
+        run.report('unauthorized')
+        return
+      }
+
+      if (isCodecError(data.details)) {
+        run.report('unsupported')
+        return
+      }
+
+      if (data.type === ErrorTypes.NETWORK_ERROR) {
+        scheduleRecreate()
+        return
+      }
+
+      if (data.type === ErrorTypes.MEDIA_ERROR && !mediaRecoveryAttempted) {
+        mediaRecoveryAttempted = true
+        // Vidstack's HLS provider already recovered this error before this
+        // listener ran. A second recovery would detach the media again.
+        run.report('reconnecting')
+        return
+      }
+
+      if (data.details === ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR) {
+        run.report('unsupported')
+        return
+      }
+
+      scheduleRecreate()
+    }
+
+    if (hls) {
+      hls.on(Hls.Events.MANIFEST_PARSED, beginPlayback)
+      hls.on(Hls.Events.LEVEL_UPDATED, handleLevelUpdated)
+      hls.on(Hls.Events.ERROR, handleHlsError)
+      publishDiagnostics()
+      if (run.allowsAutomaticPlay()) beginPlayback()
+      else hls.stopLoad()
+    } else if (nativeHls) {
+      publishDiagnostics()
+      beginPlayback()
+    }
+
+    const disposeAttachment = () => {
+      if (!active) return
+      active = false
+      run.dispose()
+      video.removeEventListener('loadstart', handleLoadStart)
+      video.removeEventListener('playing', handlePlaying)
+      video.removeEventListener('waiting', handleWaiting)
+      video.removeEventListener('pause', handlePause)
+      video.removeEventListener('error', handleVideoError)
+      video.removeEventListener('play', handlePlay)
+      video.removeEventListener('seeking', handleSeeking)
+      hls?.off(Hls.Events.MANIFEST_PARSED, beginPlayback)
+      hls?.off(Hls.Events.LEVEL_UPDATED, handleLevelUpdated)
+      hls?.off(Hls.Events.ERROR, handleHlsError)
+      clearTimeout(codecErrorTimer)
+      clearTimeout(waitingTimer)
+      clearInterval(progressTimer)
+      if (sloTimer !== undefined) clearInterval(sloTimer)
+      progress.reset()
+    }
+    disposeAttachmentRef.current = disposeAttachment
+    return disposeAttachment
+  }, [
+    attachment,
+    latencyProfile,
+    onBalancedUnavailable,
+    onUltraLowFailure,
+    onUltraLowUnavailable,
+    profile,
+    profileExitReason,
+    reloadKey,
+    progress,
+    startRun,
+    status.live,
+  ])
+
+  const retry = () => setReloadKey((key) => key + 1)
+
+  return {
+    playerKey: `${latencyProfile}-${usingFallback}-${reloadKey}`,
+    playerProps: {
+      hlsConfig,
+      liveEdgeTolerance: profile.liveSyncDuration,
+      onProviderAttachmentChange,
+      onUserPauseChange: handleUserPauseChange,
+      seekableLive: true,
+      src: playerSource,
+      streamType: 'll-live' as const,
+    },
+    state: visibleState,
+    diagnostics: hlsDiagnostics,
+    label: profile.label,
+    usingFallback,
+    selectCompatibilityStream: () => setUsingFallback(true),
+    retry,
+    videoRef,
+  }
+}

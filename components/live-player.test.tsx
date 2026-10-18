@@ -9,6 +9,10 @@ const mocks = vi.hoisted(() => ({
   isHlsJsSupported: vi.fn(() => true),
 }))
 
+vi.mock('@/components/use-hls-playback', () => ({
+  isHlsJsSupported: mocks.isHlsJsSupported,
+}))
+
 vi.mock('@/components/hls-player', () => ({
   HlsPlayer: ({
     channel,
@@ -46,7 +50,6 @@ vi.mock('@/components/hls-player', () => ({
       )}
     </div>
   ),
-  isHlsJsSupported: mocks.isHlsJsSupported,
 }))
 
 vi.mock('@/components/webrtc-player', () => ({
