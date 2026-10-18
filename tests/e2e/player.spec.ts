@@ -2,12 +2,19 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import type { Page } from '@playwright/test'
+import type Hls from 'hls.js'
 import { expect, test } from './fixtures/viewer-session'
 
-async function prepareLivePlayback(page: Page) {
-  await page.addInitScript(() =>
-    sessionStorage.setItem('mediamtx-viewer:playback-mode', 'balanced'),
-  )
+declare global {
+  interface Window {
+    __hlsRecoveryProbe?: { instance: Hls; recoveries: number; detachments: number }
+  }
+}
+
+async function prepareLivePlayback(page: Page, mode = 'balanced') {
+  await page.addInitScript((mode) =>
+    sessionStorage.setItem('mediamtx-viewer:playback-mode', mode),
+  mode)
   const playlist = readFileSync(
     resolve('tests/e2e/fixtures/chat-playback/index.m3u8'), 'utf8',
   )
@@ -47,6 +54,52 @@ async function prepareLivePlayback(page: Page) {
 
   return { video, advanceLiveEdge: () => { extraSegments += 10 } }
 }
+
+test('recovers once from a fatal HLS media error and resumes Smooth playback', async ({ page }) => {
+  // Observe the real provider through Vidstack's instance event. Keep both
+  // Vidstack's error handler and hls.js media recovery active.
+  await page.addInitScript(() => {
+    document.addEventListener('hls-instance', (event) => {
+      const instance = (event as CustomEvent<Hls>).detail
+      const probe = { instance, recoveries: 0, detachments: 0 }
+      window.__hlsRecoveryProbe = probe
+      const recover = instance.recoverMediaError.bind(instance)
+      instance.recoverMediaError = () => {
+        probe.recoveries += 1
+        recover()
+      }
+      const ctor = instance.constructor as typeof Hls
+      instance.on(ctor.Events.MEDIA_DETACHING, () => { probe.detachments += 1 })
+    }, true)
+  })
+
+  const { video } = await prepareLivePlayback(page, 'smooth')
+  await video.evaluate((element: HTMLVideoElement) => { element.currentTime = 12 })
+  await expect.poll(() => video.evaluate((element: HTMLVideoElement) =>
+    !element.seeking && !element.paused && element.currentTime >= 12 && element.readyState >= 3,
+  )).toBe(true)
+
+  const recovery = await page.evaluate(() => {
+    const probe = window.__hlsRecoveryProbe
+    if (!probe) throw new Error('The real HLS provider did not create an instance')
+    const ctor = probe.instance.constructor as typeof Hls
+    probe.recoveries = 0
+    probe.detachments = 0
+    probe.instance.trigger(ctor.Events.ERROR, {
+      fatal: true,
+      type: ctor.ErrorTypes.MEDIA_ERROR,
+      details: ctor.ErrorDetails.BUFFER_APPEND_ERROR,
+      error: new Error('Injected media error for recovery regression'),
+    })
+    return { recoveries: probe.recoveries, detachments: probe.detachments }
+  })
+  expect(recovery).toEqual({ recoveries: 1, detachments: 1 })
+  await expect.poll(() => video.evaluate((element: HTMLVideoElement) =>
+    !element.paused && element.readyState >= 3 && element.currentTime > 13,
+  )).toBe(true)
+  await expect(page.locator('.protocol-badge')).toHaveText('HLS · Smooth')
+  await expect(page.locator('.player-overlay')).toHaveCount(0)
+})
 
 for (const mode of ['normal', 'theater', 'fullscreen'] as const) {
   test(`hides ${mode} controls and cursor after mouse activity stops`, async ({ page }, testInfo) => {

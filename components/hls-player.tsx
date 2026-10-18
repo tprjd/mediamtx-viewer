@@ -800,7 +800,9 @@ export function HlsPlayer({
 
       if (data.type === ErrorTypes.MEDIA_ERROR && !mediaRecoveryAttempted) {
         mediaRecoveryAttempted = true
-        run.recover(() => hls?.recoverMediaError())
+        // Vidstack's HLS provider already recovered this error before this
+        // listener ran. A second recovery would detach the media again.
+        run.report('reconnecting')
         return
       }
 
