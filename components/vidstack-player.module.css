@@ -47,7 +47,7 @@
   pointer-events: auto;
 }
 
-.mediaPlayer:not(:has(.mediaControls[data-visible])) {
+.mediaPlayer[data-playing]:not(:has(.mediaControls[data-visible])) {
   cursor: none;
 }
 

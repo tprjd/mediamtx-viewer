@@ -101,6 +101,20 @@ test('recovers once from a fatal HLS media error and resumes Smooth playback', a
   await expect(page.locator('.player-overlay')).toHaveCount(0)
 })
 
+test('keeps the cursor visible over an offline stream after inactivity', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Mouse interaction requires desktop Chromium')
+  await page.goto('/watch/alpha')
+  await expect(page.getByText('Stream offline')).toBeVisible()
+  const player = page.getByLabel('Alpha Channel live video')
+  await player.hover({ position: { x: 150, y: 50 } })
+  await expect(player).not.toHaveCSS('cursor', 'none')
+
+  // Wait beyond the controls' two-second inactivity delay.
+  await page.waitForTimeout(2_500)
+  await expect(player).not.toHaveCSS('cursor', 'none')
+  await expect(player.locator('.player-overlay')).not.toHaveCSS('cursor', 'none')
+})
+
 for (const mode of ['normal', 'theater', 'fullscreen'] as const) {
   test(`hides ${mode} controls and cursor after mouse activity stops`, async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'Mouse interaction requires desktop Chromium')

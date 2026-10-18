@@ -674,6 +674,7 @@ test('hides fullscreen controls, protocol badge, and cursor when idle', async ({
   const player = page.getByLabel('Live stream live video')
   const controls = player.getByRole('group')
   await player.evaluate((element) => {
+    element.setAttribute('data-playing', '')
     element.setAttribute('data-fullscreen', '')
     const button = element.querySelector<HTMLButtonElement>(
       '[aria-label="Enter fullscreen"]',
