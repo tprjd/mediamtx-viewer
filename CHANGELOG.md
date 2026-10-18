@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [2.1.5] - 2026-10-18
+
+### Fixed
+
+- Validate Managed OBS profile settings before refreshing credentials and reject conflicting Channel identities.
+- Continue independent credential refreshes after file errors and report which updates are confirmed.
+- Ignore retired HLS provider events and cancel their pending recovery work during replacement.
+
+### Changed
+
+- Centralize Managed OBS profile completion and application HLS coordination while preserving existing playback modes and controls.
+
 ## [2.1.4] - 2026-10-18
 
 ### Fixed
