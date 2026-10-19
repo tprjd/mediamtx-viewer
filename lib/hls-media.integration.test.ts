@@ -111,7 +111,7 @@ it('keeps WHIP HLS audio in sync across worker restart and preserves RTMP AAC pl
     await docker('run', '-d', '--rm', '--name', name, '--network', network, '--add-host', 'host.docker.internal:host-gateway',
       '-p', '127.0.0.1:19978:9997', '-p', '127.0.0.1:28891:8888',
       '-e', 'MTX_API=yes', '-e', 'MTX_AUTHMETHOD=http', '-e', `MTX_AUTHHTTPADDRESS=http://host.docker.internal:${port}/api/internal/mediamtx/authorize?secret=test-mtx-secret`,
-      '-e', 'MTX_WEBRTCIPSFROMINTERFACESLIST=eth0', '-e', 'MTX_HLSALWAYSREMUX=yes', 'bluenviron/mediamtx:1.20.1')
+      '-e', 'MTX_WEBRTCIPSFROMINTERFACESLIST=eth0', '-e', 'MTX_HLSALWAYSREMUX=yes', process.env.MEDIAMTX_TEST_IMAGE ?? 'bluenviron/mediamtx:1.20.1')
     await until(async () => { try { return (await fetch(`${process.env.MEDIAMTX_API_URL}/v3/paths/list`)).ok } catch { return false } })
     await docker('run', '-d', '--name', publisher, '--network', network, '--entrypoint', 'ffmpeg', image, '-hide_banner', '-loglevel', 'error', '-nostdin', '-re', '-f', 'lavfi', '-i', "testsrc2=size=1920x1080:rate=60,drawbox=color=white:t=fill:enable='lt(mod(t,2),0.1)'", '-f', 'lavfi', '-i', "aevalsrc='if(lt(mod(t,2),0.1),0.3*sin(2*PI*440*t),0)':s=48000", '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-profile:v', 'baseline', '-bf', '0', '-g', '120', '-b:v', '10000k', '-c:a', 'libopus', '-ar', '48000', '-ac', '2', '-f', 'whip', '-authorization', key.token, `http://${name}:8889/${channel.mediaPath}/whip`)
     await startWorker()

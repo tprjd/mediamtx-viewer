@@ -64,7 +64,7 @@ services:
         max-file: "3"
 
   mediamtx:
-    image: bluenviron/mediamtx:1.20.1
+    image: ghcr.io/tprjd/mediamtx-viewer/mediamtx@sha256:22ac19a7d08278dbd444f569d416c3c17294a71e926ba5b2088de662d856264d
     restart: unless-stopped
     environment:
       MTX_AUTHMETHOD: http

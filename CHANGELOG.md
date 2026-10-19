@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here.
 
+## [2.1.7] - 2026-10-19
+
+### Fixed
+
+- Accept delayed WHIP video repairs within a 512-packet window and bound packet reordering to 200 ms while input continues.
+- Preserve separate repair deadlines when packet gaps overlap, with packet authentication and duplicate rejection enabled.
+- Show a small Buffering label during playback waits, including when controls are hidden. Reserve recovery messages for actual recovery.
+- Install Chromium for the hosted monitoring browser checks.
+
+### Added
+
+- Add private VM, service, and Channel monitoring dashboards, request metrics, and sampled traces.
+
+### Changed
+
+- Publish a tested MediaMTX repair image and select its exact digest through managed deployment.
+- Run independent release verification groups in parallel and start the longest groups first.
+
 ## [2.1.6] - 2026-10-18
 
 ### Fixed

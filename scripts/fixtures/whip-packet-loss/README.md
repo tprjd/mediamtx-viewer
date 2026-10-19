@@ -52,3 +52,12 @@ Make the package public, verify an anonymous pull, and pin that digest in
 `deploy/oracle/docker-compose.yml` before cutting the application release.
 Use the normal managed deployment procedure. Publishing the image does not
 activate it. Managed recovery retains the previous server image.
+
+To check real H.264 and Opus media against a local build, run:
+
+```sh
+docker build -t mediamtx-whip-repair:local scripts/fixtures/whip-packet-loss
+MEDIAMTX_TEST_IMAGE=mediamtx-whip-repair:local npm run test:docker -- lib/hls-media.integration.test.ts
+```
+
+This checks HLS audio synchronization, converter restart, and the return to RTMP.
