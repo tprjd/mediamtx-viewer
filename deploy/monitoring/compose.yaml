@@ -1,0 +1,43 @@
+name: mediamtx-monitoring
+
+services:
+  alloy:
+    image: grafana/alloy:v1.21.0@sha256:9726bfba078de9bc2212c60c6e643238c700b4fe0868ea78cbe03163d03d95bf
+    command:
+      - run
+      - --disable-reporting
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --storage.path=/var/lib/alloy
+      - /etc/alloy/config.alloy
+    restart: unless-stopped
+    user: "65534:65534"
+    # Host networking makes /proc/net describe the VM interfaces.
+    network_mode: host
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 0.25
+    mem_limit: 512m
+    memswap_limit: 512m
+    pids_limit: 64
+    stop_grace_period: 15s
+    environment:
+      GOMEMLIMIT: 192MiB
+      MONITORING_INSTANCE: ${MONITORING_INSTANCE:?Set a stable VM label}
+      GRAFANA_METRICS_URL: ${GRAFANA_METRICS_URL:?Set the remote write URL}
+      GRAFANA_METRICS_USER: ${GRAFANA_METRICS_USER:?Set the metrics tenant ID}
+      GRAFANA_METRICS_TOKEN: ${GRAFANA_METRICS_TOKEN:?Set a metrics write token}
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+    # Unsent samples are disposable. This also prevents an outage filling the VM disk.
+    tmpfs:
+      - /var/lib/alloy:size=256m,uid=65534,gid=65534,mode=0700
+      - /tmp:size=8m,uid=65534,gid=65534,mode=0700
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "2"

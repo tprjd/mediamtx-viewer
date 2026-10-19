@@ -1,0 +1,105 @@
+logging {
+	level = "warn"
+}
+
+prometheus.exporter.unix "vm" {
+	procfs_path    = "/host/proc"
+	sysfs_path     = "/host/sys"
+	rootfs_path    = "/host/root"
+	udev_data_path = "/host/root/run/udev/data"
+	set_collectors = ["cpu", "loadavg", "meminfo", "filesystem", "diskstats", "netdev", "stat"]
+
+	filesystem {
+		mount_points_exclude = "^/(dev|proc|sys|run|var/lib/docker|var/lib/containerd|host_mnt)($|/)"
+	}
+
+	netdev {
+		device_exclude = "^(lo|veth.*|docker.*|br-.*|cni.*)$"
+	}
+}
+
+prometheus.scrape "vm" {
+	targets         = prometheus.exporter.unix.vm.targets
+	job_name        = "mediamtx/vm"
+	scrape_interval = "15s"
+	scrape_timeout  = "10s"
+	sample_limit    = 2000
+	forward_to      = [prometheus.relabel.vm.receiver]
+}
+
+prometheus.relabel "vm" {
+	forward_to = [prometheus.remote_write.metrics.receiver]
+
+	rule {
+		target_label = "job"
+		replacement  = "mediamtx/vm"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "up|scrape_samples_post_metric_relabeling|node_cpu_seconds_total|node_load(1|5|15)|node_memory_(MemTotal|MemAvailable)_bytes|node_filesystem_(avail_bytes|size_bytes|files|files_free|readonly)|node_disk_(read_bytes_total|written_bytes_total|io_time_seconds_total)|node_network_(receive|transmit)_bytes_total|node_boot_time_seconds|node_scrape_collector_(success|duration_seconds)"
+		action        = "keep"
+	}
+
+	rule {
+		target_label = "instance"
+		replacement  = sys.env("MONITORING_INSTANCE")
+	}
+}
+
+prometheus.scrape "collector" {
+	targets         = [{__address__ = "127.0.0.1:12345"}]
+	job_name        = "mediamtx/collector"
+	scrape_interval = "15s"
+	scrape_timeout  = "10s"
+	sample_limit    = 2000
+	forward_to      = [prometheus.relabel.collector.receiver]
+}
+
+prometheus.relabel "collector" {
+	forward_to = [prometheus.remote_write.metrics.receiver]
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "up|process_(resident_memory_bytes|cpu_seconds_total)|prometheus_remote_storage_(samples_pending|samples_failed_total|samples_retried_total|samples_dropped_total|queue_highest_sent_timestamp_seconds)|prometheus_remote_write_wal_storage_(active_series|deleted_series)|prometheus_remote_storage_highest_timestamp_in_seconds"
+		action        = "keep"
+	}
+
+	rule {
+		target_label = "instance"
+		replacement  = sys.env("MONITORING_INSTANCE")
+	}
+}
+
+prometheus.remote_write "metrics" {
+	endpoint {
+		name             = "metrics"
+		url              = sys.env("GRAFANA_METRICS_URL")
+		remote_timeout   = "10s"
+		follow_redirects = false
+		send_exemplars   = false
+
+		basic_auth {
+			username = sys.env("GRAFANA_METRICS_USER")
+			password = sys.env("GRAFANA_METRICS_TOKEN")
+		}
+
+		queue_config {
+			capacity             = 1000
+			min_shards           = 1
+			max_shards           = 2
+			max_samples_per_send = 500
+			batch_send_deadline  = "5s"
+			min_backoff          = "1s"
+			max_backoff          = "30s"
+			retry_on_http_429    = true
+			sample_age_limit     = "1h"
+		}
+	}
+
+	wal {
+		truncate_frequency = "15m"
+		min_keepalive_time = "5m"
+		max_keepalive_time = "1h"
+	}
+}
