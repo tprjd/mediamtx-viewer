@@ -328,6 +328,7 @@
     {
       "id": 7,
       "title": "Inodes used",
+      "description": "Filesystems that do not report a positive inode total are omitted.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -360,7 +361,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * (1 - node_filesystem_files_free{job=\"mediamtx/vm\",instance=~\"$instance\"} / node_filesystem_files{job=\"mediamtx/vm\",instance=~\"$instance\"})",
+          "expr": "100 * (1 - node_filesystem_files_free{job=\"mediamtx/vm\",instance=~\"$instance\"} / (node_filesystem_files{job=\"mediamtx/vm\",instance=~\"$instance\"} > 0))",
           "legendFormat": "{{mountpoint}}",
           "datasource": {
             "type": "prometheus",
