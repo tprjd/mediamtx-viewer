@@ -371,8 +371,10 @@
           "min": 0,
           "noValue": "Unavailable",
           "custom": {
-            "spanNulls": false
-          }
+            "spanNulls": false,
+            "lineInterpolation": "stepAfter"
+          },
+          "max": 1
         },
         "overrides": []
       },
@@ -665,8 +667,10 @@
           "min": 0,
           "noValue": "Unavailable",
           "custom": {
-            "spanNulls": false
-          }
+            "spanNulls": false,
+            "lineInterpolation": "stepAfter"
+          },
+          "max": 1
         },
         "overrides": []
       },
@@ -714,8 +718,10 @@
           "min": 0,
           "noValue": "Unavailable",
           "custom": {
-            "spanNulls": false
-          }
+            "spanNulls": false,
+            "lineInterpolation": "stepAfter"
+          },
+          "max": 1
         },
         "overrides": []
       },
