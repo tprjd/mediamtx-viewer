@@ -1,0 +1,766 @@
+{
+  "uid": "mediamtx-channels",
+  "title": "MediaMTX Channel activity and traffic",
+  "tags": [
+    "mediamtx",
+    "monitoring"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "utc",
+  "refresh": "15s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "description": "Observed Channels only. Unique Viewers share the application identity rules. Traffic is an estimate, not provider billing. Rate gaps mark joins, stops, resets or missing data. No notifications are sent.",
+  "links": [
+    {
+      "title": "VM health",
+      "type": "link",
+      "url": "/d/mediamtx-vm/mediamtx-vm-health",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Service health and logs",
+      "type": "link",
+      "url": "/d/mediamtx-services/mediamtx-service-health-and-logs",
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Metrics source",
+        "type": "datasource",
+        "query": "prometheus",
+        "refresh": 1
+      },
+      {
+        "name": "logs",
+        "label": "Logs source",
+        "type": "datasource",
+        "query": "loki",
+        "refresh": 1
+      },
+      {
+        "name": "instance",
+        "label": "VM",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(monitoring_service_collection_success, instance)",
+          "refId": "instances"
+        },
+        "refresh": 1
+      },
+      {
+        "name": "channel",
+        "label": "Channel path",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(monitoring_channel_live{instance=\"$instance\"}, channel)",
+          "refId": "channels"
+        },
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Collection success",
+      "type": "stat",
+      "description": "1 means the MediaMTX API lists were complete. Failure removes Channel readings.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_channel_collection_success{instance=\"$instance\"}",
+          "legendFormat": "{{channel}} {{protocol}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "noValue": "Unavailable",
+          "custom": {
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Collection sample age",
+      "type": "stat",
+      "description": "An increasing age indicates the observer or delivery stopped.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - timestamp(monitoring_channel_collection_success{instance=\"$instance\"})",
+          "legendFormat": "{{channel}} {{protocol}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "noValue": "Unavailable",
+          "custom": {
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 60
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Unassigned paths and connections",
+      "type": "stat",
+      "description": "Unknown paths, stale derivatives or Channels above the limit. Excluded from Channel totals.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_channel_unassigned_paths{instance=\"$instance\"} + monitoring_channel_unassigned_connections{instance=\"$instance\"}",
+          "legendFormat": "{{channel}} {{protocol}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "Unavailable",
+          "custom": {
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Channel limit exceeded",
+      "type": "stat",
+      "description": "At most 100 observed Channel labels per collector run. Extra paths remain unassigned.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_channel_capacity_exceeded{instance=\"$instance\"}",
+          "legendFormat": "{{channel}} {{protocol}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "noValue": "Unavailable",
+          "custom": {
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Channel live state",
+      "type": "timeseries",
+      "description": "Live state for standard Channel paths observed since collector startup. A missing series is not a confirmed offline Channel.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_channel_live{instance=\"$instance\",channel=~\"$channel\"} and on(instance) (monitoring_channel_collection_success{instance=\"$instance\"} == 1)",
+          "legendFormat": "{{channel}} {{protocol}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "noValue": "Unavailable",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Publisher connections",
+      "type": "timeseries",
+      "description": "Only the original Publisher. Derived HLS workers are excluded.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_channel_publishers{instance=\"$instance\",channel=~\"$channel\"} and on(instance) (monitoring_channel_collection_success{instance=\"$instance\"} == 1)",
+          "legendFormat": "{{channel}} {{protocol}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "Unavailable",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Unique Viewers",
+      "type": "timeseries",
+      "description": "Same Viewer ID across HLS and WebRTC counts once. Sessions without a valid Viewer ID count separately, as in the app. Internal readers are excluded.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_channel_viewers{instance=\"$instance\",channel=~\"$channel\"} and on(instance,channel) (monitoring_channel_connections_complete{instance=\"$instance\",channel=~\"$channel\"} == 1) and on(instance) (monitoring_channel_collection_success{instance=\"$instance\"} == 1)",
+          "legendFormat": "{{channel}} {{protocol}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "Unavailable",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Public protocol connections",
+      "type": "timeseries",
+      "description": "HLS and WebRTC sessions. Several connections can belong to one Viewer. Thumbnail and internal readers are excluded.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_channel_connections{instance=\"$instance\",channel=~\"$channel\"} and on(instance,channel) (monitoring_channel_connections_complete{instance=\"$instance\",channel=~\"$channel\"} == 1) and on(instance) (monitoring_channel_collection_success{instance=\"$instance\"} == 1)",
+          "legendFormat": "{{channel}} {{protocol}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "Unavailable",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Publisher media input",
+      "type": "timeseries",
+      "description": "Original path inboundBytes deltas. Excludes the derived HLS copy and network overhead.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_channel_bytes_per_second{instance=\"$instance\",channel=~\"$channel\",direction=\"publisher\"} and on(instance,channel,direction,protocol) (monitoring_channel_rate_complete{instance=\"$instance\",channel=~\"$channel\"} == 1) and on(instance) (monitoring_channel_collection_success{instance=\"$instance\"} == 1)",
+          "legendFormat": "{{channel}} {{protocol}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0,
+          "noValue": "Unavailable",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Viewer transfer estimate",
+      "type": "timeseries",
+      "description": "Session outboundBytes deltas for public HLS and WebRTC. Counter meanings differ by protocol. Gaps suppress uncertain intervals; final bytes between polls can be missed.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_channel_bytes_per_second{instance=\"$instance\",channel=~\"$channel\",direction=\"viewer\"} and on(instance,channel,direction,protocol) (monitoring_channel_rate_complete{instance=\"$instance\",channel=~\"$channel\"} == 1) and on(instance) (monitoring_channel_collection_success{instance=\"$instance\"} == 1)",
+          "legendFormat": "{{channel}} {{protocol}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0,
+          "noValue": "Unavailable",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Connection data complete",
+      "type": "timeseries",
+      "description": "1 means public path readers match session metadata. 0 marks missing or inconsistent metadata.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_channel_connections_complete{instance=\"$instance\",channel=~\"$channel\"} and on(instance) (monitoring_channel_collection_success{instance=\"$instance\"} == 1)",
+          "legendFormat": "{{channel}} {{protocol}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "noValue": "Unavailable",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Rate interval complete",
+      "type": "timeseries",
+      "description": "1 means consecutive samples have the same sessions and nondecreasing counters. 0 marks startup, joins, stops, resets or collection gaps.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_channel_rates_complete{instance=\"$instance\",channel=~\"$channel\"} and on(instance) (monitoring_channel_collection_success{instance=\"$instance\"} == 1)",
+          "legendFormat": "{{channel}} {{protocol}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "noValue": "Unavailable",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "Channel state events",
+      "description": "Normal start, stop and initial observations. These events send no failure notifications. Changes within one 15-second interval can be missed.",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"mediamtx/services\",instance=\"$instance\",service=\"mediamtx\"} | json | event=~\"channel_(observed|started|stopped)\" | channel=~\"$channel\"",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          },
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending"
+      }
+    }
+  ]
+}

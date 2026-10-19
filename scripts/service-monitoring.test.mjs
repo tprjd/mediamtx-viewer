@@ -15,19 +15,24 @@ async function listen(handler, socket) {
   return server.address().port
 }
 
-async function fixture() {
+async function fixture(media = undefined) {
   const directory = mkdtempSync(join(tmpdir(), 'service-monitoring-'))
   cleanup.push(() => rmSync(directory, { recursive: true, force: true }))
   const privateValues = ['mtx_sk_PRIVATE_TEST', 'private.person@example.test', 'https://private.example.test/watch?secret=SECRET_TEST', 'PRIVATE_CHAT_CONTENT', 'ACCOUNT_NAME_TEST', '192.0.2.123']
   const health = { status: 'ok', version: '2.1.6', chat: { status: 'degraded', faults: ['outbox'], uncheckedFaults: [], outboxDepth: 2, oldestOutboxAgeSeconds: 7, databaseBytes: 1024, freeBytes: 2048 } }
   const state = { logs: [], restartCount: 0, dockerDown: false, receiverDown: false, exported: [], methods: [] }
+  const mediaPort = await listen((request, response) => {
+    const key = request.url.split('/')[2]
+    if (media?.down || !media?.[key]) { response.writeHead(503).end(); return }
+    response.end(JSON.stringify({ itemCount: media[key].length, pageCount: media.truncated ? 2 : 1, items: media[key] }))
+  })
   const healthPort = await listen((_request, response) => response.end(JSON.stringify(health)))
   const socket = join(directory, 'docker.sock')
   const container = { Id: 'a'.repeat(64), Labels: { 'com.docker.compose.project': 'fixture', 'com.docker.compose.service': 'viewer' }, Created: 1 }
   await listen((request, response) => {
     state.methods.push(request.method)
     if (state.dockerDown) { response.writeHead(503).end(); return }
-    if (request.url.startsWith('/containers/json')) { response.end(JSON.stringify([container])); return }
+    if (request.url.startsWith('/containers/json')) { response.end(JSON.stringify(media ? [container, { ...container, Id: 'b'.repeat(64), Labels: { ...container.Labels, 'com.docker.compose.service': 'mediamtx' } }] : [container])); return }
     if (request.url.endsWith('/json')) {
       response.end(JSON.stringify({ Id: container.Id, Config: { Tty: false, Env: privateValues }, State: { Running: true, StartedAt: '2026-10-19T12:00:00Z', Health: { Status: 'healthy' } }, RestartCount: state.restartCount, NetworkSettings: { Networks: { bridge: { IPAddress: '127.0.0.1' } } } })); return
     }
@@ -43,7 +48,7 @@ async function fixture() {
     if (state.receiverDown) { response.writeHead(503).end(); return }
     state.exported.push(JSON.parse(body)); response.writeHead(204).end()
   })
-  const monitor = await startServiceMonitor({ dockerSocket: socket, project: 'fixture', instance: 'test-vm', port: 0, intervalMs: 100, healthPort, logsUrl: `http://127.0.0.1:${logsPort}/loki/api/v1/push` })
+  const monitor = await startServiceMonitor({ dockerSocket: socket, project: 'fixture', instance: 'test-vm', port: 0, intervalMs: 100, healthPort, mediaPort, logsUrl: `http://127.0.0.1:${logsPort}/loki/api/v1/push` })
   cleanup.push(monitor.stop)
   const metrics = () => fetch(`${monitor.url}/metrics`).then(response => response.text())
   return { state, health, privateValues, metrics }
@@ -145,4 +150,94 @@ it('counts full windows and oversized records once when Docker repeats a timesta
   await new Promise(resolve => setTimeout(resolve, 350))
   expect(await metrics()).toContain('monitoring_service_log_dropped_total{reason="oversized"} 1\n')
   expect(await metrics()).toContain('monitoring_service_log_gaps_total 1\n')
+})
+
+function mediaFixture() {
+  const viewer = '11111111-1111-4111-8111-111111111111'
+  const source = { type: 'webRTCSession', id: 'private-publisher-id' }
+  const derivative = `_hls/channels/demo/${source.id}`
+  return {
+    paths: [
+      { name: 'channels/demo', ready: true, source, tracks: ['H264', 'Opus'], inboundBytes: 1000, readers: [{ type: 'rtspSession', id: 'internal-worker' }, { type: 'webRTCSession', id: 'private-whep' }] },
+      { name: derivative, ready: true, source: { type: 'rtmpConn', id: 'worker-publisher' }, inboundBytes: 1000, readers: [{ type: 'hlsSession', id: 'private-hls' }, { type: 'hlsSession', id: 'thumbnail' }] },
+    ],
+    hlssessions: [
+      { id: 'private-hls', path: derivative, query: `frankerzspam_viewer=${viewer}&token=PRIVATE_TOKEN`, outboundBytes: 500 },
+      { id: 'thumbnail', path: derivative, query: 'frankerzspam_internal=thumbnail', outboundBytes: 90000 },
+    ],
+    webrtcsessions: [
+      { id: 'private-whep', path: 'channels/demo', state: 'read', query: `frankerzspam_viewer=${viewer}`, outboundBytes: 600 },
+      { id: source.id, path: 'channels/demo', state: 'publish', outboundBytes: 90000 },
+    ],
+  }
+}
+
+it('maps current HLS derivatives, deduplicates Viewers, and excludes internal traffic', async () => {
+  const media = mediaFixture()
+  const { metrics, state } = await fixture(media)
+  await vi.waitFor(async () => expect(await metrics()).toContain('monitoring_channel_viewers{channel="channels/demo"} 1'))
+  const text = await metrics()
+  expect(text).toContain('monitoring_channel_live{channel="channels/demo"} 1')
+  expect(text).toContain('monitoring_channel_publishers{channel="channels/demo",protocol="whip"} 1')
+  expect(text).toContain('monitoring_channel_connections{channel="channels/demo",protocol="hls"} 1')
+  expect(text).toContain('monitoring_channel_connections{channel="channels/demo",protocol="webrtc"} 1')
+  expect(text).toContain('monitoring_channel_connections_complete{channel="channels/demo"} 1')
+  media.paths[0].inboundBytes += 100
+  media.hlssessions[0].outboundBytes += 200
+  media.webrtcsessions[0].outboundBytes += 300
+  await vi.waitFor(async () => expect(await metrics()).toMatch(/monitoring_channel_bytes_per_second\{channel="channels\/demo",direction="viewer",protocol="hls"\} [1-9]/))
+  const exported = await metrics() + JSON.stringify(state.exported)
+  for (const value of ['private-publisher-id', 'private-whep', 'private-hls', 'PRIVATE_TOKEN', '11111111-1111-4111-8111-111111111111', '_hls/']) expect(exported).not.toContain(value)
+})
+
+it('marks churn, resets, missing reader metadata and stale derivatives incomplete', async () => {
+  const media = mediaFixture()
+  const { metrics } = await fixture(media)
+  await vi.waitFor(async () => expect(await metrics()).toContain('monitoring_channel_rates_complete{channel="channels/demo"} 1'))
+  media.paths[0].inboundBytes = 0
+  media.hlssessions[0].path = '_hls/channels/demo/old-publisher'
+  await vi.waitFor(async () => expect(await metrics()).toContain('monitoring_channel_unassigned_connections 1'))
+  expect(await metrics()).toContain('monitoring_channel_connections_complete{channel="channels/demo"} 0')
+  expect(await metrics()).not.toContain('monitoring_channel_viewers{channel="channels/demo"}')
+  await vi.waitFor(async () => expect(await metrics()).toContain('monitoring_channel_rate_complete{channel="channels/demo",direction="publisher",protocol="media"} 1'))
+  expect(await metrics()).toContain('monitoring_channel_rate_complete{channel="channels/demo",direction="viewer",protocol="webrtc"} 1')
+  expect(await metrics()).toContain('monitoring_channel_rate_complete{channel="channels/demo",direction="viewer",protocol="hls"} 0')
+  media.paths[1].name = '_hls/channels/demo/old-publisher'
+  await vi.waitFor(async () => expect(await metrics()).toContain('monitoring_channel_unassigned_paths 1'))
+})
+
+it('records normal observed, started and stopped states without inventing stops during API failures', async () => {
+  const media = mediaFixture()
+  media.paths = []; media.hlssessions = []; media.webrtcsessions = []
+  const { metrics, state } = await fixture(media)
+  await vi.waitFor(async () => expect(await metrics()).toContain('monitoring_channel_collection_success 1'))
+  media.paths = [{ name: 'channels/demo', ready: false, readers: [] }]
+  await vi.waitFor(() => expect(JSON.stringify(state.exported)).toContain('channel_observed'))
+  expect(JSON.stringify(state.exported)).not.toContain('channel_stopped')
+  Object.assign(media, mediaFixture())
+  await vi.waitFor(() => expect(JSON.stringify(state.exported)).toContain('channel_started'))
+  media.down = true
+  await vi.waitFor(async () => expect(await metrics()).toContain('monitoring_channel_collection_success 0'))
+  expect(await metrics()).not.toContain('monitoring_channel_live{')
+  expect(JSON.stringify(state.exported)).not.toContain('channel_stopped')
+  media.down = false; media.paths = []; media.hlssessions = []; media.webrtcsessions = []
+  await vi.waitFor(() => expect(JSON.stringify(state.exported)).toContain('channel_stopped'))
+  expect(await metrics()).toContain('monitoring_channel_live{channel="channels/demo"} 0')
+  const events = state.exported.flatMap(batch => batch.streams).flatMap(stream => stream.values.map(([, line]) => JSON.parse(line))).filter(line => line.event.startsWith('channel_'))
+  expect(events.every(line => line.level === 'info')).toBe(true)
+})
+
+it('rejects partial pages and bounds Channel labels without exporting unknown paths', async () => {
+  const media = mediaFixture(); media.truncated = true
+  const { metrics } = await fixture(media)
+  await vi.waitFor(async () => expect(await metrics()).toContain('monitoring_channel_collection_success 0'))
+  expect(await metrics()).not.toContain('monitoring_channel_live{')
+  media.truncated = false
+  media.paths = Array.from({ length: 110 }, (_, i) => ({ ...mediaFixture().paths[0], name: `channels/demo-${i}`, readers: [] }))
+  media.paths.push({ ...media.paths[0], name: 'private/custom/path' })
+  media.hlssessions = []; media.webrtcsessions = []
+  await vi.waitFor(async () => expect(await metrics()).toContain('monitoring_channel_capacity_exceeded 1'))
+  expect((await metrics()).match(/monitoring_channel_live\{/g)).toHaveLength(100)
+  expect(await metrics()).not.toContain('private/custom/path')
+  expect(await metrics()).toContain('monitoring_channel_unassigned_paths 11')
 })

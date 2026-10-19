@@ -2,6 +2,7 @@ import 'server-only'
 
 import { z } from 'zod'
 
+import { countViewers, isThumbnailSession, readViewerId } from '@/lib/media-readers'
 import { hlsDerivativePath } from '@/lib/whip-pilot'
 import type { ChannelStatus } from '@/lib/types'
 
@@ -32,10 +33,6 @@ const mediaMtxPathListSchema = z
   .passthrough()
 
 const apiOrigin = process.env.MEDIAMTX_API_URL ?? 'http://127.0.0.1:9997'
-const thumbnailQueryParameter = 'frankerzspam_internal'
-const thumbnailQueryValue = 'thumbnail'
-const viewerQueryParameter = 'frankerzspam_viewer'
-const viewerIdPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 
 const rtmpSessionSchema = z
   .object({
@@ -85,24 +82,6 @@ function hasWebRtcReaders(
   path: z.infer<typeof mediaMtxPathSchema>,
 ): boolean {
   return (path.readers ?? []).some((reader) => reader.type === 'webRTCSession')
-}
-
-function isThumbnailSession(
-  query: string | undefined,
-  userAgent: string | undefined,
-): boolean {
-  return (
-    userAgent === 'FrankerzSpamThumbnailer/1.0' ||
-    (Boolean(query) &&
-      new URLSearchParams(query).get(thumbnailQueryParameter) ===
-        thumbnailQueryValue)
-  )
-}
-
-function readViewerId(query: string | undefined): string | undefined {
-  if (!query) return undefined
-  const viewerId = new URLSearchParams(query).get(viewerQueryParameter)
-  return viewerId && viewerIdPattern.test(viewerId) ? viewerId : undefined
 }
 
 interface HlsReaderMetadata {
@@ -182,19 +161,7 @@ export function normalizeMediaMtxPath(
     ? 0
     : !path.readers || (hasHlsReaders(path) && thumbnailReaderIds === null)
       ? null
-      : new Set(
-          path.readers
-            .filter(
-              (reader) =>
-                ['hlsSession', 'webRTCSession'].includes(reader.type) &&
-                !thumbnailReaderIds?.has(reader.id),
-            )
-            .map((reader) =>
-              readerViewerIds.has(reader.id)
-                ? `viewer:${readerViewerIds.get(reader.id)}`
-                : `reader:${reader.id}`,
-            ),
-        ).size
+      : countViewers(path.readers, thumbnailReaderIds, readerViewerIds)
 
   return {
     ...(path.source ? { publisherProtocol: path.source.type === 'webRTCSession' ? 'whip' as const : 'other' as const } : {}),

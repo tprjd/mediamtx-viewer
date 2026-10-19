@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { setTimeout as delay } from 'node:timers/promises'
+import { chromium, request as playwrightRequest } from '@playwright/test'
 import { expect, it } from 'vitest'
 
 const contextArgs = process.env.DOCKER_CONTEXT ? ['--context', process.env.DOCKER_CONTEXT] : []
@@ -18,6 +19,8 @@ async function until(check) {
 }
 
 it('shows private service diagnostics and VM history while bounded collectors survive delivery outages', async () => {
+  const channelDashboard = JSON.parse(readFileSync('deploy/monitoring/channel-health.json', 'utf8'))
+  let browser, hlsClient, hlsKeepAlive
   const serviceDashboard = JSON.parse(readFileSync('deploy/monitoring/service-health.json', 'utf8'))
   const dashboard = JSON.parse(readFileSync('deploy/monitoring/vm-health.json', 'utf8'))
   const context = process.env.DOCKER_CONTEXT ?? docker('context', 'show')
@@ -37,11 +40,14 @@ it('shows private service diagnostics and VM history while bounded collectors su
   const environment = { MONITORING_INSTANCE: project, GRAFANA_METRICS_USER: 'fixture', GRAFANA_METRICS_TOKEN: 'fixture-only', MONITORING_PROJECT: project, GRAFANA_LOGS_USER: 'fixture', GRAFANA_LOGS_TOKEN: 'fixture-only' }
   try {
     docker('build', '-q', '-t', 'frankerzspam-hls-media-test:local', '-f', 'scripts/hls-media.Dockerfile', '.')
-    docker('run', '-d', '--name', media, '--label', `com.docker.compose.project=${project}`, '--label', 'com.docker.compose.service=mediamtx', '-e', 'MTX_HLSALWAYSREMUX=yes', 'bluenviron/mediamtx:1.20.1')
+    docker('run', '-d', '--name', media, '--label', `com.docker.compose.project=${project}`, '--label', 'com.docker.compose.service=mediamtx', '-p', '127.0.0.1::9997', '-p', '127.0.0.1::9998', '-p', '127.0.0.1::8888', '-p', '127.0.0.1::8889', '-p', '127.0.0.1:18190:18190/udp', '-e', 'MTX_AUTHINTERNALUSERS_1_IPS=', '-e', 'MTX_API=yes', '-e', 'MTX_METRICS=yes', '-e', 'MTX_WEBRTCLOCALUDPADDRESS=:18190', '-e', 'MTX_WEBRTCADDITIONALHOSTS=127.0.0.1', '-e', 'MTX_HLSALWAYSREMUX=yes', 'bluenviron/mediamtx:1.20.1')
+    const mediaState = JSON.parse(docker('inspect', media))[0]
+    const mediaUrl = port => `http://127.0.0.1:${mediaState.NetworkSettings.Ports[`${port}/tcp`][0].HostPort}`
+    const mediaApi = async path => { const response = await fetch(mediaUrl(9997) + path); expect(response.ok).toBe(true); return response.json() }
     const mediaAddress = JSON.parse(docker('inspect', media))[0].NetworkSettings.Networks.bridge.IPAddress
     docker('run', '-d', '--name', publisher, '--entrypoint', 'ffmpeg', 'frankerzspam-hls-media-test:local',
       '-hide_banner', '-loglevel', 'error', '-re', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=10',
-      '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-g', '20', '-f', 'flv', `rtmp://${mediaAddress}:1935/live`)
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-profile:v', 'baseline', '-g', '20', '-f', 'flv', `rtmp://${mediaAddress}:1935/live`)
     const playback = () => {
       expect(JSON.parse(docker('inspect', publisher))[0].State.Running).toBe(true)
       docker('run', '--rm', '--entrypoint', 'ffmpeg', 'frankerzspam-hls-media-test:local',
@@ -108,7 +114,82 @@ it('shows private service diagnostics and VM history while bounded collectors su
     expect((await request('/api/dashboards/db', { dashboard, overwrite: true })).ok).toBe(true)
     expect((await request('/api/datasources', { uid: 'logs-test', name: 'Logs test', type: 'loki', access: 'proxy', url: lokiAddress })).ok).toBe(true)
     expect((await request('/api/dashboards/db', { dashboard: serviceDashboard, overwrite: true })).ok).toBe(true)
+    expect((await request('/api/dashboards/db', { dashboard: channelDashboard, overwrite: true })).ok).toBe(true)
     await until(async () => expect((await query(`monitoring_application_up{instance="${project}"}`))[0]?.value[1]).toBe('1'))
+    await until(async () => expect((await query(`monitoring_channel_live{instance="${project}",channel="live"}`))[0]?.value[1]).toBe('1'))
+    const viewerId = randomUUID()
+    browser = await chromium.launch({ headless: true })
+    const page = await browser.newPage()
+    await page.goto(`http://127.0.0.1:${viewerPort}/api/health`)
+    await page.evaluate(async ({ url, viewerId }) => {
+      const peer = new RTCPeerConnection()
+      window.monitoringPeer = peer
+      peer.addTransceiver('video', { direction: 'recvonly' })
+      await peer.setLocalDescription(await peer.createOffer())
+      await new Promise(resolve => {
+        if (peer.iceGatheringState === 'complete') resolve()
+        else peer.addEventListener('icegatheringstatechange', () => { if (peer.iceGatheringState === 'complete') resolve() })
+      })
+      const response = await fetch(`${url}/live/whep?frankerzspam_viewer=${viewerId}`, { method: 'POST', headers: { 'content-type': 'application/sdp' }, body: peer.localDescription.sdp })
+      if (response.status !== 201) throw new Error(`WHEP failed: ${response.status}`)
+      window.monitoringSession = new URL(response.headers.get('location'), response.url).href
+      await peer.setRemoteDescription({ type: 'answer', sdp: await response.text() })
+    }, { url: mediaUrl(8889), viewerId })
+    await until(async () => expect(await page.evaluate(async () => [...(await window.monitoringPeer.getStats()).values()].some(stat => stat.type === 'inbound-rtp' && stat.bytesReceived > 0))).toBe(true))
+    await until(async () => expect((await query(`monitoring_channel_viewers{instance="${project}",channel="live"}`))[0]?.value[1]).toBe('1'))
+    hlsClient = await playwrightRequest.newContext()
+    const master = await hlsClient.get(`${mediaUrl(8888)}/live/index.m3u8?frankerzspam_viewer=${viewerId}`)
+    expect(master.ok()).toBe(true)
+    // MediaMTX carries its session secret in the rewritten child playlist URL.
+    const child = (await master.text()).split('\n').find(line => line && !line.startsWith('#'))
+    const playlist = await hlsClient.get(new URL(child, master.url()).href)
+    expect(playlist.ok()).toBe(true)
+    hlsKeepAlive = setInterval(() => void hlsClient.get(playlist.url()).catch(() => {}), 5000)
+    const segment = (await playlist.text()).split('\n').find(line => line && !line.startsWith('#') && !line.startsWith('gap'))
+    expect((await hlsClient.get(new URL(segment, playlist.url()).href)).ok()).toBe(true)
+    await until(async () => {
+      expect((await query(`monitoring_channel_connections{instance="${project}",channel="live",protocol="hls"}`))[0]?.value[1]).toBe('1')
+      expect((await query(`monitoring_channel_connections{instance="${project}",channel="live",protocol="webrtc"}`))[0]?.value[1]).toBe('1')
+      expect((await query(`monitoring_channel_viewers{instance="${project}",channel="live"}`))[0]?.value[1]).toBe('1')
+    })
+    const pathReading = await mediaApi('/v3/paths/get/live')
+    expect(pathReading.inboundBytes).toBeGreaterThan(0)
+    expect(pathReading.readers.some(reader => reader.type === 'hlsSession')).toBe(true)
+    const hlsReading = (await mediaApi('/v3/hlssessions/list')).items.find(session => session.query.includes(viewerId))
+    const webRtcReading = (await mediaApi('/v3/webrtcsessions/list')).items.find(session => session.query.includes(viewerId))
+    expect(hlsReading.outboundBytes).toBeGreaterThan(0)
+    expect(webRtcReading.outboundBytes).toBeGreaterThan(0)
+    const nativeMetrics = await (await fetch(mediaUrl(9998) + '/metrics')).text()
+    for (const [name, minimum] of [['paths_inbound_bytes', pathReading.inboundBytes], ['hls_sessions_outbound_bytes', hlsReading.outboundBytes], ['webrtc_sessions_outbound_bytes', webRtcReading.outboundBytes]]) {
+      const lines = nativeMetrics.split('\n').filter(line => line.startsWith(name + '{') && line.includes(name.startsWith('paths_') ? 'name="live"' : 'path="live"'))
+      expect(lines.some(line => Number(line.split(' ').at(-1)) >= minimum), name).toBe(true)
+    }
+    await until(async () => expect((await query(`monitoring_channel_rates_complete{instance="${project}",channel="live"}`))[0]?.value[1]).toBe('1'))
+    for (const panel of channelDashboard.panels.filter(panel => panel.type !== 'logs')) {
+      const target = panel.targets[0]
+      const expr = target.expr.replaceAll('$instance', project).replaceAll('$channel', '.*')
+      const result = await (await request('/api/ds/query', { from: String(Date.now() - 300000), to: String(Date.now()), queries: [{ ...target, expr, datasource: { uid: 'vm-test', type: 'prometheus' }, intervalMs: 15000, maxDataPoints: 1000 }] })).json()
+      expect(result.results.A.error, panel.title).toBeUndefined()
+      expect(result.results.A.frames.some(frame => frame.data?.values?.some(values => values.length > 0)), panel.title).toBe(true)
+    }
+    await page.evaluate(async () => { window.monitoringPeer.close(); await fetch(window.monitoringSession, { method: 'DELETE' }) })
+    await until(async () => {
+      expect((await query(`monitoring_channel_connections{instance="${project}",channel="live",protocol="webrtc"}`))[0]?.value[1]).toBe('0')
+      expect((await query(`monitoring_channel_viewers{instance="${project}",channel="live"}`))[0]?.value[1]).toBe('1')
+    })
+    await browser.close(); browser = undefined
+    clearInterval(hlsKeepAlive)
+    docker('stop', '-t', '3', publisher)
+    await until(async () => expect((await query(`monitoring_channel_live{instance="${project}",channel="live"}`))[0]?.value[1]).toBe('0'))
+    docker('start', publisher)
+    await until(async () => expect((await query(`monitoring_channel_live{instance="${project}",channel="live"}`))[0]?.value[1]).toBe('1'))
+    const channelEvents = channelDashboard.panels.at(-1).targets[0].expr.replaceAll('$instance', project).replaceAll('$channel', '.*')
+    await until(async () => {
+      const result = await (await request(`/api/datasources/proxy/uid/logs-test/loki/api/v1/query_range?query=${encodeURIComponent(channelEvents)}&limit=1000`)).json()
+      const text = JSON.stringify(result.data.result)
+      for (const event of ['channel_observed', 'channel_stopped', 'channel_started']) expect(text).toContain(event)
+      for (const value of [viewerId, pathReading.source.id, hlsReading.id, webRtcReading.id]) expect(text).not.toContain(value)
+    })
     await fetch(`http://127.0.0.1:${viewerPort}/fail`)
     const logs = async () => {
       const expression = `{job="mediamtx/services",instance="${project}",service=~"viewer"} | json | release="2.1.6"`
@@ -153,7 +234,7 @@ it('shows private service diagnostics and VM history while bounded collectors su
         expect(result.every(sample => Number.isFinite(Number(sample.value[1]))), panel.title).toBe(true)
       }
     }
-    for (const path of ['/api/dashboards/uid/mediamtx-vm', '/api/dashboards/uid/mediamtx-services', '/api/datasources/proxy/uid/vm-test/api/v1/query?query=up', '/api/datasources/proxy/uid/logs-test/loki/api/v1/labels']) {
+    for (const path of ['/api/dashboards/uid/mediamtx-vm', '/api/dashboards/uid/mediamtx-services', '/api/dashboards/uid/mediamtx-channels', '/api/datasources/proxy/uid/vm-test/api/v1/query?query=up', '/api/datasources/proxy/uid/logs-test/loki/api/v1/labels']) {
       expect((await fetch(`${grafanaUrl}${path}`, { signal: AbortSignal.timeout(5000) })).status).toBe(401)
     }
     for (const panel of dashboard.panels) {
@@ -200,6 +281,9 @@ it('shows private service diagnostics and VM history while bounded collectors su
     try { console.error(compose('logs', '--tail', '20')) } catch { /* Preserve the test failure if setup failed. */ }
     throw error
   } finally {
+    clearInterval(hlsKeepAlive)
+    await browser?.close()
+    await hlsClient?.dispose()
     try { compose('down', '--remove-orphans') } finally { docker('rm', '-f', receiver, grafana, publisher, media, loki, viewer) }
   }
-}, 420000)
+}, 540000)

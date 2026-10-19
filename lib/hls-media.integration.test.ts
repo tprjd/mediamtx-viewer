@@ -24,6 +24,8 @@ it('keeps WHIP HLS audio in sync across worker restart and preserves RTMP AAC pl
   const key = createOrRotateStreamKey('media-owner')
   const { GET } = await import('../app/api/internal/hls-worker/route')
   const { POST } = await import('../app/api/internal/mediamtx/authorize/route')
+  const { channelMonitor } = await import('../deploy/monitoring/channels.mjs')
+  const sampleChannels = channelMonitor()
   const { getChannelStatus } = await import('./mediamtx')
   const server = createServer(async (req, res) => {
     try {
@@ -128,6 +130,28 @@ it('keeps WHIP HLS audio in sync across worker restart and preserves RTMP AAC pl
     await delay(12000)
     await assertAudioVideoSync(hls)
     expect(await getChannelStatus(channel.mediaPath)).toMatchObject({ live: true, tracks: expect.arrayContaining(['H264', 'Opus']) })
+    const snapshots: Array<{ items: Array<{ name: string; inboundBytes: number }> }> = []
+    const readChannels = async (path: string) => {
+      const response = await fetch(`${process.env.MEDIAMTX_API_URL}${path}`)
+      expect(response.ok).toBe(true)
+      const data = await response.json()
+      if (path.startsWith('/v3/paths/')) snapshots.push(data)
+      return data
+    }
+    const sampledAt = Date.now()
+    await sampleChannels(readChannels, () => {}, sampledAt)
+    await delay(1000)
+    const channelMetrics = (await sampleChannels(readChannels, () => {}, sampledAt + 1000)).join('\n')
+    const publisherBytes = snapshots[1].items.find(path => path.name === channel.mediaPath)!.inboundBytes - snapshots[0].items.find(path => path.name === channel.mediaPath)!.inboundBytes
+    const workerBytes = snapshots[1].items.find(path => path.name === outputPath)!.inboundBytes - snapshots[0].items.find(path => path.name === outputPath)!.inboundBytes
+    expect(publisherBytes).toBeGreaterThan(0)
+    expect(workerBytes).toBeGreaterThan(0)
+    expect(channelMetrics).toContain(`monitoring_channel_bytes_per_second{channel="${channel.mediaPath}",direction="publisher",protocol="media"} ${publisherBytes}`)
+    expect(channelMetrics).toContain(`monitoring_channel_publishers{channel="${channel.mediaPath}",protocol="whip"} 1`)
+    expect(channelMetrics).toContain(`monitoring_channel_publishers{channel="${channel.mediaPath}",protocol="rtmp"} 0`)
+    expect(channelMetrics).toContain(`monitoring_channel_viewers{channel="${channel.mediaPath}"} ${(await getChannelStatus(channel.mediaPath)).viewerCount}`)
+    expect(channelMetrics).toContain('monitoring_channel_unassigned_paths 0')
+    expect(channelMetrics).not.toContain(outputPath)
     await stop(worker)
     expect(await getChannelStatus(channel.mediaPath)).toMatchObject({ live: true, tracks: expect.arrayContaining(['H264', 'Opus']) })
     await startWorker()

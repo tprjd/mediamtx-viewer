@@ -1,3 +1,4 @@
+import { channelMonitor } from './channels.mjs'
 import { createServer, request } from 'node:http'
 import { isIP } from 'node:net'
 import { pathToFileURL } from 'node:url'
@@ -70,7 +71,7 @@ function logText(buffer, tty) {
 
 export async function startServiceMonitor({
   dockerSocket = '/var/run/docker.sock', project = 'mediamtx-viewer', instance = 'viewer-vm',
-  port = 12346, intervalMs = 15000, healthPort = 3000,
+  port = 12346, intervalMs = 15000, healthPort = 3000, mediaPort = 9997,
   logsUrl = 'http://127.0.0.1:12347/loki/api/v1/push',
 } = {}) {
   if (![project, instance].every(value => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/.test(value))) throw new Error('invalid-label')
@@ -79,6 +80,7 @@ export async function startServiceMonitor({
   let stopped = false, timer, pending, observed = [], collectionSuccess = 0, lastSuccess = 0, collectionErrors = 0, deliveryErrors = 0, lastDelivery = 0
   let release = 'unknown', previousHealth, lastHeartbeat = 0
   const previous = new Map()
+  const channels = channelMonitor()
   const drops = { unrecognized: 0, oversized: 0, volume: 0, delivery: 0, timestamp: 0 }
   let gaps = 0
   const docker = async path => {
@@ -179,8 +181,16 @@ export async function startServiceMonitor({
           next.push(sample('service_log_read_success', 1, `{service="${service}"}`))
         } catch { gaps++; next.push(sample('service_log_read_success', 0, `{service="${service}"}`)) }
       }))
+      const media = details[services.indexOf('mediamtx')]
+      const mediaAddress = Object.values(media?.NetworkSettings?.Networks ?? {}).map(network => network.IPAddress).find(address => isIP(address) === 4)
+      next.push(...await channels(async path => {
+        if (!mediaAddress || !media?.State?.Running) throw new Error('media-address')
+        const result = await readHttp({ host: mediaAddress, port: mediaPort, path, method: 'GET' })
+        if (result.status !== 200) throw new Error('media-read')
+        return JSON.parse(result.body.toString())
+      }, record => add('mediamtx', record)))
       observed = next; collectionSuccess = 1; lastSuccess = Date.now() / 1000
-    } catch { observed = []; collectionSuccess = 0; collectionErrors++ }
+    } catch { observed = await channels(async () => { throw new Error('docker-read') }, () => {}); collectionSuccess = 0; collectionErrors++ }
     if (entries.length) {
       try {
         const result = await readHttp({ hostname: destination.hostname, port: destination.port, path: destination.pathname, method: 'POST', headers: { 'content-type': 'application/json' } }, JSON.stringify({ streams: entries }), 16384)

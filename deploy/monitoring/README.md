@@ -1,6 +1,6 @@
 # Deploy VM monitoring
 
-Use this collector on the Linux streaming VM. It sends VM and service measurements to Grafana Cloud every 15 seconds. The application deployment does not manage it.
+Use this collector on the Linux streaming VM. It sends VM, service, and Channel measurements to Grafana Cloud every 15 seconds. The application deployment does not manage it.
 
 ## Prepare the Cloud stack
 
@@ -47,7 +47,7 @@ Do not infer capacity from Terraform defaults. After deployment, repeat these me
 
 ## Install the collector
 
-Copy this directory to a versioned directory on the VM, such as `/opt/mediamtx-monitoring/releases/<commit>/`. Keep the previous version for rollback. Run the following commands from that directory as a Docker administrator. Use the same Compose project name for every version.
+Copy `deploy/monitoring/`, `lib/media-readers.ts`, and `lib/whip-pilot.ts` into a versioned directory such as `/opt/mediamtx-monitoring/releases/<commit>/`, preserving these repository-relative paths. Keep the previous version for rollback. Run the following commands from its `deploy/monitoring/` directory as a Docker administrator. Use the same Compose project name for every version.
 
 ```sh
 docker compose --env-file /etc/mediamtx-monitoring/collector.env -p mediamtx-monitoring pull
@@ -65,7 +65,7 @@ Do not add inbound firewall rules. All monitoring listeners use VM loopback. All
 
 ## Import and check the dashboard
 
-1. In Grafana, import `vm-health.json` and `service-health.json` into a folder limited to the administrator accounts.
+1. In Grafana, import `vm-health.json`, `service-health.json`, and `channel-health.json` into a folder limited to the administrator accounts.
 2. Select the stack's existing Prometheus data source in **Metrics source**. Select the VM in **VM**. For service logs, select the existing Loki data source in **Logs source**. Use **Service**, **Release (logs)**, and the time selector to filter events. The release filter affects logs only.
 3. Wait one minute. Check CPU, load, memory, disk space, inodes, disk activity, and interface traffic. The dashboard refreshes every 15 seconds.
 4. Compare memory and filesystem values with `free` and `df` on the VM. Publish to a test Channel and play it. Check that CPU and network rates change.
@@ -117,8 +117,32 @@ The `services` container reads Docker state and logs for seven fixed services in
 
 **The observer has Docker administrator access.** A `:ro` socket mount prevents filesystem writes to the socket mount; it does not restrict Docker API methods. The observer uses only fixed GET requests, but a compromised observer could control Docker and the host. Keep the pinned image and script restricted to administrators. Alloy has no Docker socket. No Docker API proxy or remote management listener is exposed.
 
-The observer does not export raw log text. It classifies known service messages and produces fixed descriptions. Allowed fields are `event`, `level`, `message` (fixed descriptions), `code` (a fixed error or Chat fault enum), `release` (validated version), `running`, `available`, `health`, `chat` (enums), and `restarts` (number). Stream labels are only `job`, `instance`, `service`, and `level`. Account identity, IP addresses, URLs, Channel names, tokens, stream keys, Chat content, stack traces, and arbitrary object fields are excluded. Unknown messages are discarded and counted. For deeper diagnosis, an administrator can inspect raw Docker logs locally.
+The observer does not export raw log text. It classifies known service messages and produces fixed descriptions. Allowed fields are `event`, `level`, `message` (fixed descriptions), `code` (a fixed error or Chat fault enum), `release` (validated version), `running`, `available`, `health`, `chat` (enums), `restarts` (number), `channel` (a standard Channel path), and `live` (boolean). Channel paths appear only in Channel state events. Stream labels are only `job`, `instance`, `service`, and `level`. Account identity, IP addresses, URLs, Channel display names, tokens, stream keys, Chat content, stack traces, and arbitrary object fields are excluded. Unknown messages are discarded and counted. For deeper diagnosis, an administrator can inspect raw Docker logs locally.
 
 The service dashboard shows container state, health, restart count, last start time, application version and availability, available Chat state and outbox measurements, and approved events. A container replacement resets its Docker restart count; state events and start time preserve replacement evidence. A missing Docker health check is `-1`, not a success. A failed collection removes old service readings instead of reporting stale health. Dashboard links preserve VM and time selection.
 
 Check a controlled error in an isolated fixture before production acceptance. Search its fixed error code in Grafana, compare the application health chart for that time, then follow the VM link. Do not stop a live Channel or generate real Chat notifications for this check. Confirm that the Cloud stack still uses its selected 14-day retention. This deployment creates no alert rules or contact points.
+
+## Channel activity and traffic
+
+The observer reads three internal MediaMTX API lists every 15 seconds: paths, HLS sessions, and WebRTC sessions. It uses the Docker bridge address and private port 9997. Do not expose this port. Failed or partial lists remove Channel readings; the collection-success panel shows the failure. No application release or new API is required.
+
+The dashboard lists standard Channel paths (`live` and `channels/<slug>`) observed since the collector started, including their later offline state. It does not list an inactive Channel that MediaMTX has never exposed. Custom paths, old HLS derivatives, and paths above the 100-Channel limit remain in the **Unassigned paths and connections** count. The collector does not guess their owner. Restarting clears the observed-path set; history already sent to Grafana remains available.
+
+The observer imports the same Viewer identity and HLS derivative helpers as the application. A valid `frankerzspam_viewer` ID counts once across concurrent HLS and WebRTC connections. Sessions without that ID count separately, as in the application. Internal RTSP readers, HLS muxers, and thumbnail sessions do not count as Viewers. The current ready HLS derivative maps to its original Channel only when its Publisher generation matches. Its worker is not a second Publisher.
+
+Traffic uses the current fields in pinned MediaMTX 1.20.1:
+
+| Measurement | Source | Meaning |
+| --- | --- | --- |
+| Publisher media input | Original path `inboundBytes`; native `paths_inbound_bytes` | Media bytes received by the path. The derived copy is excluded |
+| HLS Viewer transfer | Public HLS session `outboundBytes`; native `hls_sessions_outbound_bytes` | Bytes returned by the HLS session |
+| WebRTC Viewer transfer | Public read session `outboundBytes`; native `webrtc_sessions_outbound_bytes` | Bytes sent by the WebRTC connection |
+
+These protocol counters are estimates, not VM-interface totals or provider billing. Do not add path outbound counters to session counters: this would count the same transfer twice. The observer does not use deprecated `bytesReceived` or `bytesSent` fields. The pinned [API schema](https://github.com/bluenviron/mediamtx/blob/v1.20.1/api/openapi.yaml) and [metric definitions](https://github.com/bluenviron/mediamtx/blob/v1.20.1/internal/metrics/metrics.go) define the source fields. The disposable test checks the fields and native metric names against that image.
+
+Rates use consecutive counter deltas for the same sessions. Startup, session joins or departures, counter resets, missing metadata, or gaps longer than 45 seconds make the interval incomplete. The dashboard suppresses uncertain rates for the affected direction and protocol. Other valid rates remain visible. Incomplete connection data suppresses Viewer and connection counts. A connection that starts and stops between polls, or its final bytes after the last poll, can be missed. These live rates are not retained bandwidth summaries; that is a later ticket.
+
+Normal starts and stops produce `channel_started` and `channel_stopped` information events. Initial states use `channel_observed`. Collection failure alone produces no stop event. Events share the existing bounded log queue, so loss counters also apply to them. Changes that occur entirely between polls can be missed. No alert or notification is created.
+
+For acceptance, use the disposable Docker test to publish, open WebRTC, add HLS with the same Viewer ID, and close WebRTC. The count must stay at one Viewer while the protocol counts change. Then stop and restart the Publisher and check the Grafana state events. The separate WHIP media test checks a real HLS derivative and internal worker. Never use a live user's Channel for this check.

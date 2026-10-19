@@ -109,7 +109,7 @@ prometheus.scrape "services" {
 	job_name        = "mediamtx/services"
 	scrape_interval = "15s"
 	scrape_timeout  = "3s"
-	sample_limit    = 300
+	sample_limit    = 2000
 	forward_to      = [prometheus.relabel.services.receiver]
 }
 
@@ -117,7 +117,7 @@ prometheus.relabel "services" {
 	forward_to = [prometheus.remote_write.metrics.receiver]
 	rule {
 		source_labels = ["__name__"]
-		regex         = "up|monitoring_(service_.*|application_(up|info)|chat_.*)"
+		regex         = "up|monitoring_(service_.*|channel_.*|application_(up|info)|chat_.*)"
 		action        = "keep"
 	}
 	rule {

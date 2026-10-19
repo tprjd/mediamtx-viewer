@@ -56,7 +56,7 @@ The configuration follows the Alloy references for [host measurements](https://g
 | Alloy log queue | Pinned Alloy default: 10 MiB, in memory; no Loki WAL |
 | Cloud log batch | 64 KiB, flushed after one second |
 | Cloud delivery | Five-second request timeout; six backoff retries, one to ten seconds; no infinite retry |
-| Metrics scrape | 300 samples per service-observer scrape; explicit forwarding filter |
+| Metrics scrape | 2,000 samples per service-observer scrape; explicit forwarding filter |
 
 The export ceiling is about 10.6 GiB per 30 days at continuous maximum volume, before protocol overhead. Actual records are usually much smaller. This is not an account-wide quota; check total Cloud log usage and active series after deployment and before other tickets add data. Keep the account on Free. Do not enable paid upgrades.
 
@@ -65,3 +65,9 @@ A receiver outage can discard logs after retries, during queue pressure, or when
 The observer reads only the latest poll interval after it restarts. It does not backfill an unbounded outage. A Loki outage does not write to application storage. Full raw Docker log retention remains the application's existing responsibility. Inspect the dashboard's delivery counters and query recent logs; a successful local handoff alone does not prove Cloud delivery.
 
 See the official [Loki receiver](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.api/) and [Loki writer](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.write/) references. Custom queue settings are experimental in this Alloy release; this deployment uses the pinned stable defaults.
+
+## Channel collection limits
+
+Channel collection shares the service observer's CPU, memory, log, and 15-second polling limits. Each of its three API responses has a two-second deadline and a 1 MiB limit. Each list requests at most 1,000 items; additional pages fail the collection instead of producing partial counts. At most 100 standard Channel paths are retained for the process lifetime. Additional paths are unassigned and set `monitoring_channel_capacity_exceeded` to 1.
+
+Channel measurements use only `channel`, fixed `protocol`, and fixed `direction` labels, plus the existing instance and job. There are at most 15 measurements per retained Channel, plus five collection measurements. Viewer IDs, source-session IDs, derived paths, remote addresses, and query strings are never exported. Counter checkpoints stay in memory and are replaced each poll. Collector restart loses those checkpoints, so the first rate interval is incomplete. Cloud account usage also includes historical label churn; this process cap is not an account-wide quota.
