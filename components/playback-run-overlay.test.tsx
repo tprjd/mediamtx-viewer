@@ -15,6 +15,7 @@ const props = {
 it('keeps buffering status over the video without a full-screen recovery message', () => {
   const { container } = render(<PlaybackRunOverlay {...props} state="buffering" />)
   expect(screen.getByRole('status')).toHaveTextContent('Buffering')
+  expect(screen.getByRole('status').querySelector('svg')).toBeNull()
   expect(container.querySelector('.player-overlay')).toBeNull()
   expect(screen.queryByText('Reconnecting')).not.toBeInTheDocument()
 })

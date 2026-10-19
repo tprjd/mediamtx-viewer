@@ -10,16 +10,25 @@
  	// Period of RTCP receiver reports.
  	Period time.Duration
  
-@@ -48,6 +51,8 @@
+@@ -48,6 +51,7 @@
  	firstRTPPacketReceived     bool
  	timeInitialized            bool
  	buffer                     []*rtp.Packet
-+	bufferedAt                 time.Time
-+	bufferedCount              int
++	bufferTimes                []time.Time
  	absPos                     uint16
  	negativeCount              int
  	sequenceNumberCycles       uint16
-@@ -213,7 +218,7 @@
+@@ -87,6 +91,9 @@
+ 
+ 	if rr.UnrealiableTransport {
+ 		rr.buffer = make([]*rtp.Packet, rr.BufferSize)
++		if rr.MaxReorderDelay > 0 {
++			rr.bufferTimes = make([]time.Time, rr.BufferSize)
++		}
+ 	}
+ 
+ 	rr.terminate = make(chan struct{})
+@@ -213,7 +220,7 @@
  	var lost uint64
  
  	if rr.UnrealiableTransport {
@@ -28,7 +37,7 @@
  	} else {
  		pkts = []*rtp.Packet{pkt}
  		lost = uint64(pkt.SequenceNumber - rr.lastSequenceNumber - 1)
-@@ -254,7 +259,7 @@
+@@ -254,7 +261,7 @@
  	return pkts, lost
  }
  
@@ -37,54 +46,80 @@
  	relPos := int16(pkt.SequenceNumber - rr.lastSequenceNumber - 1)
  
  	// packet is a duplicate or has been sent
-@@ -273,6 +278,7 @@
- 				rr.buffer[p] = nil
- 			}
- 
-+			rr.bufferedCount = 0
- 			// reset position.
- 			return []*rtp.Packet{pkt}, 0
- 		}
-@@ -305,6 +311,7 @@
- 		}
- 
- 		ret[pos] = pkt
-+		rr.bufferedCount = 0
- 
+@@ -309,44 +316,40 @@
  		return ret, uint64(int(relPos) - n + 1)
  	}
-@@ -320,6 +327,26 @@
  
- 		// put current packet in buffer
- 		rr.buffer[p] = pkt
-+		if rr.bufferedCount == 0 {
-+			rr.bufferedAt = system
-+		}
-+		rr.bufferedCount++
-+		// shortcut: expiry needs another packet; add timed delivery if silent input must flush.
-+		if rr.MaxReorderDelay > 0 && system.Sub(rr.bufferedAt) >= rr.MaxReorderDelay {
-+			ret := make([]*rtp.Packet, 0, rr.bufferedCount)
-+			last := uint16(0)
-+			for i := uint16(0); i < uint16(len(rr.buffer)); i++ {
-+				pos := (rr.absPos + i) & (uint16(len(rr.buffer)) - 1)
-+				if rr.buffer[pos] != nil {
-+					ret = append(ret, rr.buffer[pos])
-+					rr.buffer[pos] = nil
-+					last = i
-+				}
-+			}
-+			rr.absPos = (rr.absPos + last + 1) & (uint16(len(rr.buffer)) - 1)
-+			rr.bufferedCount = 0
-+			return ret, uint64(int(last) + 1 - len(ret))
-+		}
+-	// there's a missing packet
+-	if relPos != 0 {
+-		p := (rr.absPos + uint16(relPos)) & (uint16(len(rr.buffer)) - 1)
+-
+-		// current packet is a duplicate. discard
+-		if rr.buffer[p] != nil {
+-			return nil, 0
+-		}
+-
+-		// put current packet in buffer
+-		rr.buffer[p] = pkt
++	p := (rr.absPos + uint16(relPos)) & (uint16(len(rr.buffer)) - 1)
++	if rr.buffer[p] != nil {
  		return nil, 0
  	}
- 
-@@ -346,6 +373,7 @@
- 		rr.absPos &= (uint16(len(rr.buffer)) - 1)
- 	}
- 
-+	rr.bufferedCount -= int(n) - 1
- 	return ret, 0
+-
+-	// all packets have been received correctly.
+-	// return them.
+-
+-	n := uint16(1)
+-	for {
+-		p := (rr.absPos + n) & (uint16(len(rr.buffer)) - 1)
+-		if rr.buffer[p] == nil {
+-			break
+-		}
+-		n++
+-	}
+-
+-	ret := make([]*rtp.Packet, n)
+-	ret[0] = pkt
+-	rr.absPos++
+-	rr.absPos &= (uint16(len(rr.buffer)) - 1)
+-
+-	for i := uint16(1); i < n; i++ {
+-		ret[i], rr.buffer[rr.absPos] = rr.buffer[rr.absPos], nil
+-		rr.absPos++
+-		rr.absPos &= (uint16(len(rr.buffer)) - 1)
+-	}
+-
+-	return ret, 0
++	rr.buffer[p] = pkt
++
++	// Skip gaps only as far as a packet whose own wait has expired.
++	expiredUntil := 0
++	if rr.MaxReorderDelay > 0 {
++		rr.bufferTimes[p] = system
++		// shortcut: expiry needs another packet; add timed delivery if silent input must flush.
++		for i := 0; i < len(rr.buffer); i++ {
++			pos := (rr.absPos + uint16(i)) & (uint16(len(rr.buffer)) - 1)
++			if rr.buffer[pos] != nil && system.Sub(rr.bufferTimes[pos]) >= rr.MaxReorderDelay {
++				expiredUntil = i + 1
++			}
++		}
++	}
++
++	var ret []*rtp.Packet
++	var lost uint64
++	for i := 0; i < len(rr.buffer); i++ {
++		if rr.buffer[rr.absPos] == nil {
++			if i >= expiredUntil {
++				break
++			}
++			lost++
++		} else {
++			ret = append(ret, rr.buffer[rr.absPos])
++			rr.buffer[rr.absPos] = nil
++		}
++		rr.absPos = (rr.absPos + 1) & (uint16(len(rr.buffer)) - 1)
++	}
++	return ret, lost
  }
  
+ // ProcessSenderReport processes an inbound RTCP sender report.

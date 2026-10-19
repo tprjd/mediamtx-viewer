@@ -29,8 +29,7 @@ export function PlaybackRunOverlay({
   if (state === 'playing') return null
   if (state === 'buffering') {
     return (
-      <span className="protocol-badge" role="status">
-        <LoaderCircle className="size-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+      <span className="playback-buffering" role="status">
         Buffering
       </span>
     )
