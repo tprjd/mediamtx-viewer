@@ -553,4 +553,4 @@ if ('${failure}' -eq 'restore-fails') {
 if ([IO.File]::ReadAllText((Join-Path $whipDirectory 'basic.ini')) -cne 'retained user settings' -or [IO.File]::ReadAllText((Join-Path $whipDirectory 'streamEncoder.json')) -cne $encoderBefore -or (Test-Path "$env:LOCALAPPDATA/FrankerzSpam/OBS Backups")) { throw 'Cleanup failure allowed WHIP repair' }
 $result | ConvertTo-Json -Depth 10 | Write-Output
 `, true)
-})
+}, 15000)

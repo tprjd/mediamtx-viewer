@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [2.1.7] - 2026-10-19
+## [2.1.8] - 2026-10-19
 
 ### Fixed
 
@@ -10,6 +10,7 @@ All notable changes to this project are documented here.
 - Preserve separate repair deadlines when packet gaps overlap, with packet authentication and duplicate rejection enabled.
 - Show a small Buffering label during playback waits, including when controls are hidden. Reserve recovery messages for actual recovery.
 - Install Chromium for the hosted monitoring browser checks.
+- Keep deployment test images separate from the patched server image and allow for PowerShell compilation in OBS profile checks.
 
 ### Added
 

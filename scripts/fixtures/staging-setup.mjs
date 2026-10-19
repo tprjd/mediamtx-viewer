@@ -32,6 +32,10 @@ export async function stagingFixture(work, { chat = false, managed = false, lega
       mkdirSync(join(source, file, '..'), { recursive: true })
       cpSync(file, join(source, file))
     }
+    // Lifecycle checks run on the native test CPU; the ARM64 repair image has separate media checks.
+    const composePath = join(source, 'deploy/oracle/docker-compose.yml')
+    writeFileSync(composePath, readFileSync(composePath, 'utf8')
+      .replace(/(  mediamtx:\n    image: )[^\n]+/, '$1bluenviron/mediamtx:1.20.1'))
     writeFileSync(join(source, 'package.json'), JSON.stringify({ version: '1.2.3' }))
     const keys = join(directory, 'keys.txt')
     run('age-keygen', ['-o', keys])
@@ -131,7 +135,8 @@ if(require('fs').readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8'
  const v=JSON.parse(r.stdout);v.volumes.auth_data.name=v.volumes.thumbnail_data.name;
  require('fs').writeFileSync(1,JSON.stringify(v));process.exit(0);
 }
-const ref=args.find(a=>a.startsWith('ghcr.io/tprjd/mediamtx-viewer/'));
+const applicationImage = value => ['viewer', 'thumbnailer'].some(name => value.startsWith('ghcr.io/tprjd/mediamtx-viewer/'+name+'@'));
+const ref=args.find(applicationImage);
 if(ref && args.includes('pull')) process.exit(require('fs').readFileSync(${JSON.stringify(join(directory, 'fault'))},'utf8')==='registry'?1:0);
 if(args.includes('manifest')) {console.log(JSON.stringify({schemaVersion:2,layers:[{size:100000000}]}));process.exit(0)}
 if(ref && args.includes('inspect')) {
@@ -184,7 +189,7 @@ if(args.includes('compose') && (args.includes('up') || args.includes('run'))) {
  if(candidate && failure==='wrong-version')model.services.viewer.environment.FIXTURE_VERSION='wrong';
  if(candidate && ['degraded-chat','migration-history','volume-ownership'].includes(failure))model.services.viewer.environment.FIXTURE_FAILURE=failure;
  if(candidate && failure==='unhealthy-service')model.services.thumbnailer.healthcheck={test:['CMD','node','-e','process.exit(1)'],interval:'1s',timeout:'1s',retries:1};
- for(const service of Object.values(model.services))if(service.image.startsWith('ghcr.io/tprjd/mediamtx-viewer/'))service.image=${JSON.stringify(image)};
+ for(const service of Object.values(model.services))if(applicationImage(service.image))service.image=${JSON.stringify(image)};
  const path=args[index]+'.fixture';fs.writeFileSync(path,JSON.stringify(model));args[index]=path;
 }
 if(ref)args[args.indexOf(ref)]=${JSON.stringify(image)};
