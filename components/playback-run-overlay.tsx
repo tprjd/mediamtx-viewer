@@ -11,6 +11,7 @@ interface PlaybackRunOverlayProps {
   loadingDescription: string
   loadingTitle: string
   progressAction?: ReactNode
+  reconnectingTitle?: string
   reconnectingDescription: string
   state: PlaybackRunState
 }
@@ -21,10 +22,19 @@ export function PlaybackRunOverlay({
   loadingDescription,
   loadingTitle,
   progressAction,
+  reconnectingTitle = 'Reconnecting',
   reconnectingDescription,
   state,
 }: PlaybackRunOverlayProps) {
   if (state === 'playing') return null
+  if (state === 'buffering') {
+    return (
+      <span className="protocol-badge" role="status">
+        <LoaderCircle className="size-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+        Buffering
+      </span>
+    )
+  }
 
   return (
     <div className="player-overlay" aria-live="polite">
@@ -58,7 +68,7 @@ export function PlaybackRunOverlay({
               aria-hidden="true"
             />
           </span>
-          <h2>{state === 'loading' ? loadingTitle : 'Reconnecting'}</h2>
+          <h2>{state === 'loading' ? loadingTitle : reconnectingTitle}</h2>
           <p>
             {state === 'loading' ? loadingDescription : reconnectingDescription}
           </p>

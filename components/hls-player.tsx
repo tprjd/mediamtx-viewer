@@ -77,7 +77,8 @@ export function HlsPlayer({
             channelSlug={channel.slug}
             loadingDescription={`Preparing ${label.toLowerCase()} playback…`}
             loadingTitle="Joining stream"
-            reconnectingDescription="The connection was interrupted. Retrying automatically…"
+            reconnectingTitle="Resuming playback"
+            reconnectingDescription="Trying to resume the live video automatically…"
             state={visibleState}
           >
             {visibleState === 'unsupported' && (

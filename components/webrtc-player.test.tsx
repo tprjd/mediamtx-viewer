@@ -199,6 +199,25 @@ describe('WebRtcPlayer watchdog', () => {
     expect(fallback).not.toHaveBeenCalled()
   })
 
+  it('keeps WebRTC through repeated two-second upload gaps without new playing events', async () => {
+    let frames = 60
+    const fallback = vi.fn()
+    await renderPlayer(fallback)
+    const original = FakeReader.instances[0]
+    await connect(original, peerWithFrames(() => frames))
+    for (let burst = 0; burst < 12; burst += 1) {
+      frames += 60
+      await act(async () => vi.advanceTimersByTimeAsync(1_000))
+      await act(async () => vi.advanceTimersByTimeAsync(2_000))
+    }
+    frames += 60
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(FakeReader.instances).toEqual([original])
+    expect(original.close).not.toHaveBeenCalled()
+    expect(fallback).not.toHaveBeenCalled()
+    expect(screen.queryByText('Reconnecting')).not.toBeInTheDocument()
+  })
+
   it('rebuilds once after five stagnant samples and falls back on the next stall', async () => {
     const fallback = vi.fn()
     const peer = peerWithFrames(() => 10)

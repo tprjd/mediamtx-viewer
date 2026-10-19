@@ -39,6 +39,29 @@ describe('PlaybackRun coordination', () => {
     expect(repair).not.toHaveBeenCalled()
   })
 
+  it('does not turn a buffered wait into a reconnect after a visibility change', () => {
+    const { run, environment, onPhaseChange, resume } = setup()
+    run.report('playing')
+    run.report('buffering')
+    expect(onPhaseChange).toHaveBeenLastCalledWith('buffering')
+    environment.visible = false
+    run.environmentChanged()
+    environment.visible = true
+    run.environmentChanged()
+    expect(resume).not.toHaveBeenCalled()
+  })
+
+  it('does not let a waiting event hide or cancel an active reconnect', async () => {
+    const { run, onPhaseChange } = setup()
+    const repair = vi.fn()
+    run.report('playing')
+    run.recover(repair, 1_000)
+    run.report('buffering')
+    expect(onPhaseChange).toHaveBeenLastCalledWith('reconnecting')
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(repair).toHaveBeenCalledOnce()
+  })
+
   it.each(['visible', 'online', 'userPaused'] as const)('defers recovery while %s blocks it and resumes only once', async (key) => {
     const { run, environment } = setup()
     const repair = vi.fn()

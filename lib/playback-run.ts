@@ -3,6 +3,7 @@ import type { ViewingAccessResult } from '@/lib/auth/viewing-access-client'
 export type PlaybackRunPhase =
   | 'loading'
   | 'playing'
+  | 'buffering'
   | 'reconnecting'
   | 'unauthorized'
   | 'unsupported'
@@ -62,6 +63,8 @@ export class PlaybackRun {
 
   report(phase: PlaybackRunPhase): boolean {
     if (!this.acceptsEvents()) return false
+    // Waiting events can also arrive while a real recovery is already running.
+    if (phase === 'buffering' && this.phase !== 'playing' && this.phase !== 'buffering') return true
     this.phase = phase
     if (phase === 'playing' || phase === 'unauthorized' || phase === 'unsupported') {
       this.cancelWork()

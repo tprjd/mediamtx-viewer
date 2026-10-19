@@ -960,7 +960,7 @@ describe('useHlsPlayback', () => {
     expect(playback.current.state).not.toBe('reconnecting')
   })
 
-  it('does not flash reconnecting for a brief wait that resumes on its own', async () => {
+  it('reports buffering without reconnecting or replacing a healthy HLS connection', async () => {
     mocks.videoAlreadyPlaying = true
     renderPlayback({ channel, latencyProfile: 'balanced' })
     await act(async () => Promise.resolve())
@@ -974,7 +974,12 @@ describe('useHlsPlayback', () => {
     expect(playback.current.state).not.toBe('reconnecting')
     fireEvent(video, new Event('waiting'))
     await act(async () => vi.advanceTimersByTimeAsync(250))
-    expect(playback.current.state).toBe('reconnecting')
+    expect(playback.current.state).toBe('buffering')
+    const playerKey = playback.current.playerKey
+    await act(async () => vi.advanceTimersByTimeAsync(1_500))
+    expect(playback.current.playerKey).toBe(playerKey)
+    fireEvent(video, new Event('playing'))
+    expect(playback.current.state).toBe('playing')
   })
 
   it('reports repeated ultra-low stalls within 30 seconds', async () => {

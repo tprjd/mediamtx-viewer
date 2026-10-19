@@ -1,0 +1,42 @@
+diff --git a/internal/protocols/webrtc/inbound_track.go b/internal/protocols/webrtc/inbound_track.go
+index 0cafae7..81b3aa6 100644
+--- a/internal/protocols/webrtc/inbound_track.go
++++ b/internal/protocols/webrtc/inbound_track.go
+@@ -329,6 +329,11 @@ func (t *InboundTrack) start() {
+ 			t.writeRTCP([]rtcp.Packet{p}) //nolint:errcheck
+ 		},
+ 	}
++	// Accept late video repairs without letting permanent loss hold back slow tracks.
++	if t.track.Kind() == webrtc.RTPCodecTypeVideo {
++		t.rtpReceiver.BufferSize = 512
++	}
++	t.rtpReceiver.MaxReorderDelay = 200 * time.Millisecond
+ 	err := t.rtpReceiver.Initialize()
+ 	if err != nil {
+ 		panic(err)
+diff --git a/internal/protocols/webrtc/peer_connection.go b/internal/protocols/webrtc/peer_connection.go
+index 21c372e..f9d991c 100644
+--- a/internal/protocols/webrtc/peer_connection.go
++++ b/internal/protocols/webrtc/peer_connection.go
+@@ -214,6 +214,8 @@ func (co *PeerConnection) Start() error {
+ 	}
+ 
+ 	settingsEngine := webrtc.SettingEngine{}
++	// Accept authenticated repairs throughout the video reorder window.
++	settingsEngine.SetSRTPReplayProtectionWindow(512)
+ 
+ 	settingsEngine.SetIncludeLoopbackCandidate(true)
+ 
+diff --git a/internal/protocols/webrtc/peer_connection_test.go b/internal/protocols/webrtc/peer_connection_test.go
+index 6cda3ae..fdd0683 100644
+--- a/internal/protocols/webrtc/peer_connection_test.go
++++ b/internal/protocols/webrtc/peer_connection_test.go
+@@ -1104,7 +1104,7 @@ func TestPeerConnectionRecomputeSequenceNumber(t *testing.T) {
+ 					Payload: []byte{5, 2},
+ 				}}
+ 
+-				for i := uint16(1002); i <= 1065; i++ {
++				for i := uint16(1002); i <= 1513; i++ {
+ 					packets = append(packets, &rtp.Packet{
+ 						Header: rtp.Header{
+ 							Version:        2,

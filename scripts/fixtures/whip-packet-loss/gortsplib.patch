@@ -1,0 +1,90 @@
+--- a/pkg/rtpreceiver/receiver.go
++++ b/pkg/rtpreceiver/receiver.go
+@@ -33,6 +33,9 @@
+ 	// It defaults to 64.
+ 	BufferSize int
+ 
++	// Maximum wait for missing packets while input continues. Zero disables the time limit.
++	MaxReorderDelay time.Duration
++
+ 	// Period of RTCP receiver reports.
+ 	Period time.Duration
+ 
+@@ -48,6 +51,8 @@
+ 	firstRTPPacketReceived     bool
+ 	timeInitialized            bool
+ 	buffer                     []*rtp.Packet
++	bufferedAt                 time.Time
++	bufferedCount              int
+ 	absPos                     uint16
+ 	negativeCount              int
+ 	sequenceNumberCycles       uint16
+@@ -213,7 +218,7 @@
+ 	var lost uint64
+ 
+ 	if rr.UnrealiableTransport {
+-		pkts, lost = rr.reorder(pkt)
++		pkts, lost = rr.reorder(pkt, system)
+ 	} else {
+ 		pkts = []*rtp.Packet{pkt}
+ 		lost = uint64(pkt.SequenceNumber - rr.lastSequenceNumber - 1)
+@@ -254,7 +259,7 @@
+ 	return pkts, lost
+ }
+ 
+-func (rr *Receiver) reorder(pkt *rtp.Packet) ([]*rtp.Packet, uint64) {
++func (rr *Receiver) reorder(pkt *rtp.Packet, system time.Time) ([]*rtp.Packet, uint64) {
+ 	relPos := int16(pkt.SequenceNumber - rr.lastSequenceNumber - 1)
+ 
+ 	// packet is a duplicate or has been sent
+@@ -273,6 +278,7 @@
+ 				rr.buffer[p] = nil
+ 			}
+ 
++			rr.bufferedCount = 0
+ 			// reset position.
+ 			return []*rtp.Packet{pkt}, 0
+ 		}
+@@ -305,6 +311,7 @@
+ 		}
+ 
+ 		ret[pos] = pkt
++		rr.bufferedCount = 0
+ 
+ 		return ret, uint64(int(relPos) - n + 1)
+ 	}
+@@ -320,6 +327,26 @@
+ 
+ 		// put current packet in buffer
+ 		rr.buffer[p] = pkt
++		if rr.bufferedCount == 0 {
++			rr.bufferedAt = system
++		}
++		rr.bufferedCount++
++		// shortcut: expiry needs another packet; add timed delivery if silent input must flush.
++		if rr.MaxReorderDelay > 0 && system.Sub(rr.bufferedAt) >= rr.MaxReorderDelay {
++			ret := make([]*rtp.Packet, 0, rr.bufferedCount)
++			last := uint16(0)
++			for i := uint16(0); i < uint16(len(rr.buffer)); i++ {
++				pos := (rr.absPos + i) & (uint16(len(rr.buffer)) - 1)
++				if rr.buffer[pos] != nil {
++					ret = append(ret, rr.buffer[pos])
++					rr.buffer[pos] = nil
++					last = i
++				}
++			}
++			rr.absPos = (rr.absPos + last + 1) & (uint16(len(rr.buffer)) - 1)
++			rr.bufferedCount = 0
++			return ret, uint64(int(last) + 1 - len(ret))
++		}
+ 		return nil, 0
+ 	}
+ 
+@@ -346,6 +373,7 @@
+ 		rr.absPos &= (uint16(len(rr.buffer)) - 1)
+ 	}
+ 
++	rr.bufferedCount -= int(n) - 1
+ 	return ret, 0
+ }
+ 

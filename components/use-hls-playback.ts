@@ -655,7 +655,7 @@ export function useHlsPlayback({
       waitingTimer = setTimeout(() => {
         if (!run.canRecover() || video.paused || video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return
         if (reportUltraLowInstability('playback stalls')) return
-        run.report('reconnecting')
+        run.report('buffering')
       }, 250)
     }
     const handlePause = () => {
