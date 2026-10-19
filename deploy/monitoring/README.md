@@ -47,7 +47,7 @@ Do not infer capacity from Terraform defaults. After deployment, repeat these me
 
 ## Install the collector
 
-Copy `deploy/monitoring/`, `lib/media-readers.ts`, and `lib/whip-pilot.ts` into a versioned directory such as `/opt/mediamtx-monitoring/releases/<commit>/`, preserving these repository-relative paths. Keep the previous version for rollback. Run the following commands from its `deploy/monitoring/` directory as a Docker administrator. Use the same Compose project name for every version.
+Copy `deploy/monitoring/`, `lib/media-readers.ts`, `lib/whip-pilot.ts`, and `lib/monitoring-labels.ts` into a versioned directory such as `/opt/mediamtx-monitoring/releases/<commit>/`, preserving these repository-relative paths. Keep the previous version for rollback. Run the following commands from its `deploy/monitoring/` directory as a Docker administrator. Use the same Compose project name for every version.
 
 ```sh
 docker compose --env-file /etc/mediamtx-monitoring/collector.env -p mediamtx-monitoring pull
@@ -61,11 +61,11 @@ The readiness response checks the collector configuration. It does not prove del
 
 Alloy uses the host network and read-only host mounts to measure the VM. It runs as UID `65534`, drops all capabilities, and has no Docker socket. It can read world-readable host files. Keep application credentials readable only by their service account or root. Keep Docker management private.
 
-Do not add inbound firewall rules. All monitoring listeners use VM loopback. Alloy needs outbound HTTPS to the Cloud metrics and logs endpoints. Restart the collector after a host filesystem mount changes so its filesystem view is current.
+Do not add inbound firewall rules. The base monitoring listeners use VM loopback. The optional trace receiver uses the private Docker bridge gateway. Alloy needs outbound HTTPS to the Cloud metrics and logs endpoints. Restart the collector after a host filesystem mount changes so its filesystem view is current.
 
 ## Import and check the dashboard
 
-1. In Grafana, import `vm-health.json`, `service-health.json`, and `channel-health.json` into a folder limited to the administrator accounts.
+1. In Grafana, import `vm-health.json`, `service-health.json`, `channel-health.json`, and `request-performance.json` into a folder limited to the administrator accounts.
 2. Select the stack's existing Prometheus data source in **Metrics source**. Select the VM in **VM**. For service logs, select the existing Loki data source in **Logs source**. Use **Service**, **Release (logs)**, and the time selector to filter events. The release filter affects logs only.
 3. Wait one minute. Check CPU, load, memory, disk space, inodes, disk activity, and interface traffic. The dashboard refreshes every 15 seconds.
 4. Compare memory and filesystem values with `free` and `df` on the VM. Publish to a test Channel and play it. Check that CPU and network rates change.
@@ -146,3 +146,48 @@ Rates use consecutive counter deltas for the same sessions. Startup, session joi
 Normal starts and stops produce `channel_started` and `channel_stopped` information events. Initial states use `channel_observed`. Collection failure alone produces no stop event. Events share the existing bounded log queue, so loss counters also apply to them. Changes that occur entirely between polls can be missed. No alert or notification is created.
 
 For acceptance, use the disposable Docker test to publish, open WebRTC, add HLS with the same Viewer ID, and close WebRTC. The count must stay at one Viewer while the protocol counts change. Then stop and restart the Publisher and check the Grafana state events. The separate WHIP media test checks a real HLS derivative and internal worker. Never use a live user's Channel for this check.
+
+## Request performance and traces
+
+This feature needs an application release as well as the collector. Keep `MONITORING_ENABLED=false` until the managed application release passes its required checks. For this monitoring series, run the full Docker suite after ticket 10, then activate tracing through the normal release process. Do not copy application files into a running production container.
+
+1. In the Grafana Cloud portal, open the stack's OpenTelemetry connection details. Copy the **HTTP traces endpoint** and tenant ID. Use the full URL ending in `/v1/traces`. If the portal gives an OTLP base URL ending in `/otlp`, append `/v1/traces`. Do not use the Tempo query URL or gRPC address.
+2. Create a stack-scoped Cloud access policy with only `traces:write`. Save its token as `GRAFANA_TRACES_TOKEN` in the existing private `collector.env` file. Save the endpoint and tenant ID as `GRAFANA_TRACES_URL` and `GRAFANA_TRACES_USER`. Keep mode `0600`. The Grafana dashboard service-account token cannot send traces.
+3. Check that `172.28.0.1` is the gateway of `viewer_net`. Set `MONITORING_OTLP_LISTEN_ADDRESS=172.28.0.1:4318`. Keep port 4318 private. The receiver has no authentication and trusts the private bridge. Do not bind it to the public interface or add an ingress rule. Other trusted containers on this bridge can send telemetry.
+4. From the new monitoring release directory, validate and start both files:
+
+   ```sh
+   docker compose --env-file /etc/mediamtx-monitoring/collector.env -f compose.yaml -f compose.traces.yaml -p mediamtx-monitoring run --rm --no-deps alloy validate /etc/alloy/with-traces
+   docker compose --env-file /etc/mediamtx-monitoring/collector.env -f compose.yaml -f compose.traces.yaml -p mediamtx-monitoring up -d
+   ```
+
+5. Set `MONITORING_ENABLED=true` in the application's private deployment environment. Deploy the verified application release. The app sends OTLP to the private gateway and serves metrics on port 9464 inside its container. The Compose file publishes no metrics port. The existing observer reads metrics through the Docker bridge; only its loopback endpoint is scraped by Alloy. No Cloud token enters the application.
+6. Import `request-performance.json` into the administrator folder. Select the Prometheus, Loki, and Tempo data sources. Check request rate, error rate, p95 latency, database timings, collection state, queue size, and loss counts. Select a trace ID in the failure table or recent trace table to open it in Grafana Explore. Use the same VM, route, and time range to compare errors with latency.
+
+OpenTelemetry starts from `instrumentation.ts`. It samples 10% of root requests. Child spans keep the local parent's decision. Incoming `traceparent`, `tracestate`, and baggage do not control the sample or exported IDs. Request counts, error counts, and database timing histograms include unsampled requests. Errors include HTTP 4xx and 5xx; selected JSON error logs cover 5xx and failed native spans. Selected logs are limited to eight per 15 seconds, before the observer's existing log limits.
+
+The route label is a fixed application route template. Unknown routes use `/unmatched`; query strings, account IDs, Channel slugs, and OBS setup codes cannot create labels. Static asset and unmatched requests share that bucket. `/api/channel-events` remains open during an event stream, so its duration is connection duration and its request counter changes when it closes. Media payloads served directly by Caddy or MediaMTX are outside application request timing. Their measurements remain on the Channel dashboard.
+
+Database coverage is explicit:
+
+| Operation | Function | Measured work |
+| --- | --- | --- |
+| `account_access` | `getAccountAccess` | Account access query |
+| `channel_watch_access` | `canWatchChannel` | Channel viewing permission query |
+| `channel_list` | `getChannels` | Channel list query |
+| `channel_read` | `getChannel` | Single Channel query after input validation |
+
+These timings include synchronous statement preparation and execution. They exclude result mapping, other database queries, migrations, and auth-provider internals. Database spans attach to the current request when one exists. They contain only the fixed operation name, duration, and success/error status. No SQL text, parameters, or results are captured.
+
+Native Next spans are projected before entering the export queue. The projection retains timing, generated trace/span IDs, normalized method/route/status, fixed span names, and the application version. It discards URLs, headers, cookies, bodies, exceptions, events, links, and arbitrary attributes. Alloy applies a second allowlist and rejects unexpected events, links, route values, methods, and operations. Request error logs use the same route/method vocabulary, status, release, and optional trace ID. The ID is a JSON field, never a metric or Loki stream label.
+
+A sampled request does **not** guarantee a saved or complete trace. Queue limits, volume limits, restarts, timeouts, and backend rejection can discard spans. An unsampled error log has no trace ID. Start with the counters and logs when trace lookup fails. To stop tracing, disable `MONITORING_ENABLED` through the managed application deployment, then return the collector to `compose.yaml` alone. Previously stored Cloud history remains subject to its retention period. Self-hosting later changes the collector's OTLP destination and Grafana data source; application instrumentation stays the same.
+
+Run the focused checks with Node 24:
+
+```sh
+npx vitest run lib/request-monitoring.integration.test.ts scripts/service-monitoring.test.mjs
+DOCKER_CONTEXT=desktop-linux npx vitest run scripts/monitoring-deployment.test.mjs -t 'exports real Next requests'
+```
+
+The second test builds the real application image and runs isolated Next.js, Alloy, Tempo, Loki, Prometheus, and Grafana containers. It uses a disposable SQLite database and fixture credentials. Production credentials and live Channels are not used. The [Alloy OTLP exporter reference](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.exporter.otlphttp/) describes the portable destination and queue configuration.

@@ -1,13 +1,15 @@
 // @vitest-environment node
-import { execFileSync } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { createHmac, randomUUID } from 'node:crypto'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { chromium, request as playwrightRequest } from '@playwright/test'
 import { expect, it } from 'vitest'
 
 const contextArgs = process.env.DOCKER_CONTEXT ? ['--context', process.env.DOCKER_CONTEXT] : []
-const docker = (...args) => execFileSync('docker', [...contextArgs, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 }).trim()
+const docker = (...args) => execFileSync('docker', [...contextArgs, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: args[0] === 'build' ? 120000 : 60000 }).trim()
 
 async function until(check) {
   let failure
@@ -287,3 +289,186 @@ it('shows private service diagnostics and VM history while bounded collectors su
     try { compose('down', '--remove-orphans') } finally { docker('rm', '-f', receiver, grafana, publisher, media, loki, viewer) }
   }
 }, 540000)
+
+it('exports real Next requests through Alloy and opens saved traces from a private Grafana dashboard', async () => {
+  const context = process.env.DOCKER_CONTEXT ?? docker('context', 'show')
+  const contextEndpoint = JSON.parse(docker('context', 'inspect', context))[0].Endpoints.docker.Host
+  const endpoint = process.env.DOCKER_CONTEXT ? contextEndpoint : process.env.DOCKER_HOST ?? contextEndpoint
+  if (!endpoint.startsWith('unix://')) throw new Error('Monitoring tests require a local Docker socket')
+  const project = `request-test-${randomUUID()}`, directory = mkdtempSync(join(tmpdir(), 'request-monitoring-'))
+  const containers = [], environment = { MONITORING_INSTANCE: project, MONITORING_PROJECT: project, GRAFANA_METRICS_USER: 'fixture', GRAFANA_METRICS_TOKEN: 'fixture', GRAFANA_LOGS_USER: 'fixture', GRAFANA_LOGS_TOKEN: 'fixture', GRAFANA_TRACES_USER: 'fixture', GRAFANA_TRACES_TOKEN: 'fixture' }
+  let browser
+  const compose = (...args) => execFileSync('docker', [...contextArgs, 'compose', '-p', project, '-f', 'deploy/monitoring/compose.yaml', '-f', 'deploy/monitoring/compose.traces.yaml', ...args], { env: { ...process.env, ...environment }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 }).trim()
+  const run = (name, args) => {
+    const full = `${project}-${name}`; containers.push(full)
+    docker('run', '-d', '--name', full, ...args)
+    return JSON.parse(docker('inspect', full))[0]
+  }
+  const url = (state, port) => `http://127.0.0.1:${state.NetworkSettings.Ports[`${port}/tcp`][0].HostPort}`
+  try {
+    docker('build', '-q', '-t', 'mediamtx-request-monitoring-test:local', '.')
+    writeFileSync(join(directory, 'tempo.yaml'), `server:
+  http_listen_port: 3200
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: 0.0.0.0:4318
+ingester:
+  max_block_duration: 5m
+compactor:
+  compaction:
+    block_retention: 1h
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /tmp/tempo/wal
+    local:
+      path: /tmp/tempo/blocks
+`)
+    const tempo = run('tempo', ['-p', '127.0.0.1::3200', '-v', `${directory}/tempo.yaml:/etc/tempo.yaml:ro`, 'grafana/tempo:2.10.8', '-config.file=/etc/tempo.yaml'])
+    const tempoUrl = url(tempo, 3200), tempoAddress = tempo.NetworkSettings.Networks.bridge.IPAddress
+    environment.GRAFANA_TRACES_URL = `http://${tempoAddress}:4318/v1/traces`
+    await until(async () => expect((await fetch(`${tempoUrl}/ready`)).ok).toBe(true))
+    const prom = run('prom', ['-p', '127.0.0.1::9090', 'prom/prometheus:v3.15.0', '--config.file=/dev/null', '--web.enable-remote-write-receiver'])
+    environment.GRAFANA_METRICS_URL = `http://${prom.NetworkSettings.Networks.bridge.IPAddress}:9090/api/v1/write`
+    const loki = run('loki', ['-p', '127.0.0.1::3100', 'grafana/loki:3.7.7', '-config.file=/etc/loki/local-config.yaml', '-auth.enabled=false'])
+    environment.GRAFANA_LOGS_URL = `http://${loki.NetworkSettings.Networks.bridge.IPAddress}:3100/loki/api/v1/push`
+    await until(async () => expect((await fetch(`${url(loki, 3100)}/ready`)).ok).toBe(true))
+    const gateway = tempo.NetworkSettings.Networks.bridge.Gateway
+    environment.MONITORING_OTLP_LISTEN_ADDRESS = `${gateway}:4318`
+    const secret = 'PRIVATE_AUTH_SECRET-at-least-32-characters'
+    const viewer = run('viewer', ['-p', '127.0.0.1::3000', '-p', '127.0.0.1::9464', '--label', `com.docker.compose.project=${project}`, '--label', 'com.docker.compose.service=viewer',
+      '-e', 'MONITORING_ENABLED=true', '-e', 'MONITORING_METRICS_HOST=0.0.0.0', '-e', `MONITORING_TRACES_URL=http://${gateway}:4318/v1/traces`,
+      '-e', 'AUTH_DB_PATH=/data/auth.sqlite', '-e', 'CHAT_ENABLED=false', '-e', `BETTER_AUTH_SECRET=${secret}`, '-e', `INTERNAL_AUTH_SECRET=${secret}`, '-e', `MEDIAMTX_AUTH_SECRET=${secret}`, '-e', 'BETTER_AUTH_URL=http://localhost:3000', 'mediamtx-request-monitoring-test:local'])
+    const appUrl = url(viewer, 3000), metricsUrl = `${url(viewer, 9464)}/metrics`
+    await until(async () => expect((await fetch(`${appUrl}/api/health`)).status).toBe(200))
+    compose('up', '-d')
+    const viewerName = `${project}-viewer`
+    docker('exec', viewerName, 'node', '-e', `const db=new(require('better-sqlite3'))('/data/auth.sqlite'); db.prepare("INSERT INTO user (id,name,email,emailVerified,createdAt,updatedAt,activationStatus) VALUES (?,?,?,1,0,0,'active')").run('PRIVATE_ACCOUNT','PRIVATE_NAME','PRIVATE_EMAIL@example.test');db.prepare('INSERT INTO session (id,token,userId,createdAt,updatedAt,expiresAt) VALUES (?,?,?,?,?,?)').run('PRIVATE_SESSION','PRIVATE_TOKEN','PRIVATE_ACCOUNT',Date.now(),Date.now(),Date.now()+3600000);`)
+    const signature = createHmac('sha256', secret).update('PRIVATE_TOKEN').digest('base64')
+    const cookie = `__Secure-better-auth.session_token=${encodeURIComponent(`PRIVATE_TOKEN.${signature}`)}`
+    for (let count = 0; count < 25; count++) {
+      expect((await fetch(`${appUrl}/api/channels?private=mtx_sk_PRIVATE`, { headers: { cookie, baggage: 'secret=PRIVATE_BAGGAGE', traceparent: '00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01' } })).status).toBe(200)
+    }
+    expect((await fetch(`${appUrl}/api/channels/PRIVATE_CHANNEL/status?private=mtx_sk_PRIVATE`, { headers: { cookie } })).status).toBe(404)
+    // Cause a health failure in this disposable database, without changing production state.
+    docker('exec', viewerName, 'node', '-e', "new(require('better-sqlite3'))('/data/auth.sqlite').exec('DROP TABLE auth_audit_log')")
+    await until(async () => {
+      for (let count = 0; count < 5; count++) expect((await fetch(`${appUrl}/api/health?private=mtx_sk_PRIVATE`)).status).toBe(503)
+      const output = spawnSync('docker', [...contextArgs, 'logs', viewerName], { encoding: 'utf8' })
+      const lines = (output.stdout + output.stderr).split('\n').flatMap(line => { try { return [JSON.parse(line)] } catch { return [] } })
+      expect(lines.some(line => line.event === 'request_error' && line.traceId)).toBe(true)
+      expect(lines.some(line => line.event === 'request_error' && !line.traceId)).toBe(true)
+    })
+    const metrics = await fetch(metricsUrl).then(response => response.text())
+    expect(metrics).toContain('route="/api/health"')
+    expect(metrics).toContain('route="/api/channels"')
+    expect(metrics).toContain('route="/api/channels/[slug]/status"')
+    expect(metrics).not.toContain('PRIVATE_CHANNEL')
+    expect(metrics).toContain('operation="channel_list"')
+    const traceId = await until(async () => {
+      const result = await fetch(`${tempoUrl}/api/search?${new URLSearchParams({ q: '{resource.service.name="mediamtx-viewer" && span.http.route="/api/health"}', limit: '20' })}`).then(response => response.json())
+      expect(result.traces?.length).toBeGreaterThan(0)
+      return result.traces[0].traceID
+    })
+    const saved = await fetch(`${tempoUrl}/api/traces/${traceId}`, { headers: { accept: 'application/json' } }).then(response => response.text())
+    expect(saved).toContain('/api/health')
+    const databaseTrace = await until(async () => {
+      // Exercise normal 10% sampling until this native request has a saved trace.
+      for (let count = 0; count < 5; count++) expect((await fetch(`${appUrl}/api/channels?private=mtx_sk_PRIVATE`, { headers: { cookie, baggage: 'secret=PRIVATE_BAGGAGE', traceparent: '00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01' } })).status).toBe(200)
+      const result = await fetch(`${tempoUrl}/api/search?${new URLSearchParams({ q: '{span.db.operation.name="channel_list"}', limit: '20' })}`).then(response => response.json())
+      expect(result.traces?.length).toBeGreaterThan(0)
+      return fetch(`${tempoUrl}/api/traces/${result.traces[0].traceID}`, { headers: { accept: 'application/json' } }).then(response => response.text())
+    })
+    expect(databaseTrace).toContain('database channel_list')
+    expect(databaseTrace).toContain('/api/channels')
+    const failureRecord = await until(async () => {
+      const result = await fetch(`${url(loki, 3100)}/loki/api/v1/query_range?${new URLSearchParams({ query: `{instance="${project}",service="viewer"} | json | event="request_error"`, start: String(BigInt(Date.now() - 600000) * 1000000n), limit: '100' })}`).then(response => response.json())
+      const records = result.data.result.flatMap(stream => stream.values.map(([, line]) => JSON.parse(line)))
+      expect(records.some(record => !record.traceId)).toBe(true)
+      for (const record of records.filter(record => record.traceId)) {
+        const response = await fetch(`${tempoUrl}/api/traces/${record.traceId}`, { headers: { accept: 'application/json' } })
+        if (response.ok) { expect(await response.text()).toContain('/api/health'); return record }
+      }
+      throw new Error('No saved trace for a sampled error yet')
+    })
+    for (const secret of ['mtx_sk_PRIVATE', 'PRIVATE_ACCOUNT', 'PRIVATE_NAME', 'PRIVATE_EMAIL', 'PRIVATE_TOKEN', 'PRIVATE_BAGGAGE', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa']) { expect(saved + databaseTrace + JSON.stringify(failureRecord)).not.toContain(secret); expect(metrics).not.toContain(secret) }
+    const grafana = run('grafana', ['-p', '127.0.0.1::3000', '-e', 'GF_SECURITY_ADMIN_PASSWORD=fixture-only', '-e', 'GF_AUTH_ANONYMOUS_ENABLED=false', '-e', 'GF_ANALYTICS_REPORTING_ENABLED=false', 'grafana/grafana:13.2.4'])
+    const grafanaUrl = url(grafana, 3000)
+    const auth = `Basic ${Buffer.from('admin:fixture-only').toString('base64')}`
+    const api = (path, body) => fetch(grafanaUrl + path, { method: body ? 'POST' : 'GET', headers: { authorization: auth, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) })
+    await until(async () => expect((await api('/api/health')).ok).toBe(true))
+    for (const [uid, type, address] of [['prom', 'prometheus', environment.GRAFANA_METRICS_URL.replace('/api/v1/write', '')], ['logs', 'loki', environment.GRAFANA_LOGS_URL.replace('/loki/api/v1/push', '')], ['traces', 'tempo', `http://${tempoAddress}:3200`]]) expect((await api('/api/datasources', { uid, name: uid, type, access: 'proxy', url: address })).ok).toBe(true)
+    const dashboard = JSON.parse(readFileSync('deploy/monitoring/request-performance.json', 'utf8'))
+    for (const variable of dashboard.templating.list) {
+      if (['datasource', 'logs', 'traces', 'instance'].includes(variable.name)) { const value = { datasource: 'prom', logs: 'logs', traces: 'traces', instance: project }[variable.name]; variable.current = { text: value, value } }
+    }
+    expect((await api('/api/dashboards/db', { dashboard, overwrite: true })).ok).toBe(true)
+    await until(async () => {
+      expect((await fetch(`${appUrl}/api/channels`, { headers: { cookie } })).status).toBe(200)
+      const result = await api('/api/ds/query', { from: String(Date.now() - 600000), to: String(Date.now()), queries: [{ refId: 'A', datasource: { type: 'prometheus', uid: 'prom' }, expr: `sum(rate(monitoring_request_total{instance="${project}",route="/api/channels"}[1m]))`, instant: true, range: false }] }).then(response => response.json())
+      expect(result.results.A.frames.some(frame => frame.data.values.some(values => values.length > 0))).toBe(true)
+    })
+    const traced = await api('/api/ds/query', { from: String(Date.now() - 600000), to: String(Date.now()), queries: [{ refId: 'A', datasource: { type: 'tempo', uid: 'traces' }, queryType: 'traceId', query: traceId }] }).then(response => response.json())
+    expect(traced.results.A.error).toBeUndefined()
+    expect(traced.results.A.frames.length).toBeGreaterThan(0)
+    for (const panel of dashboard.panels) {
+      for (const target of panel.targets) {
+        const source = panel.datasource.type
+        const replace = value => typeof value === 'string' ? value.replaceAll('$instance', project).replaceAll('$route', '.*').replaceAll('$__rate_interval', '1m') : value
+        const query = Object.fromEntries(Object.entries(target).map(([key, value]) => [key, replace(value)]))
+        query.datasource = { type: source, uid: { prometheus: 'prom', loki: 'logs', tempo: 'traces' }[source] }
+        query.intervalMs = 15000; query.maxDataPoints = 500
+        await until(async () => {
+          expect((await fetch(`${appUrl}/api/channels`, { headers: { cookie } })).status).toBe(200)
+          const result = await api('/api/ds/query', { from: String(Date.now() - 600000), to: String(Date.now()), queries: [query] }).then(response => response.json())
+          expect(result.results, panel.title).toHaveProperty(target.refId)
+          expect(result.results?.[target.refId]?.error, panel.title).toBeUndefined()
+          expect(result.results?.[target.refId]?.status ?? 200, panel.title).toBe(200)
+          if (source === 'prometheus' && panel.id <= 9) expect(result.results[target.refId].frames.some(frame => frame.schema.fields.some((field, index) => field.type === 'number' && frame.data.values[index].some(Number.isFinite))), panel.title).toBe(true)
+        })
+      }
+    }
+    expect((await fetch(grafanaUrl + '/api/dashboards/uid/mediamtx-requests')).status).toBe(401)
+    browser = await chromium.launch({ headless: true })
+    const browserContext = await browser.newContext()
+    await browserContext.route(`${grafanaUrl}/**`, route => route.continue({ headers: { ...route.request().headers(), authorization: auth } }))
+    const page = await browserContext.newPage()
+    await page.goto(`${grafanaUrl}/d/mediamtx-requests?var-datasource=prom&var-logs=logs&var-traces=traces&var-instance=${project}&var-route=$__all`, { waitUntil: 'networkidle' })
+    await page.getByText('Recent sampled requests — select a trace ID to inspect', { exact: true }).waitFor()
+    expect(await page.locator('body').innerText()).not.toContain('An unexpected error happened')
+    await page.getByText('Request failures — select a trace ID to inspect', { exact: true }).scrollIntoViewIfNeeded()
+    const traceLink = page.getByText(failureRecord.traceId, { exact: true }).first()
+    let popup
+    page.on('popup', opened => { popup = opened })
+    await traceLink.click()
+    await delay(300)
+    if (!popup) await page.getByText('Open sampled trace', { exact: true }).click()
+    await until(() => expect(popup).toBeDefined())
+    await popup.waitForLoadState('networkidle')
+    expect(popup.url()).toContain('/explore?')
+    await until(async () => expect(await popup.locator('body').innerText()).toContain('/api/health'))
+    // A failed Cloud destination cannot change API responses or stop measurements.
+    docker('stop', `${project}-tempo`)
+    const started = Date.now()
+    expect((await fetch(`${appUrl}/api/channels`, { headers: { cookie } })).status).toBe(200)
+    expect(Date.now() - started).toBeLessThan(2000)
+    expect(await fetch(metricsUrl).then(response => response.text())).toContain('monitoring_request_total')
+  } catch (error) {
+    const page = browser?.contexts()[0]?.pages()[0]
+    if (page) {
+      mkdirSync('.data', { recursive: true })
+      writeFileSync('.data/request-monitoring-failure.txt', JSON.stringify(await Promise.all(browser.contexts()[0].pages().map(async page => ({ url: page.url(), body: await page.locator('body').innerText() }))), null, 2))
+      await page.screenshot({ path: '.data/request-monitoring-failure.png' })
+    }
+    throw error
+  } finally {
+    await browser?.close()
+    try { compose('down', '--volumes', '--remove-orphans') } catch { /* Other containers are removed below. */ }
+    for (const container of containers.reverse()) { try { docker('rm', '-f', container) } catch { /* Already removed. */ } }
+    rmSync(directory, { recursive: true, force: true })
+  }
+}, 300000)

@@ -1,4 +1,5 @@
 import { channelMonitor } from './channels.mjs'
+import { monitoringMethod, monitoringRoute } from '../../lib/monitoring-labels.ts'
 import { createServer, request } from 'node:http'
 import { isIP } from 'node:net'
 import { pathToFileURL } from 'node:url'
@@ -24,6 +25,9 @@ const logEvents = [
 function logRecord(text) {
   let value
   try { value = JSON.parse(text) } catch { /* Native service logs can be plain text. */ }
+  if (value?.event === 'request_error') {
+    return { event: 'request_error', level: 'error', message: 'Application request failed', route: monitoringRoute(value.route), method: monitoringMethod(value.method), status: Number.isInteger(value.status) && value.status >= 500 && value.status <= 599 ? value.status : 500, ...(/^[a-f0-9]{32}$/.test(value.traceId) ? { traceId: value.traceId } : {}) }
+  }
   if (value?.event === 'chat-health' && faults.includes(value.code) && ['failed', 'recovered'].includes(value.result)) {
     return { event: `chat_health_${value.result}`, level: value.result === 'failed' ? 'error' : 'info', message: `Chat health ${value.result}`, code: value.code }
   }
@@ -71,14 +75,14 @@ function logText(buffer, tty) {
 
 export async function startServiceMonitor({
   dockerSocket = '/var/run/docker.sock', project = 'mediamtx-viewer', instance = 'viewer-vm',
-  port = 12346, intervalMs = 15000, healthPort = 3000, mediaPort = 9997,
+  port = 12346, intervalMs = 15000, healthPort = 3000, mediaPort = 9997, metricsPort = 9464,
   logsUrl = 'http://127.0.0.1:12347/loki/api/v1/push',
 } = {}) {
   if (![project, instance].every(value => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/.test(value))) throw new Error('invalid-label')
   const destination = new URL(logsUrl)
   if (destination.protocol !== 'http:' || destination.hostname !== '127.0.0.1' || destination.pathname !== '/loki/api/v1/push') throw new Error('invalid-local-receiver')
   let stopped = false, timer, pending, observed = [], collectionSuccess = 0, lastSuccess = 0, collectionErrors = 0, deliveryErrors = 0, lastDelivery = 0
-  let release = 'unknown', previousHealth, lastHeartbeat = 0
+  let release = 'unknown', previousHealth, lastHeartbeat = 0, viewerAddress
   const previous = new Map()
   const channels = channelMonitor()
   const drops = { unrecognized: 0, oversized: 0, volume: 0, delivery: 0, timestamp: 0 }
@@ -120,9 +124,10 @@ export async function startServiceMonitor({
       }))
       const next = []; let applicationUp = 0
       const viewer = details[0]
+      viewerAddress = Object.values(viewer?.NetworkSettings?.Networks ?? {}).map(network => network.IPAddress).find(address => isIP(address) === 4)
       let appHealth
       try {
-        const address = Object.values(viewer?.NetworkSettings?.Networks ?? {}).map(network => network.IPAddress).find(address => isIP(address) === 4)
+        const address = viewerAddress
         if (!address) throw new Error('viewer-address')
         const result = await readHttp({ host: address, port: healthPort, path: '/api/health', method: 'GET' }, undefined, 16384)
         appHealth = JSON.parse(result.body.toString())
@@ -190,7 +195,7 @@ export async function startServiceMonitor({
         return JSON.parse(result.body.toString())
       }, record => add('mediamtx', record)))
       observed = next; collectionSuccess = 1; lastSuccess = Date.now() / 1000
-    } catch { observed = await channels(async () => { throw new Error('docker-read') }, () => {}); collectionSuccess = 0; collectionErrors++ }
+    } catch { viewerAddress = undefined; observed = await channels(async () => { throw new Error('docker-read') }, () => {}); collectionSuccess = 0; collectionErrors++ }
     if (entries.length) {
       try {
         const result = await readHttp({ hostname: destination.hostname, port: destination.port, path: destination.pathname, method: 'POST', headers: { 'content-type': 'application/json' } }, JSON.stringify({ streams: entries }), 16384)
@@ -199,7 +204,16 @@ export async function startServiceMonitor({
       } catch { deliveryErrors++; drops.delivery += entries.length }
     }
   }
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
+    if (req.method === 'GET' && req.url === '/application-metrics') {
+      try {
+        if (!viewerAddress) throw new Error('viewer-address')
+        const result = await readHttp({ host: viewerAddress, port: metricsPort, path: '/metrics', method: 'GET' })
+        if (result.status !== 200) throw new Error('application-metrics')
+        res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4' }).end(result.body)
+      } catch { res.writeHead(503).end() }
+      return
+    }
     if (req.method !== 'GET' || req.url !== '/metrics') { res.writeHead(404).end(); return }
     res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4' }).end(metrics())
   })

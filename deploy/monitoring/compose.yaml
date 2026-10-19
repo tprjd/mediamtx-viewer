@@ -66,6 +66,7 @@ services:
       - ./channels.mjs:/app/deploy/monitoring/channels.mjs:ro
       - ../../lib/media-readers.ts:/app/lib/media-readers.ts:ro
       - ../../lib/whip-pilot.ts:/app/lib/whip-pilot.ts:ro
+      - ../../lib/monitoring-labels.ts:/app/lib/monitoring-labels.ts:ro
       # This gives Docker administrator access despite :ro. See README.md.
       - /var/run/docker.sock:/var/run/docker.sock:ro
     logging:

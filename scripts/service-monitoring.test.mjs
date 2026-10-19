@@ -21,6 +21,7 @@ async function fixture(media = undefined) {
   const privateValues = ['mtx_sk_PRIVATE_TEST', 'private.person@example.test', 'https://private.example.test/watch?secret=SECRET_TEST', 'PRIVATE_CHAT_CONTENT', 'ACCOUNT_NAME_TEST', '192.0.2.123']
   const health = { status: 'ok', version: '2.1.6', chat: { status: 'degraded', faults: ['outbox'], uncheckedFaults: [], outboxDepth: 2, oldestOutboxAgeSeconds: 7, databaseBytes: 1024, freeBytes: 2048 } }
   const state = { logs: [], restartCount: 0, dockerDown: false, receiverDown: false, exported: [], methods: [] }
+  const metricsPort = await listen((_request, response) => response.end('monitoring_request_total{route="/api/health",method="GET"} 3\n'))
   const mediaPort = await listen((request, response) => {
     const key = request.url.split('/')[2]
     if (media?.down || !media?.[key]) { response.writeHead(503).end(); return }
@@ -48,11 +49,28 @@ async function fixture(media = undefined) {
     if (state.receiverDown) { response.writeHead(503).end(); return }
     state.exported.push(JSON.parse(body)); response.writeHead(204).end()
   })
-  const monitor = await startServiceMonitor({ dockerSocket: socket, project: 'fixture', instance: 'test-vm', port: 0, intervalMs: 100, healthPort, mediaPort, logsUrl: `http://127.0.0.1:${logsPort}/loki/api/v1/push` })
+  const monitor = await startServiceMonitor({ dockerSocket: socket, project: 'fixture', instance: 'test-vm', port: 0, intervalMs: 100, healthPort, mediaPort, metricsPort, logsUrl: `http://127.0.0.1:${logsPort}/loki/api/v1/push` })
   cleanup.push(monitor.stop)
   const metrics = () => fetch(`${monitor.url}/metrics`).then(response => response.text())
-  return { state, health, privateValues, metrics }
+  return { state, health, privateValues, metrics, url: monitor.url }
 }
+
+it('forwards private request measurements and preserves only safe request-error correlation fields', async () => {
+  const { state, url } = await fixture()
+  const traceId = 'a'.repeat(32)
+  state.logs = [
+    `${new Date().toISOString()} ${JSON.stringify({ event: 'request_error', route: '/api/auth/[...all]', method: 'POST', status: 503, traceId, cookie: 'PRIVATE_COOKIE', message: 'PRIVATE_ERROR' })}`,
+    `${new Date().toISOString()} ${JSON.stringify({ event: 'request_error', route: '/watch/private-account', method: 'PRIVATE_METHOD', status: 'PRIVATE_STATUS', traceId: 'PRIVATE_ID' })}`,
+  ]
+  await vi.waitFor(() => expect(JSON.stringify(state.exported)).toContain(traceId))
+  const records = state.exported.flatMap(batch => batch.streams.flatMap(stream => stream.values.map(([, line]) => JSON.parse(line)))).filter(record => record.event === 'request_error')
+  expect(records).toContainEqual({ event: 'request_error', level: 'error', message: 'Application request failed', route: '/api/auth/[...all]', method: 'POST', status: 503, traceId, release: '2.1.6' })
+  expect(records).toContainEqual({ event: 'request_error', level: 'error', message: 'Application request failed', route: '/unmatched', method: 'OTHER', status: 500, release: '2.1.6' })
+  expect(JSON.stringify(state.exported)).not.toContain('PRIVATE_')
+  expect(await fetch(`${url}/application-metrics`).then(response => response.text())).toContain('monitoring_request_total')
+  state.dockerDown = true
+  await vi.waitFor(async () => expect((await fetch(`${url}/application-metrics`)).status).toBe(503))
+})
 
 it('exports service health and searchable errors without private log or health fields', async () => {
   const { state, health, privateValues, metrics } = await fixture()

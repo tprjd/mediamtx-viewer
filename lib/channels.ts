@@ -1,4 +1,5 @@
 import 'server-only'
+import { monitorDatabase } from '@/lib/database-monitoring'
 
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 
@@ -98,7 +99,7 @@ const publicColumns = `
   channel_stream_key.token_hint AS tokenHint`
 
 export function getChannels(viewerId = ''): Channel[] {
-  const rows = getDatabase()
+  const rows = monitorDatabase('channel_list', () => getDatabase()
     .prepare(
       `SELECT ${publicColumns}
        FROM channel
@@ -107,14 +108,14 @@ export function getChannels(viewerId = ''): Channel[] {
        WHERE user.activationStatus = 'active' AND (channel.owner_user_id = ? OR (channel.enabled = 1 AND (user.emailVerified = 1 OR user.legacyAccess = 1)))
        ORDER BY channel.created_at ASC`,
     )
-    .all(viewerId) as ChannelRow[]
+    .all(viewerId) as ChannelRow[])
   return rows.map(toChannel)
 }
 
 export function getChannel(slug: string, viewerId = ''): Channel | undefined {
   const parsed = channelSlugSchema.safeParse(slug)
   if (!parsed.success) return undefined
-  const row = getDatabase()
+  const row = monitorDatabase('channel_read', () => getDatabase()
     .prepare(
       `SELECT ${publicColumns}
        FROM channel
@@ -124,7 +125,7 @@ export function getChannel(slug: string, viewerId = ''): Channel | undefined {
          AND (channel.enabled = 1 OR channel.owner_user_id = ?)
          AND user.activationStatus = 'active'`,
     )
-    .get(parsed.data, viewerId) as ChannelRow | undefined
+    .get(parsed.data, viewerId) as ChannelRow | undefined)
   return row ? toChannel(row) : undefined
 }
 

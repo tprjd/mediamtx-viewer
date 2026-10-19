@@ -1,4 +1,5 @@
 import 'server-only'
+import { monitorDatabase } from '@/lib/database-monitoring'
 import { isWhipPilotChannel } from '@/lib/whip-pilot'
 import { getDatabase } from '@/lib/auth/database'
 
@@ -12,7 +13,7 @@ export interface AccountAccess {
 }
 
 export function getAccountAccess(userId: string): AccountAccess | undefined {
-  return getDatabase().prepare(`SELECT id, emailVerified, legacyAccess, administratorApproved, notificationSound, activationStatus FROM user WHERE id = ?`).get(userId) as AccountAccess | undefined
+  return monitorDatabase('account_access', () => getDatabase().prepare(`SELECT id, emailVerified, legacyAccess, administratorApproved, notificationSound, activationStatus FROM user WHERE id = ?`).get(userId) as AccountAccess | undefined)
 }
 
 export function hasVerifiedOrLegacyAccountAccess(userId: string): boolean {
@@ -21,7 +22,7 @@ export function hasVerifiedOrLegacyAccountAccess(userId: string): boolean {
 }
 
 export function canWatchChannel(userId: string, slug: string): boolean {
-  return Boolean(getDatabase().prepare(`
+  return monitorDatabase('channel_watch_access', () => Boolean(getDatabase().prepare(`
     SELECT 1 FROM channel c JOIN user owner ON owner.id = c.owner_user_id
     JOIN user viewer ON viewer.id = ?
     WHERE c.slug = ? COLLATE NOCASE AND viewer.activationStatus = 'active'
@@ -30,7 +31,7 @@ export function canWatchChannel(userId: string, slug: string): boolean {
         AND (viewer.administratorApproved = 1 OR EXISTS (
           SELECT 1 FROM channel_viewing_request r WHERE r.channel_id = c.id AND r.viewer_id = viewer.id AND r.status = 'approved'
         ))))
-  `).get(userId, slug))
+  `).get(userId, slug)))
 }
 
 export function canSeeChannel(userId: string, slug: string): boolean {

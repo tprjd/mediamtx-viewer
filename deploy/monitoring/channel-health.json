@@ -29,6 +29,13 @@
       "url": "/d/mediamtx-services/mediamtx-service-health-and-logs",
       "keepTime": true,
       "includeVars": true
+    },
+    {
+      "title": "Request performance and traces",
+      "type": "link",
+      "url": "/d/mediamtx-requests/mediamtx-request-performance-and-traces",
+      "keepTime": true,
+      "includeVars": true
     }
   ],
   "templating": {

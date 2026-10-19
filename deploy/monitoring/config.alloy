@@ -61,7 +61,7 @@ prometheus.relabel "collector" {
 
 	rule {
 		source_labels = ["__name__"]
-		regex         = "up|process_(resident_memory_bytes|cpu_seconds_total)|prometheus_remote_storage_(samples_pending|samples_failed_total|samples_retried_total|samples_dropped_total|queue_highest_sent_timestamp_seconds)|prometheus_remote_write_wal_storage_(active_series|deleted_series)|prometheus_remote_storage_highest_timestamp_in_seconds|loki_write_(batch_retries_total|dropped_entries_total|sent_bytes_total)"
+		regex         = "up|process_(resident_memory_bytes|cpu_seconds_total)|prometheus_remote_storage_(samples_pending|samples_failed_total|samples_retried_total|samples_dropped_total|queue_highest_sent_timestamp_seconds)|prometheus_remote_write_wal_storage_(active_series|deleted_series)|prometheus_remote_storage_highest_timestamp_in_seconds|otelcol_(receiver_(accepted|refused)_spans(_total)?|exporter_(sent_spans|send_failed_spans|enqueue_failed_spans|queue_size|queue_capacity)(_total)?)|loki_write_(batch_retries_total|dropped_entries_total|sent_bytes_total)"
 		action        = "keep"
 	}
 

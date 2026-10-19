@@ -1,0 +1,17 @@
+services:
+  alloy:
+    command:
+      - run
+      - --disable-reporting
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --storage.path=/var/lib/alloy
+      - /etc/alloy/with-traces
+    environment:
+      # The fixed viewer_net bridge gateway; never the VM public address.
+      MONITORING_OTLP_LISTEN_ADDRESS: ${MONITORING_OTLP_LISTEN_ADDRESS:-172.28.0.1:4318}
+      GRAFANA_TRACES_URL: ${GRAFANA_TRACES_URL:?Set the OTLP HTTP traces URL}
+      GRAFANA_TRACES_USER: ${GRAFANA_TRACES_USER:?Set the traces tenant ID}
+      GRAFANA_TRACES_TOKEN: ${GRAFANA_TRACES_TOKEN:?Set a traces write token}
+    volumes:
+      - ./config.alloy:/etc/alloy/with-traces/config.alloy:ro
+      - ./traces.alloy:/etc/alloy/with-traces/traces.alloy:ro

@@ -1,0 +1,633 @@
+{
+  "uid": "mediamtx-requests",
+  "title": "MediaMTX request performance and traces",
+  "tags": [
+    "mediamtx",
+    "monitoring"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "utc",
+  "refresh": "15s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "description": "All-request measurements and sampled traces. Initial sampling: 10%. Queue and volume limits can discard spans. A slow or failed request does not always have a saved trace. Database timings cover four named operations. Media payload requests handled by Caddy and MediaMTX are outside application request timing.",
+  "links": [
+    {
+      "title": "VM health for this time range",
+      "type": "link",
+      "url": "/d/mediamtx-vm/mediamtx-vm-health",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Channel activity for this time range",
+      "type": "link",
+      "url": "/d/mediamtx-channels/mediamtx-channel-activity-and-traffic",
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Metrics source",
+        "type": "datasource",
+        "query": "prometheus",
+        "refresh": 1
+      },
+      {
+        "name": "logs",
+        "label": "Logs source",
+        "type": "datasource",
+        "query": "loki",
+        "refresh": 1
+      },
+      {
+        "name": "instance",
+        "label": "VM",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(monitoring_service_collection_success, instance)",
+          "refId": "instances"
+        },
+        "refresh": 1
+      },
+      {
+        "name": "traces",
+        "label": "Traces source",
+        "type": "datasource",
+        "query": "tempo",
+        "refresh": 1
+      },
+      {
+        "name": "route",
+        "label": "Route",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(monitoring_request_total{instance=\"$instance\"}, route)",
+          "refId": "routes"
+        },
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Application collection available",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"mediamtx/requests\",instance=\"$instance\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": false,
+          "instant": true,
+          "legendFormat": "{{route}} {{method}} {{status_class}} {{operation}} {{error_type}} {{reason}} {{__name__}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Request rate",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (route,method) (rate(monitoring_request_total{instance=\"$instance\",route=~\"$route\"}[$__rate_interval]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{route}} {{method}} {{status_class}} {{operation}} {{error_type}} {{reason}} {{__name__}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Error rate (all requests)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (route,status_class) (rate(monitoring_request_errors_total{instance=\"$instance\",route=~\"$route\"}[$__rate_interval])) or (0 * sum by (route) (rate(monitoring_request_total{instance=\"$instance\",route=~\"$route\"}[$__rate_interval])))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{route}} {{method}} {{status_class}} {{operation}} {{error_type}} {{reason}} {{__name__}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Request latency p95",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le,route) (rate(monitoring_request_duration_seconds_bucket{instance=\"$instance\",route=~\"$route\"}[$__rate_interval])))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{route}} {{method}} {{status_class}} {{operation}} {{error_type}} {{reason}} {{__name__}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Database latency p95 (selected operations)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le,operation) (rate(monitoring_database_duration_seconds_bucket{instance=\"$instance\"}[$__rate_interval])))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{route}} {{method}} {{status_class}} {{operation}} {{error_type}} {{reason}} {{__name__}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Initial trace sampling ratio",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_trace_sample_ratio{instance=\"$instance\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": false,
+          "instant": true,
+          "legendFormat": "{{route}} {{method}} {{status_class}} {{operation}} {{error_type}} {{reason}} {{__name__}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "SDK queue size and capacity",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{__name__=~\"otel_sdk_processor_span_queue_(size|capacity).*\",instance=\"$instance\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{route}} {{method}} {{status_class}} {{operation}} {{error_type}} {{reason}} {{__name__}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Trace export failures and drops",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (error_type) (rate(otel_sdk_processor_span_processed_total{instance=\"$instance\",error_type!=\"\"}[$__rate_interval])) or sum by (reason) (rate(monitoring_trace_dropped_total{instance=\"$instance\"}[$__rate_interval]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{route}} {{method}} {{status_class}} {{operation}} {{error_type}} {{reason}} {{__name__}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Selected error logs discarded",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(monitoring_request_log_dropped_total{instance=\"$instance\"}[$__rate_interval])",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{route}} {{method}} {{status_class}} {{operation}} {{error_type}} {{reason}} {{__name__}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Collector trace delivery",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(otelcol_exporter_sent_spans_total{instance=\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Sent",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(otelcol_exporter_send_failed_spans_total{instance=\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Send failures",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate(otelcol_exporter_enqueue_failed_spans_total{instance=\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Queue drops",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Request failures \u2014 select a trace ID to inspect",
+      "type": "table",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 24,
+        "h": 10
+      },
+      "description": "Includes unsampled failures. An empty trace ID means the request was not sampled. A sampled trace may be missing or partial after a volume limit, restart, or delivery failure. Logs retain route, method, status, release, and an optional trace ID.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          },
+          "expr": "{job=\"mediamtx/services\",instance=\"$instance\",service=\"viewer\"} | json | event=\"request_error\" | route=~\"$route\"",
+          "queryType": "range",
+          "maxLines": 100
+        }
+      ],
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "Line",
+            "format": "json",
+            "replace": true,
+            "keepTime": true
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "event": true,
+              "level": true,
+              "message": true
+            },
+            "indexByName": {
+              "Time": 0,
+              "traceId": 1,
+              "route": 2,
+              "method": 3,
+              "status": 4,
+              "release": 5
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "traceId"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open sampled trace",
+                    "url": "/explore?schemaVersion=1&panes={\"A\":{\"datasource\":\"${traces}\",\"queries\":[{\"refId\":\"A\",\"datasource\":{\"type\":\"tempo\",\"uid\":\"${traces}\"},\"queryType\":\"traceql\",\"query\":\"${__value.raw}\"}],\"range\":{\"from\":\"${__from}\",\"to\":\"${__to}\"}}}&orgId=1",
+                    "targetBlank": true
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 290
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 190
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "method"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 75
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 75
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 12,
+      "title": "Recent sampled requests \u2014 select a trace ID to inspect",
+      "type": "table",
+      "datasource": {
+        "type": "tempo",
+        "uid": "${traces}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 50,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "${traces}"
+          },
+          "queryType": "traceql",
+          "query": "{ resource.service.name = \"mediamtx-viewer\" && resource.service.instance.id = \"$instance\" && span.http.route =~ \"$route\" }",
+          "limit": 20,
+          "tableType": "traces"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "traceID"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open sampled trace",
+                    "url": "/explore?schemaVersion=1&panes={\"A\":{\"datasource\":\"${traces}\",\"queries\":[{\"refId\":\"A\",\"datasource\":{\"type\":\"tempo\",\"uid\":\"${traces}\"},\"queryType\":\"traceql\",\"query\":\"${__value.raw}\"}],\"range\":{\"from\":\"${__from}\",\"to\":\"${__to}\"}}}&orgId=1",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

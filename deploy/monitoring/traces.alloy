@@ -1,0 +1,99 @@
+// Enable with compose.traces.yaml after the application release and token setup.
+otelcol.receiver.otlp "requests" {
+  http {
+    endpoint = sys.env("MONITORING_OTLP_LISTEN_ADDRESS")
+    max_request_body_size = "128KiB"
+    read_timeout = "3s"
+    write_timeout = "3s"
+    include_metadata = false
+  }
+  output { traces = [otelcol.processor.filter.requests.input] }
+}
+
+// Only the application projection is accepted. Unexpected events and links fail closed.
+otelcol.processor.filter "requests" {
+  error_mode = "propagate"
+  traces {
+    span = [
+      `instrumentation_scope.name != "mediamtx-viewer"`,
+      `Len(span.events) > 0 or Len(span.links) > 0`,
+      `span.attributes["http.route"] != nil and not IsMatch(span.attributes["http.route"], "^(?:/|/account|/account/channel|/account/channel/obs\\-setup\\.cmd|/account/channel/obs\\-setup/\\[code\\]|/admin/chat|/admin/users|/api/admin/chat/moderation|/api/auth/\\[\\.\\.\\.all\\]|/api/channel\\-events|/api/channels|/api/channels/\\[slug\\]/chat/history|/api/channels/\\[slug\\]/chat/messages|/api/channels/\\[slug\\]/chat/messages/\\[messageId\\]/ban|/api/channels/\\[slug\\]/chat/messages/\\[messageId\\]/removal|/api/channels/\\[slug\\]/chat/messages/\\[messageId\\]/timeout|/api/channels/\\[slug\\]/chat/restrictions|/api/channels/\\[slug\\]/chat/state|/api/channels/\\[slug\\]/chat/token|/api/channels/\\[slug\\]/status|/api/channels/\\[slug\\]/thumbnail|/api/channels/\\[slug\\]/viewing\\-access|/api/chat/config|/api/health|/api/internal/authorize|/api/internal/channel\\-events|/api/internal/chat/connect|/api/internal/chat/refresh|/api/internal/chat/restore|/api/internal/hls\\-worker|/api/internal/mediamtx/authorize|/api/notifications|/api/obs\\-setup/device/poll|/api/obs\\-setup/device/start|/forgot\\-password|/login|/media/hls/\\[\\.\\.\\.path\\]|/media/whep/\\[\\.\\.\\.path\\]|/register|/registration\\-pending|/reset\\-password|/statistics|/verify\\-email|/watch/\\[slug\\]|/unmatched)$")`,
+      `span.attributes["http.request.method"] != nil and not IsMatch(span.attributes["http.request.method"], "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|OTHER)$")`,
+      `span.attributes["db.operation.name"] != nil and not IsMatch(span.attributes["db.operation.name"], "^(account_access|channel_watch_access|channel_list|channel_read)$")`,
+      `span.attributes["http.response.status_code"] != nil and (span.attributes["http.response.status_code"] < 100 or span.attributes["http.response.status_code"] > 599)`,
+    ]
+  }
+  output { traces = [otelcol.processor.transform.requests.input] }
+}
+
+otelcol.processor.transform "requests" {
+  error_mode = "propagate"
+  trace_statements {
+    context = "span"
+    statements = [
+      `keep_keys(resource.attributes, ["service.version"])`,
+      `set(resource.attributes["service.name"], "mediamtx-viewer")`,
+      `set(resource.attributes["service.version"], "unknown") where not IsMatch(resource.attributes["service.version"], "^[0-9]+[.][0-9]+[.][0-9]+$")`,
+      "set(resource.attributes[\"service.instance.id\"], \"" + sys.env("MONITORING_INSTANCE") + "\")",
+      `keep_keys(instrumentation_scope.attributes, [])`,
+      `set(instrumentation_scope.version, "")`,
+      `set(span.trace_state, "")`,
+      `set(span.status.message, "")`,
+      `keep_keys(span.attributes, ["http.route", "http.request.method", "http.response.status_code", "db.operation.name"])`,
+      `set(span.name, "next operation")`,
+      `set(span.name, Concat([span.attributes["http.request.method"], span.attributes["http.route"]], " ")) where span.kind == SPAN_KIND_SERVER`,
+      `set(span.name, Concat(["database", span.attributes["db.operation.name"]], " ")) where span.attributes["db.operation.name"] != nil`,
+    ]
+  }
+  output { traces = [otelcol.exporter.otlphttp.requests.input] }
+}
+
+otelcol.auth.basic "traces" {
+  username = sys.env("GRAFANA_TRACES_USER")
+  password = sys.env("GRAFANA_TRACES_TOKEN")
+}
+
+otelcol.exporter.otlphttp "requests" {
+  traces_endpoint = sys.env("GRAFANA_TRACES_URL")
+  encoding = "json"
+  client {
+    endpoint = sys.env("GRAFANA_TRACES_URL")
+    auth = otelcol.auth.basic.traces.handler
+    timeout = "3s"
+  }
+  sending_queue {
+    enabled = true
+    num_consumers = 1
+    queue_size = 256
+    sizer = "items"
+  }
+  retry_on_failure {
+    enabled = true
+    initial_interval = "1s"
+    max_interval = "3s"
+    max_elapsed_time = "10s"
+  }
+}
+
+prometheus.scrape "requests" {
+  targets = [{__address__ = "127.0.0.1:12346"}]
+  metrics_path = "/application-metrics"
+  job_name = "mediamtx/requests"
+  scrape_interval = "15s"
+  scrape_timeout = "3s"
+  sample_limit = 2000
+  forward_to = [prometheus.relabel.requests.receiver]
+}
+
+prometheus.relabel "requests" {
+  forward_to = [prometheus.remote_write.metrics.receiver]
+  rule {
+    source_labels = ["__name__"]
+    regex = "up|monitoring_(request_.*|database_.*|trace_.*)|otel_sdk_processor_span_.*"
+    action = "keep"
+  }
+  rule {
+    target_label = "instance"
+    replacement = sys.env("MONITORING_INSTANCE")
+  }
+}
