@@ -153,7 +153,11 @@
           "expr": "monitoring_service_running{instance=\"$instance\",service=~\"$service\"}",
           "legendFormat": "{{service}}",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
         }
       ],
       "description": "1 running; 0 stopped or missing. No value means collection failed. Shows the latest observation only."
@@ -183,7 +187,7 @@
               "type": "value",
               "options": {
                 "-1": {
-                  "text": "No completed check",
+                  "text": "No check",
                   "color": "gray",
                   "index": 0
                 },
@@ -217,6 +221,10 @@
           ],
           "fields": "",
           "values": false
+        },
+        "textSize": {
+          "title": 12,
+          "value": 18
         }
       },
       "targets": [
@@ -225,7 +233,11 @@
           "expr": "monitoring_service_health{instance=\"$instance\",service=~\"$service\"}",
           "legendFormat": "{{service}}",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
         }
       ],
       "description": "1 healthy; 0 unhealthy; -1 no completed health check. Shows the latest observation only."
@@ -276,7 +288,11 @@
           "expr": "monitoring_application_info{instance=\"$instance\"}",
           "legendFormat": "{{version}}",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
         }
       ],
       "description": "Shows the latest observation only."
@@ -324,7 +340,13 @@
         {
           "refId": "A",
           "expr": "monitoring_application_up{instance=\"$instance\"}",
-          "legendFormat": "Application available"
+          "legendFormat": "Application available",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
         }
       ]
     },
@@ -371,7 +393,13 @@
         {
           "refId": "A",
           "expr": "monitoring_service_restarts_total{instance=\"$instance\",service=~\"$service\"}",
-          "legendFormat": "{{service}}"
+          "legendFormat": "{{service}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
         }
       ],
       "description": "Docker restart count resets when a container is replaced. State logs and the start-time chart retain replacement evidence."
@@ -395,6 +423,10 @@
           "unit": "dateTimeAsIso",
           "custom": {
             "spanNulls": false
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
           }
         },
         "overrides": []
@@ -413,6 +445,10 @@
           ],
           "fields": "",
           "values": false
+        },
+        "textSize": {
+          "title": 12,
+          "value": 12
         }
       },
       "targets": [
@@ -421,7 +457,11 @@
           "expr": "monitoring_service_started_seconds{instance=\"$instance\",service=~\"$service\"} * 1000",
           "legendFormat": "{{service}}",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
         }
       ],
       "description": "Shows the latest observation only."
@@ -469,7 +509,13 @@
         {
           "refId": "A",
           "expr": "monitoring_chat_status{instance=\"$instance\"}",
-          "legendFormat": "Chat state"
+          "legendFormat": "Chat state",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
         }
       ],
       "description": "-1 unknown; 0 disabled; 1 healthy; 2 degraded; 3 unavailable."
@@ -517,7 +563,13 @@
         {
           "refId": "A",
           "expr": "monitoring_chat_fault{instance=\"$instance\"}",
-          "legendFormat": "{{fault}}"
+          "legendFormat": "{{fault}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
         }
       ],
       "description": "-1 unchecked; 0 clear; 1 fault."
@@ -565,7 +617,13 @@
         {
           "refId": "A",
           "expr": "monitoring_chat_outbox_depth{instance=\"$instance\"}",
-          "legendFormat": "Chat outbox depth"
+          "legendFormat": "Chat outbox depth",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
         }
       ]
     },
@@ -612,7 +670,13 @@
         {
           "refId": "A",
           "expr": "monitoring_service_collection_success{instance=\"$instance\"}",
-          "legendFormat": "Collection success"
+          "legendFormat": "Collection success",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
         }
       ]
     },
@@ -659,7 +723,13 @@
         {
           "refId": "A",
           "expr": "time() - monitoring_service_last_success_seconds{instance=\"$instance\"}",
-          "legendFormat": "Time since service collection"
+          "legendFormat": "Time since service collection",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
         }
       ]
     },
@@ -706,7 +776,13 @@
         {
           "refId": "A",
           "expr": "monitoring_service_log_read_success{instance=\"$instance\",service=~\"$service\"}",
-          "legendFormat": "{{service}}"
+          "legendFormat": "{{service}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
         }
       ]
     },
@@ -753,7 +829,13 @@
         {
           "refId": "A",
           "expr": "monitoring_service_log_dropped_total{instance=\"$instance\"}",
-          "legendFormat": "{{reason}}"
+          "legendFormat": "{{reason}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
         }
       ]
     },
@@ -800,7 +882,13 @@
         {
           "refId": "A",
           "expr": "{__name__=~\"monitoring_service_(log_gaps|collection_errors|log_delivery_errors)_total\",instance=\"$instance\"}",
-          "legendFormat": "{{__name__}}"
+          "legendFormat": "{{__name__}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
         }
       ]
     },
@@ -847,7 +935,13 @@
         {
           "refId": "A",
           "expr": "time() - monitoring_service_log_last_delivery_seconds{instance=\"$instance\"}",
-          "legendFormat": "Time since local log handoff"
+          "legendFormat": "Time since local log handoff",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
         }
       ],
       "description": "A bounded health heartbeat is sent every minute. This measures local handoff; Loki delivery is shown below."
@@ -895,7 +989,13 @@
         {
           "refId": "A",
           "expr": "{__name__=~\"loki_write_(batch_retries|dropped_entries)_total\",instance=\"$instance\"}",
-          "legendFormat": "{{__name__}} {{reason}}"
+          "legendFormat": "{{__name__}} {{reason}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
         }
       ]
     },
@@ -942,7 +1042,13 @@
         {
           "refId": "A",
           "expr": "rate(loki_write_sent_bytes_total{instance=\"$instance\"}[$__rate_interval])",
-          "legendFormat": "Loki sent bytes"
+          "legendFormat": "Loki sent bytes",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "instant": false,
+          "range": true
         }
       ]
     },
@@ -974,7 +1080,11 @@
           "refId": "A",
           "expr": "{job=\"mediamtx/services\",instance=\"$instance\",service=~\"$service\"} | json | release=~\"$release\"",
           "queryType": "range",
-          "maxLines": 200
+          "maxLines": 200,
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
         }
       ]
     }
