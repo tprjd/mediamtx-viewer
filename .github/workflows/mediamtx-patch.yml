@@ -1,0 +1,39 @@
+name: Publish patched MediaMTX
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Build and test the packet repair
+        env:
+          PATCH_REVISION: ${{ github.sha }}
+        run: |
+          docker build --platform linux/arm64 --build-arg SOURCE_REVISION="$PATCH_REVISION" \
+            -t "ghcr.io/tprjd/mediamtx-viewer/mediamtx:whip-$PATCH_REVISION" \
+            scripts/fixtures/whip-packet-loss
+          test "$(docker run --rm --network none "ghcr.io/tprjd/mediamtx-viewer/mediamtx:whip-$PATCH_REVISION" --version)" = v1.20.1-whip-repair.1
+      - name: Publish the tested image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_ACTOR: ${{ github.actor }}
+          PATCH_REVISION: ${{ github.sha }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
+          docker push "ghcr.io/tprjd/mediamtx-viewer/mediamtx:whip-$PATCH_REVISION"
+          docker image inspect "ghcr.io/tprjd/mediamtx-viewer/mediamtx:whip-$PATCH_REVISION" \
+            --format '{{index .RepoDigests 0}}' >> "$GITHUB_STEP_SUMMARY"
+      - name: Log out of the registry
+        if: always()
+        run: docker logout ghcr.io

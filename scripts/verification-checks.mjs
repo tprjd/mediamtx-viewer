@@ -26,7 +26,8 @@ export const verificationGroups = {
   ...Object.fromEntries(testGroups.docker.map(file => [
     `docker-${file.split('/').at(-1).replace(/\.(?:integration\.)?test\.(?:mjs|ts)$/, '')}`,
     { commands: [['test', 'npm', ['run', 'test:docker', '--', file, '--reporter=verbose', '--bail=1']]],
-      tools: file.startsWith('lib/') ? ['docker'] : ['docker', 'age', 'age-keygen', 'sops'] },
+      tools: file.startsWith('lib/') ? ['docker'] : ['docker', 'age', 'age-keygen', 'sops',
+        ...(file === 'scripts/monitoring-deployment.test.mjs' ? ['chromium'] : [])] },
   ])),
 }
 

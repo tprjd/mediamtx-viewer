@@ -38,4 +38,17 @@ and sequence-number wrap, with exact output and lost-packet counts at each step.
 
 These tests check transport behavior with synthetic RTP. They do not prove that
 H.264 remains watchable at 20% loss, measure display latency, or validate a live
-rollout. The production Compose file still uses the official MediaMTX image.
+rollout.
+
+## Publish the repair image
+
+The `Dockerfile` builds the same pinned sources and runs the race tests before
+compiling a static Linux ARM64 server. Its version is `v1.20.1-whip-repair.1`.
+The final image contains the server, default configuration, and license only.
+
+Run **Publish patched MediaMTX** on the selected commit. The workflow publishes
+`ghcr.io/tprjd/mediamtx-viewer/mediamtx:whip-COMMIT` and reports its digest.
+Make the package public, verify an anonymous pull, and pin that digest in
+`deploy/oracle/docker-compose.yml` before cutting the application release.
+Use the normal managed deployment procedure. Publishing the image does not
+activate it. Managed recovery retains the previous server image.

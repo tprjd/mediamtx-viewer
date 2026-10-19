@@ -20,6 +20,10 @@ it('assigns every Docker file to exactly one hosted partition', () => {
   expect(new Set(files).size).toBe(files.length)
 })
 
+it('installs Chromium for the monitoring browser checks', () => {
+  expect(verificationGroups['docker-monitoring-deployment'].tools).toContain('chromium')
+})
+
 it('requires both test partitions and every other check before combining evidence', () => {
   expect(combineGroups(reports()).checks).toEqual(requiredChecks.map(name => ({ name, passed: true })))
   expect(() => combineGroups(reports().filter(report => !report.group.startsWith('docker-')))).toThrow()
