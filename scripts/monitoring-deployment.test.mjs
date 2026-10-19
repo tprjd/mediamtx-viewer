@@ -17,7 +17,8 @@ async function until(check) {
   throw failure
 }
 
-it('sends real host measurements within bounds and keeps history when the collector stops', async () => {
+it('shows private service diagnostics and VM history while bounded collectors survive delivery outages', async () => {
+  const serviceDashboard = JSON.parse(readFileSync('deploy/monitoring/service-health.json', 'utf8'))
   const dashboard = JSON.parse(readFileSync('deploy/monitoring/vm-health.json', 'utf8'))
   const context = process.env.DOCKER_CONTEXT ?? docker('context', 'show')
   const contextEndpoint = JSON.parse(docker('context', 'inspect', context))[0].Endpoints.docker.Host
@@ -28,13 +29,15 @@ it('sends real host measurements within bounds and keeps history when the collec
   const grafana = `${project}-grafana`
   const media = `${project}-media`
   const publisher = `${project}-publisher`
+  const loki = `${project}-loki`
+  const viewer = `${project}-viewer`
   const compose = (...args) => execFileSync('docker', [...contextArgs, 'compose', '-p', project, '-f', 'deploy/monitoring/compose.yaml', ...args], {
     encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000, env: { ...process.env, ...environment },
   }).trim()
-  const environment = { MONITORING_INSTANCE: project, GRAFANA_METRICS_USER: 'fixture', GRAFANA_METRICS_TOKEN: 'fixture-only' }
+  const environment = { MONITORING_INSTANCE: project, GRAFANA_METRICS_USER: 'fixture', GRAFANA_METRICS_TOKEN: 'fixture-only', MONITORING_PROJECT: project, GRAFANA_LOGS_USER: 'fixture', GRAFANA_LOGS_TOKEN: 'fixture-only' }
   try {
     docker('build', '-q', '-t', 'frankerzspam-hls-media-test:local', '-f', 'scripts/hls-media.Dockerfile', '.')
-    docker('run', '-d', '--name', media, '-e', 'MTX_HLSALWAYSREMUX=yes', 'bluenviron/mediamtx:1.20.1')
+    docker('run', '-d', '--name', media, '--label', `com.docker.compose.project=${project}`, '--label', 'com.docker.compose.service=mediamtx', '-e', 'MTX_HLSALWAYSREMUX=yes', 'bluenviron/mediamtx:1.20.1')
     const mediaAddress = JSON.parse(docker('inspect', media))[0].NetworkSettings.Networks.bridge.IPAddress
     docker('run', '-d', '--name', publisher, '--entrypoint', 'ffmpeg', 'frankerzspam-hls-media-test:local',
       '-hide_banner', '-loglevel', 'error', '-re', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=10',
@@ -55,6 +58,17 @@ it('sends real host measurements within bounds and keeps history when the collec
       expect(result.status).toBe('success')
       return result.data.result
     }
+    docker('run', '-d', '--name', loki, '-p', '127.0.0.1::3100', 'grafana/loki:3.7.7', '-config.file=/etc/loki/local-config.yaml', '-auth.enabled=false')
+    const lokiState = JSON.parse(docker('inspect', loki))[0]
+    const lokiAddress = `http://${lokiState.NetworkSettings.Networks.bridge.IPAddress}:3100`
+    const lokiPort = lokiState.NetworkSettings.Ports['3100/tcp'][0].HostPort
+    environment.GRAFANA_LOGS_URL = `${lokiAddress}/loki/api/v1/push`
+    await until(async () => expect((await fetch(`http://127.0.0.1:${lokiPort}/ready`)).ok).toBe(true))
+    const privateValues = ['mtx_sk_PRIVATE_TEST', 'private.person@example.test', 'https://private.example.test/?token=SECRET_TEST', 'PRIVATE_CHAT_CONTENT', 'ACCOUNT_NAME_TEST', '192.0.2.123']
+    const fixtureCode = `let failed=false;require('http').createServer((req,res)=>{if(req.url==='/fail'){failed=true;console.error(JSON.stringify({level:'error',msg:'ECONNREFUSED '+${JSON.stringify(privateValues.join(' '))}}))}if(req.url==='/recover')failed=false;res.writeHead(failed?503:200).end(JSON.stringify({status:failed?'error':'ok',version:'2.1.6',chat:{status:'healthy',faults:[],uncheckedFaults:[],outboxDepth:0}}))}).listen(3000,'0.0.0.0')`
+    docker('run', '-d', '--name', viewer, '-p', '127.0.0.1::3000', '--label', `com.docker.compose.project=${project}`, '--label', 'com.docker.compose.service=viewer',
+      'node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1', 'node', '-e', fixtureCode)
+    const viewerPort = JSON.parse(docker('inspect', viewer))[0].NetworkSettings.Ports['3000/tcp'][0].HostPort
     compose('up', '-d')
     await until(async () => {
       const result = await query(`node_memory_MemTotal_bytes{instance="${project}"}`)
@@ -92,7 +106,54 @@ it('sends real host measurements within bounds and keeps history when the collec
     expect((await request('/api/datasources', { uid: 'vm-test', name: 'VM test', type: 'prometheus', access: 'proxy',
       url: `http://${receiverState.NetworkSettings.Networks.bridge.IPAddress}:9090` })).ok).toBe(true)
     expect((await request('/api/dashboards/db', { dashboard, overwrite: true })).ok).toBe(true)
-    for (const path of ['/api/dashboards/uid/mediamtx-vm', '/api/datasources/proxy/uid/vm-test/api/v1/query?query=up']) {
+    expect((await request('/api/datasources', { uid: 'logs-test', name: 'Logs test', type: 'loki', access: 'proxy', url: lokiAddress })).ok).toBe(true)
+    expect((await request('/api/dashboards/db', { dashboard: serviceDashboard, overwrite: true })).ok).toBe(true)
+    await until(async () => expect((await query(`monitoring_application_up{instance="${project}"}`))[0]?.value[1]).toBe('1'))
+    await fetch(`http://127.0.0.1:${viewerPort}/fail`)
+    const logs = async () => {
+      const expression = `{job="mediamtx/services",instance="${project}",service=~"viewer"} | json | release="2.1.6"`
+      const result = await (await request(`/api/datasources/proxy/uid/logs-test/loki/api/v1/query_range?query=${encodeURIComponent(expression)}&limit=1000`)).json()
+      expect(result.status).toBe('success')
+      return JSON.stringify(result.data.result)
+    }
+    await until(async () => expect(await logs()).toContain('ECONNREFUSED'))
+    await until(async () => expect((await query(`monitoring_application_up{instance="${project}"}`))[0]?.value[1]).toBe('0'))
+    for (const secret of privateValues) expect(await logs()).not.toContain(secret)
+    expect(await logs()).toContain('application_health')
+    expect(await logs()).toContain('2.1.6')
+    await fetch(`http://127.0.0.1:${viewerPort}/recover`)
+    const observer = JSON.parse(docker('inspect', compose('ps', '-q', 'services')))[0]
+    expect(observer.HostConfig.Memory).toBe(96 * 1024 ** 2)
+    expect(observer.HostConfig.MemorySwap).toBe(observer.HostConfig.Memory)
+    expect(observer.HostConfig.ReadonlyRootfs).toBe(true)
+    expect(observer.Mounts.every(mount => !mount.RW)).toBe(true)
+    expect(observer.Config.Env.some(value => value.startsWith('GRAFANA_'))).toBe(false)
+    for (const port of [12346, 12347, 12348]) {
+      expect(() => docker('run', '--rm', 'alpine:3.22.1', 'wget', '-T', '2', '-qO-', `http://${receiverState.NetworkSettings.Networks.bridge.Gateway}:${port}/metrics`)).toThrow()
+    }
+    const observerDiskBefore = docker('diff', observer.Id).split('\n').sort()
+    docker('pause', loki)
+    await fetch(`http://127.0.0.1:${viewerPort}/fail`)
+    playback()
+    await until(async () => {
+      const result = await query(`loki_write_dropped_entries_total{instance="${project}"}`)
+      expect(result.some(sample => Number(sample.value[1]) > 0)).toBe(true)
+    })
+    playback()
+    expect(JSON.parse(docker('inspect', observer.Id))[0].State.OOMKilled).toBe(false)
+    expect(docker('diff', observer.Id).split('\n').sort()).toEqual(observerDiskBefore)
+    docker('unpause', loki)
+    await fetch(`http://127.0.0.1:${viewerPort}/recover`)
+    await until(async () => expect((await query(`monitoring_application_up{instance="${project}"}`))[0]?.value[1]).toBe('1'))
+    for (const panel of serviceDashboard.panels.filter(panel => panel.type !== 'logs')) {
+      for (const target of panel.targets ?? []) {
+        const expression = target.expr.replaceAll('$instance', project).replaceAll('$service', '.*').replaceAll('$__rate_interval', '1m')
+        const result = await query(expression)
+        expect(result.length, panel.title).toBeGreaterThan(0)
+        expect(result.every(sample => Number.isFinite(Number(sample.value[1]))), panel.title).toBe(true)
+      }
+    }
+    for (const path of ['/api/dashboards/uid/mediamtx-vm', '/api/dashboards/uid/mediamtx-services', '/api/datasources/proxy/uid/vm-test/api/v1/query?query=up', '/api/datasources/proxy/uid/logs-test/loki/api/v1/labels']) {
       expect((await fetch(`${grafanaUrl}${path}`, { signal: AbortSignal.timeout(5000) })).status).toBe(401)
     }
     for (const panel of dashboard.panels) {
@@ -139,6 +200,6 @@ it('sends real host measurements within bounds and keeps history when the collec
     try { console.error(compose('logs', '--tail', '20')) } catch { /* Preserve the test failure if setup failed. */ }
     throw error
   } finally {
-    try { compose('down', '--remove-orphans') } finally { docker('rm', '-f', receiver, grafana, publisher, media) }
+    try { compose('down', '--remove-orphans') } finally { docker('rm', '-f', receiver, grafana, publisher, media, loki, viewer) }
   }
-}, 240000)
+}, 420000)

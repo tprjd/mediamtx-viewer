@@ -1,6 +1,6 @@
 # Deploy VM monitoring
 
-Use this collector on the Linux streaming VM. It sends VM measurements to Grafana Cloud every 15 seconds. The application deployment does not manage it.
+Use this collector on the Linux streaming VM. It sends VM and service measurements to Grafana Cloud every 15 seconds. The application deployment does not manage it.
 
 ## Prepare the Cloud stack
 
@@ -17,8 +17,8 @@ For manual setup, use these steps:
 1. Select a Grafana Cloud **Free** stack. Keep the Free plan. Do not enable a paid upgrade.
 2. Keep access limited to three named administrators. In the Cloud access settings, invite each administrator separately to this stack. Do not share an account.
 3. Remove other stack users. Disable public dashboard sharing and anonymous access. Do not create public snapshots.
-4. Create a Cloud access policy for this stack with only `metrics:write`. Create a token with an expiry date. Record its renewal date outside the repository.
-5. Copy the Prometheus remote write **HTTPS URL**, tenant ID, and token from the stack connection details.
+4. Create separate Cloud access policies for this stack with only `metrics:write` and `logs:write`, respectively. Create a token with an expiry date. Record its renewal date outside the repository.
+5. Copy the Prometheus remote write and Loki push **HTTPS URLs**, tenant IDs, and their tokens from the stack connection details.
 6. Create `/etc/mediamtx-monitoring` on the VM with mode `0700`. Copy `.env.example` to `/etc/mediamtx-monitoring/collector.env` with mode `0600`.
 7. Edit that file locally on the VM. Keep `MONITORING_INSTANCE` stable across restarts. Use one label per VM.
 
@@ -37,11 +37,11 @@ free -b
 df -B1 / /var/lib/docker
 df -i / /var/lib/docker
 vmstat 1 6
-ss -lnt '( sport = :12345 )'
+ss -lnt '( sport >= :12345 and sport <= :12348 )'
 docker system df
 ```
 
-Use the final five `vmstat` rows. The first row is an average since boot. Proceed only if CPU use stays below 70%, available memory exceeds 1.5 GiB, and free disk space exceeds 10 GiB plus the existing deployment reserve and collector image space. Port `12345` must be unused.
+Use the final five `vmstat` rows. The first row is an average since boot. Proceed only if CPU use stays below 70%, available memory exceeds 1.7 GiB for both monitoring containers and the 1 GiB reserve, and free disk space exceeds 10 GiB plus the existing deployment reserve and collector image space. Ports `12345` through `12348` must be unused.
 
 Do not infer capacity from Terraform defaults. After deployment, repeat these measurements under load. Keep at least 1 GiB of available memory and CPU use below 70%. If either threshold fails, stop the collector and record the result.
 
@@ -59,14 +59,14 @@ curl --fail http://127.0.0.1:12345/-/ready
 
 The readiness response checks the collector configuration. It does not prove delivery. Check data in Grafana next.
 
-The collector uses the host network and read-only host mounts to measure the VM. It runs as UID `65534`, drops all capabilities, and has no Docker socket. It can read world-readable host files. Keep application credentials readable only by their service account or root. Keep Docker management private.
+Alloy uses the host network and read-only host mounts to measure the VM. It runs as UID `65534`, drops all capabilities, and has no Docker socket. It can read world-readable host files. Keep application credentials readable only by their service account or root. Keep Docker management private.
 
-Do not add inbound firewall rules. The collector's HTTP server listens only on VM loopback. It needs outbound HTTPS to the Cloud metrics endpoint. Restart the collector after a host filesystem mount changes so its filesystem view is current.
+Do not add inbound firewall rules. All monitoring listeners use VM loopback. Alloy needs outbound HTTPS to the Cloud metrics and logs endpoints. Restart the collector after a host filesystem mount changes so its filesystem view is current.
 
 ## Import and check the dashboard
 
-1. In Grafana, import `vm-health.json` into a folder limited to the administrator accounts.
-2. Select the stack's existing Prometheus data source in **Metrics source**. Select the VM in **VM**.
+1. In Grafana, import `vm-health.json` and `service-health.json` into a folder limited to the administrator accounts.
+2. Select the stack's existing Prometheus data source in **Metrics source**. Select the VM in **VM**. For service logs, select the existing Loki data source in **Logs source**. Use **Service**, **Release (logs)**, and the time selector to filter events. The release filter affects logs only.
 3. Wait one minute. Check CPU, load, memory, disk space, inodes, disk activity, and interface traffic. The dashboard refreshes every 15 seconds.
 4. Compare memory and filesystem values with `free` and `df` on the VM. Publish to a test Channel and play it. Check that CPU and network rates change.
 5. Record the **Current metric series** value and the stack's total active-series usage. The dashboard count is an instant estimate. Cloud usage also includes recently active series and other collectors.
@@ -88,7 +88,7 @@ docker compose --env-file /etc/mediamtx-monitoring/collector.env -p mediamtx-mon
 docker compose --env-file /etc/mediamtx-monitoring/collector.env -p mediamtx-monitoring down
 ```
 
-To roll back, change to the previous version directory. Run the validation command and `up -d` from that directory. Reimport its dashboard JSON. To rotate a token, update the private environment file, then run `up -d --force-recreate`. Revoke the old token after delivery resumes.
+To roll back, change to the previous version directory. Run the validation command and `up -d --remove-orphans` from that directory. This also removes an observer that is absent from the older version. Reimport its dashboard JSON. To rotate a token, update the private environment file, then run `up -d --force-recreate`. Revoke the old token after delivery resumes.
 
 Verify publishing and playback while the collector is stopped, then after it starts again. Check that earlier samples remain visible in Grafana. Record this result before you accept a production deployment.
 
@@ -101,12 +101,24 @@ Keep only the current and previous monitoring release assets and image versions.
 Use Node 24 and a local Docker engine. The test uses the repository's FFmpeg fixture and pinned Alloy, Prometheus, Grafana, and MediaMTX images.
 
 ```sh
-npx vitest run scripts/monitoring-deployment.test.mjs
+npx vitest run scripts/service-monitoring.test.mjs scripts/monitoring-deployment.test.mjs
 npm run typecheck
 ```
 
-On Docker Desktop, set `DOCKER_CONTEXT=desktop-linux`. Measurements describe the Docker Linux VM. This test checks real delivery, Grafana queries and denied anonymous requests, container limits, endpoint interruption, collector restart, and sample stream playback. It does not check Oracle capacity or Cloud account settings.
+On Docker Desktop, set `DOCKER_CONTEXT=desktop-linux`. Measurements describe the Docker Linux VM. This test checks real delivery, Grafana queries and denied anonymous requests, container limits, endpoint interruption, collector restart, and sample stream playback, real Loki queries, secret exclusion, and bounded log delivery failures. It does not check Oracle capacity or Cloud account settings.
 
 Run the full Docker suite after the final monitoring ticket, as agreed. See [collector limits](limits.md) for the collection budget and data-loss limits.
 
 The setup instructions use Grafana's references for [stack connection details](https://grafana.com/docs/grafana-cloud/security-and-account-management/cloud-stacks/) and [access policies and tokens](https://grafana.com/docs/grafana-cloud/platform/security-and-account-management/security-and-access/authentication-and-permissions/access-policies/create-access-policies/).
+
+## Service observer permissions and log fields
+
+The `services` container reads Docker state and logs for seven fixed services in `MONITORING_PROJECT`. Its default is `mediamtx-viewer`. The observer also reads the viewer's internal `/api/health` response. It does not change application services or the existing Chat notifier. It has no Cloud credentials.
+
+**The observer has Docker administrator access.** A `:ro` socket mount prevents filesystem writes to the socket mount; it does not restrict Docker API methods. The observer uses only fixed GET requests, but a compromised observer could control Docker and the host. Keep the pinned image and script restricted to administrators. Alloy has no Docker socket. No Docker API proxy or remote management listener is exposed.
+
+The observer does not export raw log text. It classifies known service messages and produces fixed descriptions. Allowed fields are `event`, `level`, `message` (fixed descriptions), `code` (a fixed error or Chat fault enum), `release` (validated version), `running`, `available`, `health`, `chat` (enums), and `restarts` (number). Stream labels are only `job`, `instance`, `service`, and `level`. Account identity, IP addresses, URLs, Channel names, tokens, stream keys, Chat content, stack traces, and arbitrary object fields are excluded. Unknown messages are discarded and counted. For deeper diagnosis, an administrator can inspect raw Docker logs locally.
+
+The service dashboard shows container state, health, restart count, last start time, application version and availability, available Chat state and outbox measurements, and approved events. A container replacement resets its Docker restart count; state events and start time preserve replacement evidence. A missing Docker health check is `-1`, not a success. A failed collection removes old service readings instead of reporting stale health. Dashboard links preserve VM and time selection.
+
+Check a controlled error in an isolated fixture before production acceptance. Search its fixed error code in Grafana, compare the application health chart for that time, then follow the VM link. Do not stop a live Channel or generate real Chat notifications for this check. Confirm that the Cloud stack still uses its selected 14-day retention. This deployment creates no alert rules or contact points.

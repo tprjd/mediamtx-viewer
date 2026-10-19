@@ -27,6 +27,9 @@ services:
       GRAFANA_METRICS_URL: ${GRAFANA_METRICS_URL:?Set the remote write URL}
       GRAFANA_METRICS_USER: ${GRAFANA_METRICS_USER:?Set the metrics tenant ID}
       GRAFANA_METRICS_TOKEN: ${GRAFANA_METRICS_TOKEN:?Set a metrics write token}
+      GRAFANA_LOGS_URL: ${GRAFANA_LOGS_URL:?Set the Loki push URL}
+      GRAFANA_LOGS_USER: ${GRAFANA_LOGS_USER:?Set the logs tenant ID}
+      GRAFANA_LOGS_TOKEN: ${GRAFANA_LOGS_TOKEN:?Set a logs write token}
     volumes:
       - ./config.alloy:/etc/alloy/config.alloy:ro
       - /proc:/host/proc:ro
@@ -40,4 +43,30 @@ services:
       driver: json-file
       options:
         max-size: 5m
+        max-file: "2"
+
+  services:
+    image: node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+    command: [node, --max-old-space-size=32, /monitoring/services.mjs]
+    restart: unless-stopped
+    network_mode: host
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 0.10
+    mem_limit: 96m
+    memswap_limit: 96m
+    pids_limit: 32
+    stop_grace_period: 15s
+    environment:
+      MONITORING_INSTANCE: ${MONITORING_INSTANCE:?Set a stable VM label}
+      MONITORING_PROJECT: ${MONITORING_PROJECT:-mediamtx-viewer}
+    volumes:
+      - ./services.mjs:/monitoring/services.mjs:ro
+      # This gives Docker administrator access despite :ro. See README.md.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 1m
         max-file: "2"

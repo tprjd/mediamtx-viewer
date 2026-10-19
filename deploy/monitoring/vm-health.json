@@ -891,5 +891,14 @@
         }
       ]
     }
+  ],
+  "links": [
+    {
+      "title": "Service health and logs for this time range",
+      "type": "link",
+      "url": "/d/mediamtx-services/mediamtx-service-health-and-logs",
+      "keepTime": true,
+      "includeVars": true
+    }
   ]
 }

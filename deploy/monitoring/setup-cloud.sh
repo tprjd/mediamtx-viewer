@@ -189,7 +189,7 @@ finish() {
 # Replace the example below. Set TOTAL_STAGES to match the stages you write.
 # ──────────────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=3
+TOTAL_STAGES=4
 ENV_FILE="$HOME/.config/mediamtx-monitoring/collector.env"
 settings_dir="${ENV_FILE%/*}"
 umask 077
@@ -205,7 +205,7 @@ if [[ -e "$ENV_FILE" ]]; then
   chmod 600 "$ENV_FILE"
 fi
 
-banner "Grafana Cloud VM monitoring"
+banner "Grafana Cloud VM and service monitoring"
 
 stage "Create the Free stack and restrict access"
 open_url "https://grafana.com/auth/sign-up/create-user"
@@ -239,6 +239,24 @@ ask_secret GRAFANA_METRICS_TOKEN "Paste the token. Input is hidden:"
 [[ "$GRAFANA_METRICS_TOKEN" =~ ^[a-zA-Z0-9_./+=-]+$ ]] || { warn "The token must be one line without spaces or quotes."; exit 1; }
 write_env GRAFANA_METRICS_TOKEN "$GRAFANA_METRICS_TOKEN"
 unset GRAFANA_METRICS_TOKEN
+
+stage "Copy the logs connection and create its write token"
+open_url "https://grafana.com/profile/org"
+step "Select the same stack. Open Details for Loki. Copy the push URL and numeric instance ID."
+ask GRAFANA_LOGS_URL "Loki push HTTPS URL:"
+[[ "$GRAFANA_LOGS_URL" =~ ^https://[a-zA-Z0-9.-]+\.grafana\.net/loki/api/v1/push$ ]] || { warn "Enter the Cloud Loki HTTPS URL ending in /loki/api/v1/push."; exit 1; }
+ask GRAFANA_LOGS_USER "Loki instance ID:"
+[[ "$GRAFANA_LOGS_USER" =~ ^[0-9]+$ ]] || { warn "The instance ID must contain digits only."; exit 1; }
+write_env GRAFANA_LOGS_URL "$GRAFANA_LOGS_URL"
+write_env GRAFANA_LOGS_USER "$GRAFANA_LOGS_USER"
+open_url "$GRAFANA_STACK_URL"
+step "Open Administration, Users and access, Cloud access policies."
+step "Create a stack-scoped policy named mediamtx-service-logs with only logs:write."
+step "Add a token with an expiry date. Record the renewal date in your password manager."
+ask_secret GRAFANA_LOGS_TOKEN "Paste the logs token. Input is hidden:"
+[[ "$GRAFANA_LOGS_TOKEN" =~ ^[a-zA-Z0-9_./+=-]+$ ]] || { warn "The token must be one line without spaces or quotes."; exit 1; }
+write_env GRAFANA_LOGS_TOKEN "$GRAFANA_LOGS_TOKEN"
+unset GRAFANA_LOGS_TOKEN
 
 stage "Save the VM label and continue with deployment"
 ask MONITORING_INSTANCE "Stable VM label. Enter uses viewer-vm:"

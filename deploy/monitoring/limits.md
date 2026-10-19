@@ -28,7 +28,7 @@ The temporary filesystem is the hard storage bound. WAL cleanup is periodic, so 
 
 The scrape ceiling fails a whole scrape if the exporter exceeds it. The forwarding filter then removes unused measurements. The ceiling is not a Cloud-wide quota: series changes over time and other collectors can increase account usage. A small VM normally stays far below it, but production acceptance requires a measured series count.
 
-Only the CPU, load, memory, filesystem, disk activity, network, and boot-time collectors are enabled. Virtual bridge, container, and loopback interfaces are excluded to reduce duplicate traffic counts. Filesystems under Docker, containerd, device, process, and temporary runtime mounts are excluded. No logs, traces, notifications, or paid-plan changes are configured here.
+Only the CPU, load, memory, filesystem, disk activity, network, and boot-time collectors are enabled. Virtual bridge, container, and loopback interfaces are excluded to reduce duplicate traffic counts. Filesystems under Docker, containerd, device, process, and temporary runtime mounts are excluded. Service logs use the separate limits below. Traces, new notifications, and paid-plan changes are not configured here.
 
 The root filesystem mount is private and read-only. New host mounts need a collector restart. Mount restrictions, unusual filesystem types, and restricted `/proc` access can remove measurements. The collection-success panel reports collector failures.
 
@@ -37,3 +37,31 @@ The pinned collector image also uses disk space. Docker image layers, the curren
 Configuration can move to another Prometheus-compatible endpoint by changing the private environment file. The dashboard selects its data source at import time. Old Cloud history does not move automatically.
 
 The configuration follows the Alloy references for [host measurements](https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.exporter.unix/), [scrape limits](https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.scrape/), and [remote-write buffering](https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.remote_write/).
+
+## Service and log limits
+
+| Resource | Limit |
+| --- | --- |
+| Observer CPU / memory / processes | 0.10 core / 96 MiB, no extra swap / 32 |
+| Observer JavaScript heap | 32 MiB; the container limit also covers HTTP buffers |
+| Observer disk | Read-only root; two local diagnostic files of 1 MiB each |
+| Docker project / services | One project; seven fixed service names; at most 32 discovered containers |
+| Polling | Every 15 seconds; no overlapping polls |
+| Reads | Two-second deadline, 1 MiB per Docker response, 16 KiB health response |
+| Raw log scan | Last 200 lines per service per poll; at most 8 KiB per line |
+| Export batch | At most 64 records and 64 KiB per poll, across all services |
+| Local handoff | One attempt, two-second timeout; failed records are counted and discarded |
+| Health heartbeat | At most one per minute, plus health changes |
+| Loki labels | Four fixed dimensions; seven service values, three level values; no release label |
+| Alloy log queue | Pinned Alloy default: 10 MiB, in memory; no Loki WAL |
+| Cloud log batch | 64 KiB, flushed after one second |
+| Cloud delivery | Five-second request timeout; six backoff retries, one to ten seconds; no infinite retry |
+| Metrics scrape | 300 samples per service-observer scrape; explicit forwarding filter |
+
+The export ceiling is about 10.6 GiB per 30 days at continuous maximum volume, before protocol overhead. Actual records are usually much smaller. This is not an account-wide quota; check total Cloud log usage and active series after deployment and before other tickets add data. Keep the account on Free. Do not enable paid upgrades.
+
+A receiver outage can discard logs after retries, during queue pressure, or when the collector restarts. The observer does not store a backlog. It counts local delivery failures, discarded records, and windows where a read failed or hit the 200-line ceiling. A gap count identifies affected polls, not the exact number of lost lines. The pinned Alloy queue can block; the observer timeout prevents that wait from reaching the application. Metrics and Loki loss counters remain separate.
+
+The observer reads only the latest poll interval after it restarts. It does not backfill an unbounded outage. A Loki outage does not write to application storage. Full raw Docker log retention remains the application's existing responsibility. Inspect the dashboard's delivery counters and query recent logs; a successful local handoff alone does not prove Cloud delivery.
+
+See the official [Loki receiver](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.api/) and [Loki writer](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.write/) references. Custom queue settings are experimental in this Alloy release; this deployment uses the pinned stable defaults.

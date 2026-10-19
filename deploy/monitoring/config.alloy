@@ -61,7 +61,7 @@ prometheus.relabel "collector" {
 
 	rule {
 		source_labels = ["__name__"]
-		regex         = "up|process_(resident_memory_bytes|cpu_seconds_total)|prometheus_remote_storage_(samples_pending|samples_failed_total|samples_retried_total|samples_dropped_total|queue_highest_sent_timestamp_seconds)|prometheus_remote_write_wal_storage_(active_series|deleted_series)|prometheus_remote_storage_highest_timestamp_in_seconds"
+		regex         = "up|process_(resident_memory_bytes|cpu_seconds_total)|prometheus_remote_storage_(samples_pending|samples_failed_total|samples_retried_total|samples_dropped_total|queue_highest_sent_timestamp_seconds)|prometheus_remote_write_wal_storage_(active_series|deleted_series)|prometheus_remote_storage_highest_timestamp_in_seconds|loki_write_(batch_retries_total|dropped_entries_total|sent_bytes_total)"
 		action        = "keep"
 	}
 
@@ -101,5 +101,63 @@ prometheus.remote_write "metrics" {
 		truncate_frequency = "15m"
 		min_keepalive_time = "5m"
 		max_keepalive_time = "1h"
+	}
+}
+
+prometheus.scrape "services" {
+	targets         = [{__address__ = "127.0.0.1:12346"}]
+	job_name        = "mediamtx/services"
+	scrape_interval = "15s"
+	scrape_timeout  = "3s"
+	sample_limit    = 300
+	forward_to      = [prometheus.relabel.services.receiver]
+}
+
+prometheus.relabel "services" {
+	forward_to = [prometheus.remote_write.metrics.receiver]
+	rule {
+		source_labels = ["__name__"]
+		regex         = "up|monitoring_(service_.*|application_(up|info)|chat_.*)"
+		action        = "keep"
+	}
+	rule {
+		target_label = "instance"
+		replacement  = sys.env("MONITORING_INSTANCE")
+	}
+}
+
+loki.source.api "services" {
+	http {
+		listen_address       = "127.0.0.1"
+		listen_port          = 12347
+		conn_limit           = 2
+		server_read_timeout  = "3s"
+		server_write_timeout = "3s"
+	}
+	grpc {
+		listen_address           = "127.0.0.1"
+		listen_port              = 12348
+		conn_limit               = 2
+		server_max_recv_msg_size  = 65536
+	}
+	use_incoming_timestamp = true
+	max_send_message_size  = "64KiB"
+	forward_to             = [loki.write.logs.receiver]
+}
+
+loki.write "logs" {
+	endpoint {
+		url                 = sys.env("GRAFANA_LOGS_URL")
+		batch_size          = "64KiB"
+		batch_wait          = "1s"
+		remote_timeout      = "5s"
+		min_backoff_period  = "1s"
+		max_backoff_period  = "10s"
+		max_backoff_retries = 6
+		follow_redirects    = false
+		basic_auth {
+			username = sys.env("GRAFANA_LOGS_USER")
+			password = sys.env("GRAFANA_LOGS_TOKEN")
+		}
 	}
 }
