@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { createServer } from 'node:http'
+import { createServer, request } from 'node:http'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -50,6 +50,8 @@ export async function checkChatProxy() {
     const port = probe.address().port
     await close(probe)
     const configuration = readFileSync('deploy/oracle/Caddyfile', 'utf8')
+      .replaceAll('www.{$PUBLIC_HOSTNAME}', `http://www.proxy-check.test:${port}`)
+      .replaceAll('https://{$PUBLIC_HOSTNAME}', 'https://proxy-check.test')
       .replaceAll('{$PUBLIC_HOSTNAME}', `http://127.0.0.1:${port}`)
       .replaceAll('{$INTERNAL_AUTH_SECRET}', secret)
       .replaceAll('viewer:3000', `host.docker.internal:${auth.address().port}`)
@@ -64,6 +66,16 @@ export async function checkChatProxy() {
       try { if ((await fetch(origin, {signal: AbortSignal.timeout(500)})).status === 401) break } catch { /* Starting. */ }
       if (Date.now() > deadline) throw new Error('Chat proxy did not start')
       await delay(100)
+    }
+    for (const method of ['GET', 'POST']) {
+      const redirect = await new Promise((resolve, reject) => {
+        request(`${origin}/watch/test?quality=low&audio=on`, {
+          method, headers: {host: 'www.proxy-check.test'},
+          signal: AbortSignal.timeout(3000),
+        }, response => { response.resume(); resolve(response) }).on('error', reject).end()
+      })
+      assert.equal(redirect.statusCode, 308)
+      assert.equal(redirect.headers.location, 'https://proxy-check.test/watch/test?quality=low&audio=on')
     }
     const connect = cookie => new Promise((resolve, reject) => {
       const socket = new WebSocket(origin.replace('http:', 'ws:') + '/chat/realtime/connection/websocket',

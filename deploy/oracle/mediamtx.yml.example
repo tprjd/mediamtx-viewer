@@ -41,7 +41,7 @@ moq: false
 hls: true
 hlsAddress: :8888
 hlsEncryption: false
-hlsAllowOrigins: ["https://frankerzspam.duckdns.org"]
+hlsAllowOrigins: ["https://frankerz.hu"]
 hlsAlwaysRemux: true
 hlsVariant: lowLatency
 hlsSegmentDuration: 2s
@@ -50,7 +50,7 @@ hlsPartDuration: 200ms
 webrtc: true
 webrtcAddress: :8889
 webrtcEncryption: false
-webrtcAllowOrigins: ["https://frankerzspam.duckdns.org"]
+webrtcAllowOrigins: ["https://frankerz.hu"]
 webrtcLocalUDPAddress: :8189
 webrtcLocalTCPAddress: :8189
 webrtcIPsFromInterfaces: false

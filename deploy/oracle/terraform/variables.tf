@@ -37,7 +37,7 @@ variable "project_name" {
 variable "hostname" {
   description = "Public hostname that will eventually point at the reserved OCI address."
   type        = string
-  default     = "frankerzspam.duckdns.org"
+  default     = "frankerz.hu"
 }
 
 variable "ssh_public_key_path" {

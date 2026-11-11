@@ -117,9 +117,17 @@ viewing and publishing.
 
 ## DNS and OBS
 
-After the stack is healthy, point `frankerzspam.duckdns.org` to the reserved
-Oracle IP from `tofu output public_ip`. Caddy will then obtain its TLS
-certificate automatically.
+Point both `frankerz.hu` and `www.frankerz.hu` to the reserved Oracle IP
+from `tofu output public_ip`. Confirm that public DNS resolves both names
+before deployment. Caddy obtains their TLS certificates and redirects `www`
+to `https://frankerz.hu`, preserving the request path, query, and method.
+
+For the domain change, set `PUBLIC_HOSTNAME=frankerz.hu` in the encrypted
+Caddy environment and use `https://frankerz.hu` for both MediaMTX allowed
+origins. Add the new callback URLs for enabled Google or Discord sign-in
+providers before activation. Users must sign in again on the new domain.
+Deploy the verified release with `--url https://frankerz.hu`, then update
+`url` in the private deployment controller configuration after acceptance.
 
 Each streamer can instead sign in, open `/account/channel`, and download the
 Windows CMD launcher. Double-clicking it verifies and extracts its embedded

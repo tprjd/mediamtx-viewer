@@ -4,6 +4,10 @@
 	}
 }
 
+www.{$PUBLIC_HOSTNAME} {
+	redir https://{$PUBLIC_HOSTNAME}{uri} 308
+}
+
 # Next.js closes idle upstream connections after five seconds.
 (viewer_transport) {
 	transport http {
