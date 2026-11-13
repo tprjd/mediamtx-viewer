@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [2.1.10] - 2026-11-13
+
+### Fixed
+
+- Allow up to ten minutes for the monitoring fixture image build on fresh CI runners, within a fifteen-minute test deadline.
+
 ## [2.1.9] - 2026-11-13
 
 ### Changed

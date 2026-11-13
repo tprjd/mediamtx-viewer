@@ -9,7 +9,7 @@ import { chromium, request as playwrightRequest } from '@playwright/test'
 import { expect, it } from 'vitest'
 
 const contextArgs = process.env.DOCKER_CONTEXT ? ['--context', process.env.DOCKER_CONTEXT] : []
-const docker = (...args) => execFileSync('docker', [...contextArgs, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: args[0] === 'build' ? 120000 : 60000 }).trim()
+const docker = (...args) => execFileSync('docker', [...contextArgs, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: args[0] === 'build' ? 600000 : 60000 }).trim()
 
 async function until(check) {
   let failure
@@ -471,4 +471,4 @@ storage:
     for (const container of containers.reverse()) { try { docker('rm', '-f', container) } catch { /* Already removed. */ } }
     rmSync(directory, { recursive: true, force: true })
   }
-}, 300000)
+}, 900000)
