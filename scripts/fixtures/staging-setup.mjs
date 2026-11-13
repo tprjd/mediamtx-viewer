@@ -263,7 +263,7 @@ const r=spawnSync(${JSON.stringify(realSops)},args,{stdio:'inherit'});process.ex
     })
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
     const command = (action = 'prepare', extra = {}, flags = []) => new Promise(resolve => {
-      const child = spawn('sh', ['deploy/oracle/deploy.sh', action, 'local', ...(['prepare', 'managed'].includes(action) ? ['v1.2.3'] : []), '--project', project, '--directory', join(directory, 'copies'), ...flags, ...(['managed', 'recover'].includes(action) && managedOptions.url ? ['--url', managedOptions.url] : [])], {
+      const child = spawn('sh', ['deploy/oracle/deploy.sh', action, 'local', ...(['prepare', 'managed'].includes(action) ? ['v1.2.3'] : []), '--project', project, '--directory', join(directory, 'copies'), ...flags, ...(['managed', 'recover'].includes(action) && managedOptions.url && !flags.includes('--url') ? ['--url', managedOptions.url] : [])], {
         env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, DOCKER_HOST: endpoint,
           AUTH_BACKUP_KEY: managedOptions.key, GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`, SOPS_AGE_KEY_FILE: keys,
           GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: `url.${source}.insteadOf`, GIT_CONFIG_VALUE_0: 'https://github.com/tprjd/mediamtx-viewer.git', STAGE_FAULT: fault, ...extra },

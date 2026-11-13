@@ -13,7 +13,7 @@ param(
     [int]$WhipBitrateKbps = 10000,
     [string]$Codecs = 'AV1,HEVC,H264',
     [string]$Resolutions = '1440p,1080p',
-    [string]$SiteOrigin = 'https://frankerzspam.duckdns.org'
+    [string]$SiteOrigin = 'https://frankerz.hu'
 )
 
 Set-StrictMode -Version 2.0

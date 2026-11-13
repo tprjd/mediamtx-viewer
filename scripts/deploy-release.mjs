@@ -64,7 +64,7 @@ function containers(project) {
   return ids.length ? JSON.parse(docker('inspect', ...ids)).filter(c => !c.Config.Labels['org.frankerzspam.maintenance']) : []
 }
 
-async function deploy({ target, tag, project, directory, url, recovery, restore, confirm, chatAction, cleanup, adopt }) {
+async function deploy({ target, tag, project, directory, url, previousUrl = url, recovery, restore, confirm, chatAction, cleanup, adopt }) {
   if (target !== 'local') process.env.DOCKER_HOST = `ssh://${target}`
   const volume = `${project}-deployment-staging`, tool = `${project}-deploy-operation`
   if (adopt) docker('volume', 'create', volume)
@@ -217,7 +217,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
     }
     return restored
   }
-  async function accept(model, version, chatEnabled, expectedRuntime) {
+  async function accept(model, version, chatEnabled, expectedRuntime, publicUrl = url || `https://${model.services.caddy.environment.PUBLIC_HOSTNAME}/`) {
     const privateModel = structuredClone(model)
     for (const config of Object.values(privateModel.services)) if (config.ports) config.ports = []
     const identities = Object.fromEntries(Object.entries(model.services).map(([name, config]) => [name, JSON.parse(docker('image', 'inspect', config.image))[0].Id]))
@@ -278,7 +278,6 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
     const opened = containers(project).find(c => service(c) === 'caddy')
     if (!opened?.State.Running || opened.Image !== proxy.Image) throw new Error('Public proxy failed to start')
     caddyConfiguration(opened)
-    const publicUrl = url || `https://${env(initial.find(c => service(c) === 'caddy'), 'PUBLIC_HOSTNAME')}/`
     let publicHealthy = false
     for (let n = 0; n < 20; n++) {
       try {
@@ -567,7 +566,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
     save(`/stage/deployments/${attempt}-previous.json`, previous)
     state.candidateRelease.tree = host('tree', { path: state.candidateRelease.source }).digest
     phase('maintenance-backup')
-    backupReceipt = await maintenanceBackup({ project, directory: join(directory, 'backups'), url, hold: true, deploymentAttempt: attempt, onState: backup => { state.backup = backup; phase('maintenance-backup') } })
+    backupReceipt = await maintenanceBackup({ project, directory: join(directory, 'backups'), url: previousUrl, hold: true, deploymentAttempt: attempt, onState: backup => { state.backup = backup; phase('maintenance-backup') } })
     state.backup = backupReceipt
     phase('stopping-writers')
     stop(unchanged)
@@ -651,7 +650,7 @@ async function deploy({ target, tag, project, directory, url, recovery, restore,
         if (ownershipRecorded) host('check-ownership', { path: `/stage/deployments/${attempt}-ownership.json` })
         if (previous.tree !== host('tree', { path: previous.source }).digest) throw new Error('Previous files changed')
         phase('rollback')
-        await accept(previous.model, previous.version, previous.chatEnabled, adoptedRecoveryRuntime(previous))
+        await accept(previous.model, previous.version, previous.chatEnabled, adoptedRecoveryRuntime(previous), previousUrl)
         previous.runtime = verifyRestoredRuntime(adoptedRecoveryRuntime(previous))
         if (previous.adoption) { previous.adoption.legacyRuntime = false; previous.adoption.pending = false }
         save('/stage/current.json', previous)
@@ -695,10 +694,10 @@ async function main() {
   const options = { target, tag, chatAction, cleanup: action === 'cleanup', adopt: action === 'adopt', project: 'mediamtx-viewer', directory: join(homedir(), '.local/share/mediamtx-deployments') }
   while (args.length) {
     const key = args.shift(), value = args.shift()
-    if (!['--project', '--directory', '--url', '--release', '--restore', '--confirm'].includes(key) || !value) throw new Error('Invalid deployment option')
-    options[key.slice(2)] = key === '--directory' ? resolve(value) : value
+    if (!['--project', '--directory', '--url', '--previous-url', '--release', '--restore', '--confirm'].includes(key) || !value) throw new Error('Invalid deployment option')
+    options[key === '--previous-url' ? 'previousUrl' : key.slice(2)] = key === '--directory' ? resolve(value) : value
   }
-  if (!['managed', 'adopt', 'recover', 'cleanup', 'chat-enable', 'chat-disable', 'chat-health'].includes(action) || !/^[a-zA-Z0-9_@.:-]+$/.test(target ?? '') || target.startsWith('-') || action === 'managed' && !/^v\d+\.\d+\.\d+$/.test(tag ?? '') || !/^[a-z0-9][a-z0-9_-]*$/.test(options.project)) throw new Error('Usage: deploy.sh managed TARGET TAG [--project NAME] [--directory PATH] [--url URL]')
+  if (!['managed', 'adopt', 'recover', 'cleanup', 'chat-enable', 'chat-disable', 'chat-health'].includes(action) || !/^[a-zA-Z0-9_@.:-]+$/.test(target ?? '') || target.startsWith('-') || action === 'managed' && !/^v\d+\.\d+\.\d+$/.test(tag ?? '') || !/^[a-z0-9][a-z0-9_-]*$/.test(options.project)) throw new Error('Usage: deploy.sh managed TARGET TAG [--project NAME] [--directory PATH] [--url URL] [--previous-url URL]')
   if (action === 'recover') {
     if (!['previous', 'candidate'].includes(options.release) || !['none', 'auth', 'chat', 'both'].includes(options.restore)) throw new Error('Recovery requires --release previous|candidate --restore none|auth|chat|both. Replacement can discard later data and requires --confirm discard-later-data.')
     if (options.restore !== 'none' && options.confirm !== 'discard-later-data') throw new Error('Database replacement can discard later data; use --confirm discard-later-data')

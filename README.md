@@ -6,7 +6,7 @@ anyone can register an account with its own channel. Channel owners approve
 individual viewers; administrators can grant access to every channel.
 
 The production stack runs on an Oracle Cloud VM at
-`https://frankerzspam.duckdns.org/`. Balanced LL-HLS is the default. Viewers can
+`https://frankerz.hu/`. Balanced LL-HLS is the default. Viewers can
 select experimental Low (best-possible) HLS, recovery-oriented Smooth HLS, or the existing
 opt-in WebRTC low-latency mode; failed low-margin modes return to a buffered
 HLS profile. (WebRTC retirement is a separate follow-up.)

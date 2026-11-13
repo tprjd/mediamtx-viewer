@@ -126,7 +126,8 @@ For the domain change, set `PUBLIC_HOSTNAME=frankerz.hu` in the encrypted
 Caddy environment and use `https://frankerz.hu` for both MediaMTX allowed
 origins. Add the new callback URLs for enabled Google or Discord sign-in
 providers before activation. Users must sign in again on the new domain.
-Deploy the verified release with `--url https://frankerz.hu`, then update
+Deploy the verified release with `--url https://frankerz.hu` and
+`--previous-url https://frankerzspam.duckdns.org`, then update
 `url` in the private deployment controller configuration after acceptance.
 
 Each streamer can instead sign in, open `/account/channel`, and download the
@@ -206,7 +207,7 @@ viewer-side loss is reported in the playback diagnostics. MediaMTX passes the
 stream through and cannot restore compression detail lost before or during
 publishing. For fine detail, prefer 1440p60 at 12–16 Mbps over 4K60 at 10 Mbps.
 
-The viewer is `https://frankerzspam.duckdns.org/`. Sign in with the bootstrap
+The viewer is `https://frankerz.hu/`. Sign in with the bootstrap
 administrator, open registration temporarily at `/admin/users`, and activate
 each friend after they register. Viewing and streaming are separate grants;
 use the same admin page to create one channel for each approved streamer.

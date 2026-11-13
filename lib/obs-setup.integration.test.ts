@@ -243,6 +243,7 @@ describe('Windows OBS setup authorization', () => {
     expect(launcher).not.toContain('Set-ExecutionPolicy')
     expect(launcher).toContain(`if($actual -ne '${payloadSha256}')`)
     expect(Buffer.from(encodedPayload, 'base64')).toEqual(Buffer.from(source))
+    expect(source).toContain("[string]$SiteOrigin = 'https://frankerz.hu'")
     expect(source).toContain("$ScriptVersion = '1.5.0'")
     expect(source).toContain("$StreamingContractVersion = [string]$StreamingContract.contractVersion")
     expect(source).not.toContain('__FRANKERZSPAM_OBS_TIMING_BASE64__')

@@ -41,7 +41,11 @@ sh deploy/oracle/deploy.sh ubuntu@your-host vX.Y.Z
 Use `--project NAME` for a different Compose project. Use `--directory PATH`
 for private workstation staging and backup storage. The default directory is
 `~/.local/share/mediamtx-deployments`. The optional `--url URL` selects the
-public proxy URL to check. It defaults to the previous proxy's public hostname.
+public proxy URL to check. Acceptance defaults to the selected release's hostname.
+`--previous-url URL` selects the old site for maintenance and automatic rollback
+checks. It defaults to `--url`. When changing domains, pass the new site with
+`--url` and the old site with `--previous-url`. Obtain trusted certificates for
+the new names before private proxy acceptance.
 `local` selects the local Docker endpoint for isolated tests.
 
 The command downloads the committed source, decrypts its private configuration,

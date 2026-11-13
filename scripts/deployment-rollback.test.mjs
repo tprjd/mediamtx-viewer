@@ -23,3 +23,12 @@ it.each(['wrong-version', 'unhealthy-service', 'degraded-chat', 'activation-fail
     expect(result.stdout + result.stderr).not.toContain('fixture-private')
   }, { managed: true, chat: true })
 }, 240000)
+
+it('uses the previous URL for maintenance and rollback when the new public URL fails', async () => {
+  await stagingFixture(async ({ command, url }) => {
+    const result = await command('managed', {}, ['--url', 'http://127.0.0.1:1', '--previous-url', url])
+    expect(result.status).not.toBe(0)
+    expect(JSON.parse(result.stderr), result.stderr + result.diagnostic).toMatchObject({ result: 'failed-rolled-back', failedPhase: 'opening-proxy', reason: 'Public proxy or service verification failed' })
+    expect((await fetch(url)).headers.get('x-fixture-release')).toBe('previous')
+  }, { managed: true, chat: true })
+}, 240000)

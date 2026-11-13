@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here.
 
+## [2.1.9] - 2026-11-13
+
+### Changed
+
+- Use frankerz.hu for the production viewer, authentication, and media origins.
+- Redirect www.frankerz.hu to frankerz.hu while preserving request paths, queries, and methods.
+
+### Fixed
+
+- Check the previous site during maintenance and automatic rollback when deploying a new domain.
+
 ## [2.1.8] - 2026-10-19
 
 ### Fixed

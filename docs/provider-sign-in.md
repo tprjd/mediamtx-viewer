@@ -24,8 +24,8 @@ For production, use the public HTTPS origin. Callback URLs must match exactly. T
 
 For FrankerzSpam production, register these exact URLs:
 
-- Google: `https://frankerzspam.duckdns.org/api/auth/callback/google`
-- Discord: `https://frankerzspam.duckdns.org/api/auth/callback/discord`
+- Google: `https://frankerz.hu/api/auth/callback/google`
+- Discord: `https://frankerz.hu/api/auth/callback/discord`
 
 ### Discord application settings
 
