@@ -2,7 +2,7 @@ viewer.example.com {
 	encode zstd gzip
 
 	@public path /login /register /registration-pending /reset-password /api/auth/* /_next/* /favicon.ico /icon.svg
-	@protected not path /login /register /registration-pending /reset-password /api/auth/* /api/internal/authorize /api/obs-setup/device/start /api/obs-setup/device/poll /_next/* /favicon.ico /icon.svg /publish/whip/*
+	@protected not path /login /register /registration-pending /reset-password /api/auth/* /api/internal/authorize /api/obs-setup/device/start /api/obs-setup/device/poll /api/relay/pair /api/relay/poll /api/relay/source/whep /api/relay/source/whep/* /_next/* /favicon.ico /icon.svg /publish/whip/*
 	forward_auth @protected viewer:3000 {
 		uri /api/internal/authorize
 		header_up X-Internal-Auth {$INTERNAL_AUTH_SECRET}
@@ -11,9 +11,13 @@ viewer.example.com {
 	# OBS uses a per-channel bearer token validated by MediaMTX through the
 	# private Next.js authorization callback.
 	handle_path /publish/whip/* {
-		reverse_proxy host.docker.internal:8889 {
-			header_up -Cookie
-			header_down Location ^/(.*)$ /publish/whip/$1
+		@whip_endpoint path_regexp whip_endpoint ^/.+/whip(/[A-Za-z0-9_-]+)?$
+		route {
+			reverse_proxy @whip_endpoint host.docker.internal:8889 {
+				header_up -Cookie
+				header_down Location ^/(.*)$ /publish/whip/$1
+			}
+			respond 404
 		}
 	}
 
@@ -26,6 +30,10 @@ viewer.example.com {
 	}
 
 	handle_path /media/whep/* {
+		uri query {
+			-frankerzspam_internal
+			-relay_generation
+		}
 		reverse_proxy host.docker.internal:8889 {
 			header_up -Authorization
 			header_up -Cookie

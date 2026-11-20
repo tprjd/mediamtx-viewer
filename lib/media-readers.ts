@@ -21,14 +21,21 @@ export function readViewerId(query: string | undefined): string | undefined {
   return viewerId && viewerIdPattern.test(viewerId) ? viewerId : undefined
 }
 
+export function isRelaySource(query: string | undefined): boolean {
+  return Boolean(query && new URLSearchParams(query).get('frankerzspam_internal') === 'relay')
+}
+
 export function countViewers(
   readers: readonly { id: string; type: string }[],
-  thumbnailReaderIds: ReadonlySet<string> | null,
+  internalReaderIds: ReadonlySet<string> | null,
   readerViewerIds: ReadonlyMap<string, string>,
+  relayViewerIds: readonly string[] = [],
 ): number {
-  return new Set(
-    readers
-      .filter(reader => ['hlsSession', 'webRTCSession'].includes(reader.type) && !thumbnailReaderIds?.has(reader.id))
-      .map(reader => readerViewerIds.has(reader.id) ? `viewer:${readerViewerIds.get(reader.id)}` : `reader:${reader.id}`),
-  ).size
+  const viewers = new Set(relayViewerIds.map(id => `viewer:${id}`))
+  for (const reader of readers) {
+    if (!['hlsSession', 'webRTCSession'].includes(reader.type) || internalReaderIds?.has(reader.id)) continue
+    const identity = readerViewerIds.get(reader.id)
+    viewers.add(identity ? `viewer:${identity}` : `reader:${reader.id}`)
+  }
+  return viewers.size
 }

@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as relayBroker from './relay-broker'
 
 vi.mock('server-only', () => ({}))
 
 import {
   disconnectChannelPublisher,
+  disconnectRelaySource,
   getChannelStatus,
   getChannelStatuses,
   normalizeMediaMtxPath,
@@ -135,6 +137,9 @@ describe('getChannelStatuses', () => {
           ],
         })
       }
+      if (url.endsWith('/v3/webrtcsessions/list')) {
+        return Response.json({ items: [{ id: 'webrtc-viewer' }] })
+      }
       if (url.endsWith('/v3/hlssessions/list')) {
         return Response.json({
           items: [
@@ -264,7 +269,48 @@ describe('getChannelStatuses', () => {
   })
 })
 
+it('excludes the PC feed and counts a viewer switching from the relay to HLS once', async () => {
+  const viewer = '64de7b75-db44-4a50-9449-36a7c458c6bf'
+  const relayViewer = '5230a74f-8568-4559-b708-00649da727d0'
+  const audience = vi.spyOn(relayBroker, 'getRelayViewerIds').mockReturnValue([viewer, relayViewer])
+  const path = { name: 'channels/demo', ready: true, readers: [
+    { id: 'pc', type: 'webRTCSession' }, { id: 'fallback', type: 'hlsSession' },
+  ] }
+  const fetcher = vi.fn<typeof fetch>(async input => {
+    const url = String(input)
+    if (url.includes('/paths/get/')) return Response.json(path)
+    if (url.includes('/paths/list')) return Response.json({ items: [path] })
+    if (url.includes('/webrtcsessions/')) return Response.json({ items: [{ id: 'pc', query: 'frankerzspam_internal=relay' }] })
+    return Response.json({ items: [{ id: 'fallback', query: 'frankerzspam_viewer=' + viewer }] })
+  })
+  try {
+    const single = await getChannelStatus(path.name, fetcher)
+    const directory = await getChannelStatuses([path.name], fetcher)
+    expect([single.viewerCount, directory.get(path.name)?.viewerCount]).toEqual([2, 2])
+  } finally {
+    audience.mockRestore()
+  }
+})
+
 describe('disconnectChannelPublisher', () => {
+  it('closes only the revoked device feed, including on later pages', async () => {
+    const query = 'frankerzspam_internal=relay&relay_generation=old'
+    const read = { path: 'channels/demo', state: 'read', query }
+    const fetcher = vi.fn<typeof fetch>(async (input, options) => {
+      if (options?.method === 'POST') return new Response(null, { status: 204 })
+      return new URL(String(input)).searchParams.has('page')
+        ? Response.json({ items: [{ ...read, id: 'old-pc' }] })
+        : Response.json({ pageCount: 2, items: [
+            { ...read, id: 'present-pc', query: query.replace('old', 'current') },
+            { ...read, id: 'other-pc', path: 'channels/other' },
+            { ...read, id: 'viewer', query: '' },
+            { ...read, id: 'publisher', state: 'publish' },
+          ] })
+    })
+    await expect(disconnectRelaySource(read.path, 'old', fetcher)).resolves.toBe(1)
+    expect(fetcher.mock.calls.filter(([, options]) => options?.method === 'POST').map(([url]) => new URL(String(url)).pathname))
+      .toEqual(['/v3/webrtcsessions/kick/old-pc'])
+  })
   it('kicks publishers on the requested path across WebRTC, RTMP, and RTMPS', async () => {
     const fetcher = vi.fn<typeof fetch>(async (input) => {
       const url = String(input)

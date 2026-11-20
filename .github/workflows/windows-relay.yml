@@ -1,0 +1,47 @@
+name: Windows relay
+
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-relay.yml'
+      - 'scripts/windows/*relay*'
+      - 'lib/relay-installer*'
+  pull_request:
+    paths:
+      - '.github/workflows/windows-relay.yml'
+      - 'scripts/windows/*relay*'
+      - 'lib/relay-installer*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-relay:
+    runs-on: windows-2025
+    timeout-minutes: 12
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Check Windows PowerShell and the pinned MediaMTX binary
+        run: |
+          if ($PSVersionTable.PSVersion.ToString(2) -ne '5.1') { throw 'Windows PowerShell 5.1 required' }
+          . .\scripts\windows\channel-relay.ps1
+          $directory = Join-Path $env:LOCALAPPDATA 'FrankerzSpam\ChannelRelay'
+          [void][IO.Directory]::CreateDirectory($directory)
+          $binary = Install-RelayMediaServer $directory
+          .\scripts\windows\test-channel-relay.ps1 -MediaServer $binary
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Run the downloadable launcher twice against a local HTTPS site
+        env:
+          RELAY_WINDOWS_SMOKE: '1'
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx vitest run lib/relay-installer.test.ts lib/relay-installer.windows.test.ts

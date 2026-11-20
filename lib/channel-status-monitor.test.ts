@@ -38,6 +38,7 @@ describe('sameChannelLiveState', () => {
     expect(sameChannelLiveState(original, { ...original, title: 'Changed' })).toBe(false)
     expect(sameChannelLiveState(original, { ...original, ownerName: 'Changed' })).toBe(false)
     expect(sameChannelLiveState(original, { ...original, discordNotificationsEnabled: false })).toBe(false)
+    expect(sameChannelLiveState(original, { ...original, playback: { hls: '/media/hls/live/index.m3u8', webrtc: '/api/channels/alice/relay/whep' } })).toBe(false)
   })
   it('ignores checkedAt but detects viewer changes', () => {
     expect(

@@ -48,7 +48,7 @@ describe('proxy Viewing access', () => {
   })
 
   it('uses the shared access decision and returns only identity headers', async () => {
-    getActiveSession.mockResolvedValueOnce({ user: { id: 'viewer', role: 'user' } })
+    getActiveSession.mockResolvedValueOnce({ user: { id: 'viewer', role: 'user' }, session: { expiresAt: new Date(Date.now() + 60_000) } })
     const incoming = request({ cookie: 'test-cookie' })
     const response = await GET(incoming)
     expect(getActiveSession).toHaveBeenCalledWith(incoming.headers)

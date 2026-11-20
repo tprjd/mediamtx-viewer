@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 import { requireActiveSession } from '@/lib/auth/session'
+import { revokeRelayCredential } from '@/lib/relay-credentials'
 import {
   createOrRotateStreamKey,
   getOwnedChannel,
@@ -102,4 +103,11 @@ export async function disconnectBroadcastAction() {
     redirect(destination('error', 'MediaMTX could not disconnect the broadcast.'))
   }
   redirect(destination('notice', notice))
+}
+
+export async function disconnectRelayAction() {
+  const session = await requireActiveSession()
+  revokeRelayCredential(session.user.id)
+  revalidatePath('/account/channel')
+  redirect(destination('notice', 'Windows relay disconnected.'))
 }

@@ -1,8 +1,7 @@
-import { canRequestMedia } from '@/lib/viewing-access'
 import { timingSafeEqual } from 'node:crypto'
 
 import { authEnvironment, getRuntimeConfigurationErrors } from '@/lib/auth/env'
-import { getActiveSession } from '@/lib/auth/session'
+import { authorizeMediaRequest } from '@/lib/media-authorization'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,29 +25,28 @@ export async function GET(request: Request) {
     return new Response(null, { status: 503 })
   }
 
-  let session
-  try {
-    session = await getActiveSession(request.headers)
-  } catch {
+  const originalMethod = request.headers.get('x-forwarded-method')
+  const originalUri = request.headers.get('x-forwarded-uri') ?? '/'
+  const access = await authorizeMediaRequest(request.headers, originalMethod, originalUri)
+  if (access.status === 503) {
     // A failed access check must not become a sign-in redirect or an expiry claim.
     return new Response(null, { status: 503, headers: { 'Cache-Control': 'no-store' } })
   }
-  if (session) {
-    if (!canRequestMedia(session.user.id, request.headers.get('x-forwarded-uri') ?? '/')) return new Response(null, { status: 403, headers: { 'Cache-Control': 'no-store' } })
+  if (access.status === 403) return new Response(null, { status: 403, headers: { 'Cache-Control': 'no-store' } })
+  if (access.status === 204) {
     return new Response(null, {
       status: 204,
       headers: {
         'Cache-Control': 'no-store',
-        'X-Authenticated-User': session.user.id,
-        'X-Authenticated-Role': session.user.role ?? 'user',
+        'X-Authenticated-User': access.userId,
+        'X-Authenticated-Role': access.role,
       },
     })
   }
 
   const destination = request.headers.get('sec-fetch-dest')
-  const originalMethod = request.headers.get('x-forwarded-method')
   if (destination === 'document' && originalMethod === 'GET') {
-    const returnTo = safeReturnTo(request.headers.get('x-forwarded-uri'))
+    const returnTo = safeReturnTo(originalUri)
     return new Response(null, {
       status: 307,
       headers: { Location: `/login?returnTo=${encodeURIComponent(returnTo)}` },

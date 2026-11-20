@@ -212,8 +212,19 @@ MediaMTX does not map readers to site accounts, so revocation reconnects the aff
 channel's WebRTC readers. Removing global approval reconnects all WebRTC readers.
 Each transport records completion separately, so a Chat outage does not repeat
 completed video disconnections or block later video revocations.
-Publishers stay connected. HLS and WHEP HTTP requests check current approval on each
-request, including direct requests to the viewer server.
+Publishers stay connected. WHEP signaling checks current approval on each HTTP request.
+
+For HLS playlists, parts, and segments, the server can reuse a successful Viewing
+access check for one signed-in session and one media directory. Each check has
+a fixed lifetime of four to five seconds from its start, limited by session expiry.
+More requests do not extend it. The rule applies through Caddy and on the direct
+viewer route. Original streams and each pilot derivative have separate approvals
+in memory. A server restart clears them.
+
+After loss of Channel approval or Administrator approval, Account suspension,
+session revocation, or Channel disabling, a new HLS request can still succeed
+within that window. A request in progress can finish, and the player can play
+media it already received. Chat restrictions only limit message sending.
 
 `lib/account-restrictions.ts` owns completion of Account suspension and Channel
 disabling. The administrator actions check authorization and select notices and

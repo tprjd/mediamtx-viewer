@@ -2,7 +2,8 @@ import 'server-only'
 
 import { z } from 'zod'
 
-import { countViewers, isThumbnailSession, readViewerId } from '@/lib/media-readers'
+import { countViewers, isRelaySource, isThumbnailSession, readViewerId } from '@/lib/media-readers'
+import { getRelayViewerIds, disconnectRelayViewers } from '@/lib/relay-broker'
 import { hlsDerivativePath } from '@/lib/whip-pilot'
 import type { ChannelStatus } from '@/lib/types'
 
@@ -52,7 +53,7 @@ const RTMP_SESSION_LIST_ENDPOINTS = [
   { list: '/v3/rtmpsconns/list', kick: '/v3/rtmpsconns/kick/' },
 ]
 
-const hlsSessionListSchema = z
+const readerSessionListSchema = z
   .object({
     items: z
       .array(
@@ -84,84 +85,72 @@ function hasWebRtcReaders(
   return (path.readers ?? []).some((reader) => reader.type === 'webRTCSession')
 }
 
-interface HlsReaderMetadata {
-  thumbnailReaderIds: Set<string>
+interface ReaderMetadata {
+  internalReaderIds: Set<string>
   viewerIds: Map<string, string>
 }
 
-function emptyHlsReaderMetadata(): HlsReaderMetadata {
+function emptyReaderMetadata(): ReaderMetadata {
   return {
-    thumbnailReaderIds: new Set(),
+    internalReaderIds: new Set(),
     viewerIds: new Map(),
   }
 }
 
-async function getHlsReaderMetadata(
+async function getReaderMetadata(
+  protocol: 'hls' | 'webrtc',
   fetcher: typeof fetch,
-): Promise<HlsReaderMetadata | null> {
+): Promise<ReaderMetadata | null> {
   try {
-    const response = await fetcher(`${apiOrigin}/v3/hlssessions/list`, {
+    const response = await fetcher(`${apiOrigin}/v3/${protocol}sessions/list`, {
       cache: 'no-store',
       signal: AbortSignal.timeout(2500),
     })
     if (!response.ok) return null
-    const data = hlsSessionListSchema.parse(await response.json())
-    const thumbnailReaderIds = new Set<string>()
+    const data = readerSessionListSchema.parse(await response.json())
+    const internalReaderIds = new Set<string>()
     const viewerIds = new Map<string, string>()
     for (const session of data.items ?? []) {
       if (!session.id) continue
-      if (isThumbnailSession(session.query, session.userAgent)) {
-        thumbnailReaderIds.add(session.id)
+      if (protocol === 'hls' ? isThumbnailSession(session.query, session.userAgent) : isRelaySource(session.query)) {
+        internalReaderIds.add(session.id)
         continue
       }
       const viewerId = readViewerId(session.query)
       if (viewerId) viewerIds.set(session.id, viewerId)
     }
-    return { thumbnailReaderIds, viewerIds }
+    return { internalReaderIds, viewerIds }
   } catch {
     return null
   }
 }
 
-async function getWebRtcViewerIds(
-  fetcher: typeof fetch,
-): Promise<Map<string, string>> {
-  try {
-    const response = await fetcher(`${apiOrigin}/v3/webrtcsessions/list`, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(2500),
-    })
-    if (!response.ok) return new Map()
-    const data = hlsSessionListSchema.parse(await response.json())
-    return new Map(
-      (data.items ?? []).flatMap((session) => {
-        const viewerId = readViewerId(session.query)
-        return session.id && viewerId ? [[session.id, viewerId]] : []
-      }),
-    )
-  } catch {
-    return new Map()
+async function readAudienceMetadata(hls: boolean, webRtc: boolean, fetcher: typeof fetch) {
+  const [hlsSessions, webRtcSessions] = await Promise.all([
+    hls ? getReaderMetadata('hls', fetcher) : emptyReaderMetadata(),
+    webRtc ? getReaderMetadata('webrtc', fetcher) : emptyReaderMetadata(),
+  ])
+  const internalIds = new Set([...(hlsSessions?.internalReaderIds ?? []), ...(webRtcSessions?.internalReaderIds ?? [])])
+  const viewerIds = new Map([...(hlsSessions?.viewerIds ?? []), ...(webRtcSessions?.viewerIds ?? [])])
+  return (path: z.infer<typeof mediaMtxPathSchema>, mediaPath: string) => {
+    const incomplete = (!hlsSessions && hasHlsReaders(path)) || (!webRtcSessions && hasWebRtcReaders(path))
+    return normalizeMediaMtxPath(path, incomplete ? null : internalIds, viewerIds, getRelayViewerIds(mediaPath))
   }
-}
-
-function mergeViewerIds(
-  ...maps: ReadonlyMap<string, string>[]
-): Map<string, string> {
-  return new Map(maps.flatMap((map) => [...map]))
 }
 
 export function normalizeMediaMtxPath(
   data: unknown,
-  thumbnailReaderIds: ReadonlySet<string> | null = new Set(),
+  internalReaderIds: ReadonlySet<string> | null = new Set(),
   readerViewerIds: ReadonlyMap<string, string> = new Map(),
+  relayViewerIds: readonly string[] = [],
 ): ChannelStatus {
   const path = mediaMtxPathSchema.parse(data)
   const live = path.ready ?? path.available ?? path.online ?? false
   const viewerCount = !live
     ? 0
-    : !path.readers || (hasHlsReaders(path) && thumbnailReaderIds === null)
+    : !path.readers || internalReaderIds === null
       ? null
-      : countViewers(path.readers, thumbnailReaderIds, readerViewerIds)
+      : countViewers(path.readers, internalReaderIds, readerViewerIds, relayViewerIds)
 
   return {
     ...(path.source ? { publisherProtocol: path.source.type === 'webRTCSession' ? 'whip' as const : 'other' as const } : {}),
@@ -214,17 +203,8 @@ export async function getChannelStatus(
         if (fallback.ok) path = combineReaders(path, mediaMtxPathSchema.parse(await fallback.json()))
       } catch { /* Fallback failure must not make the original Publisher offline. */ }
     }
-    const hlsMetadata = hasHlsReaders(path)
-      ? await getHlsReaderMetadata(fetcher)
-      : emptyHlsReaderMetadata()
-    const webRtcViewerIds = hasWebRtcReaders(path)
-      ? await getWebRtcViewerIds(fetcher)
-      : new Map<string, string>()
-    return normalizeMediaMtxPath(
-      path,
-      hlsMetadata?.thumbnailReaderIds ?? null,
-      mergeViewerIds(hlsMetadata?.viewerIds ?? new Map(), webRtcViewerIds),
-    )
+    const withAudience = await readAudienceMetadata(hasHlsReaders(path), hasWebRtcReaders(path), fetcher)
+    return withAudience(path, mediaPath)
   } catch {
     return {
       state: 'unavailable',
@@ -272,25 +252,15 @@ export async function getChannelStatuses(
     if (!response.ok) throw new Error(`MediaMTX returned HTTP ${response.status}`)
     const data = mediaMtxPathListSchema.parse(await response.json())
     const paths = data.items ?? []
-    const hlsMetadata = paths.some(hasHlsReaders)
-      ? await getHlsReaderMetadata(fetcher)
-      : emptyHlsReaderMetadata()
-    const webRtcViewerIds = paths.some(hasWebRtcReaders)
-      ? await getWebRtcViewerIds(fetcher)
-      : new Map<string, string>()
-    const readerViewerIds = mergeViewerIds(
-      hlsMetadata?.viewerIds ?? new Map(),
-      webRtcViewerIds,
-    )
+    const withAudience = await readAudienceMetadata(paths.some(hasHlsReaders), paths.some(hasWebRtcReaders), fetcher)
     const active = new Map(
       paths
         .filter((item): item is typeof item & { name: string } => Boolean(item.name))
         .map((item) => [
           item.name,
-          normalizeMediaMtxPath(
+          withAudience(
             combineReaders(item, paths.find(candidate => candidate.name === hlsDerivativePath(item))),
-            hlsMetadata?.thumbnailReaderIds ?? null,
-            readerViewerIds,
+            item.name,
           ),
         ]),
     )
@@ -301,10 +271,12 @@ export async function getChannelStatuses(
 }
 
 interface WebRtcSessionList {
-  items?: Array<{
+  pageCount?: number
+  items: Array<{
     id?: string
     path?: string
     state?: 'read' | 'publish'
+    query?: string
   }>
 }
 
@@ -318,10 +290,15 @@ export async function disconnectChannelReaders(mediaPath: string, fetcher: typeo
   return disconnectWebRtcSessions({ mediaPath, state: 'read' }, fetcher)
 }
 
+export async function disconnectRelaySource(mediaPath: string, generation: string, fetcher: typeof fetch = fetch): Promise<number> {
+  return disconnectWebRtcSessions({ mediaPath, state: 'read', relayGeneration: generation }, fetcher)
+}
+
 export async function disconnectChannelSessions(
   mediaPath: string,
   fetcher: typeof fetch = fetch,
 ): Promise<number> {
+  disconnectRelayViewers(undefined, mediaPath)
   return disconnectWebRtcSessions({ mediaPath }, fetcher)
 }
 
@@ -383,21 +360,26 @@ export async function disconnectRtmpPublishers(
 }
 
 async function disconnectWebRtcSessions(
-  filter: { mediaPath?: string; state?: 'read' | 'publish' },
+  filter: { mediaPath?: string; state?: 'read' | 'publish'; relayGeneration?: string },
   fetcher: typeof fetch,
 ): Promise<number> {
-  const response = await fetcher(`${apiOrigin}/v3/webrtcsessions/list`, {
-    cache: 'no-store',
-    signal: AbortSignal.timeout(2500),
-  })
-  if (!response.ok) throw new Error(`MediaMTX returned HTTP ${response.status}`)
-
-  const data = (await response.json()) as WebRtcSessionList
-  const ids = (data.items ?? [])
+  const sessions: WebRtcSessionList['items'] = []
+  let pageCount = 1
+  for (let page = 0; page < pageCount; page++) {
+    const url = new URL('/v3/webrtcsessions/list', apiOrigin)
+    if (page) url.searchParams.set('page', String(page))
+    const response = await fetcher(url.toString(), { cache: 'no-store', signal: AbortSignal.timeout(2500) })
+    if (!response.ok) throw new Error(`MediaMTX returned HTTP ${response.status}`)
+    const data = (await response.json()) as WebRtcSessionList
+    sessions.push(...data.items)
+    if (page === 0) pageCount = data.pageCount ?? 1
+  }
+  const ids = sessions
     .filter(
       (session) =>
         (!filter.mediaPath || session.path === filter.mediaPath) &&
         (!filter.state || session.state === filter.state) &&
+        (!filter.relayGeneration || (isRelaySource(session.query) && new URLSearchParams(session.query).get('relay_generation') === filter.relayGeneration)) &&
         (filter.mediaPath || session.state !== 'publish'),
     )
     .map((session) => session.id)

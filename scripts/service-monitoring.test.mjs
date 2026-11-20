@@ -208,6 +208,14 @@ it('maps current HLS derivatives, deduplicates Viewers, and excludes internal tr
   for (const value of ['private-publisher-id', 'private-whep', 'private-hls', 'PRIVATE_TOKEN', '11111111-1111-4111-8111-111111111111', '_hls/']) expect(exported).not.toContain(value)
 })
 
+it('measures Oracle relay traffic without publishing a false audience count', async () => {
+  const media = mediaFixture()
+  media.webrtcsessions[0].query = 'frankerzspam_internal=relay'
+  const { metrics } = await fixture(media)
+  await vi.waitFor(async () => expect(await metrics()).toContain('monitoring_channel_connections{channel="channels/demo",protocol="webrtc"} 1'))
+  expect(await metrics()).not.toContain('monitoring_channel_viewers{channel="channels/demo"}')
+})
+
 it('marks churn, resets, missing reader metadata and stale derivatives incomplete', async () => {
   const media = mediaFixture()
   const { metrics } = await fixture(media)

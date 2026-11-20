@@ -26,7 +26,8 @@ www.{$PUBLIC_HOSTNAME} {
 		Permissions-Policy "camera=(), geolocation=(), microphone=()"
 	}
 
-	@account_protected not path /login /register /registration-pending /reset-password /forgot-password /verify-email /api/auth/* /api/internal/authorize /api/obs-setup/device/start /api/obs-setup/device/poll /_next/* /favicon.ico /icon.svg /publish/whip/*
+	# The relay's device endpoints authenticate with a pairing ticket or a scoped bearer.
+	@account_protected not path /login /register /registration-pending /reset-password /forgot-password /verify-email /api/auth/* /api/internal/authorize /api/obs-setup/device/start /api/obs-setup/device/poll /api/relay/pair /api/relay/poll /api/relay/source/whep /api/relay/source/whep/* /_next/* /favicon.ico /icon.svg /publish/whip/*
 
 	forward_auth @account_protected viewer:3000 {
 		import viewer_transport
@@ -38,6 +39,10 @@ www.{$PUBLIC_HOSTNAME} {
 	}
 
 	handle_path /publish/whep/* {
+		uri query {
+			-frankerzspam_internal
+			-relay_generation
+		}
 		reverse_proxy mediamtx:8889 {
 			header_up -Cookie
 			header_down Location ^/(.*)$ /publish/whep/$1
@@ -64,6 +69,10 @@ www.{$PUBLIC_HOSTNAME} {
 	}
 
 	handle_path /media/whep/* {
+		uri query {
+			-frankerzspam_internal
+			-relay_generation
+		}
 		reverse_proxy mediamtx:8889 {
 			header_up -Authorization
 			header_up -Cookie

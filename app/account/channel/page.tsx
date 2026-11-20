@@ -8,6 +8,7 @@ import { ArrowUpRight, Check, ChevronDown, Download, Mail, Pencil, Power, RadioT
 
 import {
   disconnectBroadcastAction,
+  disconnectRelayAction,
   updateDiscordNotificationsAction,
   updateChannelAction,
 } from '@/app/account/channel/actions'
@@ -16,6 +17,8 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { requireActiveSession } from '@/lib/auth/session'
 import { authEnvironment } from '@/lib/auth/env'
 import { getOwnedChannel } from '@/lib/channels'
+import { getOnlineRelay, getRelayViewerIds } from '@/lib/relay-broker'
+import { getRelayCredentialStatus } from '@/lib/relay-credentials'
 import {
   OBS_SETUP_SCRIPT_FILENAME,
   getObsSetupScriptMetadata,
@@ -56,6 +59,7 @@ export default async function ChannelAccountPage({
   const origin = authEnvironment.baseUrl
   const serverUrl = `rtmp://${new URL(origin).hostname}:${authEnvironment.mediaMtxRtmpPort}`
   const setupScript = getObsSetupScriptMetadata()
+  const relayPaired = getRelayCredentialStatus(session.user.id)
 
   return (
     <main className={channelStyles.dashboardPage}>
@@ -147,6 +151,24 @@ export default async function ChannelAccountPage({
               <p className="error-banner">Streaming must be enabled before setup.</p>
             )}
           </section>
+          {channel.enabled && publishing && (
+            <section className={`${channelStyles.panel} ${channelStyles.panelBody}`}>
+              <h2><RadioTower aria-hidden="true" /> Windows playback relay</h2>
+              <p>Serve low-latency video from your streaming PC. Keep OBS publishing here for HLS playback. Direct viewers can see your public IP address.</p>
+              <form method="post" action="/account/channel/relay.cmd">
+                <Button type="submit" className={channelStyles.primaryButton}><Download aria-hidden="true" /> Download relay for Windows x64</Button>
+              </form>
+              <p>Run the personal download within ten minutes to pair this Channel. Keep the relay open while streaming.</p>
+            </section>
+          )}
+          {relayPaired && (
+            <form className={`${channelStyles.panel} ${channelStyles.panelBody}`} action={disconnectRelayAction}>
+              <p>{getOnlineRelay(channel.mediaPath)
+                ? `Relay online · Direct viewers: ${getRelayViewerIds(channel.mediaPath).length}`
+                : 'Paired relay offline'}</p>
+              <Button type="submit" variant="secondary">Disconnect relay</Button>
+            </form>
+          )}
         </div>
         <div className={channelStyles.rightColumn}>
           <section className={`${channelStyles.panel} ${channelStyles.panelBody}`}>

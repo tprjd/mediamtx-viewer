@@ -117,6 +117,24 @@ it('releases the WebRTC cooldown for a new broadcast but not for a repeated stat
   expect(result.current.mode).toBe('webrtc')
 })
 
+it.each([
+  { saved: null, expected: 'webrtc' },
+  { saved: 'balanced', expected: 'balanced' },
+  { saved: 'smooth', expected: 'smooth' },
+])('clears an earlier broadcast fallback and restores the $saved preference', async ({ saved, expected }) => {
+  const preferred = { ...options, preferredPlayback: 'webrtc' as const }
+  const { result, rerender } = renderHook(usePlaybackMode, { initialProps: preferred })
+  await advance()
+  act(() => result.current.onWebRtcFallback())
+  if (saved) act(() => result.current.selectMode(saved))
+  rerender({ ...preferred, streamStartedAt: '2026-10-07T12:01:00Z' })
+  await advance()
+  expect(result.current.mode).toBe(expected)
+  expect(result.current.selectableModes).toContain('webrtc')
+  expect(sessionStorage.getItem('mediamtx-viewer:webrtc-fallback')).toBeNull()
+  expect(sessionStorage.getItem(storageKey)).toBe(saved)
+})
+
 it('keeps codec and cooldown requirements independent as tracks change', async () => {
   const { result, rerender } = renderHook(usePlaybackMode, { initialProps: options })
   await advance()

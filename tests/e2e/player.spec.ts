@@ -3,6 +3,8 @@ import { resolve } from 'node:path'
 
 import type { Page } from '@playwright/test'
 import type Hls from 'hls.js'
+import { toPublicChannel } from '../../lib/public-channel'
+import type { ChannelsResponse } from '../../lib/types'
 import { expect, test } from './fixtures/viewer-session'
 
 declare global {
@@ -11,10 +13,7 @@ declare global {
   }
 }
 
-async function prepareLivePlayback(page: Page, mode = 'balanced') {
-  await page.addInitScript((mode) =>
-    sessionStorage.setItem('mediamtx-viewer:playback-mode', mode),
-  mode)
+async function serveLiveHls(page: Page) {
   const playlist = readFileSync(
     resolve('tests/e2e/fixtures/chat-playback/index.m3u8'), 'utf8',
   )
@@ -46,14 +45,56 @@ async function prepareLivePlayback(page: Page, mode = 'balanced') {
     })
   })
 
+  return () => { extraSegments += 10 }
+}
+
+async function prepareLivePlayback(page: Page, mode = 'balanced') {
+  await page.addInitScript((mode) =>
+    sessionStorage.setItem('mediamtx-viewer:playback-mode', mode),
+  mode)
+  const advanceLiveEdge = await serveLiveHls(page)
   await page.goto('/watch/live')
   const video = page.locator('video')
   await expect.poll(() => video.evaluate((element: HTMLVideoElement) =>
     !element.paused && element.currentTime > 0,
   )).toBe(true)
 
-  return { video, advanceLiveEdge: () => { extraSegments += 10 } }
+  return { video, advanceLiveEdge }
 }
+
+test('selects an online relay and plays Oracle HLS when the relay disappears before the offer', async ({ page }) => {
+  const directory = await page.request.get('/api/channels')
+  expect(directory.ok()).toBe(true)
+  const { channels } = await directory.json() as ChannelsResponse
+  const live = channels.find(channel => channel.slug === 'live')
+  if (!live) throw new Error('The fixture requires the live Channel')
+  // Only the directory still sees this relay. The WHEP handler sees its lease has ended.
+  await page.route('**/api/channel-events', async (route) => {
+    const status = { ...live.status, tracks: ['H264', 'Opus'], checkedAt: new Date().toISOString() }
+    const projection = toPublicChannel({ ...live, mediaPath: 'live', discordNotificationsEnabled: true }, status, undefined, 'online')
+    const update = { ...projection, viewingAllowed: true, discordNotificationsEnabled: true, poster: null }
+    await route.fulfill({ contentType: 'text/event-stream', body: 'event: channel-status\ndata: ' + JSON.stringify(update) + '\n\n' })
+  })
+  await serveLiveHls(page)
+  const endpoint = '/api/channels/live/relay/whep'
+  const offerResponse = page.waitForResponse(response => new URL(response.url()).pathname === endpoint && response.request().method() === 'POST')
+  await page.goto('/watch/live')
+  const offer = await offerResponse
+  expect(offer.status()).toBe(503)
+  expect(offer.request().postData()).toContain('m=video')
+  expect(Boolean((await offer.request().allHeaders()).cookie?.includes('__Secure-better-auth.session_token='))).toBe(true)
+  const viewer = new URL(offer.url()).searchParams.get('frankerzspam_viewer')
+  expect(viewer).toMatch(/^[a-f0-9-]{36}$/)
+  await expect(page.locator('.protocol-badge')).toHaveText('HLS · Smooth', { timeout: 18_000 })
+  const hls = await page.waitForRequest(request => {
+    const url = new URL(request.url())
+    return url.pathname === '/media/hls/live/index.m3u8' && url.searchParams.get('frankerzspam_viewer') === viewer
+  }, { timeout: 20_000 })
+  expect(Boolean((await hls.allHeaders()).cookie?.includes('__Secure-better-auth.session_token='))).toBe(true)
+  await expect.poll(() => page.locator('video').evaluate((video: HTMLVideoElement) =>
+    !video.paused && video.currentTime > 0 && video.readyState >= 3,
+  )).toBe(true)
+})
 
 test('recovers once from a fatal HLS media error and resumes Smooth playback', async ({ page }) => {
   // Observe the real provider through Vidstack's instance event. Keep both

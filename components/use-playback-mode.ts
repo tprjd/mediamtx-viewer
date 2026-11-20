@@ -54,10 +54,15 @@ export function usePlaybackMode({
           const value = JSON.parse(savedFallback)
           if (Number.isFinite(value.retryAfter) &&
               (value.startedAt === null || typeof value.startedAt === 'string')) {
-            setFallback(value)
-            if (value.active !== false) {
-              setMode(webRtcFallback.mode)
-              return
+            if (streamStartedAt && value.startedAt !== streamStartedAt) {
+              window.sessionStorage.removeItem(FALLBACK_STORAGE_KEY)
+              setFallback(null)
+            } else {
+              setFallback(value)
+              if (value.active !== false) {
+                setMode(webRtcFallback.mode)
+                return
+              }
             }
           }
         } catch { /* Ignore invalid storage from an older browser session. */ }
@@ -94,7 +99,7 @@ export function usePlaybackMode({
       }
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [preferredPlayback, supportsUltraLow, webrtcAvailable, webrtcUnavailableReasonText])
+  }, [preferredPlayback, streamStartedAt, supportsUltraLow, webrtcAvailable, webrtcUnavailableReasonText])
 
   useEffect(() => {
     if (mode !== 'webrtc' || webrtcAvailable) return

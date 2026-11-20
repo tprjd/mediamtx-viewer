@@ -40,20 +40,30 @@ export function canSeeChannel(userId: string, slug: string): boolean {
     AND (c.owner_user_id = ? OR (c.enabled = 1 AND (u.emailVerified = 1 OR u.legacyAccess = 1)))`).get(slug, userId, userId))
 }
 
-/** The proxy calls this for every manifest, segment, and WHEP request. */
-export function canRequestMedia(userId: string, uri: string): boolean {
+/** The directory is present only when one Channel owns the HLS media scope. */
+export function checkMediaPath(userId: string, uri: string): { allowed: boolean; hlsDirectory?: string } {
   let path: string
-  try { path = decodeURIComponent(new URL(uri, 'http://internal').pathname) } catch { return false }
+  try { path = decodeURIComponent(new URL(uri, 'http://internal').pathname) } catch { return { allowed: false } }
   const prefix = ['/media/hls/', '/media/whep/', '/publish/whep/'].find((value) => path.startsWith(value))
-  if (!prefix) return true
-  if (path.includes('\\') || path.split('/').some((part) => part === '.' || part === '..')) return false
+  if (!prefix) return { allowed: true }
+  if (path.includes('\\') || path.split('/').some((part) => part === '.' || part === '..')) return { allowed: false }
   let media = path.slice(prefix.length)
   const derivative = media.startsWith('_hls/')
   if (derivative) {
-    if (prefix !== '/media/hls/') return false
+    if (prefix !== '/media/hls/') return { allowed: false }
     media = media.slice('_hls/'.length)
   }
   const channels = getDatabase().prepare('SELECT slug, media_path AS mediaPath FROM channel').all() as { slug: string; mediaPath: string }[]
-  const channel = channels.find((entry) => media.startsWith(`${entry.mediaPath}/`))
-  return Boolean(channel && (!derivative || isWhipPilotChannel(channel.slug)) && canWatchChannel(userId, channel.slug))
+  const [channel, overlap] = channels.filter((entry) => media.startsWith(`${entry.mediaPath}/`))
+  if (!channel || (derivative && !isWhipPilotChannel(channel.slug)) || !canWatchChannel(userId, channel.slug)) return { allowed: false }
+  if (overlap || prefix !== '/media/hls/') return { allowed: true }
+  if (!derivative) return { allowed: true, hlsDirectory: prefix + channel.mediaPath }
+  const generation = media.slice(channel.mediaPath.length + 1).split('/', 1)[0]
+  return /^[a-zA-Z0-9_-]+$/.test(generation)
+    ? { allowed: true, hlsDirectory: `${prefix}_hls/${channel.mediaPath}/${generation}` }
+    : { allowed: true }
+}
+
+export function canRequestMedia(userId: string, uri: string): boolean {
+  return checkMediaPath(userId, uri).allowed
 }

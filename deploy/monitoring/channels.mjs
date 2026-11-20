@@ -1,4 +1,4 @@
-import { countViewers, isThumbnailSession, readViewerId } from '../../lib/media-readers.ts'
+import { countViewers, isRelaySource, isThumbnailSession, readViewerId } from '../../lib/media-readers.ts'
 import { hlsDerivativePath } from '../../lib/whip-pilot.ts'
 
 const channelPath = /^(?:live|channels\/[a-z0-9]+(?:-[a-z0-9]+)*)$/
@@ -90,7 +90,9 @@ export function channelMonitor() {
         }
         const complete = [...groupComplete.values()].every(Boolean)
         sample('connections_complete', Number(complete), labels)
-        if (complete) sample('viewers', countViewers(readers, thumbnails, identities), labels)
+        // Oracle can measure the feed to the PC. Only the viewer app knows the audience behind it.
+        const relayFeed = readers.some(reader => reader.type === 'webRTCSession' && isRelaySource(sessions.get(`webrtc:${reader.id}`)?.query))
+        if (complete && !relayFeed) sample('viewers', countViewers(readers, thumbnails, identities), labels)
         let ratesComplete = complete
         for (const [group, values] of groups) {
           const key = `${channel}:${group}`, old = previous.get(key)

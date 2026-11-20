@@ -1,7 +1,9 @@
 import 'server-only'
 import { getDatabase } from '@/lib/auth/database'
-import { disconnectAllWebRtcReaders, disconnectChannelReaders } from '@/lib/mediamtx'
+import { disconnectAllWebRtcReaders, disconnectChannelReaders, disconnectRelaySource } from '@/lib/mediamtx'
 import { disconnectChatParticipant } from '@/lib/chat-realtime'
+import { disconnectRelayViewers } from '@/lib/relay-broker'
+import { completeRelaySourceRevocation, pendingRelaySourceRevocations } from '@/lib/relay-credentials'
 
 const dispatcher = globalThis as typeof globalThis & { accessRevocationRunning?: boolean; accessRevocationTimer?: ReturnType<typeof setInterval> }
 
@@ -24,11 +26,18 @@ export async function dispatchAccessRevocations(): Promise<void> {
       }
       if (!row.mediaDone) {
         try {
+          disconnectRelayViewers(row.userId, row.mediaPath ?? undefined)
           await (row.mediaPath ? disconnectChannelReaders(row.mediaPath) : disconnectAllWebRtcReaders())
           database.prepare('UPDATE access_revocation SET media_done = 1 WHERE id = ?').run(row.id)
         } catch { /* Retry media independently of Chat. */ }
       }
       database.prepare('DELETE FROM access_revocation WHERE id = ? AND chat_done = 1 AND media_done = 1').run(row.id)
+    }
+    for (const { generation, mediaPath } of pendingRelaySourceRevocations()) {
+      try {
+        await disconnectRelaySource(mediaPath, generation)
+        completeRelaySourceRevocation(generation)
+      } catch { /* Keep the old relay feed queued until MediaMTX confirms closure. */ }
     }
   } finally { dispatcher.accessRevocationRunning = false }
 }

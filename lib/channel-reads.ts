@@ -6,6 +6,8 @@ import { getChannel, getChannels } from '@/lib/channels'
 import { channelPosterUrl } from '@/lib/channel-thumbnails'
 import { getChannelStatus, getChannelStatuses } from '@/lib/mediamtx'
 import { toPublicChannel } from '@/lib/public-channel'
+import { getPairedRelayPaths } from '@/lib/relay-credentials'
+import { getOnlineRelay } from '@/lib/relay-broker'
 import type { ChannelMonitorEvent } from '@/lib/channel-status-monitor'
 import type { ChannelLiveUpdate, ChannelStatus, ChannelStatusSnapshot, PublicChannel } from '@/lib/types'
 
@@ -27,22 +29,25 @@ function visibleLiveUpdate(viewerId: string, update: ChannelLiveUpdate): Channel
 
 async function readChannels(viewerId?: string) {
   const channels = getChannels(viewerId)
+  const paired = getPairedRelayPaths()
   const statuses = await getChannelStatuses(
     channels.map((channel) => channel.mediaPath),
   )
 
   return channels.map((channel) => {
     const status = statuses.get(channel.mediaPath)!
-    return { channel, status, poster: channelPosterUrl(channel, status.live) }
+    const relay = paired.has(channel.mediaPath)
+      ? (getOnlineRelay(channel.mediaPath) ? 'online' as const : 'offline' as const) : undefined
+    return { channel, status, relay, poster: channelPosterUrl(channel, status.live) }
   })
 }
 
 export async function getPublicChannels(viewerId: string): Promise<PublicChannel[]> {
   return (await readChannels(viewerId))
     .filter(({ channel }) => canSeeChannel(viewerId, channel.slug))
-    .map(({ channel, status, poster }) => {
+    .map(({ channel, status, poster, relay }) => {
       const viewingAllowed = canWatchChannel(viewerId, channel.slug)
-      const result = toPublicChannel(channel, visibleStatus(status, viewingAllowed), poster)
+      const result = toPublicChannel(channel, visibleStatus(status, viewingAllowed), poster, relay)
       return viewingAllowed ? { ...result, viewingAllowed } : {
         ...result,
         viewingAllowed,
@@ -94,8 +99,8 @@ export async function getPublicChannelDirectory(viewerId: string): Promise<Chann
 
 /** Account-neutral data for the shared monitor and internal subscribers. */
 export async function loadChannelLiveUpdates(): Promise<ChannelLiveUpdate[]> {
-  return (await readChannels()).map(({ channel, status, poster }) => ({
-    ...(isWhipPilotChannel(channel.slug) ? toPublicChannel(channel, status, poster) : {}),
+  return (await readChannels()).map(({ channel, status, poster, relay }) => ({
+    ...(relay || isWhipPilotChannel(channel.slug) ? toPublicChannel(channel, status, poster, relay) : {}),
     slug: channel.slug,
     ownerName: channel.ownerName,
     title: channel.title,

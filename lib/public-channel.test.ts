@@ -52,6 +52,15 @@ it('starts pilot HLS directly on AAC media while WebRTC retains the canonical so
 })
 
 afterEach(() => vi.unstubAllEnvs())
+it('sends eligible viewers to the online PC, with the original HLS URL for fallback', () => {
+  const compatible = { ...status, tracks: ['H264', 'Opus'] }
+  const standard = toPublicChannel(channel, compatible)
+  const online = toPublicChannel(channel, compatible, undefined, 'online')
+  expect(online.preferredPlayback).toBe('webrtc')
+  expect(online.playback).toMatchObject({ hls: standard.playback.hls, webrtc: '/api/channels/friend/relay/whep' })
+  expect(toPublicChannel(channel, compatible, undefined, 'offline').preferredPlayback).toBe('hls')
+  expect(toPublicChannel(channel, status, undefined, 'online').preferredPlayback).toBe('hls')
+})
 it('defaults only a live compatible pilot WHIP Publisher to WebRTC', () => {
   vi.stubEnv('WHIP_PILOT_CHANNEL', 'friend')
   const whip = { ...status, publisherProtocol: 'whip' as const, tracks: ['H264', 'Opus'] }

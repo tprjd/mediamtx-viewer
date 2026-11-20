@@ -1,17 +1,21 @@
 import 'server-only'
-import { getActiveSession } from '@/lib/auth/session'
-import { canRequestMedia } from '@/lib/viewing-access'
+import { authorizeMediaRequest } from '@/lib/media-authorization'
 
 export async function proxyMedia(request: Request): Promise<Response> {
-  const session = await getActiveSession(request.headers)
   const url = new URL(request.url)
-  if (!session || !canRequestMedia(session.user.id, url.pathname)) return new Response(null, { status: session ? 403 : 401, headers: { 'Cache-Control': 'no-store' } })
+  const access = await authorizeMediaRequest(request.headers, request.method, url.pathname)
+  if (access.status === 503 && 'error' in access) throw access.error
+  if (access.status !== 204) return new Response(null, { status: access.status, headers: { 'Cache-Control': 'no-store' } })
   const hls = url.pathname.startsWith('/media/hls/')
   const origin = hls ? process.env.MEDIAMTX_HLS_URL ?? 'http://127.0.0.1:8888' : process.env.MEDIAMTX_WEBRTC_URL ?? 'http://127.0.0.1:8889'
   const prefix = hls ? '/media/hls' : '/media/whep'
   const upstream = new URL(origin)
   upstream.pathname = url.pathname.slice(prefix.length)
   upstream.search = url.search
+  if (!hls) {
+    upstream.searchParams.delete('frankerzspam_internal')
+    upstream.searchParams.delete('relay_generation')
+  }
   const headers = new Headers(request.headers)
   for (const name of ['cookie', 'authorization', 'host', 'connection', 'transfer-encoding', 'content-length']) headers.delete(name)
   try {
