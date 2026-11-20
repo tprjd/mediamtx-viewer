@@ -35,6 +35,7 @@ func (k objectKey) valid() bool {
 type cachedObject struct {
 	data    []byte
 	expires time.Time
+	order   uint64
 }
 
 type fetch struct {
@@ -51,6 +52,7 @@ type objectStore struct {
 	client     *http.Client
 	mu         sync.Mutex
 	files      map[objectKey]cachedObject
+	nextOrder  uint64
 	bytes      int
 	fetches    map[objectKey]*fetch
 	slots      chan struct{}
@@ -104,16 +106,17 @@ func (s *objectStore) download(ctx context.Context, key objectKey) ([]byte, erro
 func (s *objectStore) remember(key objectKey, data []byte) {
 	for len(s.files) >= maxCacheFiles || s.bytes+len(data) > maxCacheBytes {
 		var oldestKey objectKey
-		var oldest time.Time
+		var oldestOrder uint64
 		for k, file := range s.files {
-			if oldest.IsZero() || file.expires.Before(oldest) {
-				oldestKey, oldest = k, file.expires
+			if oldestOrder == 0 || file.order < oldestOrder {
+				oldestKey, oldestOrder = k, file.order
 			}
 		}
 		s.bytes -= len(s.files[oldestKey].data)
 		delete(s.files, oldestKey)
 	}
-	s.files[key] = cachedObject{data: data, expires: time.Now().Add(objectLifetime)}
+	s.nextOrder++
+	s.files[key] = cachedObject{data: data, expires: time.Now().Add(objectLifetime), order: s.nextOrder}
 	s.bytes += len(data)
 }
 

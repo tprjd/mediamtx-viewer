@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { relayHelperHash } from '@/lib/relay-helper'
 
 export const RELAY_INSTALLER_FILENAME = 'Start-FrankerzSpam-Relay.cmd'
-export const RELAY_INSTALLER_VERSION = '1.1.0'
+export const RELAY_INSTALLER_VERSION = '1.1.1'
 
 export function buildRelayInstaller({ origin, ticket }: { origin: string; ticket: string }): Buffer {
   const url = new URL(origin)

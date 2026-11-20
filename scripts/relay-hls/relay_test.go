@@ -399,3 +399,28 @@ func TestCacheBoundsAndSharedCancellation(t *testing.T) {
 		t.Fatal("cache did not discard old objects")
 	}
 }
+
+func TestCacheEvictsFirstInsertionWhenClockTies(t *testing.T) {
+	store, err := newObjectStore("https://example.invalid", "fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := make([]objectKey, maxCacheFiles)
+	expires := time.Unix(1234567890, 0)
+	for i := range keys {
+		keys[i] = objectKey{"primary", fmt.Sprintf("7f18ab34cd56_video1_part%d.mp4", i)}
+		store.remember(keys[i], []byte{1})
+		file := store.files[keys[i]]
+		file.expires = expires
+		store.files[keys[i]] = file
+	}
+	store.remember(objectKey{"fallback", segment}, []byte{2})
+	if _, ok := store.files[keys[0]]; ok {
+		t.Fatal("first insertion survived tied cache expirations")
+	}
+	for _, key := range keys[1:] {
+		if _, ok := store.files[key]; !ok {
+			t.Fatal("a later insertion was evicted first")
+		}
+	}
+}

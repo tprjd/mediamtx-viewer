@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [2.3.1] - 2026-11-20
+
+### Fixed
+
+- Windows relay 1.1.1 discards the oldest cached HLS chunk first when several chunks arrive within one Windows clock tick.
+- Require the native Windows launcher and helper checks to pass before publishing a release.
+
 ## [2.3.0] - 2026-11-20
 
 ### Added

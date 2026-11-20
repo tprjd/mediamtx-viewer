@@ -1,7 +1,9 @@
 name: Windows relay
 
 on:
+  workflow_call:
   push:
+    branches: ['**']
     paths:
       - '.github/workflows/windows-relay.yml'
       - 'scripts/windows/*relay*'
