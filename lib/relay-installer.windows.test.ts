@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes, X509Certificate } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:https'
 import type { AddressInfo } from 'node:net'
@@ -16,14 +17,13 @@ import { buildRelayInstaller, RELAY_INSTALLER_FILENAME } from './relay-installer
 it.runIf(process.platform === 'win32' && process.env.RELAY_WINDOWS_SMOKE === '1')(
   'pairs the downloadable .cmd once, stops its child, and resumes with Windows user credentials',
   async () => {
+    expect(process.env.RUNNER_ENVIRONMENT).toBe('github-hosted')
     const dir = await mkdtemp(join(tmpdir(), 'relay launcher '))
-    const fixtureEnv = { ...process.env, RELAY_TEST_DIR: dir }
     function powershell(script: string) {
-      return execFileSync('powershell.exe', ['-NoLogo', '-NoProfile', '-Command', "$ErrorActionPreference='Stop'; " + script], {
-        encoding: 'utf8', env: fixtureEnv, timeout: 30_000,
+      return execFileSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', "$ErrorActionPreference='Stop'; " + script], {
+        encoding: 'utf8', timeout: 30_000,
       }).trim()
     }
-    const pfxPassword = 'local-fixture'
     let thumbprint = ''
     const ticket = 'mtx_rp_' + randomBytes(32).toString('base64url')
     const credential = 'mtx_rc_' + randomBytes(32).toString('base64url')
@@ -38,7 +38,7 @@ it.runIf(process.platform === 'win32' && process.env.RELAY_WINDOWS_SMOKE === '1'
     function launch() {
       output = ''
       launcher = spawn('cmd.exe', ['/d', '/c', RELAY_INSTALLER_FILENAME], {
-        cwd: dir, env: fixtureEnv, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: dir, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
       })
       launcher.stdout!.on('data', chunk => { output += chunk.toString() })
       launcher.stderr!.on('data', chunk => { output += chunk.toString() })
@@ -57,16 +57,21 @@ it.runIf(process.platform === 'win32' && process.env.RELAY_WINDOWS_SMOKE === '1'
     }
 
     try {
-      thumbprint = powershell([
-        "$cert=New-SelfSignedCertificate -DnsName localhost -CertStoreLocation Cert:\\CurrentUser\\My -KeyExportPolicy Exportable -NotAfter (Get-Date).AddDays(1)",
-        "$cer=Join-Path $env:RELAY_TEST_DIR cert.cer",
-        'Export-Certificate -Cert $cert -FilePath $cer | Out-Null',
-        'Import-Certificate -FilePath $cer -CertStoreLocation Cert:\\CurrentUser\\Root | Out-Null',
-        `Export-PfxCertificate -Cert $cert -FilePath (Join-Path $env:RELAY_TEST_DIR cert.pfx) -Password (ConvertTo-SecureString '${pfxPassword}' -AsPlainText -Force) | Out-Null`,
-        '$cert.Thumbprint',
-      ].join('; '))
-      expect(thumbprint).toMatch(/^[0-9a-f]{40}$/i)
-      server = createServer({ pfx: await readFile(join(dir, 'cert.pfx')), passphrase: pfxPassword }, async (request, response) => {
+      const certFile = join(dir, 'localhost.pem')
+      const keyFile = join(dir, 'localhost.key')
+      const openssl = ['usr', 'mingw64'].map(root => join(process.env.ProgramFiles!, 'Git', root, 'bin', 'openssl.exe'))
+        .find(existsSync) ?? 'openssl.exe'
+      const config = join(dir, 'localhost.cnf')
+      await writeFile(config, '[req]\ndistinguished_name=dn\n[dn]\n')
+      execFileSync(openssl, ['req', '-config', config, '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+        '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost',
+        '-addext', 'extendedKeyUsage=serverAuth', '-addext', 'basicConstraints=critical,CA:FALSE',
+        '-keyout', keyFile, '-out', certFile], { stdio: 'pipe', timeout: 30_000 })
+      const cert = await readFile(certFile)
+      // CurrentUser Root displays a desktop consent prompt. The disposable hosted runner owns this trust store.
+      execFileSync('certutil.exe', ['-f', '-addstore', 'Root', certFile], { stdio: 'pipe', timeout: 15_000 })
+      thumbprint = new X509Certificate(cert).fingerprint.replaceAll(':', '')
+      server = createServer({ cert, key: await readFile(keyFile) }, async (request, response) => {
         const chunks = []
         for await (const chunk of request) chunks.push(chunk)
         const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
@@ -113,9 +118,7 @@ it.runIf(process.platform === 'win32' && process.env.RELAY_WINDOWS_SMOKE === '1'
       server?.closeAllConnections()
       server?.close()
       if (stateFile) await rm(stateFile, { force: true })
-      if (/^[0-9a-f]{40}$/i.test(thumbprint)) {
-        powershell(`Remove-Item -LiteralPath 'Cert:\\CurrentUser\\Root\\${thumbprint}', 'Cert:\\CurrentUser\\My\\${thumbprint}'`)
-      }
+      if (thumbprint) execFileSync('certutil.exe', ['-delstore', 'Root', thumbprint], { stdio: 'pipe', timeout: 15_000 })
       await rm(dir, { recursive: true, force: true })
     }
   }, 100_000,
