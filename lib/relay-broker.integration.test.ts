@@ -176,7 +176,37 @@ it('bounds input and in-flight resources, then releases offers whose replies wer
   expect(relay.poll([stale.sessionId], [{id:stale.id, status:201, body:sdp}]).commands[0]).toMatchObject({method:'DELETE',sessionId:stale.sessionId})
 })
 
-it('grants HLS data peers only to capable relays, apart from the four WHEP slots per account', async () => {
+it.each([
+  { userId: 'owner', whepLimit: 12 },
+  { userId: 'viewer', whepLimit: 4 },
+])('keeps independent WHEP and HLS limits for $userId on this Channel', async ({ userId, whepLimit }) => {
+  const relay = connect()
+  const login = { userId, sessionId: 'signed-in-' + userId }
+  const sessions: string[] = []
+  const poll = (replies: {id: string; status: number; body: string}[] = []) =>
+    pollRelay(relay.credential, { instanceId: relay.instanceId, hls: true, sessions, replies })
+  poll()
+
+  const join = (transport: 'whep' | 'hls') => {
+    const offer = transport === 'whep' ? sdp : 'v=0\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n'
+    return createRelaySession(relay.channelSlug, login, randomUUID(), offer, undefined, transport)
+  }
+  for (const [transport, limit] of [['whep', whepLimit], ['hls', 12]] as const) {
+    for (let i = 0; i < limit; i++) {
+      const created = join(transport)
+      const [command] = poll().commands
+      if (command) {
+        sessions.push(command.sessionId)
+        poll([{ id: command.id, status: 201, body: command.body! }])
+      }
+      await expect(created).resolves.toMatchObject({ id: command?.sessionId })
+    }
+    await expect(join(transport)).rejects.toMatchObject({ status: 429 })
+  }
+  expect(getRelayViewerIds(relay.mediaPath)).toHaveLength(whepLimit + 12)
+})
+
+it('grants HLS data peers only to capable relays', async () => {
   const relay = connect()
   const offer = 'v=0\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n'
   const join = () => createRelaySession(relay.channelSlug, viewer, randomUUID(), offer, undefined, 'hls')

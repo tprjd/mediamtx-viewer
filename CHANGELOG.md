@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [2.3.2] - 2026-11-20
+
+### Fixed
+
+- Channel owners can now test Low latency playback on their own Channel in up to 12 tabs at once.
+
 ## [2.3.1] - 2026-11-20
 
 ### Fixed

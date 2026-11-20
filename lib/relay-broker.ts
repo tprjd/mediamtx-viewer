@@ -166,7 +166,8 @@ export async function createRelaySession(slug: string, viewer: RelayViewer, view
   const relay = relayForViewer(slug, viewer)
   if (transport === 'hls' && !relay.hls) throw new RelayError(503, 'HLS relay unavailable.')
   const accountSessions = Array.from(relay.sessions.values()).filter(s => s.userId === viewer.userId && s.transport === transport)
-  if (relay.sessions.size >= MAX_SESSIONS || accountSessions.length >= (transport === 'hls' ? 12 : 4)) {
+  const accountLimit = transport === 'hls' || viewer.userId === relay.ownerUserId ? 12 : 4
+  if (relay.sessions.size >= MAX_SESSIONS || accountSessions.length >= accountLimit) {
     throw new RelayError(429, 'Relay session limit reached.')
   }
   const id = randomUUID()

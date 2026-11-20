@@ -29,6 +29,10 @@ and the total upload rate in Mbps. A new connection needs two readings to show
 a rate. Two playing tabs can use two connections. These rates exclude your OBS
 upload and media that viewers download directly from the site.
 
+When signed in as the Channel owner, you can test **Low latency** on your own
+Channel in up to 12 tabs at once. Each other account can use up to four
+**Low latency** connections to your relay.
+
 HLS connects in the background. Viewers who can reach your PC over a WebRTC
 data channel get video and audio chunks from it. The player keeps reading
 playlists from the site and uses the site for chunks it cannot get from the PC.

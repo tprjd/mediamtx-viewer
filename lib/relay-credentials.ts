@@ -11,6 +11,7 @@ export class RelayError extends Error {
 
 export interface RelayRegistration {
   channelSlug: string
+  ownerUserId: string
   mediaPath: string
   generation: string
 }
@@ -19,7 +20,7 @@ const hash = (value: string) => createHash('sha256').update(value).digest('hex')
 const activeChannel = `FROM channel_relay r JOIN channel c ON c.id = r.channel_id
   JOIN user u ON u.id = c.owner_user_id WHERE c.enabled = 1 AND u.activationStatus = 'active'
   AND (u.emailVerified = 1 OR u.legacyAccess = 1)`
-const registration = `SELECT c.slug AS channelSlug, c.media_path AS mediaPath, r.generation
+const registration = `SELECT c.slug AS channelSlug, c.owner_user_id AS ownerUserId, c.media_path AS mediaPath, r.generation
   ${activeChannel} AND r.credential_hash IS NOT NULL`
 
 function queueSourceRevocation(channelId: string) {
