@@ -3,7 +3,7 @@ import 'server-only'
 import { z } from 'zod'
 
 import { countViewers, isRelaySource, isThumbnailSession, readViewerId } from '@/lib/media-readers'
-import { getRelayViewerIds, disconnectRelayViewers } from '@/lib/relay-broker'
+import { getOnlineRelay, getRelayViewerIds, disconnectRelayViewers } from '@/lib/relay-broker'
 import { hlsDerivativePath } from '@/lib/whip-pilot'
 import type { ChannelStatus } from '@/lib/types'
 
@@ -133,7 +133,8 @@ async function readAudienceMetadata(hls: boolean, webRtc: boolean, fetcher: type
   const internalIds = new Set([...(hlsSessions?.internalReaderIds ?? []), ...(webRtcSessions?.internalReaderIds ?? [])])
   const viewerIds = new Map([...(hlsSessions?.viewerIds ?? []), ...(webRtcSessions?.viewerIds ?? [])])
   return (path: z.infer<typeof mediaMtxPathSchema>, mediaPath: string) => {
-    const incomplete = (!hlsSessions && hasHlsReaders(path)) || (!webRtcSessions && hasWebRtcReaders(path))
+    const incomplete = (!hlsSessions && hasHlsReaders(path)) ||
+      (!webRtcSessions && hasWebRtcReaders(path) && getOnlineRelay(mediaPath))
     return normalizeMediaMtxPath(path, incomplete ? null : internalIds, viewerIds, getRelayViewerIds(mediaPath))
   }
 }

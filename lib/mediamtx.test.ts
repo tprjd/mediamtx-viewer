@@ -119,7 +119,7 @@ describe('getChannelStatuses', () => {
     expect(fetcher).toHaveBeenCalledOnce()
   })
 
-  it('cross-references HLS sessions to exclude thumbnail readers', async () => {
+  it('excludes thumbnails and still counts direct readers when WebRTC metadata is unavailable', async () => {
     const fetcher = vi.fn<typeof fetch>(async (input) => {
       const url = String(input)
       if (url.endsWith('/v3/paths/list')) {
@@ -136,9 +136,6 @@ describe('getChannelStatuses', () => {
             },
           ],
         })
-      }
-      if (url.endsWith('/v3/webrtcsessions/list')) {
-        return Response.json({ items: [{ id: 'webrtc-viewer' }] })
       }
       if (url.endsWith('/v3/hlssessions/list')) {
         return Response.json({
@@ -161,6 +158,13 @@ describe('getChannelStatuses', () => {
       viewerCount: 2,
     })
     expect(fetcher).toHaveBeenCalledTimes(3)
+    const online = vi.spyOn(relayBroker, 'getOnlineRelay').mockReturnValue(true)
+    try {
+      const relayed = await getChannelStatuses(['channels/alice'], fetcher)
+      expect(relayed.get('channels/alice')?.viewerCount).toBeNull()
+    } finally {
+      online.mockRestore()
+    }
   })
 
   it('counts reconnecting HLS sessions from one player only once', async () => {
