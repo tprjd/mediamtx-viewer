@@ -2,6 +2,37 @@ import { expect, test } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import Database from 'better-sqlite3'
 
+test('the channel owner can download the Windows relay with the production referrer policy', async ({ page }) => {
+  await page.goto('/login?returnTo=/account')
+  await page.getByLabel('Username').fill('power')
+  await page.getByLabel('Password').fill('e2e-administrator-password')
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page).toHaveURL('/account')
+
+  await page.route('**/account/channel', async route => {
+    const response = await route.fetch()
+    await route.fulfill({ response, headers: { ...response.headers(), 'referrer-policy': 'no-referrer' } })
+  })
+  const response = await page.goto('/account/channel')
+  expect(response?.headers()['referrer-policy']).toBe('no-referrer')
+  const guide = page.getByText('Relay setup guide', { exact: true })
+  const connection = page.getByRole('heading', { name: 'Check a direct connection' })
+  await guide.click()
+  await expect(connection).toBeVisible()
+  await expect(page).toHaveURL('/account/channel')
+  await guide.click()
+  await expect(connection).toBeHidden()
+
+  const relayButton = page.getByRole('button', { name: 'Download relay for Windows x64' })
+  const [download] = await Promise.all([page.waitForEvent('download'), relayButton.click()])
+  expect(download.suggestedFilename()).toBe('Start-FrankerzSpam-Relay.cmd')
+  let bytes = 0
+  for await (const chunk of await download.createReadStream()) bytes += chunk.length
+  expect(bytes).toBeGreaterThan(0)
+  await expect(page).toHaveURL('/account/channel')
+  await expect(relayButton).toBeVisible()
+})
+
 test('administrator restrictions persist when media disconnection is unavailable', async ({ page }) => {
   const database = new Database('.data/e2e-auth.sqlite', { fileMustExist: true })
   database.pragma('foreign_keys = ON')

@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [2.2.1] - 2026-11-20
+
+### Fixed
+
+- Allow Channel owners to download the Windows playback relay when the site uses its production referrer policy.
+- Support relay downloads on local HTTP loopback addresses.
+
+### Changed
+
+- Show the relay version beside the download button and when the launcher starts. The first versioned relay is 1.0.0.
+- Add an expandable setup guide to the relay panel on the Channel page. The [Windows relay guide](docs/windows-playback-relay.md) also covers router settings and troubleshooting.
+
 ## [2.2.0] - 2026-11-20
 
 ### Added

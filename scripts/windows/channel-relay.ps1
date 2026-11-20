@@ -215,6 +215,7 @@ public static class RelayGuard {
 }
 
 function Start-ChannelRelay($Bootstrap) {
+    Write-Host "FrankerzSpam Channel relay v$($Bootstrap.relayVersion)"
     if ([Environment]::OSVersion.Platform -ne 'Win32NT' -or -not [Environment]::Is64BitOperatingSystem) {
         throw 'This download requires 64-bit Windows with x64 application support.'
     }
@@ -236,13 +237,12 @@ function Start-ChannelRelay($Bootstrap) {
     try {
         $credential = Get-RelayCredential $cloud $Bootstrap $stateFile
         $exe = Install-RelayMediaServer $directory
-        $source = 'wheps://' + ([uri]$Bootstrap.origin).Authority + '/api/relay/source/whep'
         $poll = $Bootstrap.origin + '/api/relay/poll'
         Write-Host 'Relay running. Keep this window open. Close it or press Ctrl+C to stop.'
         while ($true) {
             $password = [guid]::NewGuid().ToString('N')
             $localAuth = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes('relay:' + $password))
-            $child = Start-RelayMediaServer $exe $directory $source $credential $password
+            $child = Start-RelayMediaServer $exe $directory $Bootstrap.sourceUrl $credential $password
             [RelayGuard]::Watch($child)
             $sessions = @{}
             $replies = @()

@@ -1,7 +1,8 @@
 # Release the application
 
-Use Semantic Versioning for the application. The Streaming contract and OBS
-setup script have independent versions.
+Use Semantic Versioning for the application. The Streaming contract, OBS
+setup script, and Windows playback relay have independent versions. Set the
+relay version in `RELAY_INSTALLER_VERSION` in `lib/relay-installer.ts`.
 
 ## Select the version
 

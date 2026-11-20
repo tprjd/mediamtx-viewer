@@ -12,7 +12,7 @@ import { expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
-import { buildRelayInstaller, RELAY_INSTALLER_FILENAME } from './relay-installer'
+import { buildRelayInstaller, RELAY_INSTALLER_FILENAME, RELAY_INSTALLER_VERSION } from './relay-installer'
 
 it.runIf(process.platform === 'win32' && process.env.RELAY_WINDOWS_SMOKE === '1')(
   'pairs the downloadable .cmd once, stops its child, and resumes with Windows user credentials',
@@ -93,6 +93,7 @@ it.runIf(process.platform === 'win32' && process.env.RELAY_WINDOWS_SMOKE === '1'
 
       launch()
       await waitUntil(() => instances.size === 1, 'First launcher did not authenticate its control connection.')
+      expect(output).toContain(`FrankerzSpam Channel relay v${RELAY_INSTALLER_VERSION}`)
       expect(await readFile(stateFile, 'utf8')).not.toContain(credential)
       const pid = launcher!.pid!
       const mediaPid = powershell([

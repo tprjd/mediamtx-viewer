@@ -5,14 +5,17 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 export const RELAY_INSTALLER_FILENAME = 'Start-FrankerzSpam-Relay.cmd'
+export const RELAY_INSTALLER_VERSION = '1.0.0'
 
 export function buildRelayInstaller({ origin, ticket }: { origin: string; ticket: string }): Buffer {
   const url = new URL(origin)
-  if (url.protocol !== 'https:' || url.origin !== origin || !/^[A-Za-z0-9_-]{16,256}$/.test(ticket)) {
+  const localHttp = url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+  if ((!localHttp && url.protocol !== 'https:') || url.origin !== origin || !/^[A-Za-z0-9_-]{16,256}$/.test(ticket)) {
     throw new Error('Invalid relay pairing configuration.')
   }
+  const sourceUrl = `${localHttp ? 'whep' : 'wheps'}://${url.host}/api/relay/source/whep`
   const source = readFileSync(join(process.cwd(), 'scripts', 'windows', 'channel-relay.ps1'), 'utf8')
-  const bootstrap = Buffer.from(JSON.stringify({ origin, ticket }), 'utf8').toString('base64')
+  const bootstrap = Buffer.from(JSON.stringify({ origin, ticket, relayVersion: RELAY_INSTALLER_VERSION, sourceUrl }), 'utf8').toString('base64')
   const payload = Buffer.from(source.replace('__RELAY_BOOTSTRAP__', bootstrap), 'utf8')
   const sha256 = createHash('sha256').update(payload).digest('hex')
   const marker = ':__CHANNEL_RELAY_PAYLOAD__'
@@ -26,7 +29,7 @@ export function buildRelayInstaller({ origin, ticket }: { origin: string; ticket
     '& ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString($bytes)))',
   ].join(';')
   return Buffer.from([
-    '@echo off', 'setlocal DisableDelayedExpansion', 'title FrankerzSpam Channel relay',
+    '@echo off', 'setlocal DisableDelayedExpansion', `title FrankerzSpam Channel relay v${RELAY_INSTALLER_VERSION}`,
     'set "CHANNEL_RELAY_LAUNCHER=%~f0"',
     `powershell.exe -NoLogo -NoProfile -Command "${run}"`,
     'if errorlevel 1 pause', 'exit /b', marker,

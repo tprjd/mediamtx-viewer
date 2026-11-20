@@ -5,6 +5,8 @@ it in a deterministic `Setup-FrankerzSpam-OBS.cmd` launcher served to
 authenticated streamers from `/account/channel`. Neither layer contains a
 channel URL or publishing credential.
 
+To run the separate Windows playback relay, see [Stream to viewers from your Windows PC](../../docs/windows-playback-relay.md).
+
 On Windows 10 or 11:
 
 1. Download the CMD launcher from the channel page.

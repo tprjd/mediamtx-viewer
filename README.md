@@ -89,38 +89,9 @@ stored only as SHA-256 hashes.
 
 ### Stream from a Windows playback relay
 
-Keep OBS publishing to the site. For a compatible stream, your Windows x64 PC
-can pull one copy from Oracle and send it directly to each WebRTC viewer.
-For the WHIP pilot Channel, use the managed H.264 and Opus profile. Streams
-with AAC audio use HLS. The relay forwards encoded media without encoding it again.
-
-1. Sign in on your streaming PC. Open **My channel** and select **Download
-   relay for Windows x64**. Run the personal `.cmd` within ten minutes.
-   Anyone who has the unused download can pair it to your Channel.
-2. Keep the relay window open while streaming. For later streams, run the
-   same file on the same Windows account. It reconnects to the site
-   automatically. Only one PC can be paired to a Channel at a time.
-3. Ask a viewer on another internet connection to open your Channel in
-   **WebRTC** mode. Refresh **My channel** and check **Direct viewers**.
-   The watch page counts viewers across the relay and HLS. Oracle's media
-   monitor can measure traffic to the PC but cannot see the viewers behind it.
-
-The site authenticates viewers. A direct connection reveals your public IP
-address to each connected viewer. The app discovers connection addresses
-automatically using ICE and STUN. Some routers and mobile networks block a
-direct connection. Those viewers can still watch via Oracle HLS. Each HLS
-viewer uses the full bitrate from Oracle. At 14 Mbps, ten direct viewers need
-about 140 Mbps of PC upload, plus OBS and network overhead.
-
-The only media port on the PC is 28189 (UDP and TCP). Signaling and administration
-listen on loopback. If you have a public IP and choose to forward that port,
-you can supply your public IP or DNS name in `FRANKERZ_RELAY_PUBLIC_HOST`
-before starting the launcher. There is no paid TURN service.
-
-Close the window to stop sharing. **Disconnect relay** on **My channel**
-revokes the pairing. To remove the app, close it and delete the download and
-`%LOCALAPPDATA%\FrankerzSpam\ChannelRelay`. Windows protects the stored relay
-credential with your user account.
+A Windows x64 PC can send a compatible stream directly to viewers while OBS
+publishes to the site for HLS playback. For pairing, viewer counts, and
+connection problems, see [Stream to viewers from your Windows PC](docs/windows-playback-relay.md).
 
 ### Playback run and recovery
 
