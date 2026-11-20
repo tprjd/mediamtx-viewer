@@ -112,7 +112,7 @@ async function getReaderMetadata(
     const viewerIds = new Map<string, string>()
     for (const session of data.items ?? []) {
       if (!session.id) continue
-      if (protocol === 'hls' ? isThumbnailSession(session.query, session.userAgent) : isRelaySource(session.query)) {
+      if (isRelaySource(session.query) || (protocol === 'hls' && isThumbnailSession(session.query, session.userAgent))) {
         internalReaderIds.add(session.id)
         continue
       }

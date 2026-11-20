@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { usePlaybackMode } from './use-playback-mode'
 
 const storageKey = 'mediamtx-viewer:playback-mode'
+const fallbackKey = 'mediamtx-viewer:webrtc-fallback'
 const options: Parameters<typeof usePlaybackMode>[0] = {
   live: true,
   preferredPlayback: 'hls',
@@ -83,38 +84,29 @@ it('keeps Balanced ineligible across restarts but still permits the contract fal
   expect(result.current.selectableModes).not.toContain('balanced')
 })
 
-it('rejects WebRTC during the cooldown and offers it after expiry without switching automatically', async () => {
+it('leaves each fallback on Smooth until the viewer retries, even after repeated failures', async () => {
   const { result } = renderHook(usePlaybackMode, { initialProps: options })
   await advance()
   act(() => result.current.selectMode('webrtc'))
-  act(() => result.current.onWebRtcFallback())
-  expect(result.current.mode).toBe('smooth')
-  // Commit the last whole-second tick before advancing to the expiry edge.
-  // Otherwise React batches it until 59,999 ms and re-arms the interval there.
-  await advance(59_000)
-  await advance(999)
-  expect(result.current.selectableModes).not.toContain('webrtc')
-  act(() => result.current.selectMode('webrtc'))
-  expect(result.current.mode).toBe('smooth')
-  expect(sessionStorage.getItem(storageKey)).toBe('webrtc')
-  await advance(1)
-  expect(result.current.selectableModes).toContain('webrtc')
-  expect(result.current.mode).toBe('smooth')
-  act(() => result.current.selectMode('webrtc'))
-  expect(result.current.mode).toBe('webrtc')
+  for (let failure = 0; failure < 2; failure++) {
+    act(() => result.current.onWebRtcFallback())
+    expect(result.current.mode).toBe('smooth')
+    expect(result.current.selectableModes).toContain('webrtc')
+    expect(sessionStorage.getItem(storageKey)).toBe('webrtc')
+    act(() => result.current.selectMode('webrtc'))
+    expect(result.current.mode).toBe('webrtc')
+    expect(sessionStorage.getItem(fallbackKey)).toBeNull()
+  }
 })
 
-it('releases the WebRTC cooldown for a new broadcast but not for a repeated status update', async () => {
+it('stays on Smooth through status updates and elapsed time until the viewer makes a choice', async () => {
   const { result, rerender } = renderHook(usePlaybackMode, { initialProps: options })
   await advance()
   act(() => result.current.onWebRtcFallback())
   rerender({ ...options })
-  expect(result.current.selectableModes).not.toContain('webrtc')
-  rerender({ ...options, streamStartedAt: '2026-10-07T12:01:00Z' })
-  expect(result.current.selectableModes).toContain('webrtc')
+  await advance(120_000)
   expect(result.current.mode).toBe('smooth')
-  act(() => result.current.selectMode('webrtc'))
-  expect(result.current.mode).toBe('webrtc')
+  expect(result.current.selectableModes).toContain('webrtc')
 })
 
 it.each([
@@ -135,19 +127,15 @@ it.each([
   expect(sessionStorage.getItem(storageKey)).toBe(saved)
 })
 
-it('keeps codec and cooldown requirements independent as tracks change', async () => {
+it('offers a retry only while the stream uses WebRTC-compatible tracks', async () => {
   const { result, rerender } = renderHook(usePlaybackMode, { initialProps: options })
   await advance()
   act(() => result.current.onWebRtcFallback())
   rerender({ ...options, tracks: ['H264', 'MPEG-4 Audio'] })
   await advance()
-  rerender(options)
-  await advance()
   expect(result.current.selectableModes).not.toContain('webrtc')
+  act(() => result.current.selectMode('webrtc'))
   expect(result.current.mode).toBe('smooth')
-  rerender({ ...options, tracks: ['H264', 'MPEG-4 Audio'] })
-  await advance(60_000)
-  expect(result.current.selectableModes).not.toContain('webrtc')
   rerender(options)
   await advance()
   expect(result.current.selectableModes).toContain('webrtc')
@@ -200,22 +188,37 @@ it('keeps automatic WebRTC fallback separate from the explicit preference across
   const second = renderHook(usePlaybackMode, { initialProps: { ...options, preferredPlayback: 'webrtc' as const } })
   await advance()
   expect(second.result.current.mode).toBe('smooth')
-  expect(second.result.current.selectableModes).not.toContain('webrtc')
-  await advance(60_000)
-  expect(second.result.current.mode).toBe('smooth')
+  expect(second.result.current.selectableModes).toContain('webrtc')
   act(() => second.result.current.selectMode('webrtc'))
   expect(second.result.current.mode).toBe('webrtc')
 })
 
-it('does not bypass the WebRTC cooldown by choosing an HLS mode', async () => {
+it('restores an explicit HLS choice made after a fallback on the same broadcast', async () => {
   const first = renderHook(usePlaybackMode, { initialProps: options })
   await advance()
   act(() => first.result.current.onWebRtcFallback())
   act(() => first.result.current.selectMode('balanced'))
-  expect(first.result.current.selectableModes).not.toContain('webrtc')
+  expect(sessionStorage.getItem(fallbackKey)).toBeNull()
   first.unmount()
   const second = renderHook(usePlaybackMode, { initialProps: options })
   await advance()
   expect(second.result.current.mode).toBe('balanced')
-  expect(second.result.current.selectableModes).not.toContain('webrtc')
+  expect(second.result.current.selectableModes).toContain('webrtc')
+})
+
+it.each([
+  { active: true, mode: 'smooth' },
+  { active: false, mode: 'webrtc' },
+])('restores an older fallback record (active=$active) without applying its retry deadline', async ({ active, mode }) => {
+  sessionStorage.setItem(storageKey, 'webrtc')
+  sessionStorage.setItem(fallbackKey, JSON.stringify({
+    startedAt: options.streamStartedAt, retryAfter: Date.now() + 60_000, active,
+  }))
+  const { result } = renderHook(usePlaybackMode, { initialProps: options })
+  await advance()
+  expect(result.current.mode).toBe(mode)
+  expect(result.current.selectableModes).toContain('webrtc')
+  act(() => result.current.selectMode('webrtc'))
+  expect(result.current.mode).toBe('webrtc')
+  expect(sessionStorage.getItem(fallbackKey)).toBeNull()
 })

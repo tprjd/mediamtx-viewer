@@ -35,14 +35,9 @@ export function usePlaybackMode({
   const [mode, setMode] = useState<PlaybackMode>(
     preferredPlayback === 'webrtc' && webrtcAvailable ? 'webrtc' : 'balanced',
   )
-  const [fallback, setFallback] = useState<{
-    retryAfter: number
-    startedAt: string | null
-  } | null>(null)
   const [balancedUnavailable, setBalancedUnavailable] = useState(false)
   const [ultraLowSupported, setUltraLowSupported] = useState(false)
   const [modeExitReason, setModeExitReason] = useState<string>()
-  const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -52,18 +47,13 @@ export function usePlaybackMode({
       if (savedFallback) {
         try {
           const value = JSON.parse(savedFallback)
-          if (Number.isFinite(value.retryAfter) &&
-              (value.startedAt === null || typeof value.startedAt === 'string')) {
-            if (streamStartedAt && value.startedAt !== streamStartedAt) {
-              window.sessionStorage.removeItem(FALLBACK_STORAGE_KEY)
-              setFallback(null)
-            } else {
-              setFallback(value)
-              if (value.active !== false) {
-                setMode(webRtcFallback.mode)
-                return
-              }
+          if (value && (value.startedAt === null || typeof value.startedAt === 'string')) {
+            // Older tabs can store a retry deadline or mark a fallback inactive.
+            if (value.active !== false && (!streamStartedAt || value.startedAt === streamStartedAt)) {
+              setMode(webRtcFallback.mode)
+              return
             }
+            window.sessionStorage.removeItem(FALLBACK_STORAGE_KEY)
           }
         } catch { /* Ignore invalid storage from an older browser session. */ }
       }
@@ -109,15 +99,6 @@ export function usePlaybackMode({
     })
   }, [mode, webrtcAvailable, webrtcUnavailableReasonText])
 
-  const retryAfter =
-    fallback?.startedAt === streamStartedAt ? fallback.retryAfter : 0
-
-  useEffect(() => {
-    if (retryAfter <= now) return
-    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
-    return () => window.clearInterval(timer)
-  }, [now, retryAfter])
-
   // Contract fallbacks can target a mode that is not offered as a user choice.
   const commitMode = useCallback((next: PlaybackMode) => {
     setModeExitReason(undefined)
@@ -126,11 +107,7 @@ export function usePlaybackMode({
   }, [])
 
   const onWebRtcFallback = useCallback(() => {
-    const cooldown = Date.now() + webRtcFallback.retryCooldownMs
-    const next = { retryAfter: cooldown, startedAt: streamStartedAt }
-    setFallback(next)
-    window.sessionStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify(next))
-    setNow(Date.now())
+    window.sessionStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify({ startedAt: streamStartedAt }))
     setMode(webRtcFallback.mode)
     setModeExitReason(undefined)
   }, [streamStartedAt])
@@ -157,7 +134,7 @@ export function usePlaybackMode({
     )
   }, [commitMode])
 
-  const webRtcSelectable = webrtcAvailable && live && retryAfter <= now
+  const webRtcSelectable = webrtcAvailable && live
   const selectableModes = useMemo<readonly PlaybackMode[]>(() => {
     const choices: PlaybackMode[] = []
     if (ultraLowSupported) choices.push('ultra-low')
@@ -170,12 +147,10 @@ export function usePlaybackMode({
   const selectMode = useCallback((value: string) => {
     const selected = selectableModes.find(choice => choice === value)
     if (selected) {
-      if (fallback) {
-        window.sessionStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify({ ...fallback, active: false }))
-      }
+      window.sessionStorage.removeItem(FALLBACK_STORAGE_KEY)
       commitMode(selected)
     }
-  }, [commitMode, fallback, selectableModes])
+  }, [commitMode, selectableModes])
 
   return {
     mode,

@@ -308,7 +308,7 @@ export function compileStreamingContract(value: unknown): StreamingContractDocum
           webRtcFallback.transportFailure,
           'streamingContract.fallbacks.webrtc.transportFailure',
         ),
-        retryCooldownMs: positiveInteger(
+        retryCooldownMs: webRtcFallback.retryCooldownMs === 0 ? 0 : positiveInteger(
           webRtcFallback.retryCooldownMs,
           'streamingContract.fallbacks.webrtc.retryCooldownMs',
         ),

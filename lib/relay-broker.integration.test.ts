@@ -175,3 +175,27 @@ it('bounds input and in-flight resources, then releases offers whose replies wer
   const stale = jobs[0]
   expect(relay.poll([stale.sessionId], [{id:stale.id, status:201, body:sdp}]).commands[0]).toMatchObject({method:'DELETE',sessionId:stale.sessionId})
 })
+
+it('grants HLS data peers only to capable relays, apart from the four WHEP slots per account', async () => {
+  const relay = connect()
+  const offer = 'v=0\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n'
+  const join = () => createRelaySession(relay.channelSlug, viewer, randomUUID(), offer, undefined, 'hls')
+  await expect(join()).rejects.toMatchObject({status:503})
+  const poll = (sessions: string[], replies: {id: string; status: number; body?: string}[]) =>
+    pollRelay(relay.credential, { instanceId: relay.instanceId, hls: true, sessions, replies })
+  poll([], [])
+  await expect(createRelaySession(relay.channelSlug, viewer, randomUUID(), sdp, undefined, 'hls')).rejects.toMatchObject({status:400})
+  await expect(createRelaySession(relay.channelSlug, viewer, randomUUID(), offer)).rejects.toMatchObject({status:400})
+  const peers = Array.from({length:6}, join)
+  const commands = poll([], []).commands
+  expect(commands).toHaveLength(6)
+  expect(commands.every(c => c.transport === 'hls' && c.method === 'POST')).toBe(true)
+  const ids = commands.map(c => c.sessionId)
+  poll(ids, commands.map(c => ({id:c.id, status:201, body:offer})))
+  await Promise.all(peers)
+  expect(getRelayViewerIds(relay.mediaPath)).toHaveLength(6)
+  await expect(patchRelaySession(relay.channelSlug, viewer, ids[0], 'a=end-of-candidates')).rejects.toMatchObject({status:404})
+  db.prepare('DELETE FROM session WHERE id=?').run(viewer.sessionId)
+  vi.advanceTimersByTime(5001)
+  expect(poll(ids, []).commands.map(c => c.method)).toEqual(Array(6).fill('DELETE'))
+})

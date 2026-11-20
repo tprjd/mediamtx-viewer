@@ -45,7 +45,7 @@ export function channelMonitor() {
       for (const [protocol, entries] of [['hls', hls], ['webrtc', webRtc]]) {
         for (const session of entries) {
           if (protocol === 'webrtc' && session.state !== 'read') continue
-          if (isThumbnailSession(session.query, session.userAgent)) { thumbnails.add(session.id); continue }
+          if (isThumbnailSession(session.query, session.userAgent) || (protocol === 'hls' && isRelaySource(session.query))) { thumbnails.add(session.id); continue }
           sessions.set(`${protocol}:${session.id}`, session)
           const identity = readViewerId(session.query)
           if (identity) identities.set(session.id, identity)

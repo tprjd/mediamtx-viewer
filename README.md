@@ -89,8 +89,9 @@ stored only as SHA-256 hashes.
 
 ### Stream from a Windows playback relay
 
-A Windows x64 PC can send a compatible stream directly to viewers while OBS
-publishes to the site for HLS playback. For pairing, viewer counts, and
+A Windows x64 PC can send Low latency video or HLS chunks directly to viewers
+while OBS publishes to the site. HLS uses a peer connection when the browser
+and network support it. Other viewers can use HLS from the site. For pairing, viewer counts, and
 connection problems, see [Stream to viewers from your Windows PC](docs/windows-playback-relay.md).
 
 ### Playback run and recovery
@@ -117,9 +118,10 @@ WebRTC retains its video-element callback.
 selection, eligibility, and fallback between playback modes. Its `selectableModes`
 list supplies both control layouts, and `selectMode` rejects unavailable user
 choices without changing the saved preference. Controls own labels and icons.
-Preference restoration and automatic fallback keep their separate rules. The
-WebRTC retry cooldown ends after 60 seconds or when the Channel starts a new
-broadcast. Expiry makes WebRTC selectable but does not select it automatically.
+If WebRTC recovery fails, the player stays on Smooth for the current broadcast,
+including after a refresh in the same tab. The viewer can select Low latency
+again immediately while the Channel is live and its codecs support WebRTC. A
+new broadcast uses the viewer's saved choice or the Channel default.
 
 A Viewing access check has a five-second deadline. A timeout or service failure
 permits recovery instead of declaring the session expired. Confirmed access

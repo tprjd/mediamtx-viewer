@@ -12,10 +12,8 @@ export async function proxyMedia(request: Request): Promise<Response> {
   const upstream = new URL(origin)
   upstream.pathname = url.pathname.slice(prefix.length)
   upstream.search = url.search
-  if (!hls) {
-    upstream.searchParams.delete('frankerzspam_internal')
-    upstream.searchParams.delete('relay_generation')
-  }
+  upstream.searchParams.delete('frankerzspam_internal')
+  upstream.searchParams.delete('relay_generation')
   const headers = new Headers(request.headers)
   for (const name of ['cookie', 'authorization', 'host', 'connection', 'transfer-encoding', 'content-length']) headers.delete(name)
   try {

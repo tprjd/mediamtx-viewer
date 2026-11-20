@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
+import { relayHelperHash } from './relay-helper'
 import { buildRelayInstaller, RELAY_INSTALLER_VERSION } from './relay-installer'
 
 const origin = 'https://stream.example'
@@ -25,7 +26,7 @@ describe('Windows Channel relay download', () => {
     expect(launcher).not.toContain(ticket)
     const bootstrap = script.toString('utf8').match(/FromBase64String\('([A-Za-z0-9+/=]+)'\)/)![1]
     expect(JSON.parse(Buffer.from(bootstrap, 'base64').toString('utf8'))).toEqual({
-      origin, ticket, relayVersion: RELAY_INSTALLER_VERSION, sourceUrl: mediaOrigin + '/api/relay/source/whep',
+      origin, ticket, relayVersion: RELAY_INSTALLER_VERSION, sourceUrl: mediaOrigin + '/api/relay/source/whep', helperHash: relayHelperHash(),
     })
     expect(script.toString('utf8')).not.toContain('__RELAY_BOOTSTRAP__')
   })

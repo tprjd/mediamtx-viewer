@@ -196,6 +196,7 @@ export function LivePlayer({
       playback: {
         hls: tagPlaybackUrl(channel.playback.hls, viewerId),
         webrtc: tagPlaybackUrl(channel.playback.webrtc, viewerId),
+        relayHls: channel.playback.relayHls ? tagPlaybackUrl(channel.playback.relayHls, viewerId) : undefined,
         fallbackHls: channel.playback.fallbackHls
           ? tagPlaybackUrl(channel.playback.fallbackHls, viewerId)
           : undefined,

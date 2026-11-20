@@ -4,6 +4,7 @@ import Hls, { ErrorDetails, ErrorTypes, type ErrorData, type LevelUpdatedData } 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { HlsPlaybackDiagnostics } from '@/components/playback-stats'
+import { attachRelayHlsLoader, createRelayHlsLoader } from '@/components/relay-hls-loader'
 import type { VidstackProviderAttachment } from '@/components/vidstack-player'
 import { usePlaybackRun } from '@/components/use-playback-run'
 import {
@@ -195,8 +196,22 @@ export function useHlsPlayback({
     usingFallback && channel.playback.fallbackHls
       ? channel.playback.fallbackHls
       : channel.playback.hls
+  const relayEndpoint = status.live ? channel.playback.relayHls : undefined
+  const rendition = usingFallback && channel.playback.fallbackHls ? 'fallback' : 'primary'
+  const relay = useMemo(
+    () => relayEndpoint ? createRelayHlsLoader(relayEndpoint, sourceUrl, rendition) : undefined,
+    [relayEndpoint, sourceUrl, rendition],
+  )
+  useEffect(() => {
+    if (attachment?.kind !== 'hls') return
+    return attachRelayHlsLoader(attachment.hls, relay)
+  }, [attachment, relay])
+  useEffect(() => {
+    if (visibleState === 'unauthorized' || visibleState === 'unsupported') relay?.close()
+  }, [relay, visibleState])
   const hlsConfig = useMemo(
     () => ({
+      ...(relay && { fLoader: relay.fLoader }),
       lowLatencyMode: true,
       liveSyncMode: 'edge' as const,
       backBufferLength: profile.backBufferLength,
@@ -211,7 +226,7 @@ export function useHlsPlayback({
       maxLiveSyncPlaybackRate: profile.maxLiveSyncPlaybackRate,
       liveSyncOnStallIncrease: profile.liveSyncOnStallIncrease,
     }),
-    [profile],
+    [profile, relay],
   )
   const playerSource = useMemo(
     () =>

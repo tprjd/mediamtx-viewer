@@ -42,6 +42,7 @@ export interface PublicChannel {
   playback: {
     hls: string
     webrtc: string
+    relayHls?: string
     fallbackHls?: string
   }
   status: ChannelStatus

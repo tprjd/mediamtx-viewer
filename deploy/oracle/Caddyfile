@@ -27,7 +27,7 @@ www.{$PUBLIC_HOSTNAME} {
 	}
 
 	# The relay's device endpoints authenticate with a pairing ticket or a scoped bearer.
-	@account_protected not path /login /register /registration-pending /reset-password /forgot-password /verify-email /api/auth/* /api/internal/authorize /api/obs-setup/device/start /api/obs-setup/device/poll /api/relay/pair /api/relay/poll /api/relay/source/whep /api/relay/source/whep/* /_next/* /favicon.ico /icon.svg /publish/whip/*
+	@account_protected not path /login /register /registration-pending /reset-password /forgot-password /verify-email /api/auth/* /api/internal/authorize /api/obs-setup/device/start /api/obs-setup/device/poll /api/relay/pair /api/relay/helper /api/relay/poll /api/relay/source/whep /api/relay/source/whep/* /api/relay/source/hls/* /_next/* /favicon.ico /icon.svg /publish/whip/*
 
 	forward_auth @account_protected viewer:3000 {
 		import viewer_transport
@@ -62,6 +62,10 @@ www.{$PUBLIC_HOSTNAME} {
 	}
 
 	handle_path /media/hls/* {
+		uri query {
+			-frankerzspam_internal
+			-relay_generation
+		}
 		reverse_proxy mediamtx:8888 {
 			header_up -Authorization
 			header_up -Cookie

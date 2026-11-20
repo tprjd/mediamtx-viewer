@@ -19,13 +19,13 @@ export function toPublicChannel(
   channel: Channel,
   status: ChannelStatus,
   poster = channel.poster,
-  relay?: 'online' | 'offline',
+  relay?: 'online' | 'online-hls' | 'offline',
 ): PublicChannel {
   const mediaPath = encodeMediaPath(channel.mediaPath)
   let preferredPlayback = channel.preferredPlayback
   if (relay === 'offline') preferredPlayback = 'hls'
   else if (status.live && isWebRtcAvailable(status.tracks) &&
-    (relay === 'online' || (isWhipPilotChannel(channel.slug) && status.publisherProtocol === 'whip'))) {
+    (relay === 'online' || relay === 'online-hls' || (isWhipPilotChannel(channel.slug) && status.publisherProtocol === 'whip'))) {
     preferredPlayback = 'webrtc'
   }
 
@@ -41,6 +41,7 @@ export function toPublicChannel(
     playback: {
       hls: hlsUrl(isWhipPilotChannel(channel.slug) && status.hlsMediaPath ? status.hlsMediaPath : channel.mediaPath),
       webrtc: relay ? `/api/channels/${channel.slug}/relay/whep` : `/media/whep/${mediaPath}/whep`,
+      ...(relay === 'online-hls' && status.live ? { relayHls: `/api/channels/${encodeURIComponent(channel.slug)}/relay/hls` } : {}),
       fallbackHls: channel.fallbackMediaPath
         ? hlsUrl(channel.fallbackMediaPath)
         : undefined,

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "1.1.0",
+  "contractVersion": "1.2.0",
   "hls": {
     "packaging": {
       "variant": "lowLatency",
@@ -36,7 +36,7 @@
     },
     "webrtc": {
       "transportFailure": "smooth",
-      "retryCooldownMs": 60000
+      "retryCooldownMs": 0
     }
   },
   "releaseValidation": {

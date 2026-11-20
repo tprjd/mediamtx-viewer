@@ -46,6 +46,66 @@ function Assert($Condition, [string]$Message) { if (-not $Condition) { throw $Me
     $command.method = 'GET'
     Assert ((Invoke-RelayCommand $null 'test' $sessions $command).status -eq 400) 'The bridge accepted an arbitrary HTTP operation.'
 }
+& {
+    $a = @{ id = 'local-a'; path = 'relay'; state = 'read'; peerConnectionEstablished = $true; outboundBytes = 1000 }
+    $b = @{ id = 'local-b'; path = 'relay'; state = 'read'; peerConnectionEstablished = $false; outboundBytes = 2000 }
+    $extra = @{ id = 'unmapped'; path = 'relay'; state = 'read'; peerConnectionEstablished = $true; outboundBytes = 999999 }
+    $source = @{ id = 'upstream'; path = 'relay'; state = 'publish'; peerConnectionEstablished = $true; outboundBytes = 999999 }
+    $sessions = @{ 'browser-a' = @{id='local-a'}; 'browser-b' = @{id='local-b'} }
+    $meter = @{ at = 0.0; lastNumber = 0 }
+    $items = @($a, $b, $extra, $source)
+    function Invoke-RelayHttp { return @{ status=200; body=(@{items=$items} | ConvertTo-Json -Depth 3) } }
+    function Sample([double]$Seconds) {
+        $null = Get-RelaySessions $null 'test' $sessions
+        return Get-RelayUploadSample $sessions $meter $Seconds
+    }
+    $sample = Sample 1
+    Assert ($sessions.Count -eq 2 -and $sample.viewerCount -eq 1 -and $null -eq $sample.uploadMbps) 'Only connected, mapped read sessions count. Keep unestablished sessions for signaling.'
+    $number = $sample.connections[0].number
+    $a.outboundBytes += 8750000
+    $sample = Sample 6
+    Assert ($sample.uploadMbps -eq 14 -and $sample.connections[0].number -eq $number) 'Wrong measured rate or unstable viewer number.'
+    $b.peerConnectionEstablished = $true
+    $a.outboundBytes += 1250000
+    $sample = Sample 8.5
+    Assert ($sample.viewerCount -eq 2 -and $sample.connections[0].uploadMbps -eq 4 -and $null -eq $sample.uploadMbps) 'Joining viewer must not produce a partial total.'
+    $a.outboundBytes += 5500000
+    $b.outboundBytes += 2750000
+    $sample = Sample 14
+    Assert ($sample.uploadMbps -eq 12 -and $sample.connections[1].uploadMbps -eq 4) 'Failed to add rates over the actual sample interval.'
+    function Write-Progress($Activity, $Status) {
+        $script:display = "$Activity $Status"
+        $script:peerStatus = $Status
+    }
+    Show-RelayUpload $sample
+    Assert ($script:display.Contains('Connected viewers 2') -and $script:display.Contains((Format-RelayRate 12)) -and $script:display.Contains("Viewer $number")) 'Missing viewer and upload display.'
+    Assert ($script:display -notmatch 'local-|browser-|upstream|unmapped') 'Local display exposed session identifiers.'
+    foreach ($count in 5, 10) {
+        $connections = @(1..$count | ForEach-Object { @{ number = $_; uploadMbps = 14.3 } })
+        Show-RelayUpload @{ viewerCount = $count; uploadMbps = $count * 14.3; connections = $connections } 80
+        # The classic 80-column progress display indents each status line by four columns.
+        $lines = [regex]::Matches($script:peerStatus, '.{1,76}').Value
+        foreach ($peer in $connections) {
+            $entry = 'Viewer {0}  {1}' -f $peer.number, (Format-RelayRate $peer.uploadMbps)
+            Assert (@($lines | Where-Object { $_.Contains($entry) }).Count -eq 1) "Split or missing upload reading for viewer $($peer.number)."
+        }
+    }
+    $items = @($b)
+    $b.outboundBytes = 3
+    $sample = Sample 19
+    Assert ($sample.viewerCount -eq 1 -and $sample.connections[0].number -ne $number -and $null -eq $sample.uploadMbps) 'Departed viewers or reset counters produced a false rate.'
+    $b.Remove('outboundBytes')
+    $sample = Sample 25
+    Assert ($null -eq $sample.uploadMbps) 'Missing counter was reported as zero.'
+    $b.outboundBytes = 900
+    $sample = Sample 30
+    Assert ($null -eq $sample.uploadMbps) 'First counter after a gap must establish a new baseline.'
+    $sample = Sample 35
+    Assert ($sample.uploadMbps -eq 0) 'Unchanged measured counters should give zero upload.'
+    $items = @()
+    $sample = Sample 40
+    Assert ($sample.viewerCount -eq 0 -and $sample.uploadMbps -eq 0 -and $sessions.Count -eq 0) 'Empty relay retained viewers or upload.'
+}
 if ($MediaServer) {
     $work = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
     [void][IO.Directory]::CreateDirectory($work)

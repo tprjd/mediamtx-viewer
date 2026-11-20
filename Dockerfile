@@ -1,3 +1,10 @@
+FROM golang:1.25-alpine AS relay-helper
+WORKDIR /src
+COPY scripts/relay-hls/go.mod scripts/relay-hls/go.sum ./
+RUN go mod download
+COPY scripts/relay-hls/ ./
+RUN go test -mod=readonly ./... && mkdir /out && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -mod=readonly -trimpath -buildvcs=false -ldflags="-s -w" -o /out/relay-hls.exe . && sha256sum /out/relay-hls.exe | cut -d ' ' -f1 >/out/sha256.txt
+
 FROM node:24-alpine AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -26,12 +33,14 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
+ENV RELAY_ASSETS_DIR=/app/relay-assets
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 RUN mkdir /data && chown nextjs:nodejs /data
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=dependencies --chown=nextjs:nodejs /app/node_modules/@better-auth/utils ./node_modules/@better-auth/utils
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=relay-helper --chown=nextjs:nodejs /out ./relay-assets
 COPY --from=builder --chown=nextjs:nodejs /app/migrations ./migrations
 COPY --from=builder --chown=nextjs:nodejs /app/chat-migrations ./chat-migrations
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts

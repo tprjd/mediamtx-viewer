@@ -7,7 +7,7 @@ import { channelPosterUrl } from '@/lib/channel-thumbnails'
 import { getChannelStatus, getChannelStatuses } from '@/lib/mediamtx'
 import { toPublicChannel } from '@/lib/public-channel'
 import { getPairedRelayPaths } from '@/lib/relay-credentials'
-import { getOnlineRelay } from '@/lib/relay-broker'
+import { getRelayPlaybackState } from '@/lib/relay-broker'
 import type { ChannelMonitorEvent } from '@/lib/channel-status-monitor'
 import type { ChannelLiveUpdate, ChannelStatus, ChannelStatusSnapshot, PublicChannel } from '@/lib/types'
 
@@ -37,7 +37,7 @@ async function readChannels(viewerId?: string) {
   return channels.map((channel) => {
     const status = statuses.get(channel.mediaPath)!
     const relay = paired.has(channel.mediaPath)
-      ? (getOnlineRelay(channel.mediaPath) ? 'online' as const : 'offline' as const) : undefined
+      ? getRelayPlaybackState(channel.mediaPath) : undefined
     return { channel, status, relay, poster: channelPosterUrl(channel, status.live) }
   })
 }

@@ -191,7 +191,7 @@ describe('LivePlayer playback mode', () => {
     )
   })
 
-  it('falls back once and prevents automatic protocol oscillation for 60 seconds', () => {
+  it('switches to Smooth after failure and retries Low latency as soon as the viewer selects it', () => {
     render(<LivePlayer channel={channel} />)
     fireEvent.click(screen.getByRole('radio', { name: 'Low latency' }))
     fireEvent.click(screen.getByRole('button', { name: 'Simulate fallback' }))
@@ -200,16 +200,9 @@ describe('LivePlayer playback mode', () => {
     expect(window.sessionStorage.getItem('mediamtx-viewer:playback-mode')).toBe(
       'webrtc',
     )
-    expect(
-      screen.queryByRole('radio', { name: 'Low latency' }),
-    ).toBeNull()
-
-    act(() => {
-      vi.advanceTimersByTime(60_000)
-    })
-
     expect(screen.getByRole('radio', { name: 'Low latency' })).toBeEnabled()
-    expect(screen.getByText('Smooth player')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Low latency' }))
+    expect(screen.getByText('Low-latency player')).toBeInTheDocument()
   })
 
   it('restores the session playback preference on remount', () => {

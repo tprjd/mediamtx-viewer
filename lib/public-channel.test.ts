@@ -71,3 +71,9 @@ it('defaults only a live compatible pilot WHIP Publisher to WebRTC', () => {
   vi.stubEnv('WHIP_PILOT_CHANNEL', '')
   expect(toPublicChannel(channel, whip).preferredPlayback).toBe('hls')
 })
+
+it('advertises relay HLS separately from audio codec and only while supported and live', () => {
+  expect(toPublicChannel(channel, status, undefined, 'online-hls').playback.relayHls).toBe('/api/channels/friend/relay/hls')
+  expect(toPublicChannel(channel, status, undefined, 'online').playback.relayHls).toBeUndefined()
+  expect(toPublicChannel(channel, { ...status, live:false }, undefined, 'online-hls').playback.relayHls).toBeUndefined()
+})

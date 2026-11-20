@@ -160,7 +160,7 @@ export default async function ChannelAccountPage({
               <h2><RadioTower aria-hidden="true" /> Windows playback relay</h2>
               {channel.enabled && publishing && (
                 <>
-                  <p>Serve low-latency video from your streaming PC. Keep OBS publishing here for HLS playback. Direct viewers can see your public IP address.</p>
+                  <p>Serve Low latency video and HLS video chunks from your streaming PC. Keep OBS publishing while the relay runs. Direct viewers can see your public IP address.</p>
                   <form method="post" action="/account/channel/relay.cmd" className={channelStyles.installerActions}>
                     <Button type="submit" className={channelStyles.primaryButton}><Download aria-hidden="true" /> Download relay for Windows x64</Button>
                     <span className={channelStyles.installerVersion}>Version {RELAY_INSTALLER_VERSION}</span>
@@ -185,7 +185,7 @@ export default async function ChannelAccountPage({
                   <li>Start streaming in OBS with H.264 video and Opus audio. If your Channel has the managed <strong>FrankerzSpam 1080p60 Low latency</strong> profile, select it before you start. Streams with AAC audio use HLS.</li>
                 </ol>
                 <h3>Check a direct connection</h3>
-                <p>Ask a viewer on another internet connection to select <strong>Low latency</strong>. Once the video plays, refresh this page and check <strong>Direct viewers</strong>. If the connection fails, the player can switch to <strong>Smooth</strong> HLS while OBS keeps streaming.</p>
+                <p>Ask a viewer on another internet connection to play your Channel in <strong>Low latency</strong> or <strong>Smooth</strong>. Check the relay window for active connections and upload speed. Browsers that can connect directly receive video from your PC. Other browsers use the site. Viewers can retry Low latency at any time if the stream supports it.</p>
                 <h3>Reconnect or stop</h3>
                 <p>For your next stream, open the same file under the same Windows account. Close the relay window to stop serving direct viewers. Select <strong>Disconnect relay</strong> to revoke the pairing. If pairing expires, download a fresh copy.</p>
               </details>

@@ -201,6 +201,18 @@ describe('useChannelEvents', () => {
     expect(screen.getByText('no poster')).toBeInTheDocument()
   })
 
+  it('applies HLS relay availability from status events to a viewer already watching', () => {
+    vi.stubGlobal('EventSource', MockEventSource)
+    render(<Probe />)
+    const source = MockEventSource.instances[0]!
+    const event = { ...snapshot.channels[0], playback: channel.playback }
+    const online = { ...event.playback, relayHls: '/api/channels/alice/relay/hls' }
+    act(() => source.emit('channel-status', { ...event, playback: online }))
+    expect(currentChannels()[0].playback).toEqual(online)
+    act(() => source.emit('channel-status', event))
+    expect(currentChannels()[0].playback).toEqual(channel.playback)
+  })
+
   it('loads full data for a new Channel and applies its newer event before publishing', async () => {
     vi.stubGlobal('EventSource', MockEventSource)
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({

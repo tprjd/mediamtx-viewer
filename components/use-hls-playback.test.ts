@@ -174,6 +174,27 @@ describe('useHlsPlayback', () => {
     vi.restoreAllMocks()
   })
 
+  it('adds and removes the fragment relay on a playing provider without changing its source or key', () => {
+    const options: HlsPlaybackOptions = { channel, latencyProfile: 'smooth' }
+    const { result, rerender } = renderHook(useHlsPlayback, { initialProps: options })
+    const hls = new mocks.FakeHls({})
+    act(() => result.current.playerProps.onProviderAttachmentChange({
+      kind: 'hls', video: document.createElement('video'), hls: hls as unknown as Hls,
+    }))
+    const key = result.current.playerKey
+    const src = result.current.playerProps.src
+    expect(hls.config.fLoader).toBeUndefined()
+    rerender({ ...options, channel: { ...channel, playback: {
+      ...channel.playback, relayHls: '/api/channels/live/relay/hls',
+    } } })
+    expect(hls.config.fLoader).toBeTypeOf('function')
+    expect(result.current.playerKey).toBe(key)
+    expect(result.current.playerProps.src).toBe(src)
+    rerender(options)
+    expect(hls.config.fLoader).toBeUndefined()
+    expect(hls.destroy).not.toHaveBeenCalled()
+  })
+
   it('selects the compatibility source and retries it through the HLS interface', () => {
     const compatibleChannel = {
       ...channel,

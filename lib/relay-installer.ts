@@ -3,9 +3,10 @@ import 'server-only'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { relayHelperHash } from '@/lib/relay-helper'
 
 export const RELAY_INSTALLER_FILENAME = 'Start-FrankerzSpam-Relay.cmd'
-export const RELAY_INSTALLER_VERSION = '1.0.0'
+export const RELAY_INSTALLER_VERSION = '1.1.0'
 
 export function buildRelayInstaller({ origin, ticket }: { origin: string; ticket: string }): Buffer {
   const url = new URL(origin)
@@ -15,7 +16,7 @@ export function buildRelayInstaller({ origin, ticket }: { origin: string; ticket
   }
   const sourceUrl = `${localHttp ? 'whep' : 'wheps'}://${url.host}/api/relay/source/whep`
   const source = readFileSync(join(process.cwd(), 'scripts', 'windows', 'channel-relay.ps1'), 'utf8')
-  const bootstrap = Buffer.from(JSON.stringify({ origin, ticket, relayVersion: RELAY_INSTALLER_VERSION, sourceUrl }), 'utf8').toString('base64')
+  const bootstrap = Buffer.from(JSON.stringify({ origin, ticket, relayVersion: RELAY_INSTALLER_VERSION, sourceUrl, helperHash: relayHelperHash() }), 'utf8').toString('base64')
   const payload = Buffer.from(source.replace('__RELAY_BOOTSTRAP__', bootstrap), 'utf8')
   const sha256 = createHash('sha256').update(payload).digest('hex')
   const marker = ':__CHANNEL_RELAY_PAYLOAD__'

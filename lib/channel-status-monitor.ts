@@ -66,6 +66,7 @@ export function sameChannelLiveState(
     first.status.hlsMediaPath === second.status.hlsMediaPath &&
     first.preferredPlayback === second.preferredPlayback &&
     first.playback?.webrtc === second.playback?.webrtc &&
+    first.playback?.relayHls === second.playback?.relayHls &&
     first.status.state === second.status.state &&
     first.status.live === second.status.live &&
     first.status.startedAt === second.status.startedAt &&

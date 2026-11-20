@@ -12,6 +12,7 @@ import { expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
+import { relayHelperBinary, relayHelperHash } from './relay-helper'
 import { buildRelayInstaller, RELAY_INSTALLER_FILENAME, RELAY_INSTALLER_VERSION } from './relay-installer'
 
 it.runIf(process.platform === 'win32' && process.env.RELAY_WINDOWS_SMOKE === '1')(
@@ -28,6 +29,9 @@ it.runIf(process.platform === 'win32' && process.env.RELAY_WINDOWS_SMOKE === '1'
     const ticket = 'mtx_rp_' + randomBytes(32).toString('base64url')
     const credential = 'mtx_rc_' + randomBytes(32).toString('base64url')
     const instances = new Set<string>()
+    const helperHash = relayHelperHash()
+    expect(helperHash).toMatch(/^[0-9a-f]{64}$/)
+    let helperDownloads = 0
     let pairCalls = 0
     let revoke = false
     let launcher: ChildProcess | undefined
@@ -72,6 +76,10 @@ it.runIf(process.platform === 'win32' && process.env.RELAY_WINDOWS_SMOKE === '1'
       execFileSync('certutil.exe', ['-f', '-addstore', 'Root', certFile], { stdio: 'pipe', timeout: 15_000 })
       thumbprint = new X509Certificate(cert).fingerprint.replaceAll(':', '')
       server = createServer({ cert, key: await readFile(keyFile) }, async (request, response) => {
+        if (request.method === 'GET' && request.url === '/api/relay/helper?sha256=' + helperHash && request.headers.authorization === 'Bearer ' + credential) {
+          helperDownloads++
+          return response.end(relayHelperBinary())
+        }
         const chunks = []
         for await (const chunk of request) chunks.push(chunk)
         const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
@@ -79,7 +87,7 @@ it.runIf(process.platform === 'win32' && process.env.RELAY_WINDOWS_SMOKE === '1'
         if (request.method === 'POST' && request.url === '/api/relay/pair' && body.ticket === ticket && ++pairCalls === 1) {
           return response.end(JSON.stringify({ credential }))
         }
-        if (request.method === 'POST' && request.url === '/api/relay/poll' && request.headers.authorization === 'Bearer ' + credential && !revoke) {
+        if (request.method === 'POST' && request.url === '/api/relay/poll' && request.headers.authorization === 'Bearer ' + credential && !revoke && body.hls === true) {
           instances.add(body.instanceId)
           return response.end(JSON.stringify({ commands: [] }))
         }
@@ -96,19 +104,26 @@ it.runIf(process.platform === 'win32' && process.env.RELAY_WINDOWS_SMOKE === '1'
       expect(output).toContain(`FrankerzSpam Channel relay v${RELAY_INSTALLER_VERSION}`)
       expect(await readFile(stateFile, 'utf8')).not.toContain(credential)
       const pid = launcher!.pid!
-      const mediaPid = powershell([
+      const childPids = powershell([
         `$control=Get-CimInstance Win32_Process -Filter "ParentProcessId=${pid} AND Name='powershell.exe'"`,
         '$media=Get-CimInstance Win32_Process -Filter ("ParentProcessId="+$control.ProcessId+" AND Name=\'mediamtx-1.20.1.exe\'")',
         "if (-not $media) { throw 'Missing Windows media child.' }",
+        '$helper=Get-CimInstance Win32_Process -Filter ("ParentProcessId="+$control.ProcessId) | Where-Object { $_.Name -like "relay-hls-*.exe" }',
+        'if (-not $helper) { throw "Missing Windows HLS helper." }',
         'Stop-Process -Id $control.ProcessId -Force',
-        '$media.ProcessId',
+        'Write-Output $media.ProcessId; Write-Output $helper.ProcessId',
       ].join('; '))
-      expect(mediaPid).toMatch(/^\d+$/)
-      expect(powershell(`$p=Get-Process -Id ${mediaPid} -ErrorAction SilentlyContinue; if ($p) { $p.WaitForExit(5000) } else { $true }`)).toBe('True')
+      const ids = childPids.split(/\r?\n/)
+      expect(ids).toHaveLength(2)
+      for (const id of ids) {
+        expect(id).toMatch(/^\d+$/)
+        expect(powershell(`$p=Get-Process -Id ${id} -ErrorAction SilentlyContinue; if ($p) { $p.WaitForExit(5000) } else { $true }`)).toBe('True')
+      }
       await vi.waitFor(() => expect(launcher!.exitCode).not.toBeNull(), { timeout: 5000 })
       launch()
       await waitUntil(() => instances.size === 2, 'Relaunch could not read the DPAPI credential.')
       expect(pairCalls).toBe(1)
+      expect(helperDownloads).toBe(1)
       revoke = true
       await vi.waitFor(() => expect(launcher!.exitCode).not.toBeNull(), { timeout: 8000 })
       await expect(readFile(stateFile)).rejects.toMatchObject({ code: 'ENOENT' })

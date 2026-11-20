@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here.
 
+## [2.3.0] - 2026-11-20
+
+### Added
+
+- Windows relay 1.1.0 sends HLS video and audio chunks directly to supported browsers. It fetches each shared chunk once. Viewers can use the existing HLS service if they cannot connect to the PC.
+- Windows relay 1.1.0 shows the number of active direct connections, their individual upload rates, and the total upload rate in Mbps.
+
+### Changed
+
+- Keep Low latency available for an immediate manual retry after a connection failure.
+
 ## [2.2.1] - 2026-11-20
 
 ### Fixed

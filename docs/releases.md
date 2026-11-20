@@ -4,6 +4,12 @@ Use Semantic Versioning for the application. The Streaming contract, OBS
 setup script, and Windows playback relay have independent versions. Set the
 relay version in `RELAY_INSTALLER_VERSION` in `lib/relay-installer.ts`.
 
+The viewer image cross-compiles the Windows x64 HLS helper from
+`scripts/relay-hls`. Each personal launcher includes its SHA-256 digest.
+For a local preview of this download, run `npm run relay:build` with Go
+installed. The Windows relay workflow also tests the native executable and
+the downloadable launcher.
+
 ## Select the version
 
 - Patch: a fix that does not change user-facing behavior.

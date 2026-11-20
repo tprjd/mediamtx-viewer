@@ -6,11 +6,17 @@ on:
       - '.github/workflows/windows-relay.yml'
       - 'scripts/windows/*relay*'
       - 'lib/relay-installer*'
+      - 'scripts/relay-hls/**'
+      - 'scripts/build-relay-hls.mjs'
+      - 'lib/relay-helper.ts'
   pull_request:
     paths:
       - '.github/workflows/windows-relay.yml'
       - 'scripts/windows/*relay*'
       - 'lib/relay-installer*'
+      - 'scripts/relay-hls/**'
+      - 'scripts/build-relay-hls.mjs'
+      - 'lib/relay-helper.ts'
   workflow_dispatch:
 
 permissions:
@@ -27,6 +33,14 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+      - name: Verify the native data channel and build the Windows HLS helper
+        run: |
+          Push-Location scripts/relay-hls
+          go test -mod=readonly ./...
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+          node scripts/build-relay-hls.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check Windows PowerShell and the pinned MediaMTX binary
         run: |
           if ($PSVersionTable.PSVersion.ToString(2) -ne '5.1') { throw 'Windows PowerShell 5.1 required' }

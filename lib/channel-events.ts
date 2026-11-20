@@ -56,6 +56,7 @@ function isPublicChannel(value: unknown): value is PublicChannel {
     (value.preferredPlayback === 'hls' || value.preferredPlayback === 'webrtc') &&
     typeof value.hasCompatibilityFallback === 'boolean' &&
     typeof value.playback.hls === 'string' && typeof value.playback.webrtc === 'string' &&
+    (value.playback.relayHls === undefined || typeof value.playback.relayHls === 'string') &&
     (value.playback.fallbackHls === undefined || typeof value.playback.fallbackHls === 'string') &&
     isChannelStatus(value.status)
 }

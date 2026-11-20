@@ -16,7 +16,7 @@ import {
 
 describe('streaming contract', () => {
   it('projects every approved playback policy', () => {
-    expect(STREAMING_CONTRACT_VERSION).toBe('1.1.0')
+    expect(STREAMING_CONTRACT_VERSION).toBe('1.2.0')
     expect(hlsPlaybackContract('ultra-low')).toEqual({
       targetLatencySeconds: 1.8,
       correctiveLatencyCeilingSeconds: 3,
@@ -39,7 +39,7 @@ describe('streaming contract', () => {
 
   it('projects OBS, MediaMTX, and fallback policy', () => {
     expect(obsTimingProjection()).toEqual({
-      contractVersion: '1.1.0',
+      contractVersion: '1.2.0',
       keyframeIntervalSeconds: 2,
     })
     expect(mediaMtxTimingProjection()).toEqual({
@@ -56,7 +56,7 @@ describe('streaming contract', () => {
     expect(ultraLowFallback('unstable')).toBe('balanced')
     expect(webRtcTransportFallback()).toEqual({
       mode: 'smooth',
-      retryCooldownMs: 60_000,
+      retryCooldownMs: 0,
     })
   })
 

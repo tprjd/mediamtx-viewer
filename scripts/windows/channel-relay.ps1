@@ -23,6 +23,39 @@ function Install-RelayMediaServer($Directory) {
     return $exe
 }
 
+function Install-RelayHlsHelper($Directory, $Bootstrap, $Credential) {
+    $digest = $Bootstrap.helperHash
+    if (-not $digest) { return $null }
+    if ($digest -cnotmatch '^[0-9a-f]{64}$') { throw 'Invalid HLS helper digest.' }
+    $exe = Join-Path $Directory ("relay-hls-" + $digest + ".exe")
+    if ((Test-Path -LiteralPath $exe) -and (Get-FileHash -LiteralPath $exe).Hash -eq $digest) { return $exe }
+    $temp = Join-Path $Directory ([guid]::NewGuid().ToString() + '.download')
+    $client = New-RelayHttpClient $false 90
+    $client.MaxResponseContentBufferSize = 32MB
+    try {
+        $client.DefaultRequestHeaders.Authorization = [Net.Http.Headers.AuthenticationHeaderValue]::new('Bearer', $Credential)
+        $bytes = $client.GetByteArrayAsync(($Bootstrap.origin + '/api/relay/helper?sha256=' + $digest)).GetAwaiter().GetResult()
+        [IO.File]::WriteAllBytes($temp, $bytes)
+        if ((Get-FileHash -LiteralPath $temp).Hash -ne $digest) { throw 'HLS helper checksum failed.' }
+        Move-Item -Force -LiteralPath $temp -Destination $exe
+    } finally {
+        $client.Dispose()
+        if (Test-Path -LiteralPath $temp) { Remove-Item -Force -LiteralPath $temp }
+    }
+    return $exe
+}
+
+function Start-RelayHlsHelper($Exe, $Origin, $Credential, $LocalToken) {
+    $info = [Diagnostics.ProcessStartInfo]::new()
+    $info.FileName = $Exe
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    $info.EnvironmentVariables['FRANKERZ_HLS_ORIGIN'] = $Origin
+    $info.EnvironmentVariables['FRANKERZ_HLS_CREDENTIAL'] = $Credential
+    $info.EnvironmentVariables['FRANKERZ_HLS_LOCAL_TOKEN'] = $LocalToken
+    return [Diagnostics.Process]::Start($info)
+}
+
 function New-RelayHttpClient([bool]$Local, [int]$TimeoutSeconds) {
     $handler = [Net.Http.HttpClientHandler]::new()
     $handler.AllowAutoRedirect = $false
@@ -116,7 +149,18 @@ function Start-RelayMediaServer($Exe, $Directory, $Source, $Credential, $Passwor
     return [Diagnostics.Process]::Start($info)
 }
 
-function Invoke-RelayCommand($Local, $Auth, $Sessions, $Command) {
+function Start-RelayHlsOffer($Local, $Token, $Command) {
+    $session = [guid]::Empty
+    if (-not [guid]::TryParseExact([string]$Command.sessionId, 'D', [ref]$session) -or
+        -not ($Command.body -is [string]) -or $Command.body.Length -gt 65536) { return $null }
+    $uri = 'http://127.0.0.1:29998/peers/' + $session.ToString()
+    $request = [Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Post, [uri]$uri)
+    $request.Headers.Authorization = [Net.Http.Headers.AuthenticationHeaderValue]::new('Bearer', $Token)
+    $request.Content = [Net.Http.StringContent]::new($Command.body, [Text.Encoding]::UTF8, 'application/sdp')
+    return @{ request = $request; task = $Local.SendAsync($request) }
+}
+
+function Invoke-RelayCommand($Local, $Auth, $Sessions, $Command, $HlsToken, $PendingOffer) {
     $reply = @{id = $Command.id; status = 400}
     $session = [string]$Command.sessionId
     $guid = [guid]::Empty
@@ -128,11 +172,33 @@ function Invoke-RelayCommand($Local, $Auth, $Sessions, $Command) {
             $previous.id = $Command.id
             return $previous
         }
+        if ($Command.transport -ceq 'hls') {
+            if (-not $PendingOffer) { $reply.status = 503; return $reply }
+            try {
+                $response = $PendingOffer.task.GetAwaiter().GetResult()
+                try {
+                    $reply.status = [int]$response.StatusCode
+                    if ($reply.status -eq 201) {
+                        $reply.body = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+                        $Sessions[$session] = @{ id = $session; hls = $true; reply = $reply }
+                    }
+                } finally { $response.Dispose() }
+            } finally { $PendingOffer.request.Dispose() }
+            return $reply
+        }
         if (-not ($Command.body -is [string]) -or $Command.body.Length -gt 131072) { return $reply }
         $uri = 'http://127.0.0.1:28889/relay/whep'
         $contentType = 'application/sdp'
     } elseif ($method -ceq 'PATCH' -or $method -ceq 'DELETE') {
         if (-not $Sessions.ContainsKey($session)) { $reply.status = 404; return $reply }
+        if ($Sessions[$session].hls) {
+            if ($method -cne 'DELETE') { return $reply }
+            $result = Invoke-RelayHttp $Local DELETE ('http://127.0.0.1:29998/peers/' + $session) ('Bearer ' + $HlsToken) $null $null
+            if ($result.status -notin 200,204,404) { throw 'Cannot confirm HLS peer disconnection.' }
+            $Sessions.Remove($session)
+            $reply.status = 204
+            return $reply
+        }
         $uri = 'http://127.0.0.1:28889' + $Sessions[$session].location
         $contentType = 'application/trickle-ice-sdpfrag'
         if ($method -ceq 'PATCH' -and (-not ($Command.body -is [string]) -or $Command.body.Length -gt 131072)) { return $reply }
@@ -154,17 +220,83 @@ function Invoke-RelayCommand($Local, $Auth, $Sessions, $Command) {
     return $reply
 }
 
-function Get-RelaySessions($Local, $Auth, $Sessions) {
+function Get-RelaySessions($Local, $Auth, $Sessions, $HlsToken) {
     $state = Invoke-RelayHttp $Local GET 'http://127.0.0.1:29997/v3/webrtcsessions/list?itemsPerPage=1000' $Auth $null $null
     if ($state.status -ne 200) { throw 'Local media status unavailable.' }
     $active = @{}
     foreach ($peer in ($state.body | ConvertFrom-Json).items) {
-        if ($peer.path -ceq 'relay' -and $peer.state -ceq 'read') { $active[$peer.id] = $true }
+        if ($peer.path -ceq 'relay' -and $peer.state -ceq 'read') { $active[$peer.id] = $peer }
+    }
+    if ($HlsToken) {
+        $state = Invoke-RelayHttp $Local GET 'http://127.0.0.1:29998/peers' ('Bearer ' + $HlsToken) $null $null
+        if ($state.status -ne 200) { throw 'Local HLS status unavailable.' }
+        foreach ($peer in ($state.body | ConvertFrom-Json)) {
+            if ($peer -and $Sessions.ContainsKey([string]$peer.id) -and $Sessions[[string]$peer.id].hls) {
+                $active[$peer.id] = @{ peerConnectionEstablished = $peer.established; outboundBytes = $peer.outboundBytes }
+            }
+        }
     }
     foreach ($key in @($Sessions.Keys)) {
-        if (-not $active.ContainsKey($Sessions[$key].id)) { $Sessions.Remove($key) }
+        $session = $Sessions[$key]
+        $peer = $active[$session.id]
+        if (-not $peer) { $Sessions.Remove($key); continue }
+        $session.established = $peer.peerConnectionEstablished -is [bool] -and $peer.peerConnectionEstablished
+        [uint64]$bytes = 0
+        if ($session.established -and [uint64]::TryParse([string]$peer.outboundBytes, [ref]$bytes)) {
+            if ($null -ne $session.bytes -and $bytes -lt $session.bytes) { $session.sampleBytes = $null }
+            $session.bytes = $bytes
+        } else {
+            $session.bytes = $null
+            $session.sampleBytes = $null
+        }
     }
     return @($Sessions.Keys)
+}
+
+function Get-RelayUploadSample($Sessions, $Meter, [double]$Seconds) {
+    $elapsed = $Seconds - $Meter.at
+    $Meter.at = $Seconds
+    $total = 0.0
+    $complete = $true
+    $connections = @(foreach ($session in $Sessions.Values) {
+        if (-not $session.established) { continue }
+        if (-not $session.number) { $Meter.lastNumber++; $session.number = $Meter.lastNumber }
+        $rate = $null
+        if ($elapsed -gt 0 -and $null -ne $session.bytes -and $null -ne $session.sampleBytes) {
+            $rate = ($session.bytes - $session.sampleBytes) * 8.0 / $elapsed / 1000000
+            $total += $rate
+        } else { $complete = $false }
+        $session.sampleBytes = $session.bytes
+        @{ number = $session.number; uploadMbps = $rate }
+    })
+    if (-not $complete) { $total = $null }
+    return @{ viewerCount = $connections.Count; uploadMbps = $total; connections = @($connections | Sort-Object { $_.number }) }
+}
+
+function Format-RelayRate($Rate) {
+    if ($null -eq $Rate) { return 'measuring' }
+    return ('{0:N1} Mbps' -f $Rate)
+}
+
+function Show-RelayUpload($Sample, [int]$Width = $Host.UI.RawUI.BufferSize.Width) {
+    $total = Format-RelayRate $Sample.uploadMbps
+    # Classic Write-Progress indents each status line by four columns and splits words at its edge.
+    $lineWidth = if ($Width -gt 4) { $Width - 4 } else { 76 }
+    $separator = '  |  '
+    $status = ''
+    $line = ''
+    foreach ($peer in $Sample.connections) {
+        $entry = 'Viewer {0}  {1}' -f $peer.number, (Format-RelayRate $peer.uploadMbps)
+        if ($line -and $line.Length + $separator.Length + $entry.Length -gt $lineWidth) {
+            $status += $line.PadRight($lineWidth)
+            $line = ''
+        }
+        if ($line) { $line += $separator }
+        $line += $entry
+    }
+    $status += $line
+    if (-not $status) { $status = 'Waiting for viewers.' }
+    Write-Progress -Activity ("Connected viewers {0}  |  Total relay upload {1}" -f $Sample.viewerCount, $total) -Status $status
 }
 
 function Add-RelayGuard {
@@ -191,11 +323,14 @@ public static class RelayGuard {
     }
     static readonly object gate = new object();
     static Process child;
+    static Process hlsChild;
     static Stopwatch lease;
     static Timer timer;
-    public static void Watch(Process p) {
+    public static void Watch(Process p) { Watch(p, null); }
+    public static void Watch(Process p, Process hls) {
         lock (gate) {
             child = p;
+            hlsChild = hls;
             lease = Stopwatch.StartNew();
             timer = new Timer(delegate { lock (gate) {
                 if (child != null && lease.ElapsedMilliseconds >= 19000) Stop();
@@ -208,7 +343,10 @@ public static class RelayGuard {
     }}
     public static void Stop() { lock (gate) {
         if (timer != null) { timer.Dispose(); timer = null; }
-        if (child != null) { try { if (!child.HasExited) child.Kill(); } finally { child = null; } }
+        try { if (hlsChild != null && !hlsChild.HasExited) hlsChild.Kill(); } finally {
+            hlsChild = null;
+            if (child != null) { try { if (!child.HasExited) child.Kill(); } finally { child = null; } }
+        }
     }}
 }
 '@
@@ -237,27 +375,49 @@ function Start-ChannelRelay($Bootstrap) {
     try {
         $credential = Get-RelayCredential $cloud $Bootstrap $stateFile
         $exe = Install-RelayMediaServer $directory
+        $hlsExe = $null
+        try { $hlsExe = Install-RelayHlsHelper $directory $Bootstrap $credential } catch { Write-Host 'Could not install the verified HLS helper. HLS viewers can still use the site.' }
         $poll = $Bootstrap.origin + '/api/relay/poll'
         Write-Host 'Relay running. Keep this window open. Close it or press Ctrl+C to stop.'
         while ($true) {
             $password = [guid]::NewGuid().ToString('N')
             $localAuth = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes('relay:' + $password))
             $child = Start-RelayMediaServer $exe $directory $Bootstrap.sourceUrl $credential $password
-            [RelayGuard]::Watch($child)
+            $hlsChild = $null
+            $hlsToken = $null
+            if ($hlsExe) {
+                $hlsToken = [guid]::NewGuid().ToString('N')
+                try { $hlsChild = Start-RelayHlsHelper $hlsExe $Bootstrap.origin $credential $hlsToken }
+                catch { $hlsToken = $null; Write-Host 'Could not start the HLS helper.' }
+            }
+            [RelayGuard]::Watch($child, $hlsChild)
             $sessions = @{}
+            $clock = [Diagnostics.Stopwatch]::StartNew()
+            $meter = @{ at = -5.0; lastNumber = 0 }
             $replies = @()
             $instance = [guid]::NewGuid().ToString()
             try {
                 $ready = $false
                 for ($attempt = 0; $attempt -lt 25 -and -not $child.HasExited; $attempt++) {
-                    try { $null = Get-RelaySessions $local $localAuth $sessions; $ready = $true; break }
+                    try {
+                        if ($hlsChild -and $hlsChild.HasExited) { $hlsToken = $null; Write-Host 'The HLS helper stopped. HLS viewers can still use the site.' }
+                        $null = Get-RelaySessions $local $localAuth $sessions $hlsToken
+                        $ready = $true; break
+                    }
                     catch { Start-Sleep -Milliseconds 200 }
                 }
                 if (-not $ready) { throw 'Cannot start the local relay. Check that ports 28189, 28889 and 29997 are available.' }
                 while (-not $child.HasExited) {
-                    try { $active = @(Get-RelaySessions $local $localAuth $sessions) }
+                    if ($hlsChild -and $hlsChild.HasExited) { $hlsToken = $null }
+                    try { $active = @(Get-RelaySessions $local $localAuth $sessions $hlsToken) }
                     catch { break }
-                    $payload = @{ instanceId = $instance; sessions = $active; replies = $replies } | ConvertTo-Json -Compress -Depth 6
+                    $now = $clock.Elapsed.TotalSeconds
+                    if ($now - $meter.at -ge 5) {
+                        Show-RelayUpload (Get-RelayUploadSample $sessions $meter $now)
+                    }
+                    $heartbeat = @{ instanceId = $instance; sessions = $active; replies = $replies }
+                    if ($hlsToken) { $heartbeat.hls = $true }
+                    $payload = $heartbeat | ConvertTo-Json -Compress -Depth 6
                     try { $response = Invoke-RelayHttp $cloud POST $poll ('Bearer ' + $credential) $payload 'application/json' }
                     catch { Start-Sleep -Seconds 1; continue }
                     if ($response.status -in 401,403) {
@@ -271,9 +431,17 @@ function Start-ChannelRelay($Bootstrap) {
                     if ($child.HasExited) { break }
                     $replies = @()
                     try {
+                        $offers = @{}
+                        # Gather ICE for simultaneous HLS joins in parallel, within one lease.
+                        foreach ($command in $message.commands) {
+                            if ($command.transport -ceq 'hls' -and $command.method -ceq 'POST' -and $hlsToken -and
+                                -not $sessions.ContainsKey([string]$command.sessionId)) {
+                                $offers[$command.id] = Start-RelayHlsOffer $local $hlsToken $command
+                            }
+                        }
                         foreach ($command in $message.commands) {
                             if ($child.HasExited) { break }
-                            $replies += Invoke-RelayCommand $local $localAuth $sessions $command
+                            $replies += Invoke-RelayCommand $local $localAuth $sessions $command $hlsToken $offers[$command.id]
                         }
                     } catch {
                         # A lost POST response or failed DELETE can leave a peer. Restart to close it.
@@ -283,8 +451,10 @@ function Start-ChannelRelay($Bootstrap) {
                 }
             } finally {
                 [RelayGuard]::Stop()
+                Write-Progress -Activity 'Channel relay' -Completed
                 [void]$child.WaitForExit(3000)
                 $child.Dispose()
+                if ($hlsChild) { $hlsChild.Dispose() }
             }
             Start-Sleep -Seconds 1
         }

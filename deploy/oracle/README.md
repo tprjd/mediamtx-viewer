@@ -157,9 +157,9 @@ live edge. Viewers can select an experimental hls.js-only Low (best-possible)
 mode, Smooth HLS, or WebRTC. Low (best-possible) starts at a 1.8-second target
 with a three-second latency ceiling and adapts upward when the stream's real
 segment duration is longer (per the streaming contract); repeated failures
-return it to Balanced. A failed WebRTC repair falls back
-to the already-warm Smooth HLS muxer, and the player waits 60 seconds before
-offering another WebRTC attempt. HLS retries transient failures with bounded
+return it to Balanced. A failed WebRTC repair switches playback to Smooth HLS.
+The viewer can select Low latency again immediately on a compatible live stream.
+HLS retries transient failures with bounded
 exponential backoff while the stream remains live; hidden tabs and intentional
 pauses do not create reconnect storms. MediaMTX uses explicit two-second
 segments and 200 ms parts, paired with setup 1.4.0's two-second OBS keyframes.

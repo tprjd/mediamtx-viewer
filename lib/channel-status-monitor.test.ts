@@ -54,6 +54,15 @@ describe('sameChannelLiveState', () => {
       ),
     ).toBe(false)
   })
+
+  it('emits a change when only HLS relay availability changes', () => {
+    const status = update(1, '2026-08-31T10:00:00.000Z')
+    const playback = { hls: '/media/hls/live/index.m3u8', webrtc: '/api/channels/alice/relay/whep' }
+    const before = { ...status, playback }
+    const after = { ...status, playback: { ...playback, relayHls: '/api/channels/alice/relay/hls' } }
+    expect(sameChannelLiveState(before, after)).toBe(false)
+    expect(sameChannelLiveState(after, before)).toBe(false)
+  })
 })
 
 describe('ChannelStatusMonitor', () => {

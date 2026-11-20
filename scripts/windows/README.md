@@ -160,10 +160,10 @@ Check profiles marked `update not confirmed` before publishing; a write error al
 does not show which credential remains in the file.
 
 Eligible live WHIP Channels start in WebRTC unless a viewer saved a Playback
-mode. Automatic HLS fallback is stored separately from that preference. HLS stays
-selected until the viewer chooses another mode, and WebRTC remains unavailable
-for the 60-second retry cooldown. WebRTC receives H.264 and Opus unchanged; the
-server audio converter supplies AAC only for HLS fallback with sound.
+mode. After a WebRTC failure, the player uses Smooth for the current broadcast.
+The viewer can select Low latency again immediately. The next broadcast uses
+the saved preference or the Channel default. WebRTC receives H.264 and Opus
+unchanged. The server audio converter supplies AAC for HLS fallback with sound.
 
 Before pilot completion, test the generated profile in native Windows OBS and
 on an iPhone 13 with current iOS. Confirm actual outgoing H.264/Opus, 1080p60,

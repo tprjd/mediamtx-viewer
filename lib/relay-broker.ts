@@ -14,10 +14,16 @@ const MAX_SESSIONS = 64
 const MAX_COMMANDS = 8
 const MAX_SDP_BYTES = 64 * 1024
 const uuid = z.string().uuid()
-const sdp = z.string().min(1).max(MAX_SDP_BYTES).refine(value =>
-  Buffer.byteLength(value) <= MAX_SDP_BYTES && /^v=0\r?\n/.test(value) && /\nm=(audio|video) /.test(value))
+export type RelayTransport = 'whep' | 'hls'
+function validSdp(value: unknown, transport: RelayTransport): value is string {
+  if (typeof value !== 'string' || Buffer.byteLength(value) > MAX_SDP_BYTES || !/^v=0\r?\n/.test(value)) return false
+  const lines = value.split(/\r?\n/).filter(line => line.startsWith('m='))
+  if (transport === 'hls') return lines.length === 1 && /^m=application \d+ UDP\/DTLS\/SCTP webrtc-datachannel$/.test(lines[0])
+  return lines.some(line => /^m=(audio|video) /.test(line))
+}
 const pollSchema = z.object({
   instanceId: uuid,
+  hls: z.boolean().optional(),
   sessions: z.array(uuid).max(MAX_SESSIONS),
   replies: z.array(z.object({
     id: uuid, status: z.number().int().min(100).max(599),
@@ -30,6 +36,7 @@ export interface RelayCommand {
   method: 'POST' | 'PATCH' | 'DELETE'
   sessionId: string
   body?: string
+  transport?: 'hls'
 }
 
 export interface RelayViewer {
@@ -38,6 +45,7 @@ export interface RelayViewer {
 }
 
 interface ViewerSession extends RelayViewer {
+  transport: RelayTransport
   viewerId: string
   active: boolean
   reported: boolean
@@ -51,6 +59,7 @@ interface Pending {
 }
 
 interface Relay extends RelayRegistration {
+  hls: boolean
   instanceId: string
   lastSeen: number
   checkedAt: number
@@ -83,6 +92,12 @@ function online(mediaPath: string): Relay | undefined {
     return
   }
   return relay
+}
+
+export function getRelayPlaybackState(mediaPath: string): 'online' | 'online-hls' | 'offline' {
+  const relay = online(mediaPath)
+  if (!relay) return 'offline'
+  return relay.hls ? 'online-hls' : 'online'
 }
 
 export function getOnlineRelay(mediaPath: string): boolean {
@@ -139,19 +154,23 @@ function sendCommand(relay: Relay, method: 'POST' | 'PATCH', sessionId: string, 
     const abort = () => finish('', new RelayError(408, 'Relay request cancelled.'))
     const timeout = setTimeout(() => finish('', new RelayError(504, 'Relay did not answer in time.')), COMMAND_TIMEOUT_MS)
     timeout.unref()
-    relay.jobs.set(id, { command: { id, method, sessionId, body }, sent: false, finish })
+    const command: RelayCommand = { id, method, sessionId, body }
+    if (relay.sessions.get(sessionId)?.transport === 'hls') command.transport = 'hls'
+    relay.jobs.set(id, { command, sent: false, finish })
     signal?.addEventListener('abort', abort, { once: true })
   })
 }
 
-export async function createRelaySession(slug: string, viewer: RelayViewer, viewerId: string, offer: string, signal?: AbortSignal) {
-  if (!uuid.safeParse(viewerId).success || !sdp.safeParse(offer).success) throw new RelayError(400, 'Invalid WHEP offer or viewer identity.')
+export async function createRelaySession(slug: string, viewer: RelayViewer, viewerId: string, offer: string, signal?: AbortSignal, transport: RelayTransport = 'whep') {
+  if (!uuid.safeParse(viewerId).success || !validSdp(offer, transport)) throw new RelayError(400, 'Invalid relay offer or viewer identity.')
   const relay = relayForViewer(slug, viewer)
-  if (relay.sessions.size >= MAX_SESSIONS || Array.from(relay.sessions.values()).filter(s => s.userId === viewer.userId).length >= 4) {
+  if (transport === 'hls' && !relay.hls) throw new RelayError(503, 'HLS relay unavailable.')
+  const accountSessions = Array.from(relay.sessions.values()).filter(s => s.userId === viewer.userId && s.transport === transport)
+  if (relay.sessions.size >= MAX_SESSIONS || accountSessions.length >= (transport === 'hls' ? 12 : 4)) {
     throw new RelayError(429, 'Relay session limit reached.')
   }
   const id = randomUUID()
-  const session: ViewerSession = { ...viewer, viewerId, active: false, reported: false, confirmedAt: 0 }
+  const session: ViewerSession = { ...viewer, transport, viewerId, active: false, reported: false, confirmedAt: 0 }
   relay.sessions.set(id, session)
   try {
     const answer = await sendCommand(relay, 'POST', id, offer, signal)
@@ -168,7 +187,7 @@ export async function createRelaySession(slug: string, viewer: RelayViewer, view
 export async function patchRelaySession(slug: string, viewer: RelayViewer, id: string, body: string, signal?: AbortSignal) {
   if (!body || Buffer.byteLength(body) > 16 * 1024) throw new RelayError(400, 'Invalid ICE fragment.')
   const relay = relayForViewer(slug, viewer)
-  ownedSession(relay, id, viewer)
+  if (ownedSession(relay, id, viewer).transport !== 'whep') throw new RelayError(404, 'Session not found.')
   await sendCommand(relay, 'PATCH', id, body, signal)
 }
 
@@ -209,9 +228,10 @@ export function pollRelay(credential: string, payload: unknown): {commands: Rela
       if (current?.expiry === expiry) removeRelay(current)
     }, LEASE_MS)
     expiry.unref()
-    relay = { ...registration, instanceId, lastSeen: now, checkedAt: now, sessions: new Map(), jobs: new Map(), expiry }
+    relay = { ...registration, hls: false, instanceId, lastSeen: now, checkedAt: now, sessions: new Map(), jobs: new Map(), expiry }
     relays.set(relay.mediaPath, relay)
   }
+  relay.hls = parsed.data.hls === true
   relay.lastSeen = now
   relay.expiry.refresh()
   const reported = new Set(sessions)
@@ -226,9 +246,9 @@ export function pollRelay(credential: string, payload: unknown): {commands: Rela
   for (const reply of replies) {
     const job = relay.jobs.get(reply.id)
     if (!job?.sent) continue
-    if (job.command.method === 'POST' && reply.status === 201 && sdp.safeParse(reply.body).success) job.finish(reply.body!)
+    if (job.command.method === 'POST' && reply.status === 201 && validSdp(reply.body, job.command.transport ?? 'whep')) job.finish(reply.body)
     else if (job.command.method === 'PATCH' && reply.status === 204) job.finish('')
-    else job.finish('', new RelayError(502, 'Local WHEP request failed.'))
+    else job.finish('', new RelayError(502, 'Local relay request failed.'))
   }
   const commands: RelayCommand[] = []
   // Reported resources without a current grant are closed on every poll until gone.
