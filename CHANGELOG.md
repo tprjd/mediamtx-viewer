@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here.
 
+## [2.2.0] - 2026-11-20
+
+### Added
+
+- Add a Windows x64 playback relay to the Channel page. The relay takes one feed from the server and sends it to connected viewers. Viewers can use server HLS playback if the relay is unavailable.
+
+### Changed
+
+- Cache successful HLS media access checks in memory for four to five seconds. Refresh times vary between viewers to spread the load on the account database.
+
+### Fixed
+
+- Keep direct viewer counts available when WebRTC session details cannot be read.
+
 ## [2.1.10] - 2026-11-13
 
 ### Fixed
